@@ -56,6 +56,7 @@ import {
   isDuplicate,
   removeReview,
   searchItems,
+  tx,
   updateItem
 } from "./database"
 import { importFromZip } from "./import"
@@ -105,6 +106,7 @@ export default function OptionsPage() {
   const [reviewItemIds, setReviewItemIds] = useState<Set<string>>(new Set())
   const [reviewSrsMap, setReviewSrsMap] = useState<Map<string, SrsData>>(new Map())
   const [reviewTitlePending, setReviewTitlePending] = useState<string | null>(null)
+  const [reviewTitleDraft, setReviewTitleDraft] = useState("")
 
   const ITEMS_PER_PAGE = 20
 
@@ -884,7 +886,28 @@ export default function OptionsPage() {
               onClose={() => setDialogItem(null)}
               onNavigate={handleNavigate}
               onSave={async (updated) => {
-                await updateItem(updated)
+                // Atomically save item update and optionally remove from review
+                await tx({ items: "readwrite", reviews: "readwrite" }, async (stores) => {
+                  stores.items.put({ ...updated, updatedAt: Date.now() })
+                  if (!updated.title) {
+                    const idx = stores.reviews.index("itemId")
+                    return new Promise<void>((resolve, reject) => {
+                      const req = idx.getKey(updated.id)
+                      req.onsuccess = () => {
+                        if (req.result) stores.reviews.delete(req.result as string)
+                        resolve()
+                      }
+                      req.onerror = () => reject(req.error)
+                    })
+                  }
+                })
+                if (!updated.title) {
+                  setReviewItemIds((prev) => {
+                    const next = new Set(prev)
+                    next.delete(updated.id)
+                    return next
+                  })
+                }
                 setDialogItem(null)
                 onSearch()
               }}
@@ -911,35 +934,49 @@ export default function OptionsPage() {
                 <Typography variant="body2" sx={{ mb: 2, color: "text.secondary" }}>
                   请先为卡片设置摘要
                 </Typography>
-              </DialogContent>
-              <DialogActions sx={{ px: 3, pb: 2 }}>
-                <Button size="small" onClick={() => setReviewTitlePending(null)} sx={{ borderRadius: 1 }}>
-                  取消
-                </Button>
-                <Button
+                <TextField
+                  fullWidth
                   size="small"
-                  variant="contained"
-                  sx={{ borderRadius: 1 }}
-                  onClick={async () => {
-                    const card = allItemsUnfiltered.find((i) => i.id === reviewTitlePending)
-                    if (!card) return
-                    await addReview({
-                      id: crypto.randomUUID(),
-                      itemId: card.id,
-                      projectId: card.projectId ?? "",
-                      srs: { dueDate: Date.now(), interval: 0, easeFactor: 2.5, reviewCount: 0, lastReviewDate: 0 },
-                      dueDate: Date.now(),
-                      status: "active",
-                      addedAt: Date.now()
-                    })
-                    setReviewTitlePending(null)
-                    const reviews = await getAllReviews()
-                    setReviewItemIds(new Set(reviews.map((r) => r.itemId)))
-                    setSnackbarMsg("已加入复习")
-                  }}>
-                  加入复习
-                </Button>
-              </DialogActions>
+                  autoFocus
+                  placeholder="输入卡片摘要…"
+                  value={reviewTitleDraft}
+                  onChange={(e) => setReviewTitleDraft(e.target.value)}
+                  sx={{ mb: 2, "& .MuiOutlinedInput-root": { borderRadius: 1 } }}
+                />
+                <Stack direction="row" spacing={1} justifyContent="flex-end">
+                  <Button size="small" onClick={() => setReviewTitlePending(null)} sx={{ borderRadius: 1 }}>
+                    取消
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="contained"
+                    disabled={!reviewTitleDraft.trim()}
+                    sx={{ borderRadius: 1 }}
+                    onClick={async () => {
+                      const card = allItemsUnfiltered.find((i) => i.id === reviewTitlePending)
+                      if (!card || !reviewTitleDraft.trim()) return
+                      // Update card title
+                      await updateItem({ ...card, title: reviewTitleDraft.trim() })
+                      // Add to review
+                      await addReview({
+                        id: crypto.randomUUID(),
+                        itemId: card.id,
+                        projectId: card.projectId ?? "",
+                        srs: { dueDate: Date.now(), interval: 0, easeFactor: 2.5, reviewCount: 0, lastReviewDate: 0 },
+                        dueDate: Date.now(),
+                        status: "active",
+                        addedAt: Date.now()
+                      })
+                      setReviewTitlePending(null)
+                      setReviewTitleDraft("")
+                      const reviews = await getAllReviews()
+                      setReviewItemIds(new Set(reviews.map((r) => r.itemId)))
+                      setSnackbarMsg("已加入复习")
+                    }}>
+                    加入复习
+                  </Button>
+                </Stack>
+              </DialogContent>
             </Dialog>
 
             <DeleteConfirmDialog

@@ -129,6 +129,48 @@ async function withStore<T>(
   }
 }
 
+/**
+ * Declarative multi-store IndexedDB transaction.
+ * All operations in `fn` execute within a single atomic transaction.
+ * On success, broadcasts _dbi/_dbp once. On error, the entire transaction rolls back.
+ *
+ * Usage:
+ *   await tx({ items: "readwrite", reviews: "readwrite" }, async (s) => {
+ *     s.items.delete(id)
+ *     s.reviews.delete(reviewKey)
+ *   })
+ */
+export async function tx<T>(
+  storeMap: Partial<Record<TableNames, IDBTransactionMode>>,
+  fn: (stores: Record<string, IDBObjectStore>) => Promise<T>
+): Promise<T> {
+  const names = Object.keys(storeMap) as TableNames[]
+  const mode = names.some((n) => storeMap[n] === "readwrite") ? "readwrite" : "readonly"
+  let db: IDBDatabase | null = null
+  try {
+    db = await openDb()
+    const idbTx = db.transaction(names, mode)
+    const stores: Record<string, IDBObjectStore> = {}
+    for (const name of names) {
+      stores[name] = idbTx.objectStore(name)
+    }
+    const result = await fn(stores)
+    await new Promise<void>((resolve, reject) => {
+      idbTx.oncomplete = () => {
+        if (mode === "readwrite") {
+          for (const name of names) broadcastDbChange(name)
+        }
+        resolve()
+      }
+      idbTx.onerror = () => reject(idbTx.error)
+      idbTx.onabort = () => reject(idbTx.error)
+    })
+    return result
+  } finally {
+    db?.close()
+  }
+}
+
 export async function isDuplicate(
   hash: string,
   projectId?: string,
@@ -228,38 +270,34 @@ export async function searchItems(q: SearchQuery): Promise<Item[]> {
 }
 
 export async function deleteItem(id: string): Promise<void> {
-  // Cascade: also remove associated review entry
-  await withStore("reviews", "readwrite", async (store) => {
-    const idx = store.index("itemId")
-    const req = idx.getKey(id)
+  // Cascade: remove associated review entry and item in one atomic transaction
+  await tx({ reviews: "readwrite", items: "readwrite" }, async (stores) => {
+    const idx = stores.reviews.index("itemId")
     return new Promise<void>((resolve, reject) => {
+      const req = idx.getKey(id)
       req.onsuccess = () => {
-        if (req.result) store.delete(req.result as string)
+        if (req.result) stores.reviews.delete(req.result as string)
+        stores.items.delete(id)
         resolve()
       }
       req.onerror = () => reject(req.error)
     })
   })
-  await withStore("items", "readwrite", (store) => {
-    store.delete(id)
-  })
 }
 
 export async function deleteItems(ids: string[]): Promise<void> {
   if (ids.length === 0) return
-  // Cascade: remove associated review entries
-  await withStore("reviews", "readwrite", (store) => {
-    const idx = store.index("itemId")
+  // Cascade: remove associated review entries and items in one atomic transaction
+  await tx({ reviews: "readwrite", items: "readwrite" }, async (stores) => {
+    const idx = stores.reviews.index("itemId")
     for (const id of ids) {
       const req = idx.getKey(id)
       req.onsuccess = () => {
-        if (req.result) store.delete(req.result as string)
+        if (req.result) stores.reviews.delete(req.result as string)
       }
     }
-  })
-  await withStore("items", "readwrite", (store) => {
     for (const id of ids) {
-      store.delete(id)
+      stores.items.delete(id)
     }
   })
 }

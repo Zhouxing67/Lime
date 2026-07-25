@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { getDueReviews, getReviewStatsByStore, searchItems as dbSearch } from "../database"
 import type { Item } from "../types"
@@ -47,6 +47,9 @@ export function useReview(options: {
     setReviewProgress,
     setReviewItems
   } = options
+
+  // Guards against concurrent async start/exit
+  const reviewStartingRef = useRef(false)
 
   const [dueCount, setDueCount] = useState(0)
   const [reviewStats, setReviewStats] = useState<ReviewStats>({
@@ -98,12 +101,18 @@ export function useReview(options: {
   }, [reviewDateFilter, recentItems])
 
   const handleStartReview = useCallback(async () => {
-    setPreviewCount(0)
-    setPreviewItems([])
-    const due = await getDueReviews()
-    const items = pairWithItems(due, allItemsUnfiltered)
-    setReviewItems(items)
-    setSidebarTab("review")
+    if (reviewStartingRef.current) return
+    reviewStartingRef.current = true
+    try {
+      setPreviewCount(0)
+      setPreviewItems([])
+      const due = await getDueReviews()
+      const items = pairWithItems(due, allItemsUnfiltered)
+      setReviewItems(items)
+      setSidebarTab("review")
+    } finally {
+      reviewStartingRef.current = false
+    }
   }, [allItemsUnfiltered, setSidebarTab, setPreviewCount, setPreviewItems, setReviewItems])
 
   useEffect(() => {
