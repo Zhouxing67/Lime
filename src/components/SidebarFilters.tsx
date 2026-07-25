@@ -1,5 +1,5 @@
 import { alpha } from "@mui/material/styles"
-import { useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 
 import BackupRoundedIcon from "@mui/icons-material/BackupRounded"
 import CloudDownloadRoundedIcon from "@mui/icons-material/CloudDownloadRounded"
@@ -106,6 +106,12 @@ export default function SidebarFilters({
   onUploadSync,
   onDownloadSync
 }: SidebarFiltersProps) {
+  const dragRef = useRef<() => void>(null)
+
+  useEffect(() => {
+    return () => dragRef.current?.()
+  }, [])
+
   return (
     <>
     <style>{`@keyframes sidebarFadeIn { from { opacity: 0; } to { opacity: 1; } }`}</style>
@@ -153,6 +159,11 @@ export default function SidebarFilters({
           }
           document.addEventListener("mousemove", onMove)
           document.addEventListener("mouseup", onUp)
+          // Store in ref so useEffect cleanup can remove them on unmount
+          dragRef.current = () => {
+            document.removeEventListener("mousemove", onMove)
+            document.removeEventListener("mouseup", onUp)
+          }
         }}
       />
       <Stack spacing={1.5} sx={{ p: 2, pt: 2.5 }}>

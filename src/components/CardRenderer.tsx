@@ -15,7 +15,7 @@ import { prettyUrl, truncateText } from "../utils"
 
 interface CardRendererProps {
   item: Item
-  mode: "front" | "back" | "full" | "preview" | "export"
+  mode: "front" | "back" | "full" | "preview"
   truncateTo?: number
   contentAlign?: "top" | "center"
 }
@@ -79,126 +79,102 @@ function ContentBlock({ item }: { item: Item }) {
   )
 }
 
-function NoteBlock({ note }: { note?: string }) {
-  return note ? (
-    <Typography
-      sx={{
-        whiteSpace: "pre-wrap", lineHeight: 1.8, color: "text.primary",
-        bgcolor: "action.hover", borderRadius: 1, px: 2, py: 1.5
-      }}>
-      {note}
-    </Typography>
-  ) : (
-    <Typography sx={{ color: "text.disabled", fontStyle: "italic", bgcolor: "action.hover", borderRadius: 1, px: 2, py: 1.5 }}>
-      暂无笔记
-    </Typography>
-  )
+/** Dynamic preview line count based on content source lines */
+function previewMaxLines(content: string): number {
+  const lines = content.split("\n").length
+  if (lines <= 5) return 2
+  if (lines <= 10) return 3
+  if (lines <= 20) return 4
+  return 5
 }
 
 export default function CardRenderer({ item, mode, truncateTo, contentAlign }: CardRendererProps) {
   if (mode === "preview") {
     return (
       <Box sx={{ mb: 2 }}>
-        {item.type === "text" && (
-          <Box sx={{ position: "relative" }}>
-            <Box
+        {item.title ? (
+          <Box>
+            <Typography
               sx={{
-                position: "absolute",
-                top: -6,
-                left: -6,
-                fontSize: "2rem",
-                color: "text.disabled",
-                opacity: 0.3,
-                fontFamily: "Georgia, serif"
+                fontSize: "1rem",
+                lineHeight: 1.7,
+                fontWeight: 500,
+                wordBreak: "break-word",
+                color: "text.primary",
+                mb: 0.5
               }}>
-              "
-            </Box>
-            <Box sx={{ pl: 2, pr: 1 }}>
-              <MarkdownRenderer content={item.content} maxLines={6} />
-            </Box>
-          </Box>
-        )}
-        {item.type === "image" && (
-          <Box sx={{ display: "flex", justifyContent: "center", py: 1 }}>
-            <img
-              src={item.content}
-              alt={item.source?.title || (item.source ? prettyUrl(item.source.url) : "")}
-              draggable={false}
-              style={{
-                maxWidth: "100%",
-                maxHeight: 200,
-                borderRadius: "10px"
-              }}
-            />
-          </Box>
-        )}
-        {item.type === "link" && (
-          <Stack spacing={0.5}>
-            <Typography variant="body2" sx={{ fontSize: "0.9rem" }}>
-              <Box
-                component="a"
-                href={item.content}
-                target="_blank"
-                rel="noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                sx={{
-                  color: "primary.main",
-                  textDecoration: "none",
-                  "&:hover": { textDecoration: "underline" }
-                }}>
-                {prettyUrl(item.content)}
-              </Box>
+              {truncateTo ? truncateText(item.title, truncateTo) : item.title}
             </Typography>
-          </Stack>
-        )}
-      </Box>
-    )
-  }
-
-  if (mode === "export") {
-    const maxLength = 280
-    return (
-      <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
-        {item.type === "text" ? (
-          <Typography
-            sx={{
-              fontSize: "32px",
-              lineHeight: 2,
-              color: "text.primary",
-              letterSpacing: "0.05em",
-              textAlign: "justify", textJustify: "inter-word",
-              WebkitHyphens: "auto", hyphens: "auto",
-              wordBreak: "break-word",
-              whiteSpace: "pre-wrap",
-              fontFamily: '"Times New Roman", "LXGW WenKai", "Noto Serif SC", "Songti SC", serif'
-            }}>
-            {truncateTo ? truncateText(item.content, truncateTo) : truncateText(item.content, maxLength)}
-          </Typography>
-        ) : item.type === "image" ? (
-          <Box sx={{ width: "100%", display: "flex", justifyContent: "center", alignItems: "center" }}>
-            <img
-              src={item.content}
-              alt="content"
-              style={{
-                maxWidth: "100%",
-                maxHeight: "400px",
-                borderRadius: "12px",
-                boxShadow: "0 8px 32px rgba(0,0,0,0.15)"
-              }}
-            />
+            <Box sx={{ maxHeight: `${previewMaxLines(item.content) * 1.8}rem`, overflow: "hidden", position: "relative" }}>
+              {item.type === "text" ? (
+                <MarkdownRenderer content={item.content} maxLines={previewMaxLines(item.content)} />
+              ) : item.type === "link" ? (
+                <Typography variant="caption" sx={{ color: "text.disabled", fontSize: "0.7rem", fontStyle: "italic" }}>
+                  {prettyUrl(item.content)}
+                </Typography>
+              ) : (
+                <Typography variant="caption" sx={{ color: "text.disabled", fontSize: "0.7rem", fontStyle: "italic" }}>
+                  点击查看图片
+                </Typography>
+              )}
+              <Box sx={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 20, background: "linear-gradient(transparent, background.paper)" }} />
+            </Box>
           </Box>
         ) : (
-          <Typography
-            sx={{
-              fontSize: "28px",
-              lineHeight: 1.8,
-              color: "text.primary",
-              letterSpacing: "0.05em",
-              textAlign: "justify", textJustify: "inter-word",
-              fontFamily: '"Times New Roman", "LXGW WenKai", "Noto Serif SC", "Songti SC", serif'
-            }}>
-            {truncateText(item.content, maxLength)}
-          </Typography>
+          <>
+            {item.type === "text" && (
+              <Box sx={{ position: "relative" }}>
+                <Box
+                  sx={{
+                    position: "absolute",
+                    top: -6,
+                    left: -6,
+                    fontSize: "2rem",
+                    color: "text.disabled",
+                    opacity: 0.3,
+                    fontFamily: "Georgia, serif"
+                  }}>
+                  "
+                </Box>
+                <Box sx={{ pl: 2, pr: 1 }}>
+                  <MarkdownRenderer content={item.content} maxLines={previewMaxLines(item.content)} />
+                </Box>
+              </Box>
+            )}
+            {item.type === "image" && (
+              <Box sx={{ display: "flex", justifyContent: "center", py: 1 }}>
+                <img
+                  src={item.content}
+                  alt={item.source?.title || (item.source ? prettyUrl(item.source.url) : "")}
+                  draggable={false}
+                  style={{
+                    maxWidth: "100%",
+                    maxHeight: 200,
+                    borderRadius: "10px"
+                  }}
+                />
+              </Box>
+            )}
+            {item.type === "link" && (
+              <Stack spacing={0.5}>
+                <Typography variant="body2" sx={{ fontSize: "0.9rem" }}>
+                  <Box
+                    component="a"
+                    href={item.content}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    sx={{
+                      color: "primary.main",
+                      textDecoration: "none",
+                      "&:hover": { textDecoration: "underline" }
+                    }}>
+                    {prettyUrl(item.content)}
+                  </Box>
+                </Typography>
+              </Stack>
+            )}
+          </>
         )}
       </Box>
     )
@@ -220,7 +196,22 @@ export default function CardRenderer({ item, mode, truncateTo, contentAlign }: C
           "&::-webkit-scrollbar-track": { bgcolor: "transparent" }
         }}>
           <Box sx={(contentAlign ?? "center") === "center" ? { marginTop: "auto", marginBottom: "auto" } : undefined}>
-            <ContentBlock item={item} />
+            {item.title ? (
+              <Typography
+                sx={{
+                  fontSize: "1.15rem",
+                  lineHeight: 1.8,
+                  fontWeight: 500,
+                  wordBreak: "break-word",
+                  textAlign: "center",
+                  color: "text.primary",
+                  px: 2
+                }}>
+                {item.title}
+              </Typography>
+            ) : (
+              <ContentBlock item={item} />
+            )}
           </Box>
         </Box>
         {item.source?.url && (
@@ -241,10 +232,18 @@ export default function CardRenderer({ item, mode, truncateTo, contentAlign }: C
   if (mode === "back") {
     return (
       <>
-        <Typography variant="subtitle2" sx={{ color: "text.disabled", mb: 1.5, fontSize: "0.75rem", letterSpacing: "0.04em" }}>
-          笔记
+        <Typography variant="subtitle2" sx={{ color: "text.disabled", mb: 1, fontSize: "0.75rem", letterSpacing: "0.04em" }}>
+          原文
         </Typography>
-        <NoteBlock note={item.note} />
+        <Box sx={{ mb: 2.5 }}>
+          {item.type === "text" ? (
+            <Box sx={{ pl: 2, borderLeft: "4px solid", borderLeftColor: "primary.main" }}>
+              <MarkdownRenderer content={item.content} />
+            </Box>
+          ) : (
+            <ContentBlock item={item} />
+          )}
+        </Box>
         {item.source?.url && (
           <Typography
             variant="body2" component="a" href={item.source.url} target="_blank"
@@ -265,6 +264,22 @@ export default function CardRenderer({ item, mode, truncateTo, contentAlign }: C
   // mode === "full"
   return (
     <>
+      {item.title && (
+        <Typography
+          sx={{
+            fontSize: "1.25rem",
+            lineHeight: 1.6,
+            fontWeight: 600,
+            wordBreak: "break-word",
+            color: "text.primary",
+            mb: 3,
+            pb: 2,
+            borderBottom: "1px solid",
+            borderColor: "divider"
+          }}>
+          {item.title}
+        </Typography>
+      )}
       {item.type === "text" ? (
         <Box sx={{ pl: 2, borderLeft: "4px solid", borderLeftColor: "primary.main" }}>
           <MarkdownRenderer content={item.content} />
@@ -295,12 +310,7 @@ export default function CardRenderer({ item, mode, truncateTo, contentAlign }: C
           </Box>
         </Box>
       )}
-      <Box sx={{ mt: 4, pt: 3, borderTop: "1px solid", borderColor: "divider" }}>
-        <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.75rem", letterSpacing: "0.05em", mb: 1.5, display: "block" }}>
-          备注
-        </Typography>
-        <NoteBlock note={item.note} />
-      </Box>
+
       {item.source?.url && (
         <>
           <Box sx={{ mx: -5, borderTop: "1px solid", borderColor: "divider", mb: 1 }} />

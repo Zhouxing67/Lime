@@ -1,5 +1,5 @@
 import DateRangeRoundedIcon from "@mui/icons-material/DateRangeRounded"
-import { Box, Button, IconButton, Popover, Stack, TextField, Tooltip, Typography } from "@mui/material"
+import { Box, Button, Chip, IconButton, Popover, Stack, TextField, Tooltip, Typography } from "@mui/material"
 import { useCallback, useMemo, useRef, useState } from "react"
 
 interface DateRangeFilterProps {
@@ -17,6 +17,12 @@ function fromDateInput(s: string): number {
 }
 
 const ONE_YEAR_MS = 365 * 86400000
+
+const PRESETS: { label: string; days: number }[] = [
+  { label: "今日", days: 0 },
+  { label: "三日内", days: 3 },
+  { label: "一周内", days: 7 }
+]
 
 export default function DateRangeFilter({ value, onChange }: DateRangeFilterProps) {
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
@@ -64,6 +70,18 @@ export default function DateRangeFilter({ value, onChange }: DateRangeFilterProp
     handleClose()
   }
 
+  const handlePreset = useCallback((days: number) => {
+    const now = Date.now()
+    if (days === 0) {
+      // Today: start of today → now
+      const startOfDay = fromDateInput(toDateInput(now))
+      onChange({ from: startOfDay, to: now })
+    } else {
+      onChange({ from: now - days * 86400000, to: now })
+    }
+    handleClose()
+  }, [onChange])
+
   return (
     <>
       <Tooltip title={value ? "清除日期筛选" : "日期筛选"}>
@@ -89,6 +107,17 @@ export default function DateRangeFilter({ value, onChange }: DateRangeFilterProp
           <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary" }}>
             日期筛选
           </Typography>
+          <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+            {PRESETS.map((p) => (
+              <Chip
+                key={p.label}
+                label={p.label}
+                size="small"
+                onClick={() => handlePreset(p.days)}
+                sx={{ borderRadius: 1, fontSize: "0.75rem" }}
+              />
+            ))}
+          </Stack>
           <TextField
             label="开始日期"
             type="date"

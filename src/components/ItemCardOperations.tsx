@@ -3,17 +3,20 @@ import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded"
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
 import DriveFileMoveOutlinedIcon from "@mui/icons-material/DriveFileMoveOutlined"
 import FileCopyOutlinedIcon from "@mui/icons-material/FileCopyOutlined"
+import PlaylistAddCheckRoundedIcon from "@mui/icons-material/PlaylistAddCheckRounded"
+import PlaylistRemoveRoundedIcon from "@mui/icons-material/PlaylistRemoveRounded"
 import { IconButton, Stack, Tooltip } from "@mui/material"
 import { useState } from "react"
 
 import type { Item } from "../types"
 import { prettyUrl } from "../utils"
-import ExportButton from "./ExportButton"
 
 interface ItemCardOperationsProps {
   item: Item
+  inReview?: boolean
   readOnly?: boolean
   onDelete: (id: string) => void
+  onToggleReview?: (id: string) => void
   onMoveToProject?: (id: string) => void
   onCopyToProject?: (id: string) => void
   onToggleRead?: (id: string) => void
@@ -21,8 +24,10 @@ interface ItemCardOperationsProps {
 
 export default function ItemCardOperations({
   item,
+  inReview,
   readOnly,
   onDelete,
+  onToggleReview,
   onMoveToProject,
   onCopyToProject,
   onToggleRead
@@ -56,7 +61,6 @@ export default function ItemCardOperations({
           <ContentCopyRoundedIcon sx={{ fontSize: 16 }} />
         </IconButton>
       </Tooltip>
-      <ExportButton item={item} />
       {!readOnly && (
         <>
           {onMoveToProject && (
@@ -97,6 +101,26 @@ export default function ItemCardOperations({
               <DeleteOutlineRoundedIcon sx={{ fontSize: 16 }} />
             </IconButton>
           </Tooltip>
+          {onToggleReview && (
+            <Tooltip title={inReview ? "移出复习" : "加入复习"}>
+              <IconButton
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onToggleReview(item.id)
+                }}
+                sx={{
+                  p: 0.75,
+                  color: inReview ? "success.main" : "text.disabled"
+                }}>
+                {inReview ? (
+                  <PlaylistRemoveRoundedIcon sx={{ fontSize: 16 }} />
+                ) : (
+                  <PlaylistAddCheckRoundedIcon sx={{ fontSize: 16 }} />
+                )}
+              </IconButton>
+            </Tooltip>
+          )}
           {item.type === "link" && onToggleRead && (
             <Tooltip title={item.read ? "标记未读" : "标记已读"}>
               <IconButton

@@ -1,16 +1,18 @@
 import ChevronLeftRoundedIcon from "@mui/icons-material/ChevronLeftRounded"
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded"
 import { Box, Button, IconButton, Stack, Tooltip, Typography } from "@mui/material"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
-import { rateCard } from "../hooks/useSrs"
-import type { Item } from "../types"
+import { updateReviewSrs } from "../database"
+import { rateSrs } from "../hooks/useSrs"
+import type { Item, SrsData } from "../types"
 import CardRenderer from "./CardRenderer"
 import { prettyUrl } from "../utils"
 
 interface ReviewSessionProps {
   items: Item[]
   masteredCount: number
+  reviewSrsMap: Map<string, SrsData>
   onSave: (item: Item) => Promise<void>
   onExit: () => void
   onProgress?: (current: number, total: number) => void
@@ -22,6 +24,7 @@ const COLORS = ["#ef4444", "#f97316", "#22c55e", "#3b82f6"]
 export default function ReviewSession({
   items,
   masteredCount,
+  reviewSrsMap,
   onSave,
   onExit,
   onProgress
@@ -66,7 +69,12 @@ export default function ReviewSession({
       if (!current || transitioning) return
       setSlideDir(1)
       setTransitioning(true)
-      const updated = rateCard(current, rating)
+      const currentSrs = reviewSrsMap.get(current.id)
+      const newSrs = currentSrs ? rateSrs(currentSrs, rating) : rateSrs(
+        { dueDate: Date.now(), interval: 0, easeFactor: 2.5, reviewCount: 0, lastReviewDate: 0 },
+        rating
+      )
+      await updateReviewSrs(current.id, newSrs)
       setStatsRatings((prev) => {
         if (prev.has(current.id)) return prev
         const next = new Map(prev)
@@ -74,14 +82,14 @@ export default function ReviewSession({
         return next
       })
 
-      await onSave(updated)
+      await onSave(current)
 
       // Anki-like: rating < 3 re-queues the card regardless of position
       if (rating < 3) {
         setTimeout(() => {
           setReviewQueue((prev) => {
             const without = prev.filter((_, i) => i !== index)
-            return [...without, updated]
+            return [...without, current]
           })
           setFlipped(false)
           setTransitioning(false)
@@ -100,7 +108,7 @@ export default function ReviewSession({
         }, 350)
       }
     },
-    [current, transitioning, index, reviewQueue.length, onSave]
+    [current, transitioning, index, reviewQueue.length, reviewSrsMap, onSave]
   )
 
   const handlePrev = useCallback(() => {

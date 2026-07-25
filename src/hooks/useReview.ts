@@ -1,8 +1,19 @@
-import { useCallback, useEffect, useMemo } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
-import { searchItems as dbSearch } from "../database"
+import { getDueReviews, getReviewStatsByStore, searchItems as dbSearch } from "../database"
 import type { Item } from "../types"
-import { getDueItems, getRecentItems, getReviewStats } from "./useSrs"
+import { getRecentItems as getRecentItemsBySrs } from "./useSrs"
+import type { ReviewStats } from "./useSrs"
+
+function pairWithItems(
+  reviews: Awaited<ReturnType<typeof getDueReviews>>,
+  items: Item[]
+): Item[] {
+  const itemMap = new Map(items.map((i) => [i.id, i]))
+  return reviews
+    .map((r) => itemMap.get(r.itemId))
+    .filter((i): i is Item => i !== undefined)
+}
 
 export function useReview(options: {
   allItemsUnfiltered: Item[]
@@ -37,9 +48,33 @@ export function useReview(options: {
     setReviewItems
   } = options
 
-  const dueCount = useMemo(() => getDueItems(allItemsUnfiltered).length, [allItemsUnfiltered])
-  const reviewStats = useMemo(() => getReviewStats(allItemsUnfiltered), [allItemsUnfiltered])
-  const recentItems = useMemo(() => getRecentItems(allItemsUnfiltered, 3), [allItemsUnfiltered])
+  const [dueCount, setDueCount] = useState(0)
+  const [reviewStats, setReviewStats] = useState<ReviewStats>({
+    totalReviews: 0,
+    masteredCount: 0,
+    dueCount: 0,
+    streakDays: 0,
+    dailyActivity: [],
+    accuracyRate: 0,
+    todayRatingDistribution: [0, 0, 0, 0]
+  })
+  const [recentItems, setRecentItems] = useState<{ date: string; items: Item[] }[]>([])
+
+  useEffect(() => {
+    getReviewStatsByStore().then((s) => {
+      setDueCount(s.dueCount)
+      setReviewStats({
+        totalReviews: 0,
+        masteredCount: s.masteredCount,
+        dueCount: s.dueCount,
+        streakDays: 0,
+        dailyActivity: [],
+        accuracyRate: 0,
+        todayRatingDistribution: [0, 0, 0, 0]
+      })
+    })
+    getRecentItemsBySrs().then(setRecentItems)
+  }, [allItemsUnfiltered])
 
   const recentDates = useMemo(() => {
     const DAY_MS = 86400000
@@ -65,8 +100,9 @@ export function useReview(options: {
   const handleStartReview = useCallback(async () => {
     setPreviewCount(0)
     setPreviewItems([])
-    const due = getDueItems(allItemsUnfiltered)
-    setReviewItems(due)
+    const due = await getDueReviews()
+    const items = pairWithItems(due, allItemsUnfiltered)
+    setReviewItems(items)
     setSidebarTab("review")
   }, [allItemsUnfiltered, setSidebarTab, setPreviewCount, setPreviewItems, setReviewItems])
 
@@ -93,11 +129,11 @@ export function useReview(options: {
       setPreviewCount(count)
       setReviewDateFilter(null)
       setSidebarTab("review")
-      const all = await searchItems({})
-      const due = getDueItems(all)
-      setPreviewItems(due.slice(0, count))
+      const due = await getDueReviews()
+      const items = pairWithItems(due, allItemsUnfiltered)
+      setPreviewItems(items.slice(0, count))
     },
-    [previewCount, searchItems, setSidebarTab, setPreviewCount, setPreviewItems, setReviewDateFilter]
+    [previewCount, allItemsUnfiltered, setSidebarTab, setPreviewCount, setPreviewItems, setReviewDateFilter]
   )
 
   const handleReviewDateClick = useCallback((dateKey: string | null) => {

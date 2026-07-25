@@ -190,13 +190,12 @@ describe('database', () => {
       const item = createTestItem({ content: 'Original content' })
       await addItem(item)
 
-      const updatedItem = { ...item, content: 'Updated content', note: 'Added note' }
+      const updatedItem = { ...item, content: 'Updated content' }
       await updateItem(updatedItem)
 
       const items = await searchItems({})
       expect(items).toHaveLength(1)
       expect(items[0].content).toBe('Updated content')
-      expect(items[0].note).toBe('Added note')
     })
   })
 

@@ -19,7 +19,6 @@ import type { Item } from "../types"
 import { prettyUrl } from "../utils"
 import CardRenderer from "./CardRenderer"
 import DialogEditMode from "./DialogEditMode"
-import ExportButton from "./ExportButton"
 
 export default function ItemDialog({
   item,
@@ -43,13 +42,13 @@ export default function ItemDialog({
   if (!item) return null
 
   const [editing, setEditing] = useState(false)
+  const [draftTitle, setDraftTitle] = useState(item.title ?? "")
   const [draftContent, setDraftContent] = useState(item.content)
-  const [draftNote, setDraftNote] = useState(item.note ?? "")
 
   useEffect(() => {
     setEditing(false)
+    setDraftTitle(item.title ?? "")
     setDraftContent(item.content)
-    setDraftNote(item.note ?? "")
   }, [item.id])
 
   const [animDir, setAnimDir] = useState<"prev" | "next" | null>(null)
@@ -57,16 +56,16 @@ export default function ItemDialog({
   const handleSave = async () => {
     const updated: Item = {
       ...item,
-      content: draftContent,
-      note: draftNote.trim() ? draftNote.trim() : undefined
+      title: draftTitle.trim() || undefined,
+      content: draftContent
     }
     if (onSave) await onSave(updated)
     setEditing(false)
   }
 
   const handleCancel = () => {
+    setDraftTitle(item.title ?? "")
     setDraftContent(item.content)
-    setDraftNote(item.note ?? "")
     setEditing(false)
   }
 
@@ -179,15 +178,15 @@ export default function ItemDialog({
               </IconButton>
             </Tooltip>
           ))}
-          <ExportButton item={item} />
           <Tooltip title="复制引用">
             <IconButton
               size="small"
               onClick={() => {
+                const header = item.title ? `${item.title}\n\n` : ""
                 const src = item.source?.url
                   ? `\n\n— ${item.source.title || prettyUrl(item.source.url)}`
                   : ""
-                navigator.clipboard.writeText(`> ${item.content}${src}`)
+                navigator.clipboard.writeText(`${header}> ${item.content}${src}`)
               }}>
               <ContentCopyRoundedIcon fontSize="small" />
             </IconButton>
@@ -229,14 +228,14 @@ export default function ItemDialog({
         <Box key={item.id} sx={{ flex: 1, display: "flex", flexDirection: "column", animation: animDir ? "none" : "dialogSlideIn 0.25s ease-out" }}>
           {editing ? (
             <DialogEditMode
+              draftTitle={draftTitle}
               draftContent={draftContent}
-              draftNote={draftNote}
+              onTitleChange={setDraftTitle}
               onContentChange={setDraftContent}
-              onNoteChange={setDraftNote}
             />
           ) : (
             <Box
-              onClick={(e) => {
+              onDoubleClick={(e) => {
                 if (readOnly) return
                 if ((e.target as HTMLElement).closest("a")) return
                 setEditing(true)
@@ -248,8 +247,7 @@ export default function ItemDialog({
                 width: "100%",
                 display: "flex",
                 flexDirection: "column",
-                justifyContent: "center",
-                cursor: readOnly ? undefined : "pointer"
+                justifyContent: "center"
               }}>
               <CardRenderer item={item} mode="full" />
             </Box>

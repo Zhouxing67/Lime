@@ -11,33 +11,40 @@ export function useNewCard({
   onSearch: (projectId?: string | null) => void
 }) {
   const [newCardOpen, setNewCardOpen] = useState(false)
+  const [newCardTitle, setNewCardTitle] = useState("")
   const [newCardContent, setNewCardContent] = useState("")
 
   const handleNewCard = useCallback(() => {
     if (!activeProjectId) return
+    setNewCardTitle("")
     setNewCardContent("")
     setNewCardOpen(true)
   }, [activeProjectId])
 
   const handleSaveNewCard = useCallback(async () => {
+    const title = newCardTitle.trim()
     const content = newCardContent.trim()
-    if (!content || !activeProjectId) return
+    if (!title || !activeProjectId) return
     const item: Item = {
       id: crypto.randomUUID(),
       type: "text",
+      title,
       content,
       createdAt: Date.now(),
       projectId: activeProjectId
     }
     await addItem(item)
     setNewCardOpen(false)
+    setNewCardTitle("")
     setNewCardContent("")
     onSearch(activeProjectId)
-  }, [newCardContent, activeProjectId, onSearch])
+  }, [newCardTitle, newCardContent, activeProjectId, onSearch])
 
   return {
     newCardOpen,
+    newCardTitle,
     newCardContent,
+    setNewCardTitle,
     setNewCardContent,
     setNewCardOpen,
     handleNewCard,

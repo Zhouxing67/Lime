@@ -18,6 +18,8 @@ export interface SrsData {
 export interface Item {
   id: string
   type: ItemType
+  /** User's title/summary — the card's core identifier */
+  title?: string
   content: string
   context?: {
     paragraph?: string
@@ -25,7 +27,6 @@ export interface Item {
   source?: SourceMeta
   createdAt: number
   projectId?: string
-  note?: string
   /** Mark as read/unread for link type */
   read?: boolean
   hash?: string
@@ -33,8 +34,6 @@ export interface Item {
   sourceSite?: string
   /** Manual ordering within a project (lower = earlier) */
   order?: number
-  /** Spaced repetition scheduling data */
-  srs?: SrsData
   /** Last modification timestamp (for incremental sync) */
   updatedAt?: number
 }
@@ -47,6 +46,19 @@ export interface SearchQuery {
   to?: number
   projectId?: string
   dueBefore?: number
+}
+
+export type ReviewStatus = "active" | "paused" | "mastered"
+
+export interface ReviewEntry {
+  id: string
+  itemId: string
+  projectId: string
+  srs: SrsData
+  status: ReviewStatus
+  /** Denormalized from srs.dueDate for IndexedDB indexing */
+  dueDate: number
+  addedAt: number
 }
 
 export interface Project {

@@ -1,13 +1,7 @@
-import { addItem, getRecentProjects, listProjects, searchItems, touchProject } from "./database"
-import {
-  createMenus,
-  ensureMenusReady,
-  rebuildProjectMenus,
-  rebuildRecentMenus
-} from "./background/menus"
+import { addItem, getDueReviews, getRecentProjects, listProjects, searchItems, touchProject } from "./database"
+import { createMenus, ensureMenusReady, rebuildProjectMenus, rebuildRecentMenus } from "./background/menus"
 import type { Item, SourceMeta } from "./types"
 import type { ExtensionMessage } from "./types/messages"
-import { getDueItems } from "./hooks/useSrs"
 
 function notifyTab(
   tabId: number | undefined,
@@ -49,10 +43,11 @@ function notifySystem(text: string) {
   }
 }
 
-function createItem(data: { type: Item["type"]; content: string; source?: SourceMeta; projectId?: string }): Item {
+function createItem(data: { type: Item["type"]; content: string; title?: string; source?: SourceMeta; projectId?: string }): Item {
   return {
     id: crypto.randomUUID(),
     type: data.type,
+    title: data.title,
     content: data.content,
     source: data.source,
     createdAt: Date.now(),
@@ -68,8 +63,8 @@ chrome.storage.onChanged.addListener((changes) => {
   }
   if (changes._dbi) {
     searchItems({})
-      .then((all) => {
-        const due = getDueItems(all)
+      .then(async () => {
+        const due = await getDueReviews()
         chrome.action.setBadgeText({ text: due.length > 0 ? String(due.length) : "" })
         chrome.action.setBadgeBackgroundColor({ color: "#dc2626" })
       })

@@ -1,10 +1,12 @@
-import { TextField, Typography } from "@mui/material"
+import { Box, TextField, Typography } from "@mui/material"
 
 import DialogShell from "./DialogShell"
 
 interface NewCardDialogProps {
   open: boolean
+  title: string
   content: string
+  onTitleChange: (v: string) => void
   onContentChange: (v: string) => void
   onClose: () => void
   onSave: () => void
@@ -12,7 +14,9 @@ interface NewCardDialogProps {
 
 export default function NewCardDialog({
   open,
+  title,
   content,
+  onTitleChange,
   onContentChange,
   onClose,
   onSave
@@ -24,13 +28,26 @@ export default function NewCardDialog({
       title="新建卡片"
       confirmLabel="保存"
       onConfirm={onSave}
-      confirmDisabled={!content.trim()}>
+      confirmDisabled={!title.trim()}>
       <TextField
         autoFocus
+        fullWidth
+        placeholder="用一句话概括这条内容…"
+        value={title}
+        onChange={(e) => onTitleChange(e.target.value)}
+        sx={{
+          mb: 2,
+          "& .MuiOutlinedInput-root": {
+            borderRadius: 1,
+            fontSize: "1rem"
+          }
+        }}
+      />
+      <TextField
         multiline
         minRows={4}
         fullWidth
-        placeholder="输入卡片内容…"
+        placeholder="原始内容（选填）…"
         value={content}
         onChange={(e) => onContentChange(e.target.value)}
         sx={{

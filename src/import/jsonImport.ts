@@ -56,7 +56,6 @@ function validateItem(raw: unknown, index: number): { item: Item } | { error: st
       obj.context && typeof obj.context === "object"
         ? (obj.context as Item["context"])
         : undefined,
-    note: typeof obj.note === "string" ? obj.note : undefined,
     projectId:
       typeof obj.projectId === "string" && obj.projectId.length > 0
         ? obj.projectId

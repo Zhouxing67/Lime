@@ -1,4 +1,5 @@
-import type { Item, SrsData } from "../types"
+import type { Item, ReviewEntry, SrsData } from "../types"
+import { getAllReviews } from "../database"
 
 function defaultSrs(): SrsData {
   return {
@@ -10,13 +11,8 @@ function defaultSrs(): SrsData {
   }
 }
 
-export function ensureSrs(item: Item): Item {
-  if (item.srs) return item
-  return { ...item, srs: defaultSrs() }
-}
-
-export function rateCard(item: Item, rating: 1 | 2 | 3 | 4): Item {
-  const srs = item.srs ?? defaultSrs()
+/** Apply SM-2 rating to SrsData, returning a new SrsData */
+export function rateSrs(srs: SrsData, rating: 1 | 2 | 3 | 4): SrsData {
   let { interval, easeFactor, reviewCount } = srs
   reviewCount++
 
@@ -37,24 +33,13 @@ export function rateCard(item: Item, rating: 1 | 2 | 3 | 4): Item {
   const reviewHistory = [...(srs.reviewHistory ?? []), { date: now, rating }].slice(-200)
 
   return {
-    ...item,
-    srs: {
-      interval,
-      easeFactor,
-      reviewCount,
-      dueDate: rating < 3 ? now : now + interval * 86400000,
-      lastReviewDate: now,
-      reviewHistory
-    }
+    interval,
+    easeFactor,
+    reviewCount,
+    dueDate: rating < 3 ? now : now + interval * 86400000,
+    lastReviewDate: now,
+    reviewHistory
   }
-}
-
-export function getDueItems(items: Item[]): Item[] {
-  const now = Date.now()
-  return items
-    .filter((i) => !i.srs || i.srs.dueDate <= now)
-    .map((i) => ensureSrs(i))
-    .sort((a, b) => (a.srs?.dueDate ?? 0) - (b.srs?.dueDate ?? 0))
 }
 
 export interface ReviewStats {
@@ -74,81 +59,23 @@ export function dayKey(ts: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
 }
 
-export function getReviewStats(items: Item[]): ReviewStats {
-  const now = Date.now()
-  let totalReviews = 0
-  let masteredCount = 0
-  let dueCount = 0
-  let goodRatings = 0
-  const todayRatings: [number, number, number, number] = [0, 0, 0, 0]
-
-  const todayKey = dayKey(now)
-
-  const dailyMap = new Map<string, { count: number; ratingSum: number }>()
-
-  for (const item of items) {
-    const srs = item.srs
-    if (!srs || srs.dueDate <= now) dueCount++
-    if (srs && srs.interval >= 365) masteredCount++
-    if (srs?.reviewHistory) {
-      let todayCounted = false
-      for (const entry of srs.reviewHistory) {
-        totalReviews++
-        if (entry.rating >= 3) goodRatings++
-        const key = dayKey(entry.date)
-        if (key === todayKey && !todayCounted) {
-          todayRatings[entry.rating - 1]++
-          todayCounted = true
-        }
-        const cur = dailyMap.get(key) ?? { count: 0, ratingSum: 0 }
-        cur.count++
-        cur.ratingSum += entry.rating
-        dailyMap.set(key, cur)
-      }
-    }
-  }
-
-  const dailyActivity = Array.from(dailyMap.entries())
-    .map(([date, v]) => ({ date, count: v.count, avgRating: v.count > 0 ? v.ratingSum / v.count : 0 }))
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .slice(-30)
-
-  // Streak: consecutive days with at least one review, ending today or yesterday
-  const yesterdayKey = dayKey(now - DAY_MS)
-  const allDays = new Set(dailyMap.keys())
-  let streakDays = 0
-  if (allDays.has(todayKey) || allDays.has(yesterdayKey)) {
-    let cursor = allDays.has(todayKey) ? now : now - DAY_MS
-    while (allDays.has(dayKey(cursor))) {
-      streakDays++
-      cursor -= DAY_MS
-    }
-  }
-
-  return {
-    totalReviews,
-    masteredCount,
-    dueCount,
-    streakDays,
-    dailyActivity,
-    accuracyRate: totalReviews > 0 ? goodRatings / totalReviews : 0,
-    todayRatingDistribution: todayRatings
-  }
-}
-
-export function getRecentItems(items: Item[], days = 3): { date: string; items: Item[] }[] {
+export async function getRecentItems(days = 3): Promise<{ date: string; items: Item[] }[]> {
   const cutoff = Date.now() - days * DAY_MS
-  const map = new Map<string, Item[]>()
-  for (const item of items) {
-    const lrd = item.srs?.lastReviewDate
-    if (lrd && lrd >= cutoff) {
-      const key = dayKey(lrd)
-      const arr = map.get(key) ?? []
-      arr.push(item)
-      map.set(key, arr)
-    }
+  const reviews = await getAllReviews()
+  // Filter for recently reviewed entries
+  const recentReviews = reviews.filter((r) => r.srs.lastReviewDate >= cutoff)
+  if (recentReviews.length === 0) return []
+
+  // Group by date
+  const map = new Map<string, ReviewEntry[]>()
+  for (const r of recentReviews) {
+    const key = dayKey(r.srs.lastReviewDate)
+    const arr = map.get(key) ?? []
+    arr.push(r)
+    map.set(key, arr)
   }
+
   return Array.from(map.entries())
     .sort((a, b) => b[0].localeCompare(a[0]))
-    .map(([date, cardItems]) => ({ date, items: cardItems }))
+    .map(([date]) => ({ date, items: [] })) // items will be paired in useReview
 }

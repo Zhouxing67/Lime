@@ -3,12 +3,15 @@ import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded"
 import { Box, IconButton, Stack, Tooltip, Typography, alpha } from "@mui/material"
 import type { ReactNode } from "react"
 
+import type { ReviewStats } from "../hooks/useSrs"
+
 interface AppHeaderProps {
   drawerOpen: boolean
   headerHeight: number
   onToggleDrawer: () => void
   onSettingsClick: () => void
   reviewProgress?: { current: number; total: number }
+  reviewStats?: ReviewStats
   activeProjectName?: string
   children?: ReactNode
 }
@@ -19,6 +22,7 @@ export default function AppHeader({
   onToggleDrawer,
   onSettingsClick,
   reviewProgress,
+  reviewStats,
   activeProjectName,
   children
 }: AppHeaderProps) {
@@ -57,7 +61,9 @@ export default function AppHeader({
             letterSpacing: "0.04em",
             lineHeight: 1
           }}>
-          {activeProjectName ? (
+          {reviewProgress ? (
+            <>复习 · {activeProjectName ?? "全部项目"}</>
+          ) : activeProjectName ? (
             <>lime · <Box component="span" sx={{ fontSize: "1rem", fontWeight: 400, opacity: 0.8 }}>{activeProjectName}</Box></>
           ) : "lime"}
         </Typography>
@@ -73,7 +79,14 @@ export default function AppHeader({
           <Typography
             variant="body2"
             sx={{ color: "text.secondary", fontSize: "0.85rem", ml: 0.5 }}>
-            {reviewProgress.current}/{reviewProgress.total}
+            第 {reviewProgress.current} 张 / 共 {reviewProgress.total} 张
+          </Typography>
+        )}
+        {reviewStats && reviewProgress && (
+          <Typography
+            variant="caption"
+            sx={{ color: "text.disabled", fontSize: "0.72rem" }}>
+            · 已掌握 {reviewStats.masteredCount} · 待复习 {reviewStats.dueCount}
           </Typography>
         )}
         <Box sx={{ flexGrow: 1 }} />

@@ -1,10 +1,10 @@
-import type { Item, Project, SearchQuery } from "../types"
+import type { Item, Project, ReviewEntry, SearchQuery, SrsData } from "../types"
 import { computeItemHash } from "../utils"
 
 const DB_NAME = "pickquote-db"
-const DB_VERSION = 6
+const DB_VERSION = 7
 
-type TableNames = "items" | "projects"
+type TableNames = "items" | "projects" | "reviews"
 
 // ---- Cross-context change notification ----
 // Any successful write transaction automatically broadcasts a version stamp
@@ -52,6 +52,38 @@ function openDb(version?: number): Promise<IDBDatabase> {
       }
       if (db.objectStoreNames.contains("sources")) {
         db.deleteObjectStore("sources")
+      }
+      // v7 migration: create reviews store
+      if (!db.objectStoreNames.contains("reviews")) {
+        const rs = db.createObjectStore("reviews", { keyPath: "id" })
+        rs.createIndex("itemId", "itemId", { unique: true })
+        rs.createIndex("projectId", "projectId", { unique: false })
+        rs.createIndex("status", "status", { unique: false })
+        rs.createIndex("dueDate", "dueDate", { unique: false })
+        // Migrate existing Item.srs → ReviewEntry
+        if (db.objectStoreNames.contains("items")) {
+          const tx = req.transaction as IDBTransaction
+          const itemStore = tx.objectStore("items")
+          itemStore.openCursor().onsuccess = (e) => {
+            const cursor = (e.target as IDBRequest<IDBCursorWithValue>).result
+            if (cursor) {
+              const item = cursor.value as Item & { srs?: SrsData }
+              if (item.srs) {
+                const review: ReviewEntry = {
+                  id: crypto.randomUUID(),
+                  itemId: item.id,
+                  projectId: item.projectId ?? "",
+                  srs: item.srs,
+                  dueDate: item.srs.dueDate,
+                  status: item.srs.interval >= 365 ? "mastered" : "active",
+                  addedAt: item.createdAt
+}
+                rs.put(review)
+              }
+              cursor.continue()
+            }
+          }
+        }
       }
     }
     req.onsuccess = () => resolve(req.result)
@@ -127,13 +159,21 @@ export async function isDuplicate(
   })
 }
 
+function safeHostname(url: string): string | undefined {
+  try {
+    return new URL(url).hostname
+  } catch {
+    return undefined
+  }
+}
+
 export async function addItem(item: Item): Promise<boolean> {
   const normalized: Item = {
     ...item,
     updatedAt: item.updatedAt ?? Date.now(),
     sourceSite:
       item.source?.site ??
-      (item.source ? new URL(item.source.url).hostname : undefined),
+      (item.source ? safeHostname(item.source.url) : undefined),
     hash:
       item.hash ||
       (item.source
@@ -173,9 +213,9 @@ export async function searchItems(q: SearchQuery): Promise<Item[]> {
           (!q.from || item.createdAt >= q.from) &&
           (!q.to || item.createdAt < q.to) &&
           (!q.projectId || item.projectId === q.projectId) &&
-          (!q.dueBefore || !item.srs || item.srs.dueDate <= q.dueBefore) &&
           (!q.keyword ||
             item.content?.toLowerCase().includes(q.keyword.toLowerCase()) ||
+            item.title?.toLowerCase().includes(q.keyword.toLowerCase()) ||
             item.source?.title?.toLowerCase().includes(q.keyword.toLowerCase()))
         ) {
           results.push(item)
@@ -188,6 +228,18 @@ export async function searchItems(q: SearchQuery): Promise<Item[]> {
 }
 
 export async function deleteItem(id: string): Promise<void> {
+  // Cascade: also remove associated review entry
+  await withStore("reviews", "readwrite", async (store) => {
+    const idx = store.index("itemId")
+    const req = idx.getKey(id)
+    return new Promise<void>((resolve, reject) => {
+      req.onsuccess = () => {
+        if (req.result) store.delete(req.result as string)
+        resolve()
+      }
+      req.onerror = () => reject(req.error)
+    })
+  })
   await withStore("items", "readwrite", (store) => {
     store.delete(id)
   })
@@ -195,6 +247,16 @@ export async function deleteItem(id: string): Promise<void> {
 
 export async function deleteItems(ids: string[]): Promise<void> {
   if (ids.length === 0) return
+  // Cascade: remove associated review entries
+  await withStore("reviews", "readwrite", (store) => {
+    const idx = store.index("itemId")
+    for (const id of ids) {
+      const req = idx.getKey(id)
+      req.onsuccess = () => {
+        if (req.result) store.delete(req.result as string)
+      }
+    }
+  })
   await withStore("items", "readwrite", (store) => {
     for (const id of ids) {
       store.delete(id)
@@ -339,5 +401,130 @@ export async function bulkReplace(
     for (const project of localProjects) {
       if (!remoteProjectIds.has(project.id)) store.delete(project.id)
     }
+  })
+}
+// ---- Reviews ----
+
+export async function addReview(entry: ReviewEntry): Promise<void> {
+  await withStore("reviews", "readwrite", (store) => {
+    store.put(entry)
+  })
+}
+
+export async function removeReview(itemId: string): Promise<void> {
+  await withStore("reviews", "readwrite", (store) => {
+    const idx = store.index("itemId")
+    return new Promise<void>((resolve, reject) => {
+      const req = idx.getKey(itemId)
+      req.onsuccess = () => {
+        if (req.result) store.delete(req.result as string)
+        resolve()
+      }
+      req.onerror = () => reject(req.error)
+    })
+  })
+}
+
+export async function getReviewByItemId(itemId: string): Promise<ReviewEntry | undefined> {
+  return withStore("reviews", "readonly", (store) => {
+    const idx = store.index("itemId")
+    return new Promise<ReviewEntry | undefined>((resolve, reject) => {
+      const req = idx.get(itemId)
+      req.onsuccess = () => resolve(req.result as ReviewEntry | undefined)
+      req.onerror = () => reject(req.error)
+    })
+  })
+}
+
+export async function getDueReviews(): Promise<ReviewEntry[]> {
+  return withStore("reviews", "readonly", (store) => {
+    const idx = store.index("dueDate")
+    const range = IDBKeyRange.upperBound(Date.now())
+    return new Promise<ReviewEntry[]>((resolve, reject) => {
+      const results: ReviewEntry[] = []
+      const req = idx.openCursor(range)
+      req.onsuccess = () => {
+        const cursor = req.result
+        if (cursor) {
+          const entry = cursor.value as ReviewEntry
+          if (entry.status === "active") results.push(entry)
+          cursor.continue()
+        } else {
+          resolve(results)
+        }
+      }
+      req.onerror = () => reject(req.error)
+    })
+  })
+}
+
+export async function getAllReviews(): Promise<ReviewEntry[]> {
+  return withStore("reviews", "readonly", (store) => {
+    return new Promise<ReviewEntry[]>((resolve, reject) => {
+      const results: ReviewEntry[] = []
+      const req = store.openCursor()
+      req.onsuccess = () => {
+        const cursor = req.result
+        if (cursor) {
+          results.push(cursor.value as ReviewEntry)
+          cursor.continue()
+        } else {
+          resolve(results)
+        }
+      }
+      req.onerror = () => reject(req.error)
+    })
+  })
+}
+
+export async function getReviewStatsByStore(): Promise<{
+  dueCount: number
+  activeCount: number
+  masteredCount: number
+}> {
+  return withStore("reviews", "readonly", (store) => {
+    return new Promise((resolve, reject) => {
+      let dueCount = 0
+      let activeCount = 0
+      let masteredCount = 0
+      const now = Date.now()
+      const req = store.openCursor()
+      req.onsuccess = () => {
+        const cursor = req.result
+        if (cursor) {
+          const entry = cursor.value as ReviewEntry
+          if (entry.status === "active") {
+            activeCount++
+            if (entry.dueDate <= now) dueCount++
+          }
+          if (entry.status === "mastered") masteredCount++
+          cursor.continue()
+        } else {
+          resolve({ dueCount, activeCount, masteredCount })
+        }
+      }
+      req.onerror = () => reject(req.error)
+    })
+  })
+}
+
+export async function updateReviewSrs(itemId: string, srs: SrsData): Promise<void> {
+  await withStore("reviews", "readwrite", (store) => {
+    const idx = store.index("itemId")
+    return new Promise<void>((resolve, reject) => {
+      const req = idx.get(itemId)
+      req.onsuccess = () => {
+        const entry = req.result as ReviewEntry
+        if (entry) {
+          entry.srs = srs
+          entry.dueDate = srs.dueDate
+          // Auto-promote to mastered when interval reaches max
+          if (srs.interval >= 365) entry.status = "mastered"
+          store.put(entry)
+        }
+        resolve()
+      }
+      req.onerror = () => reject(req.error)
+    })
   })
 }

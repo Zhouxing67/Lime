@@ -1,15 +1,15 @@
 import { Box, TextField } from "@mui/material"
 
 export default function DialogEditMode({
+  draftTitle,
   draftContent,
-  draftNote,
-  onContentChange,
-  onNoteChange
+  onTitleChange,
+  onContentChange
 }: {
+  draftTitle: string
   draftContent: string
-  draftNote: string
+  onTitleChange: (v: string) => void
   onContentChange: (v: string) => void
-  onNoteChange: (v: string) => void
 }) {
   return (
     <Box
@@ -19,9 +19,22 @@ export default function DialogEditMode({
         mx: "auto",
         width: "100%",
         display: "flex",
-        flexDirection: "column",
-        justifyContent: "center"
+        flexDirection: "column"
       }}>
+      <TextField
+        fullWidth
+        placeholder="卡片标题…"
+        value={draftTitle}
+        onChange={(e) => onTitleChange(e.target.value)}
+        sx={{
+          mb: 2,
+          "& .MuiOutlinedInput-root": {
+            borderRadius: 1,
+            fontSize: "1rem",
+            bgcolor: "background.paper"
+          }
+        }}
+      />
       <TextField
         multiline
         minRows={4}
@@ -36,23 +49,6 @@ export default function DialogEditMode({
           }
         }}
       />
-      <Box sx={{ mt: 4, pt: 3, borderTop: "1px solid", borderColor: "divider" }}>
-        <TextField
-          multiline
-          minRows={2}
-          fullWidth
-          placeholder="添加备注…"
-          value={draftNote}
-          onChange={(e) => onNoteChange(e.target.value)}
-          sx={{
-            "& .MuiOutlinedInput-root": {
-              borderRadius: 1,
-              fontSize: "0.9rem",
-              bgcolor: "background.paper"
-            }
-          }}
-        />
-      </Box>
     </Box>
   )
 }

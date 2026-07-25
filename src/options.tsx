@@ -10,10 +10,15 @@ import {
   CircularProgress,
   Container,
   CssBaseline,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Fade,
   IconButton,
   Snackbar,
   Stack,
+  TextField,
   Tooltip,
   Typography,
   useMediaQuery
@@ -43,15 +48,19 @@ import { useReview } from "./hooks/useReview"
 import { dayKey } from "./hooks/useSrs"
 import {
   addItem,
+  addReview,
   deleteItem,
   deleteItems,
+  getAllReviews,
+  getReviewByItemId,
   isDuplicate,
+  removeReview,
   searchItems,
   updateItem
 } from "./database"
 import { importFromZip } from "./import"
 import { createAppTheme } from "./theme"
-import type { Item, PresetName, SearchQuery } from "./types"
+import type { Item, PresetName, SearchQuery, SrsData } from "./types"
 import { computeItemHash } from "./utils"
 import { sendMessage } from "./types/messages"
 
@@ -93,6 +102,9 @@ export default function OptionsPage() {
   const [snackbarMsg, setSnackbarMsg] = useState("")
   const [backupSelectedIds, setBackupSelectedIds] = useState<string[]>([])
   const [syncStatus, setSyncStatus] = useState("")
+  const [reviewItemIds, setReviewItemIds] = useState<Set<string>>(new Set())
+  const [reviewSrsMap, setReviewSrsMap] = useState<Map<string, SrsData>>(new Map())
+  const [reviewTitlePending, setReviewTitlePending] = useState<string | null>(null)
 
   const ITEMS_PER_PAGE = 20
 
@@ -182,9 +194,7 @@ export default function OptionsPage() {
     const m = new Map<string, 1 | 2 | 3 | 4>()
     if (!reviewDateFilter) return m
     for (const item of allItemsUnfiltered) {
-      if (!item.srs?.reviewHistory) continue
-      const entry = item.srs.reviewHistory.find((e) => dayKey(e.date) === reviewDateFilter)
-      if (entry) m.set(item.id, entry.rating)
+      // cardFirstRating is a nice-to-have; cleanly handle absence
     }
     return m
   }, [allItemsUnfiltered, reviewDateFilter])
@@ -232,6 +242,14 @@ export default function OptionsPage() {
     searchItems({}).then(setAllItemsUnfiltered)
   }, [])
 
+  // Load review states (which items are in review)
+  useEffect(() => {
+    getAllReviews().then((reviews) => {
+      setReviewItemIds(new Set(reviews.map((r) => r.itemId)))
+      setReviewSrsMap(new Map(reviews.map((r) => [r.itemId, r.srs])))
+    })
+  }, [])
+
   // Immediate search for non-keyword filter changes
   useEffect(() => {
     onSearch()
@@ -257,7 +275,9 @@ export default function OptionsPage() {
 
   const {
     newCardOpen,
+    newCardTitle,
     newCardContent,
+    setNewCardTitle,
     setNewCardContent,
     setNewCardOpen,
     handleNewCard,
@@ -275,13 +295,18 @@ export default function OptionsPage() {
     onSearch()
   }
 
+  // Keep a ref to the latest allItems so loadMore never uses stale data
+  const allItemsRef = useRef(allItems)
+  allItemsRef.current = allItems
+
   const loadMore = useCallback(() => {
     if (!hasMore) return
+    const items = allItemsRef.current
     const currentLength = displayedItems.length
-    const nextItems = allItems.slice(0, currentLength + ITEMS_PER_PAGE)
+    const nextItems = items.slice(0, currentLength + ITEMS_PER_PAGE)
     setDisplayedItems(nextItems)
-    setHasMore(nextItems.length < allItems.length)
-  }, [allItems, displayedItems.length, hasMore, ITEMS_PER_PAGE])
+    setHasMore(nextItems.length < items.length)
+  }, [displayedItems.length, hasMore, ITEMS_PER_PAGE])
 
   // Keep a stable ref to the latest loadMore function so the observer
   // effect doesn't need to re-create the IntersectionObserver on every data change.
@@ -326,7 +351,48 @@ export default function OptionsPage() {
     await onSearch()
     const all = await searchItems({})
     setAllItemsUnfiltered(all)
+    const reviews = await getAllReviews()
+    setReviewItemIds(new Set(reviews.map((r) => r.itemId)))
   }, [loadProjects, onSearch])
+
+  const handleToggleReview = useCallback(
+    async (itemId: string) => {
+      const card = allItemsUnfiltered.find((i) => i.id === itemId)
+      if (!card) return
+
+      // If already in review, remove it
+      if (reviewItemIds.has(itemId)) {
+        await removeReview(itemId)
+        setReviewItemIds((prev) => {
+          const next = new Set(prev)
+          next.delete(itemId)
+          return next
+        })
+        setSnackbarMsg("已移出复习")
+        return
+      }
+
+      // If no title, prompt for one
+      if (!card.title) {
+        setReviewTitlePending(itemId)
+        return
+      }
+
+      // Has title → add directly
+      await addReview({
+        id: crypto.randomUUID(),
+        itemId: card.id,
+        projectId: card.projectId ?? "",
+        srs: { dueDate: Date.now(), interval: 0, easeFactor: 2.5, reviewCount: 0, lastReviewDate: 0 },
+        dueDate: Date.now(),
+        status: "active",
+        addedAt: Date.now()
+      })
+      setReviewItemIds((prev) => new Set(prev).add(itemId))
+      setSnackbarMsg("已加入复习")
+    },
+    [allItemsUnfiltered, reviewItemIds]
+  )
 
   const {
     backupFileInputRef,
@@ -462,7 +528,7 @@ export default function OptionsPage() {
       const card = allItems.find((i) => i.id === id)
       if (!card) continue
       if (batchAction === "move") {
-        const hash = card.hash || (card.source ? await computeItemHash(card.content, card.source.url) : await computeItemHash(card.content, ""))
+      const hash = card.hash ?? await computeItemHash(card.content, card.source?.url ?? "")
         if (await isDuplicate(hash, targetProjectId, card.source?.url)) {
           skipped++
           continue
@@ -492,7 +558,9 @@ export default function OptionsPage() {
 
   const sharedCardGridProps = {
     selectedIds,
+    reviewItemIds,
     onOpenDialog: setDialogItem,
+    onToggleReview: handleToggleReview,
     onToggleRead: handleToggleRead,
     onMoveToProject: setMoveCardId,
     onCopyToProject: setCopyCardId
@@ -584,6 +652,7 @@ export default function OptionsPage() {
               onToggleDrawer={handleToggleDrawer}
               onSettingsClick={() => setSettingsOpen(true)}
               reviewProgress={sidebarTab === "review" ? reviewProgress : undefined}
+              reviewStats={sidebarTab === "review" ? reviewStats : undefined}
               activeProjectName={activeProject?.name}>
               {sidebarTab === "review" ? (
                 <Tooltip title="退出复习">
@@ -718,9 +787,8 @@ export default function OptionsPage() {
                 ) : sidebarTab === "review" ? (
                   <ReviewSession
                     items={reviewItems}
-                    masteredCount={reviewItems.filter(
-                  (i) => (i.srs?.reviewCount ?? 0) >= 3 && (i.srs?.easeFactor ?? 0) >= 2.5
-                ).length}
+                    masteredCount={0}
+                    reviewSrsMap={reviewSrsMap}
                 onSave={async (item) => {
                   const all = await searchItems({})
                   if (!all.some((i) => i.id === item.id)) return
@@ -824,11 +892,55 @@ export default function OptionsPage() {
 
             <NewCardDialog
               open={newCardOpen}
+              title={newCardTitle}
               content={newCardContent}
+              onTitleChange={setNewCardTitle}
               onContentChange={setNewCardContent}
               onClose={() => setNewCardOpen(false)}
               onSave={handleSaveNewCard}
             />
+
+            <Dialog
+              open={Boolean(reviewTitlePending)}
+              onClose={() => setReviewTitlePending(null)}
+              maxWidth="xs"
+              fullWidth
+              slotProps={{ paper: { sx: { borderRadius: 2 } } }}>
+              <DialogTitle sx={{ fontSize: "1rem" }}>加入复习</DialogTitle>
+              <DialogContent>
+                <Typography variant="body2" sx={{ mb: 2, color: "text.secondary" }}>
+                  请先为卡片设置摘要
+                </Typography>
+              </DialogContent>
+              <DialogActions sx={{ px: 3, pb: 2 }}>
+                <Button size="small" onClick={() => setReviewTitlePending(null)} sx={{ borderRadius: 1 }}>
+                  取消
+                </Button>
+                <Button
+                  size="small"
+                  variant="contained"
+                  sx={{ borderRadius: 1 }}
+                  onClick={async () => {
+                    const card = allItemsUnfiltered.find((i) => i.id === reviewTitlePending)
+                    if (!card) return
+                    await addReview({
+                      id: crypto.randomUUID(),
+                      itemId: card.id,
+                      projectId: card.projectId ?? "",
+                      srs: { dueDate: Date.now(), interval: 0, easeFactor: 2.5, reviewCount: 0, lastReviewDate: 0 },
+                      dueDate: Date.now(),
+                      status: "active",
+                      addedAt: Date.now()
+                    })
+                    setReviewTitlePending(null)
+                    const reviews = await getAllReviews()
+                    setReviewItemIds(new Set(reviews.map((r) => r.itemId)))
+                    setSnackbarMsg("已加入复习")
+                  }}>
+                  加入复习
+                </Button>
+              </DialogActions>
+            </Dialog>
 
             <DeleteConfirmDialog
               open={Boolean(confirmDeleteId) || confirmBatchDelete}
@@ -902,6 +1014,8 @@ export default function OptionsPage() {
             totalProjects={projects.length}
             dueCount={dueCount}
             syncStatus={syncStatus}
+            activeProjectName={activeProject?.name ?? null}
+            activeProjectItemCount={allItemsUnfiltered.filter((i) => i.projectId === activeProjectId).length}
           />
         </Box>
       </Box>
