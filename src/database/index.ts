@@ -428,30 +428,45 @@ export async function clearAllProjects(): Promise<void> {
 
 /**
  * Diff-based bulk replacement for sync download.
- * In a single transaction per store, upserts remote entities and
- * deletes any local entity whose id is not present in the remote set.
+ * Uses a single atomic transaction across items, projects, and reviews.
+ * Upserts remote entities and deletes any local entity whose id is not in the remote set.
  */
 export async function bulkReplace(
   remoteItems: Item[],
   remoteProjects: Project[],
+  remoteReviews: ReviewEntry[],
   localItems: Item[],
-  localProjects: Project[]
+  localProjects: Project[],
+  localReviews: ReviewEntry[]
 ): Promise<void> {
   const remoteItemIds = new Set(remoteItems.map((i) => i.id))
   const remoteProjectIds = new Set(remoteProjects.map((p) => p.id))
+  const remoteReviewItemIds = new Set(remoteReviews.map((r) => r.itemId))
 
-  await withStore("items", "readwrite", async (store) => {
-    for (const item of remoteItems) store.put(item)
-    for (const item of localItems) {
-      if (!remoteItemIds.has(item.id)) store.delete(item.id)
+  await tx(
+    { items: "readwrite", projects: "readwrite", reviews: "readwrite" },
+    async (stores) => {
+      // items
+      for (const item of remoteItems) stores.items.put(item)
+      for (const item of localItems) {
+        if (!remoteItemIds.has(item.id)) stores.items.delete(item.id)
+      }
+      // projects
+      for (const project of remoteProjects) stores.projects.put(project)
+      for (const project of localProjects) {
+        if (!remoteProjectIds.has(project.id)) stores.projects.delete(project.id)
+      }
+      // reviews: upsert remote, delete local-not-in-remote
+      for (const review of remoteReviews) stores.reviews.put(review)
+      const idx = stores.reviews.index("itemId")
+      for (const review of localReviews) {
+        if (!remoteReviewItemIds.has(review.itemId)) {
+          const req = idx.getKey(review.itemId)
+          await new Promise<void>((resolve) => { req.onsuccess = () => { if (req.result) stores.reviews.delete(req.result); resolve() }; req.onerror = () => resolve() })
+        }
+      }
     }
-  })
-  await withStore("projects", "readwrite", async (store) => {
-    for (const project of remoteProjects) store.put(project)
-    for (const project of localProjects) {
-      if (!remoteProjectIds.has(project.id)) store.delete(project.id)
-    }
-  })
+  )
 }
 // ---- Reviews ----
 

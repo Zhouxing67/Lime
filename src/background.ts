@@ -266,6 +266,10 @@ chrome.runtime.onMessage.addListener((raw: any, _sender, sendResponse) => {
       chrome.tabs.captureVisibleTab((dataUrl) => sendResponse(dataUrl))
       return true
     }
+    default: {
+      sendResponse({ ok: false, error: `Unknown message kind: ${msg.kind}` })
+      return false
+    }
   }
 })
 

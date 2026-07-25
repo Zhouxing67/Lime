@@ -69,6 +69,18 @@ function validateItem(raw: unknown, index: number): { item: Item } | { error: st
   return { item }
 }
 
+function validateProject(raw: unknown): Project | null {
+  if (!raw || typeof raw !== "object") return null
+  const obj = raw as Record<string, unknown>
+  if (typeof obj.name !== "string" || obj.name.length === 0) return null
+  return {
+    id: typeof obj.id === "string" && obj.id.length > 0 ? obj.id : crypto.randomUUID(),
+    name: obj.name,
+    createdAt: typeof obj.createdAt === "number" && obj.createdAt > 0 ? obj.createdAt : Date.now(),
+    note: typeof obj.note === "string" ? obj.note : undefined
+  }
+}
+
 export async function importFromZip(
   file: File,
   projectIds?: string[]
@@ -112,7 +124,7 @@ export async function importFromZip(
         }
       }
       if (Array.isArray(obj.projects)) {
-        importedProjects = obj.projects as Project[]
+        importedProjects = obj.projects.map(validateProject).filter((p): p is Project => p !== null)
       }
     } else {
       return { ...result, errors: [{ index: -1, reason: "export.json 格式无效" }] }
@@ -167,8 +179,11 @@ export async function importFromZip(
       continue
     }
     try {
-      await addItem(item)
-      result.imported++
+      if (await addItem(item)) {
+        result.imported++
+      } else {
+        result.skipped++
+      }
     } catch {
       result.skipped++
     }

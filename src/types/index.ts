@@ -45,7 +45,6 @@ export interface SearchQuery {
   from?: number
   to?: number
   projectId?: string
-  dueBefore?: number
 }
 
 export type ReviewStatus = "active" | "paused" | "mastered"

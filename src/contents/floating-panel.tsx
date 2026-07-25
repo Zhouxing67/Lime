@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { createRoot } from "react-dom/client"
 
 import type { Project } from "../types"
+import { sendMessage } from "../types/messages"
 
 export const config: PlasmoCSConfig = {
   matches: ["https://*/*", "http://*/*"],
@@ -80,14 +81,6 @@ function ensureMount(): boolean {
   return true
 }
 
-function cli(msg: string): Promise<any> {
-  return chrome.runtime.sendMessage({ kind: msg })
-}
-
-function cli2(msg: string, payload: any): Promise<any> {
-  return chrome.runtime.sendMessage({ ...payload, kind: msg })
-}
-
 // ---- React component ----
 function FloatingPanel({
   data,
@@ -116,7 +109,7 @@ function FloatingPanel({
   // Load projects
   const load = useCallback(async () => {
     try {
-      const list: Project[] = (await cli("list-projects")) ?? []
+      const list: Project[] = (await sendMessage({ kind: "list-projects" })) ?? []
       setProjects(list); state.projects = list
       if (!state.selectedProjectId && list.length > 0) {
         state.selectedProjectId = list[0].id; setProjId(list[0].id)
@@ -191,7 +184,8 @@ function FloatingPanel({
     if (!content.trim()) return
     setSaving(true); setError("")
     try {
-      await cli2("capture", {
+      await sendMessage({
+        kind: "capture",
         payload: {
           type: "text", content: content.trim(),
           title: title.trim() || undefined,
@@ -207,7 +201,7 @@ function FloatingPanel({
   const createProject = useCallback(async () => {
     if (!newName.trim()) return
     try {
-      const res: any = await cli2("add-project", { name: newName.trim() })
+      const res = await sendMessage<{ ok: boolean; id?: string; error?: string }>({ kind: "add-project", name: newName.trim() })
       if (res?.ok) {
         setNewName(""); setCreating(false); setError("")
         await load()

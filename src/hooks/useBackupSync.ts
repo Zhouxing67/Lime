@@ -1,6 +1,6 @@
 import { useRef } from "react"
 
-import { bulkReplace } from "../database"
+import { bulkReplace, getAllReviews } from "../database"
 import { downloadRemote, runSync, type SyncCredentials } from "../utils/sync"
 import { toJsonZip } from "../utils/zip"
 import type { Item, Project } from "../types"
@@ -49,7 +49,8 @@ export function useBackupSync(options: {
     try {
       const cred = await getSyncCredentials()
       if (!cred) { setSyncStatus("请先在设置中配置坚果云"); return }
-      const result = await runSync(cred, allItemsUnfiltered, projects, setSyncStatus)
+      const reviews = await getAllReviews()
+      const result = await runSync(cred, allItemsUnfiltered, projects, reviews, setSyncStatus)
       if (result.success) chrome.storage.local.set({ lastSyncTime: Date.now() })
       setSyncStatus(result.message)
       console.debug("[lime:sync]", result.message)
@@ -65,7 +66,8 @@ export function useBackupSync(options: {
       const cred = await getSyncCredentials()
       if (!cred) { setSyncStatus("请先在设置中配置坚果云"); return }
 
-      const remote = await downloadRemote(cred, allItemsUnfiltered, projects, setSyncStatus)
+      const reviews = await getAllReviews()
+      const remote = await downloadRemote(cred, allItemsUnfiltered, projects, reviews, setSyncStatus)
       if (!remote.success) {
         setSyncStatus(remote.message || "下载失败")
         console.debug("[lime:sync]", remote.message || "下载失败")
@@ -81,8 +83,10 @@ export function useBackupSync(options: {
         await bulkReplace(
           remote.payload.items,
           remote.payload.projects,
+          remote.payload.reviews ?? [],
           allItemsUnfiltered,
-          projects
+          projects,
+          reviews
         )
         chrome.storage.local.set({ lastSyncTime: Date.now() })
         const msg = remote.message || "从云端同步"

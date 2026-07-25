@@ -1,5 +1,5 @@
 import { computeItemHash } from "./index"
-import type { Item, Project } from "../types"
+import type { Item, Project, ReviewEntry } from "../types"
 import { sendMessage } from "../types/messages"
 
 const SYNC_PATH = "/Apps/lime/lime-sync.json"
@@ -17,6 +17,7 @@ interface SyncPayload {
   deviceInfo: { version: string }
   projects: Project[]
   items: Item[]
+  reviews: ReviewEntry[]
 }
 
 export interface SyncResult {
@@ -101,17 +102,20 @@ async function uploadSyncFile(
 
 async function buildPayload(
   items: Item[],
-  projects: Project[]
+  projects: Project[],
+  reviews: ReviewEntry[]
 ): Promise<SyncPayload> {
-  const raw = JSON.stringify({ items, projects })
+  const byId = <T extends { id: string }>(arr: T[]) => [...arr].sort((a, b) => a.id.localeCompare(b.id))
+  const raw = JSON.stringify({ items: byId(items), projects: byId(projects), reviews: byId(reviews) })
   const contentHash = await computeItemHash(raw, "")
   return {
-    version: 2,
+    version: 3,
     syncedAt: Date.now(),
     contentHash,
     deviceInfo: { version: "0.3.0" },
-    projects,
-    items
+    projects: byId(projects),
+    items: byId(items),
+    reviews: byId(reviews)
   }
 }
 
@@ -119,6 +123,7 @@ export async function runSync(
   cred: SyncCredentials,
   items: Item[],
   projects: Project[],
+  reviews: ReviewEntry[],
   onStatus?: (status: string) => void
 ): Promise<SyncResult> {
   try {
@@ -129,7 +134,7 @@ export async function runSync(
     }
 
     onStatus?.("正在序列化数据…")
-    const localPayload = await buildPayload(items, projects)
+    const localPayload = await buildPayload(items, projects, reviews)
 
     onStatus?.("正在检查云端…")
     const remote = await downloadSyncFile(cred)
@@ -164,6 +169,7 @@ export async function downloadRemote(
   cred: SyncCredentials,
   items: Item[],
   projects: Project[],
+  reviews: ReviewEntry[],
   onStatus?: (status: string) => void
 ): Promise<SyncResult> {
   try {
@@ -174,7 +180,7 @@ export async function downloadRemote(
     }
 
     onStatus?.("正在对比数据…")
-    const localPayload = await buildPayload(items, projects)
+    const localPayload = await buildPayload(items, projects, reviews)
     if (localPayload.contentHash === remote.contentHash) {
       return { success: true, direction: "noop", message: "数据无变化" }
     }

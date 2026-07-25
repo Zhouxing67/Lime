@@ -24,6 +24,7 @@
 | `src/options.tsx` | Options page (main UI) | `options.html` |
 | `src/background.ts` | Service Worker | background |
 | `src/contents/capture.ts` | Content script | all `https?://*/*` |
+| `src/contents/floating-panel.tsx` | Content script UI | all `https?://*/*` |
 | `src/tabs/new-project.tsx` | Popup page | `tabs/new-project.html` |
 
 Plasmo v0.90+: custom popup pages go in `src/tabs/`, not `src/`.
@@ -32,15 +33,14 @@ Plasmo v0.90+: custom popup pages go in `src/tabs/`, not `src/`.
 
 ```
 src/
-  components/       # 24 MUI components (no inline UI regions)
+  components/       # MUI components
   hooks/            # useProjects, useReview, useSrs, useBackupSync, useNewCard
-  database/         # IndexedDB via withStore() wrapper
-  types/            # Item, Project, SearchQuery, ExtensionMessage
+  database/         # IndexedDB via withStore() + tx() wrappers
+  types/            # Item, Project, ReviewEntry, SearchQuery, ExtensionMessage
   contents/         # content script entry (not src/content-scripts/)
   background/       # SW-only: context menus (menus.ts)
-  export/           # Image export + ZIP backup
   import/           # ZIP/JSON import
-  utils/            # sync, zip, crypto, useExportImage hook
+  utils/            # sync, zip, crypto
   theme/            # MUI createAppTheme(light|dark, preset)
   test/             # setup.ts (polyfills + chrome.* mocks)
 ```
@@ -48,12 +48,13 @@ src/
 ## Database (IndexedDB)
 
 - `withStore(name, mode, fn)` — opens/closes DB, auto-broadcasts changes
-- Active stores: `items` + `projects` (v6; `categories`/`sources` removed)
+- `tx(storeMap, fn)` — multi-store atomic transaction (items, projects, reviews)
+- Active stores: `items`, `projects`, `reviews` (v8; `categories`/`sources` removed in v6, `review_session` removed)
 - Any `readwrite` transaction auto-broadcasts via `chrome.storage.local.set({_dbi|_dbp: Date.now()})`
 - All contexts listen to `chrome.storage.onChanged` for these keys — no manual notify
-- Item dedup: same `hash` + `source.url` within same `projectId` skips insert
-- `searchItems(q)` — filters by keyword, type, site, projectId, date range, dueBefore
-- `bulkReplace(remote, local)` — diff-based sync: upsert remote, delete local-not-in-remote
+- Item dedup: same `hash` + `source.url` within same `projectId` skips insert (addItem returns false)
+- `searchItems(q)` — filters by keyword, type, site, projectId, date range
+- `bulkReplace(remoteItems, remoteProjects, remoteReviews, localItems, localProjects, localReviews)` — diff-based sync in single atomic tx: upsert remote, delete local-not-in-remote
 
 ## Messaging
 
@@ -89,15 +90,22 @@ Always use `sendMessage()` — never raw `chrome.runtime.sendMessage`.
 ## Review (SRS)
 
 - SM-2 algorithm: starting ease 2.5, min 1.3, max interval 365 days
-- `rateCard(item, 1|2|3|4)` applies SM-2 and returns updated item
-- `getDueItems(items)` — items without `srs` are always due
+- Review data stored in separate `reviews` store (ReviewEntry with itemId unique index)
+- Card must have `Item.title` before it can be added to review
+- `rateSrs(srs, 1|2|3|4)` — pure function applying SM-2 to SrsData
+- `updateReviewSrs(itemId, srs)` — persists rating to reviews store
+- Get due cards via `getDueReviews()` (dueDate index query)
 - Ratings: 1=重来, 2=困难, 3=良好, 4=简单
+- Cards rated <3 are requeued (trim-queue); >=3 are removed from queue
+- Entering review tab auto-loads due cards; leaving discards session state
 
 ## Sync
 
 - WebDAV provider: `https://dav.jianguoyun.com/dav/Apps/lime/lime-sync.json`
 - Credentials in `chrome.storage.sync` (`syncUsername`, `syncPassword`)
 - Conflict: SHA-256 hash comparison → user chooses upload/download (no auto-tiebreaker)
+- SyncPayload v3 includes items, projects, and reviews (with stable id-sort for hash)
+- `buildPayload(items, projects, reviews)` sorts all arrays by id before hashing
 - Context menu project list refreshes via `sendMessage({ kind: "rebuild-menus" })`
 
 ## Testing
