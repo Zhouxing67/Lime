@@ -240,6 +240,10 @@ chrome.runtime.onMessage.addListener((raw: any, _sender, sendResponse) => {
       handleCapture(msg.payload, _sender?.tab, sendResponse)
       return true
     }
+    case "list-projects": {
+      listProjects().then((projects) => sendResponse(projects))
+      return true
+    }
   }
 })
 
@@ -248,8 +252,10 @@ async function handleCapture(
   senderTab: chrome.tabs.Tab | undefined,
   sendResponse: (response: any) => void
 ) {
-  const recent = await getRecentProjects(1)
-  const targetProject = recent[0]
+  // If payload specifies a projectId, use it; otherwise fall back to most recent
+  const targetProject = payload.projectId
+    ? (await listProjects()).find((p) => p.id === payload.projectId)
+    : (await getRecentProjects(1))[0]
 
   if (targetProject) {
     const item = createItem({ type: payload.type, content: payload.content, source: payload.source, projectId: targetProject.id })
