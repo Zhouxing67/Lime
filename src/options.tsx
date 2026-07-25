@@ -45,19 +45,20 @@ import { useBackupSync } from "./hooks/useBackupSync"
 import { useNewCard } from "./hooks/useNewCard"
 import { useProjects } from "./hooks/useProjects"
 import { useReview } from "./hooks/useReview"
-import { dayKey } from "./hooks/useSrs"
+import { dayKey, rateSrs } from "./hooks/useSrs"
 import {
   addItem,
   addReview,
   deleteItem,
   deleteItems,
   getAllReviews,
-  getReviewByItemId,
+  getDueReviews,
   isDuplicate,
   removeReview,
   searchItems,
   tx,
-  updateItem
+  updateItem,
+  updateReviewSrs
 } from "./database"
 import { importFromZip } from "./import"
 import { createAppTheme } from "./theme"
@@ -91,7 +92,6 @@ export default function OptionsPage() {
   const [previewItems, setPreviewItems] = useState<Item[]>([])
   const [reviewDateFilter, setReviewDateFilter] = useState<string | null>(null)
   const [ratingFilter, setRatingFilter] = useState<1 | 2 | 3 | 4 | null>(null)
-  const [reviewProgress, setReviewProgress] = useState({ current: 0, total: 0, sessionMastered: 0 })
   const [allItemsUnfiltered, setAllItemsUnfiltered] = useState<Item[]>([])
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
   const [readingFilter, setReadingFilter] = useState(false)
@@ -107,6 +107,31 @@ export default function OptionsPage() {
   const [reviewSrsMap, setReviewSrsMap] = useState<Map<string, SrsData>>(new Map())
   const [reviewTitlePending, setReviewTitlePending] = useState<string | null>(null)
   const [reviewTitleDraft, setReviewTitleDraft] = useState("")
+  // Review session state (owned by options.tsx, not ReviewSession)
+  const [reviewIndex, setReviewIndex] = useState(0)
+  const [reviewFlipped, setReviewFlipped] = useState(false)
+  const [reviewCompleted, setReviewCompleted] = useState(false)
+  const [sessionRatings, setSessionRatings] = useState<Map<string, number>>(new Map())
+  const [animating, setAnimating] = useState(false)
+  const [sessionTotal, setSessionTotal] = useState(0)
+
+  console.debug("[review:state]", {
+    reviewItems: reviewItems.length,
+    reviewCompleted,
+    reviewIndex,
+    reviewFlipped,
+    sidebarTab,
+    reviewDateFilter,
+    previewCount,
+    reviewItemIds: reviewItemIds.size
+  })
+  const [slideDir, setSlideDir] = useState<1 | -1>(1)
+
+  const reviewProgress = useMemo(() => ({
+    current: Math.min(reviewIndex + 1, reviewItems.length),
+    total: reviewItems.length,
+    sessionMastered: Array.from(sessionRatings.values()).filter((r) => r >= 3).length
+  }), [reviewIndex, reviewItems.length, sessionRatings])
 
   const ITEMS_PER_PAGE = 20
 
@@ -188,8 +213,7 @@ export default function OptionsPage() {
     reviewItems, setReviewItems,
     previewCount, setPreviewCount,
     previewItems, setPreviewItems,
-    reviewDateFilter, setReviewDateFilter,
-    reviewProgress, setReviewProgress
+    reviewDateFilter, setReviewDateFilter
   })
 
   const cardFirstRating = useMemo(() => {
@@ -266,6 +290,18 @@ export default function OptionsPage() {
     }, 300)
     return () => clearTimeout(t)
   }, [keyword])
+
+  // Reset review session state when exiting review
+  useEffect(() => {
+    if (reviewItems.length === 0 && sidebarTab !== "review") {
+      setReviewFlipped(false)
+      setAnimating(false)
+      setSlideDir(1)
+      setReviewCompleted(false)
+      setSessionRatings(new Map())
+      setReviewIndex(0)
+    }
+  }, [reviewItems, sidebarTab])
 
   const handleToggleDrawer = () => {
     setDrawerOpen((prev) => !prev)
@@ -365,7 +401,10 @@ export default function OptionsPage() {
 
       // If already in review, remove it
       if (reviewItemIds.has(itemId)) {
+        console.debug("[review:toggle] removing", itemId)
         await removeReview(itemId)
+        const dueAfter = await getDueReviews()
+        console.debug("[review:toggle] removed, due count:", dueAfter.length)
         setReviewItemIds((prev) => {
           const next = new Set(prev)
           next.delete(itemId)
@@ -382,6 +421,7 @@ export default function OptionsPage() {
       }
 
       // Has title → add directly
+      console.debug("[review:toggle] adding", itemId)
       await addReview({
         id: crypto.randomUUID(),
         itemId: card.id,
@@ -391,11 +431,80 @@ export default function OptionsPage() {
         status: "active",
         addedAt: Date.now()
       })
+      const dueAfter = await getDueReviews()
+      console.debug("[review:toggle] added, due count:", dueAfter.length)
       setReviewItemIds((prev) => new Set(prev).add(itemId))
       setSnackbarMsg("已加入复习")
     },
     [allItemsUnfiltered, reviewItemIds]
   )
+
+  const handleReviewFlip = useCallback(() => {
+    if (!animating) setReviewFlipped((prev) => !prev)
+  }, [animating])
+
+  const handleReviewRate = useCallback(
+    async (rating: 1 | 2 | 3 | 4) => {
+      if (reviewIndex >= reviewItems.length || animating || reviewItems.length === 0) return
+      const current = reviewItems[reviewIndex]
+      if (!current) return
+      const currentSrs = reviewSrsMap.get(current.id)
+      const newSrs = currentSrs
+        ? rateSrs(currentSrs, rating)
+        : rateSrs(
+            { dueDate: Date.now(), interval: 0, easeFactor: 2.5, reviewCount: 0, lastReviewDate: 0 },
+            rating
+          )
+      await updateReviewSrs(current.id, newSrs)
+      setSessionRatings((prev) => {
+        if (prev.has(current.id)) return prev
+        const next = new Map(prev)
+        next.set(current.id, rating)
+        return next
+      })
+      setAnimating(true)
+      setSlideDir(1)
+      setTimeout(async () => {
+        const due = await getDueReviews()
+        const itemMap = new Map(allItemsUnfiltered.map((i) => [i.id, i]))
+        const items = due.map((r) => itemMap.get(r.itemId)).filter((i): i is Item => i !== undefined)
+        setReviewFlipped(false)
+        if (items.length === 0) {
+          setReviewCompleted(true)
+          setReviewItems([])
+        } else {
+          setReviewItems(items)
+          setReviewIndex(0)
+        }
+        setAnimating(false)
+      }, 350)
+    },
+    [reviewIndex, reviewItems, reviewSrsMap, animating, allItemsUnfiltered]
+  )
+
+  const handleReviewPrev = useCallback(() => {
+    if (reviewIndex > 0 && !animating) {
+      setSlideDir(-1)
+      setAnimating(true)
+      setReviewFlipped(false)
+      setTimeout(() => {
+        setReviewIndex((i) => i - 1)
+        setAnimating(false)
+      }, 350)
+    }
+  }, [reviewIndex, animating])
+
+  const handleReviewNext = useCallback(() => {
+    if (reviewIndex < reviewItems.length - 1 && !animating) {
+      setSlideDir(1)
+      setAnimating(true)
+      setReviewFlipped(false)
+      setTimeout(() => {
+        setReviewIndex((i) => i + 1)
+        setAnimating(false)
+      }, 350)
+    }
+  }, [reviewIndex, reviewItems.length, animating])
 
   const {
     backupFileInputRef,
@@ -789,17 +898,21 @@ export default function OptionsPage() {
                   </Box>
                 ) : sidebarTab === "review" ? (
                   <ReviewSession
-                    items={reviewItems}
-                    masteredCount={reviewProgress.sessionMastered}
-                    reviewSrsMap={reviewSrsMap}
-                onSave={async (item) => {
-                  const all = await searchItems({})
-                  if (!all.some((i) => i.id === item.id)) return
-                  await updateItem(item)
-                }}
-                onExit={handleExitReview}
-                onProgress={(c, t, m) => setReviewProgress({ current: c, total: t, sessionMastered: m ?? 0 })}
-              />
+                    item={reviewItems[reviewIndex] ?? null}
+                    total={reviewCompleted ? sessionRatings.size : reviewItems.length}
+                    current={Math.min(reviewIndex + 1, reviewItems.length)}
+                    flipped={reviewFlipped}
+                    completed={reviewCompleted}
+                    animating={animating}
+                    slideDir={slideDir}
+                    ratings={sessionRatings}
+                    masteredCount={reviewStats.masteredCount}
+                    onFlip={handleReviewFlip}
+                    onRate={handleReviewRate}
+                    onPrev={handleReviewPrev}
+                    onNext={handleReviewNext}
+                    onExit={handleExitReview}
+                  />
             ) : (
               <>
             {!readingFilter && !activeProject && (

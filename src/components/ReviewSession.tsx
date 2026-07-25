@@ -1,171 +1,74 @@
 import ChevronLeftRoundedIcon from "@mui/icons-material/ChevronLeftRounded"
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded"
 import { Box, Button, IconButton, Stack, Tooltip, Typography } from "@mui/material"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect } from "react"
 
-import { updateReviewSrs } from "../database"
-import { rateSrs } from "../hooks/useSrs"
-import type { Item, SrsData } from "../types"
+import type { Item } from "../types"
 import CardRenderer from "./CardRenderer"
-import { prettyUrl } from "../utils"
 
 interface ReviewSessionProps {
-  items: Item[]
+  item: Item | null
+  total: number
+  current: number
+  flipped: boolean
+  completed: boolean
+  animating: boolean
+  slideDir: 1 | -1
+  ratings: Map<string, number>
   masteredCount: number
-  reviewSrsMap: Map<string, SrsData>
-  onSave: (item: Item) => Promise<void>
+  onFlip: () => void
+  onRate: (rating: 1 | 2 | 3 | 4) => void
+  onPrev: () => void
+  onNext: () => void
   onExit: () => void
-  onProgress?: (current: number, total: number, sessionMastered?: number) => void
-  initialIndex?: number
 }
 
 const LABELS = ["重来", "困难", "良好", "简单"]
 const COLORS = ["#ef4444", "#f97316", "#22c55e", "#3b82f6"]
 
 export default function ReviewSession({
-  items,
+  item,
+  total,
+  current,
+  flipped,
+  completed,
+  animating,
+  slideDir,
+  ratings,
   masteredCount,
-  reviewSrsMap,
-  onSave,
-  onExit,
-  onProgress,
-  initialIndex = 0
+  onFlip,
+  onRate,
+  onPrev,
+  onNext,
+  onExit
 }: ReviewSessionProps) {
-  const [reviewQueue, setReviewQueue] = useState<Item[]>([])
-  const [statsQueue, setStatsQueue] = useState<Item[]>([])
-  const [index, setIndex] = useState(0)
-  const [flipped, setFlipped] = useState(false)
-  const [transitioning, setTransitioning] = useState(false)
-  const [completed, setCompleted] = useState(false)
-  const [statsRatings, setStatsRatings] = useState<Map<string, number>>(new Map())
-  const [slideDir, setSlideDir] = useState<1 | -1>(1)
-
-  // Reset session state when items prop changes (new review set)
-  useEffect(() => {
-    setReviewQueue([...items])
-    setStatsQueue([...items])
-    setIndex(initialIndex)
-    setFlipped(false)
-    setTransitioning(false)
-    setCompleted(false)
-    setStatsRatings(new Map())
-  }, [items, initialIndex])
-
-  const totalCount = statsQueue.length
-
-  // Report progress to parent for AppHeader display
-  useEffect(() => {
-    const sessionMastered = Array.from(statsRatings.values()).filter((r) => r >= 3).length
-    onProgress?.(index + 1, totalCount, sessionMastered)
-  }, [index, totalCount, onProgress, statsRatings])
-
-  const current = reviewQueue[index] ?? null
-
-  const handleFlip = useCallback(() => {
-    if (!transitioning) {
-      setFlipped((prev) => !prev)
-    }
-  }, [transitioning])
-
-  const handleRate = useCallback(
-    async (rating: 1 | 2 | 3 | 4) => {
-      if (!current || transitioning) return
-      setSlideDir(1)
-      setTransitioning(true)
-      const currentSrs = reviewSrsMap.get(current.id)
-      const newSrs = currentSrs ? rateSrs(currentSrs, rating) : rateSrs(
-        { dueDate: Date.now(), interval: 0, easeFactor: 2.5, reviewCount: 0, lastReviewDate: 0 },
-        rating
-      )
-      await updateReviewSrs(current.id, newSrs)
-      setStatsRatings((prev) => {
-        if (prev.has(current.id)) return prev
-        const next = new Map(prev)
-        next.set(current.id, rating)
-        return next
-      })
-
-      await onSave(current)
-
-      // Trim-queue approach
-      if (rating < 3) {
-        setTimeout(() => {
-          setReviewQueue((prev) => {
-            const without = prev.filter((_, i) => i !== index)
-            return [...without, current]
-          })
-          setFlipped(false)
-          setTransitioning(false)
-        }, 350)
-      } else if (index + 1 >= reviewQueue.length) {
-        setTimeout(() => {
-          setCompleted(true)
-          setTransitioning(false)
-        }, 300)
-      } else {
-        setTimeout(() => {
-          setReviewQueue((prev) => {
-            return prev.filter((_, i) => i !== index)
-          })
-          setFlipped(false)
-          setTransitioning(false)
-          // index stays 0 — trimmed queue starts at next card
-        }, 350)
-      }
-    },
-    [current, transitioning, index, reviewQueue.length, reviewSrsMap, onSave]
-  )
-
-  const handlePrev = useCallback(() => {
-    if (index > 0 && !transitioning) {
-      setSlideDir(-1)
-      setTransitioning(true)
-      setFlipped(false)
-      setTimeout(() => {
-        setIndex((i) => i - 1)
-        setTransitioning(false)
-      }, 350)
-    }
-  }, [index, transitioning])
-
-  const handleNext = useCallback(() => {
-    if (index < reviewQueue.length - 1 && !transitioning) {
-      setSlideDir(1)
-      setTransitioning(true)
-      setFlipped(false)
-      setTimeout(() => {
-        setIndex((i) => i + 1)
-        setTransitioning(false)
-      }, 350)
-    }
-  }, [index, reviewQueue.length, transitioning])
-
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (completed) return
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault()
-        handleFlip()
+        onFlip()
       }
       if (["1", "2", "3", "4"].includes(e.key)) {
         e.preventDefault()
         const r = Number(e.key) as 1 | 2 | 3 | 4
-        if (flipped) handleRate(r)
+        if (flipped) onRate(r)
       }
     }
     window.addEventListener("keydown", handler)
     return () => window.removeEventListener("keydown", handler)
-  }, [flipped, completed, handleFlip, handleRate])
+  }, [flipped, completed, onFlip, onRate])
 
+  // Completion screen
   if (completed) {
-    const firstRatings = Array.from(statsRatings.values())
+    const firstRatings = Array.from(ratings.values())
     const avgRating =
       firstRatings.length > 0
         ? firstRatings.reduce((s, r) => s + r, 0) / firstRatings.length
         : 0
     const goodCount = firstRatings.filter((r) => r >= 3).length
-    const accuracy = totalCount > 0 ? goodCount / totalCount : 0
+    const accuracy = total > 0 ? goodCount / total : 0
     return (
       <Box
         sx={{
@@ -202,7 +105,7 @@ export default function ReviewSession({
             </Box>
             <Box sx={{ textAlign: "center" }}>
               <Typography variant="h4" sx={{ fontWeight: 600, color: "primary.main" }}>
-                {totalCount}
+                {total}
               </Typography>
               <Typography variant="caption" sx={{ color: "text.secondary" }}>
                 复习卡片
@@ -210,7 +113,7 @@ export default function ReviewSession({
             </Box>
             <Box sx={{ textAlign: "center" }}>
               <Typography variant="h4" sx={{ fontWeight: 600, color: "secondary.main" }}>
-                {masteredCount}
+                {goodCount}
               </Typography>
               <Typography variant="caption" sx={{ color: "text.secondary" }}>
                 已掌握
@@ -220,7 +123,7 @@ export default function ReviewSession({
         </Box>
         <Stack spacing={0.5} sx={{ mb: 3, textAlign: "center" }}>
           <Typography variant="body2" sx={{ color: "text.secondary" }}>
-            熟悉率 {goodCount}/{totalCount} · 平均评分 {avgRating.toFixed(1)}
+            熟悉率 {goodCount}/{total} · 平均评分 {avgRating.toFixed(1)}
           </Typography>
           {masteredCount > 0 && (
             <Typography variant="body2" sx={{ color: "success.main", fontWeight: 500 }}>
@@ -235,7 +138,8 @@ export default function ReviewSession({
     )
   }
 
-  if (!current) {
+  // Empty state
+  if (!item) {
     return (
       <Box
         sx={{
@@ -254,37 +158,32 @@ export default function ReviewSession({
     )
   }
 
+  // Normal review card
   return (
     <Box
       sx={{
         maxWidth: 832,
         mx: "auto",
-        mt: 12,
-        animation: transitioning
-          ? "reviewSlideOut 0.3s ease-in forwards"
-          : "reviewSlideIn 0.35s ease-out"
+        mt: 12
       }}>
       <style>{`
-        @keyframes slideInRight {
+        @keyframes reviewSlideOut {
+          to { opacity: 0; transform: translateX(-60px); }
+        }
+        @keyframes reviewSlideInRight {
           from { opacity: 0; transform: translateX(60px); }
           to { opacity: 1; transform: translateX(0); }
         }
-        @keyframes slideOutLeft {
-          to { opacity: 0; transform: translateX(-60px); }
-        }
-        @keyframes slideInLeft {
+        @keyframes reviewSlideInLeft {
           from { opacity: 0; transform: translateX(-60px); }
           to { opacity: 1; transform: translateX(0); }
-        }
-        @keyframes slideOutRight {
-          to { opacity: 0; transform: translateX(60px); }
         }
       `}</style>
 
       <Box sx={{ position: "relative", mb: 3 }}>
         <IconButton
-          disabled={index === 0}
-          onClick={handlePrev}
+          disabled={current <= 1}
+          onClick={onPrev}
           sx={{
             position: "absolute",
             left: -64,
@@ -300,8 +199,8 @@ export default function ReviewSession({
           <ChevronLeftRoundedIcon sx={{ fontSize: 28 }} />
         </IconButton>
         <IconButton
-          disabled={index >= reviewQueue.length - 1}
-          onClick={handleNext}
+          disabled={current >= total}
+          onClick={onNext}
           sx={{
             position: "absolute",
             right: -64,
@@ -318,17 +217,16 @@ export default function ReviewSession({
         </IconButton>
 
         <Box
-          onDoubleClick={() => { /* no double click */ }}
-          onClick={handleFlip}
+          onClick={onFlip}
           sx={{
             position: "relative",
             minHeight: 520,
             cursor: "pointer",
-            animation: transitioning
-              ? `slideOut${slideDir === 1 ? "Left" : "Right"} 0.3s ease-in forwards`
-              : `slideIn${slideDir === 1 ? "Right" : "Left"} 0.35s ease-out`
+            animation: animating
+              ? "reviewSlideOut 0.3s ease-in forwards"
+              : `reviewSlideIn${slideDir === 1 ? "Right" : "Left"} 0.35s ease-out`
           }}>
-          {/* Front — fades out when flipped */}
+          {/* Front */}
           <Box
             sx={{
               position: "absolute",
@@ -349,10 +247,10 @@ export default function ReviewSession({
               display: "flex",
               flexDirection: "column"
             }}>
-            <CardRenderer item={current} mode="front" />
+            <CardRenderer item={item} mode="front" />
           </Box>
 
-          {/* Back — fades in when flipped */}
+          {/* Back */}
           <Box
             sx={{
               position: "absolute",
@@ -376,12 +274,12 @@ export default function ReviewSession({
               "&::-webkit-scrollbar-thumb": { bgcolor: "divider", borderRadius: 2 },
               "&::-webkit-scrollbar-track": { bgcolor: "transparent" }
             }}>
-            <CardRenderer item={current} mode="back" />
+            <CardRenderer item={item} mode="back" />
           </Box>
         </Box>
-    </Box>
+      </Box>
 
-      {/* Rating buttons — visible only after flip */}
+      {/* Rating buttons */}
       <Box
         sx={{
           display: "flex",
@@ -401,7 +299,7 @@ export default function ReviewSession({
                 fullWidth
                 onClick={(e) => {
                   e.stopPropagation()
-                  handleRate(rating)
+                  onRate(rating)
                 }}
                 sx={{
                   borderRadius: 1.5,

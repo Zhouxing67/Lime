@@ -47,7 +47,7 @@ export interface SearchQuery {
   projectId?: string
 }
 
-export type ReviewStatus = "active" | "paused" | "mastered"
+export type ReviewStatus = "active" | "mastered"
 
 export interface ReviewEntry {
   id: string

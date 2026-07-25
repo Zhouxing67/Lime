@@ -6,6 +6,7 @@ import type { ExtensionMessage } from "./types/messages"
 async function updateBadge() {
   try {
     const due = await getDueReviews()
+    console.debug("[badge] updateBadge, due count:", due.length)
     chrome.action.setBadgeText({ text: due.length > 0 ? String(due.length) : "" })
     chrome.action.setBadgeBackgroundColor({ color: "#dc2626" })
   } catch {}

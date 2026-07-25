@@ -407,26 +407,6 @@ export async function getRecentProjects(limit = 3): Promise<Project[]> {
 }
 
 /**
- * @deprecated Use bulkReplace for sync-safe bulk operations.
- * Clears all items from the database.
- */
-export async function clearAllItems(): Promise<void> {
-  await withStore("items", "readwrite", (store) => {
-    store.clear()
-  })
-}
-
-/**
- * @deprecated Use bulkReplace for sync-safe bulk operations.
- * Clears all projects from the database.
- */
-export async function clearAllProjects(): Promise<void> {
-  await withStore("projects", "readwrite", (store) => {
-    store.clear()
-  })
-}
-
-/**
  * Diff-based bulk replacement for sync download.
  * Uses a single atomic transaction across items, projects, and reviews.
  * Upserts remote entities and deletes any local entity whose id is not in the remote set.

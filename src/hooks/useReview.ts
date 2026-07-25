@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { getDueReviews, getReviewStatsByStore, searchItems as dbSearch } from "../database"
 import type { Item } from "../types"
@@ -15,7 +15,7 @@ function pairWithItems(
     .filter((i): i is Item => i !== undefined)
 }
 
-export interface UseReviewOptions {
+interface UseReviewOptions {
   allItemsUnfiltered: Item[]
   searchItems: typeof dbSearch
   onSearch: () => Promise<void>
@@ -29,8 +29,6 @@ export interface UseReviewOptions {
   setPreviewItems: (items: Item[]) => void
   reviewDateFilter: string | null
   setReviewDateFilter: (key: string | null) => void
-  reviewProgress: { current: number; total: number; sessionMastered: number }
-  setReviewProgress: React.Dispatch<React.SetStateAction<{ current: number; total: number; sessionMastered: number }>>
 }
 
 export function useReview(options: UseReviewOptions) {
@@ -46,7 +44,6 @@ export function useReview(options: UseReviewOptions) {
     reviewItems,
     reviewDateFilter,
     setReviewDateFilter,
-    setReviewProgress,
     setReviewItems
   } = options
 
@@ -56,6 +53,9 @@ export function useReview(options: UseReviewOptions) {
   })
   const [recentItems, setRecentItems] = useState<{ date: string; items: Item[] }[]>([])
 
+  const allItemsRef = useRef(allItemsUnfiltered)
+  allItemsRef.current = allItemsUnfiltered
+
   useEffect(() => {
     getReviewStatsByStore().then((s) => {
       setDueCount(s.dueCount)
@@ -64,11 +64,17 @@ export function useReview(options: UseReviewOptions) {
     getRecentItemsBySrs(allItemsUnfiltered).then(setRecentItems)
   }, [allItemsUnfiltered])
 
-  // Auto-load due cards when entering review tab
+  // Load due cards every time the user enters review tab (always from DB)
+  // allItemsUnfiltered NOT in deps to prevent refreshAllData from racing with rating timeout
   useEffect(() => {
-    if (sidebarTab !== "review" || reviewDateFilter || previewCount) return
+    if (sidebarTab !== "review" || reviewDateFilter || previewCount) {
+      console.debug("[review:load] guard blocked", { sidebarTab, reviewDateFilter, previewCount })
+      return
+    }
+    console.debug("[review:load] guard passed, loading...", { allItemsUnfiltered: allItemsRef.current.length })
     getDueReviews().then((due) => {
-      const items = pairWithItems(due, allItemsUnfiltered)
+      const items = pairWithItems(due, allItemsRef.current)
+      console.debug("[review:load] result", { dueCount: due.length, pairedCount: items.length })
       setReviewItems(items)
     })
   }, [sidebarTab, reviewDateFilter, previewCount]) // eslint-disable-line react-hooks/exhaustive-deps
