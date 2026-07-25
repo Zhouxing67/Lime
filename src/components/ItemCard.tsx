@@ -42,11 +42,11 @@ export default function ItemCard({
         bgcolor: "background.paper",
         transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
         border: "1px solid",
-        borderColor: item.title ? "divider" : "warning.light",
+        borderColor: "divider",
         "&:hover": {
           boxShadow: 2,
           transform: "translateY(-2px)",
-          borderColor: item.title ? "primary.light" : "warning.main"
+          borderColor: "primary.light"
         },
         "&:active": {
           transform: "scale(0.97)",
@@ -54,7 +54,7 @@ export default function ItemCard({
         }
       }}
       onClick={onClick}>
-      <Box sx={{ position: "absolute", top: 0, left: 0, width: 48, height: 3, bgcolor: item.title ? "secondary.main" : "warning.light", borderTopLeftRadius: 16 }} />
+      <Box sx={{ position: "absolute", top: 0, left: 0, width: 48, height: 3, bgcolor: "secondary.main", borderTopLeftRadius: 16 }} />
       <Stack
         direction="row"
         alignItems="center"
@@ -73,16 +73,19 @@ export default function ItemCard({
             }}
           />
           {!item.title && (
-            <Typography
-              variant="caption"
+            <Chip
+              label="未设置摘要"
+              size="small"
               sx={{
-                fontSize: "0.65rem",
-                color: "warning.main",
+                height: 18,
+                fontSize: "0.6rem",
                 fontWeight: 500,
+                bgcolor: "action.hover",
+                color: "text.disabled",
+                borderRadius: 1,
                 letterSpacing: "0.02em"
-              }}>
-              未设置标题
-            </Typography>
+              }}
+            />
           )}
           {firstRating && (
             <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: ["#ef4444", "#f97316", "#22c55e", "#3b82f6"][firstRating - 1] }} />

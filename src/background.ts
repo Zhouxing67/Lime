@@ -1,7 +1,18 @@
-import { addItem, getDueReviews, getRecentProjects, listProjects, searchItems, touchProject } from "./database"
+import { addItem, addProject, getDueReviews, getRecentProjects, listProjects, searchItems, touchProject } from "./database"
 import { createMenus, ensureMenusReady, rebuildProjectMenus, rebuildRecentMenus } from "./background/menus"
-import type { Item, SourceMeta } from "./types"
+import type { Item, Project, SourceMeta } from "./types"
 import type { ExtensionMessage } from "./types/messages"
+
+async function updateBadge() {
+  try {
+    const due = await getDueReviews()
+    chrome.action.setBadgeText({ text: due.length > 0 ? String(due.length) : "" })
+    chrome.action.setBadgeBackgroundColor({ color: "#dc2626" })
+  } catch {}
+}
+
+// Initial badge on first load
+updateBadge()
 
 function notifyTab(
   tabId: number | undefined,
@@ -62,22 +73,18 @@ chrome.storage.onChanged.addListener((changes) => {
     rebuildRecentMenus().catch(() => {})
   }
   if (changes._dbi) {
-    searchItems({})
-      .then(async () => {
-        const due = await getDueReviews()
-        chrome.action.setBadgeText({ text: due.length > 0 ? String(due.length) : "" })
-        chrome.action.setBadgeBackgroundColor({ color: "#dc2626" })
-      })
-      .catch(() => {})
+    updateBadge()
   }
 })
 
 chrome.runtime.onInstalled.addListener(() => {
   createMenus().catch((e) => console.warn("onInstalled createMenus failed:", e))
+  updateBadge()
 })
 
 chrome.runtime.onStartup.addListener(() => {
   createMenus().catch((e) => console.warn("onStartup createMenus failed:", e))
+  updateBadge()
 })
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
@@ -242,6 +249,21 @@ chrome.runtime.onMessage.addListener((raw: any, _sender, sendResponse) => {
     }
     case "list-projects": {
       listProjects().then((projects) => sendResponse(projects))
+      return true
+    }
+    case "add-project": {
+      const project: Project = {
+        id: crypto.randomUUID(),
+        name: (msg as any).name,
+        createdAt: Date.now()
+      }
+      addProject(project)
+        .then(() => sendResponse({ ok: true, id: project.id }))
+        .catch((e) => sendResponse({ ok: false, error: e.message }))
+      return true
+    }
+    case "capture-visible-tab": {
+      chrome.tabs.captureVisibleTab((dataUrl) => sendResponse(dataUrl))
       return true
     }
   }

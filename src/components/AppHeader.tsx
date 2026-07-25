@@ -10,7 +10,7 @@ interface AppHeaderProps {
   headerHeight: number
   onToggleDrawer: () => void
   onSettingsClick: () => void
-  reviewProgress?: { current: number; total: number }
+  reviewProgress?: { current: number; total: number; sessionMastered: number }
   reviewStats?: ReviewStats
   activeProjectName?: string
   children?: ReactNode
@@ -62,7 +62,7 @@ export default function AppHeader({
             lineHeight: 1
           }}>
           {reviewProgress ? (
-            <>复习 · {activeProjectName ?? "全部项目"}</>
+            <>复习</>
           ) : activeProjectName ? (
             <>lime · <Box component="span" sx={{ fontSize: "1rem", fontWeight: 400, opacity: 0.8 }}>{activeProjectName}</Box></>
           ) : "lime"}
@@ -82,11 +82,11 @@ export default function AppHeader({
             第 {reviewProgress.current} 张 / 共 {reviewProgress.total} 张
           </Typography>
         )}
-        {reviewStats && reviewProgress && (
+        {reviewProgress && (
           <Typography
             variant="caption"
             sx={{ color: "text.disabled", fontSize: "0.72rem" }}>
-            · 已掌握 {reviewStats.masteredCount} · 待复习 {reviewStats.dueCount}
+            · 已掌握 {reviewProgress.sessionMastered ?? 0} · 待复习 {reviewStats?.dueCount ?? 0}
           </Typography>
         )}
         <Box sx={{ flexGrow: 1 }} />

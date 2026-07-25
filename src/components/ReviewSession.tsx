@@ -15,7 +15,8 @@ interface ReviewSessionProps {
   reviewSrsMap: Map<string, SrsData>
   onSave: (item: Item) => Promise<void>
   onExit: () => void
-  onProgress?: (current: number, total: number) => void
+  onProgress?: (current: number, total: number, sessionMastered?: number) => void
+  initialIndex?: number
 }
 
 const LABELS = ["重来", "困难", "良好", "简单"]
@@ -27,7 +28,8 @@ export default function ReviewSession({
   reviewSrsMap,
   onSave,
   onExit,
-  onProgress
+  onProgress,
+  initialIndex = 0
 }: ReviewSessionProps) {
   const [reviewQueue, setReviewQueue] = useState<Item[]>([])
   const [statsQueue, setStatsQueue] = useState<Item[]>([])
@@ -42,19 +44,20 @@ export default function ReviewSession({
   useEffect(() => {
     setReviewQueue([...items])
     setStatsQueue([...items])
-    setIndex(0)
+    setIndex(initialIndex)
     setFlipped(false)
     setTransitioning(false)
     setCompleted(false)
     setStatsRatings(new Map())
-  }, [items])
+  }, [items, initialIndex])
 
   const totalCount = statsQueue.length
 
-  // Report progress to parent for AppHeader display (based on statsQueue snapshot)
+  // Report progress to parent for AppHeader display
   useEffect(() => {
-    onProgress?.(index + 1, totalCount)
-  }, [index, totalCount, onProgress])
+    const sessionMastered = Array.from(statsRatings.values()).filter((r) => r >= 3).length
+    onProgress?.(index + 1, totalCount, sessionMastered)
+  }, [index, totalCount, onProgress, statsRatings])
 
   const current = reviewQueue[index] ?? null
 
@@ -84,7 +87,7 @@ export default function ReviewSession({
 
       await onSave(current)
 
-      // Anki-like: rating < 3 re-queues the card regardless of position
+      // Trim-queue approach
       if (rating < 3) {
         setTimeout(() => {
           setReviewQueue((prev) => {
@@ -93,7 +96,6 @@ export default function ReviewSession({
           })
           setFlipped(false)
           setTransitioning(false)
-          // index stays — next card shifts into current position
         }, 350)
       } else if (index + 1 >= reviewQueue.length) {
         setTimeout(() => {
@@ -102,9 +104,12 @@ export default function ReviewSession({
         }, 300)
       } else {
         setTimeout(() => {
+          setReviewQueue((prev) => {
+            return prev.filter((_, i) => i !== index)
+          })
           setFlipped(false)
           setTransitioning(false)
-          setIndex((i) => i + 1)
+          // index stays 0 — trimmed queue starts at next card
         }, 350)
       }
     },

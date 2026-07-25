@@ -2,7 +2,7 @@ import type { Item, Project, ReviewEntry, SearchQuery, SrsData } from "../types"
 import { computeItemHash } from "../utils"
 
 const DB_NAME = "pickquote-db"
-const DB_VERSION = 7
+const DB_VERSION = 8
 
 type TableNames = "items" | "projects" | "reviews"
 
@@ -290,11 +290,23 @@ export async function deleteItems(ids: string[]): Promise<void> {
   // Cascade: remove associated review entries and items in one atomic transaction
   await tx({ reviews: "readwrite", items: "readwrite" }, async (stores) => {
     const idx = stores.reviews.index("itemId")
-    for (const id of ids) {
-      const req = idx.getKey(id)
-      req.onsuccess = () => {
-        if (req.result) stores.reviews.delete(req.result as string)
+    const reviewKeys = await new Promise<(IDBValidKey | null)[]>((resolve) => {
+      const results: (IDBValidKey | null)[] = []
+      let pending = ids.length
+      for (const id of ids) {
+        const req = idx.getKey(id)
+        req.onsuccess = () => {
+          results.push(req.result)
+          if (--pending === 0) resolve(results)
+        }
+        req.onerror = () => {
+          results.push(null)
+          if (--pending === 0) resolve(results)
+        }
       }
+    })
+    for (const key of reviewKeys) {
+      if (key) stores.reviews.delete(key)
     }
     for (const id of ids) {
       stores.items.delete(id)

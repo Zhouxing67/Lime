@@ -57,9 +57,9 @@ export default function CardGrid({
           animation: fadeInUp 0.4s ease-out both;
         }
       `}</style>
-      <Box sx={{ display: "flex", gap: 1.5 }}>
+      <Box sx={{ display: "flex", gap: 1.5, overflow: "hidden", minWidth: 0 }}>
         {columns.map((col, ci) => (
-          <Box key={ci} sx={{ flex: 1, display: "flex", flexDirection: "column", gap: 1.5 }}>
+          <Box key={ci} sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1.5 }}>
             {col.map((it, idx) => {
               const globalIdx = idx * cols + ci
               return (

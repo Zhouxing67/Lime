@@ -40,6 +40,15 @@ export interface ListProjectsMessage {
   kind: "list-projects"
 }
 
+export interface AddProjectMessage {
+  kind: "add-project"
+  name: string
+}
+
+export interface CaptureVisibleTabMessage {
+  kind: "capture-visible-tab"
+}
+
 export type ExtensionMessage =
   | CaptureMessage
   | ToastMessage
@@ -47,6 +56,8 @@ export type ExtensionMessage =
   | SaveFeedbackMessage
   | SetRecentProjectMessage
   | ListProjectsMessage
+  | AddProjectMessage
+  | CaptureVisibleTabMessage
 
 export function sendMessage<T = any>(msg: ExtensionMessage): Promise<T> {
   return new Promise((resolve, reject) => {

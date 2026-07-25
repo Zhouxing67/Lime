@@ -91,7 +91,7 @@ export default function OptionsPage() {
   const [previewItems, setPreviewItems] = useState<Item[]>([])
   const [reviewDateFilter, setReviewDateFilter] = useState<string | null>(null)
   const [ratingFilter, setRatingFilter] = useState<1 | 2 | 3 | 4 | null>(null)
-  const [reviewProgress, setReviewProgress] = useState({ current: 0, total: 0 })
+  const [reviewProgress, setReviewProgress] = useState({ current: 0, total: 0, sessionMastered: 0 })
   const [allItemsUnfiltered, setAllItemsUnfiltered] = useState<Item[]>([])
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
   const [readingFilter, setReadingFilter] = useState(false)
@@ -195,11 +195,13 @@ export default function OptionsPage() {
   const cardFirstRating = useMemo(() => {
     const m = new Map<string, 1 | 2 | 3 | 4>()
     if (!reviewDateFilter) return m
-    for (const item of allItemsUnfiltered) {
-      // cardFirstRating is a nice-to-have; cleanly handle absence
+    for (const [itemId, srs] of reviewSrsMap) {
+      if (!srs.reviewHistory) continue
+      const entry = srs.reviewHistory.find((e) => dayKey(e.date) === reviewDateFilter)
+      if (entry) m.set(itemId, entry.rating)
     }
     return m
-  }, [allItemsUnfiltered, reviewDateFilter])
+  }, [reviewDateFilter, reviewSrsMap])
 
   const filteredDateItems = useMemo(() => {
     if (!ratingFilter) return reviewDateItems
@@ -244,13 +246,13 @@ export default function OptionsPage() {
     searchItems({}).then(setAllItemsUnfiltered)
   }, [])
 
-  // Load review states (which items are in review)
+  // Load review states (refresh when data changes)
   useEffect(() => {
     getAllReviews().then((reviews) => {
       setReviewItemIds(new Set(reviews.map((r) => r.itemId)))
       setReviewSrsMap(new Map(reviews.map((r) => [r.itemId, r.srs])))
     })
-  }, [])
+  }, [allItemsUnfiltered])
 
   // Immediate search for non-keyword filter changes
   useEffect(() => {
@@ -353,8 +355,7 @@ export default function OptionsPage() {
     await onSearch()
     const all = await searchItems({})
     setAllItemsUnfiltered(all)
-    const reviews = await getAllReviews()
-    setReviewItemIds(new Set(reviews.map((r) => r.itemId)))
+    // reviewItemIds + reviewSrsMap updated by the effect on allItemsUnfiltered change
   }, [loadProjects, onSearch])
 
   const handleToggleReview = useCallback(
@@ -789,7 +790,7 @@ export default function OptionsPage() {
                 ) : sidebarTab === "review" ? (
                   <ReviewSession
                     items={reviewItems}
-                    masteredCount={0}
+                    masteredCount={reviewProgress.sessionMastered}
                     reviewSrsMap={reviewSrsMap}
                 onSave={async (item) => {
                   const all = await searchItems({})
@@ -797,7 +798,7 @@ export default function OptionsPage() {
                   await updateItem(item)
                 }}
                 onExit={handleExitReview}
-                onProgress={(c, t) => setReviewProgress({ current: c, total: t })}
+                onProgress={(c, t, m) => setReviewProgress({ current: c, total: t, sessionMastered: m ?? 0 })}
               />
             ) : (
               <>
