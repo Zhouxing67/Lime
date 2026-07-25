@@ -42,7 +42,7 @@ function ContentBlock({ item }: { item: Item }) {
         <img
           src={item.content}
           alt={item.source?.title || ""}
-          style={{ maxWidth: "100%", maxHeight: 340, borderRadius: 8, objectFit: "contain" }}
+          style={{ maxWidth: "100%", maxHeight: 340, borderRadius: "8px", objectFit: "contain" }}
         />
       </Box>
     )
@@ -150,7 +150,7 @@ export default function CardRenderer({ item, mode, truncateTo, contentAlign }: C
                   style={{
                     maxWidth: "100%",
                     maxHeight: 200,
-                    borderRadius: "10px"
+                    borderRadius: "8px"
                   }}
                 />
               </Box>
@@ -192,7 +192,7 @@ export default function CardRenderer({ item, mode, truncateTo, contentAlign }: C
         />
         <Box sx={{ flex: 1, overflow: "auto", minHeight: 0, display: "flex", flexDirection: "column",
           "&::-webkit-scrollbar": { width: 4 },
-          "&::-webkit-scrollbar-thumb": { bgcolor: "divider", borderRadius: 2 },
+          "&::-webkit-scrollbar-thumb": { bgcolor: "divider", borderRadius: 1 },
           "&::-webkit-scrollbar-track": { bgcolor: "transparent" }
         }}>
           <Box sx={(contentAlign ?? "center") === "center" ? { marginTop: "auto", marginBottom: "auto" } : undefined}>

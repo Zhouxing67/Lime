@@ -32,7 +32,7 @@ export default function FooterBar({
         variant="outlined"
         sx={{
           flex: 1,
-          borderRadius: 2,
+          borderRadius: 1,
           px: 3,
           py: 0.75,
           display: "flex",

@@ -59,7 +59,7 @@ export const createAppTheme = (mode: PaletteMode, preset: PresetName = "classic"
           : "rgba(232, 230, 227, 0.12)",
       error: p.error
     },
-    shape: { borderRadius: 12 },
+    shape: { borderRadius: 8 },
     typography: {
       fontFamily: [
         "'Times New Roman'", "'LXGW WenKai'", "'Noto Serif SC'", "'Songti SC'", "'STSong'",

@@ -5,6 +5,7 @@ import SearchOffRoundedIcon from "@mui/icons-material/SearchOffRounded"
 import AddRoundedIcon from "@mui/icons-material/AddRounded"
 import DoneAllRoundedIcon from "@mui/icons-material/DoneAllRounded"
 import {
+  Alert,
   Box,
   Button,
   CircularProgress,
@@ -203,7 +204,9 @@ export default function OptionsPage() {
     handleStartReview,
     handleExitReview,
     handlePreview,
-    handleReviewDateClick
+    handleReviewDateClick,
+    todayRatings,
+    streakDays
   } = useReview({
     allItemsUnfiltered,
     searchItems,
@@ -907,6 +910,9 @@ export default function OptionsPage() {
                     slideDir={slideDir}
                     ratings={sessionRatings}
                     masteredCount={reviewStats.masteredCount}
+                    activeCount={reviewStats.activeCount}
+                    todayRatings={todayRatings}
+                    streakDays={streakDays}
                     onFlip={handleReviewFlip}
                     onRate={handleReviewRate}
                     onPrev={handleReviewPrev}
@@ -1124,9 +1130,14 @@ export default function OptionsPage() {
               open={Boolean(snackbarMsg)}
               autoHideDuration={2000}
               onClose={() => setSnackbarMsg("")}
-              message={snackbarMsg}
-              anchorOrigin={{ vertical: "top", horizontal: "center" }}
-            />
+              anchorOrigin={{ vertical: "top", horizontal: "center" }}>
+              <Alert
+                severity={snackbarMsg.includes("失败") ? "error" : "success"}
+                variant="filled"
+                sx={{ borderRadius: 1 }}>
+                {snackbarMsg}
+              </Alert>
+            </Snackbar>
 
             <MoveCopyCards
               open={Boolean(moveCardId)}

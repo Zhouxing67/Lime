@@ -54,7 +54,7 @@ export default function DialogShell({
       onClose={onClose}
       maxWidth={maxWidth}
       fullWidth
-      slotProps={{ paper: { sx: { borderRadius: 2 } } }}>
+      slotProps={{ paper: { sx: { borderRadius: 1 } } }}>
       <DialogTitle sx={{ py: 2.5, px: 3, fontSize: "1rem" }}>
         {title}
       </DialogTitle>

@@ -45,6 +45,7 @@ export function rateSrs(srs: SrsData, rating: 1 | 2 | 3 | 4): SrsData {
 export interface ReviewStats {
   masteredCount: number
   dueCount: number
+  activeCount: number
 }
 
 const DAY_MS = 86400000

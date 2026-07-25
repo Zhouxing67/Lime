@@ -46,16 +46,16 @@ function ensureMount(): boolean {
   const style = document.createElement("style")
   style.textContent = `
     *{box-sizing:border-box;margin:0}
-    .lp{position:fixed;z-index:2147483646;width:320px;background:#fff;border-radius:12px;box-shadow:0 8px 32px rgba(99,102,241,0.12),0 1px 3px rgba(0,0,0,0.06);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;color:#1e293b;overflow:hidden}
+    .lp{position:fixed;z-index:2147483646;width:320px;background:#fff;border-radius:8px;box-shadow:0 8px 32px rgba(99,102,241,0.12),0 1px 3px rgba(0,0,0,0.06);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;color:#1e293b;overflow:hidden}
     .lh{display:flex;align-items:center;padding:8px 12px;background:#6366f1;gap:8px;min-height:38px}
     .lt{font-weight:600;font-size:12px;color:#fff;letter-spacing:0.04em;flex-shrink:0;text-transform:uppercase}
     .la{margin-left:auto}
     .lac{display:flex;align-items:center;gap:2px;background:rgba(255,255,255,0.92);border-radius:8px;padding:2px}
-    .lb{border:none;background:none;cursor:pointer;font-size:15px;border-radius:6px;padding:4px 6px;line-height:1;display:flex;align-items:center;justify-content:center;color:#475569;transition:all 0.15s}
+    .lb{border:none;background:none;cursor:pointer;font-size:15px;border-radius:8px;padding:4px 6px;line-height:1;display:flex;align-items:center;justify-content:center;color:#475569;transition:all 0.15s}
     .lb:hover{background:#eef2ff;color:#6366f1}
     .pin-svg{display:block;width:16px;height:16px;transition:transform 0.2s;fill:currentColor}
     .ls-wrap{position:relative;display:inline-flex;align-items:center}
-    .ls{font-size:12px;border:none;border-radius:6px;padding:4px 24px 4px 8px;background:rgba(255,255,255,0.9);color:#1e293b;max-width:130px;cursor:pointer;font-weight:500;appearance:none;-webkit-appearance:none;text-overflow:ellipsis;overflow:hidden;white-space:nowrap}
+    .ls{font-size:12px;border:none;border-radius:8px;padding:4px 24px 4px 8px;background:rgba(255,255,255,0.9);color:#1e293b;max-width:130px;cursor:pointer;font-weight:500;appearance:none;-webkit-appearance:none;text-overflow:ellipsis;overflow:hidden;white-space:nowrap}
     .ls:focus{outline:2px solid rgba(255,255,255,0.5)}
     .ls-arrow{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid #64748b;pointer-events:none}
     .lfi{width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:8px 10px;font-size:13px;font-weight:500;font-family:inherit;color:#1e293b;outline:none;margin-bottom:8px;transition:border-color 0.15s,box-shadow 0.15s}

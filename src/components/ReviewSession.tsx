@@ -5,6 +5,7 @@ import { useCallback, useEffect } from "react"
 
 import type { Item } from "../types"
 import CardRenderer from "./CardRenderer"
+import ReviewEmptyStats from "./ReviewEmptyStats"
 
 interface ReviewSessionProps {
   item: Item | null
@@ -16,6 +17,9 @@ interface ReviewSessionProps {
   slideDir: 1 | -1
   ratings: Map<string, number>
   masteredCount: number
+  activeCount: number
+  todayRatings: [number, number, number, number]
+  streakDays: number
   onFlip: () => void
   onRate: (rating: 1 | 2 | 3 | 4) => void
   onPrev: () => void
@@ -36,6 +40,9 @@ export default function ReviewSession({
   slideDir,
   ratings,
   masteredCount,
+  activeCount,
+  todayRatings,
+  streakDays,
   onFlip,
   onRate,
   onPrev,
@@ -86,12 +93,12 @@ export default function ReviewSession({
         <Typography variant="h5" sx={{ mb: 4, fontWeight: 500, letterSpacing: "0.04em" }}>
           复习完成
         </Typography>
-        <Box
-          sx={{
-            width: "100%",
-            bgcolor: "action.hover",
-            borderRadius: 2,
-            p: 3,
+          <Box
+            sx={{
+              width: "100%",
+              bgcolor: "action.hover",
+              borderRadius: 1,
+              p: 3,
             mb: 3
           }}>
           <Stack direction="row" justifyContent="space-around">
@@ -141,20 +148,13 @@ export default function ReviewSession({
   // Empty state
   if (!item) {
     return (
-      <Box
-        sx={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          py: 10
-        }}>
-        <Typography variant="body1" sx={{ color: "text.secondary", mb: 2 }}>
-          没有待复习的卡片
-        </Typography>
-        <Button variant="outlined" onClick={onExit} sx={{ borderRadius: 1 }}>
-          退出复习
-        </Button>
-      </Box>
+      <ReviewEmptyStats
+        masteredCount={masteredCount}
+        activeCount={activeCount}
+        todayRatings={todayRatings}
+        streakDays={streakDays}
+        onExit={onExit}
+      />
     )
   }
 
@@ -239,11 +239,8 @@ export default function ReviewSession({
               border: "1px solid",
               borderColor: "divider",
               borderRadius: 1,
-              boxShadow: (theme) =>
-                theme.palette.mode === "light"
-                  ? "0 8px 32px rgba(0,0,0,0.06)"
-                  : "0 8px 32px rgba(0,0,0,0.25)",
-              p: 5,
+              boxShadow: 6,
+              p: 3,
               display: "flex",
               flexDirection: "column"
             }}>
@@ -263,15 +260,12 @@ export default function ReviewSession({
               border: "1px solid",
               borderColor: "divider",
               borderRadius: 1,
-              boxShadow: (theme) =>
-                theme.palette.mode === "light"
-                  ? "0 8px 32px rgba(0,0,0,0.06)"
-                  : "0 8px 32px rgba(0,0,0,0.25)",
-              p: 5,
+              boxShadow: 6,
+              p: 3,
               display: "flex",
               flexDirection: "column",
               "&::-webkit-scrollbar": { width: 4 },
-              "&::-webkit-scrollbar-thumb": { bgcolor: "divider", borderRadius: 2 },
+              "&::-webkit-scrollbar-thumb": { bgcolor: "divider", borderRadius: 1 },
               "&::-webkit-scrollbar-track": { bgcolor: "transparent" }
             }}>
             <CardRenderer item={item} mode="back" />
@@ -302,7 +296,7 @@ export default function ReviewSession({
                   onRate(rating)
                 }}
                 sx={{
-                  borderRadius: 1.5,
+                  borderRadius: 1,
                   borderColor: COLORS[i],
                   color: COLORS[i],
                   fontSize: "0.78rem",

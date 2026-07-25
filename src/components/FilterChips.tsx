@@ -44,7 +44,7 @@ export default function FilterChips({
             label={`搜索: ${keyword}`}
             size="small"
             onDelete={() => onKeywordChange("")}
-            sx={{ borderRadius: 1.5 }}
+            sx={{ borderRadius: 1 }}
           />
         )}
       </Stack>

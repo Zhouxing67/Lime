@@ -83,7 +83,7 @@ export default function SettingsDialog({
       onClose={onClose}
       maxWidth="sm"
       fullWidth
-      slotProps={{ paper: { sx: { borderRadius: 2 } } }}>
+      slotProps={{ paper: { sx: { borderRadius: 1 } } }}>
       <DialogTitle sx={{ py: 2.5, px: 3, fontSize: "1rem" }}>
         <Stack direction="row" spacing={1} alignItems="center">
           <CloudSyncRoundedIcon sx={{ fontSize: 20, color: "primary.main" }} />

@@ -87,7 +87,7 @@ export default function ItemDialog({
       slotProps={{
         paper: {
           sx: {
-            borderRadius: 2,
+            borderRadius: 1,
             height: "85vh",
             display: "flex",
             bgcolor: "background.paper"
@@ -197,8 +197,8 @@ export default function ItemDialog({
         sx={{
           flex: 1,
           overflowY: "auto",
-          px: 4,
-          py: 4,
+          px: 3,
+          py: 3,
           display: "flex",
           flexDirection: "column",
           bgcolor: "background.paper",
@@ -216,7 +216,7 @@ export default function ItemDialog({
               theme.palette.mode === "light"
                 ? "rgba(45, 52, 54, 0.2)"
                 : "rgba(232, 230, 227, 0.2)",
-            borderRadius: "4px",
+            borderRadius: "8px",
             "&:hover": {
               bgcolor: (theme) =>
                 theme.palette.mode === "light"
