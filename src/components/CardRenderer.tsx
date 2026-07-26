@@ -265,28 +265,54 @@ export default function CardRenderer({ item, mode, truncateTo, contentAlign }: C
   return (
     <>
       {item.title && (
-        <Typography
-          variant="h5"
-          component="h2"
-          sx={{
-            fontWeight: 700,
-            wordBreak: "break-word",
-            color: "text.primary",
-            mb: 3,
-            pb: 2,
-            borderBottom: "1px solid",
-            borderColor: "divider"
-          }}>
-          {item.title}
-        </Typography>
-      )}
-      {item.type === "text" ? (
-        <Box sx={{ pl: 2, borderLeft: "4px solid", borderLeftColor: "primary.main" }}>
-          <MarkdownRenderer content={item.content} />
+        <Box>
+          <Typography
+            variant="caption"
+            sx={{
+              color: "text.secondary",
+              fontSize: "0.75rem",
+              letterSpacing: "0.05em",
+              mb: 0.5,
+              display: "block"
+            }}>
+            摘要
+          </Typography>
+          <Typography
+            variant="h5"
+            component="h2"
+            sx={{
+              fontWeight: 700,
+              wordBreak: "break-word",
+              color: "text.primary",
+              mb: 3,
+              pb: 2,
+              borderBottom: "1px solid",
+              borderColor: "divider"
+            }}>
+            {item.title}
+          </Typography>
         </Box>
-      ) : (
-        <ContentBlock item={item} />
       )}
+      <Box>
+        <Typography
+          variant="caption"
+          sx={{
+            color: "text.secondary",
+            fontSize: "0.75rem",
+            letterSpacing: "0.05em",
+            mb: 0.5,
+            display: "block"
+          }}>
+          原文
+        </Typography>
+        {item.type === "text" ? (
+          <Box sx={{ pl: 2, borderLeft: "4px solid", borderLeftColor: "primary.main" }}>
+            <MarkdownRenderer content={item.content} />
+          </Box>
+        ) : (
+          <ContentBlock item={item} />
+        )}
+      </Box>
       <Box sx={{ mt: 2 }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
           <Box sx={{ color: "text.secondary", opacity: 0.7 }}>{typeIcon(item.type)}</Box>
