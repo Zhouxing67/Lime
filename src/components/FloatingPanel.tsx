@@ -185,12 +185,14 @@ function FloatingPanelContent({
     return () => window.removeEventListener("resize", onResize)
   }, [])
 
-  // Drag
+  // Drag handle
   const dragRef = useRef<{ ox: number; oy: number } | null>(null)
+  const handleRef = useRef<HTMLSpanElement | null>(null)
   const pd = useCallback((e: React.PointerEvent) => {
-    if (!pinned || !ref.current) return
+    if (!pinned || !ref.current || !handleRef.current) return
     const r = ref.current.getBoundingClientRect()
     dragRef.current = { ox: e.clientX - r.left, oy: e.clientY - r.top }
+    handleRef.current.style.cursor = "grabbing"
     e.preventDefault()
   }, [pinned])
 
@@ -206,11 +208,15 @@ function FloatingPanelContent({
       el.style.top = `${top}px`
       onPositionChange({ left, top })
     }
-    const up = () => { dragging = false; dragRef.current = null }
+    const up = () => {
+      dragging = false
+      dragRef.current = null
+      if (handleRef.current) handleRef.current.style.cursor = "grab"
+    }
     document.addEventListener("pointermove", mv)
     document.addEventListener("pointerup", up)
     return () => { document.removeEventListener("pointermove", mv); document.removeEventListener("pointerup", up) }
-  }, [onPositionChange, pinned])
+  }, [onPositionChange])
 
   // Position: if pinned, restore persisted position; otherwise position near selection
   useEffect(() => {
@@ -289,11 +295,26 @@ function FloatingPanelContent({
       boxSizing: "border-box"
     }}>
       {/* Header */}
-      <div onPointerDown={pd} style={{
-        cursor: pinned ? "grab" : "default",
+      <div style={{
         display: "flex", alignItems: "center", padding: "8px 12px",
         background: primary, gap: 8, minHeight: 38
       }}>
+        <span
+          ref={handleRef}
+          onPointerDown={pd}
+          title="拖拽移动"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            cursor: pinned ? "grab" : "default",
+            padding: "0 4px",
+            marginLeft: -4,
+            opacity: pinned ? 1 : 0.6
+          }}>
+          <svg viewBox="0 0 24 24" style={{ display: "block", width: 14, height: 14, fill: "rgba(255,255,255,0.9)" }}>
+            <path d="M7 5h2v2H7zm0 6h2v2H7zm0 6h2v2H7zm4-12h2v2h-2zm0 6h2v2h-2zm0 6h2v2h-2z" />
+          </svg>
+        </span>
         <span style={{ fontWeight: 600, fontSize: 12, color: "#fff", letterSpacing: "0.04em", flexShrink: 0, textTransform: "uppercase" }}>
           lime · 摘录
         </span>
