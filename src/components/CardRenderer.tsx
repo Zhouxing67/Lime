@@ -95,10 +95,10 @@ export default function CardRenderer({ item, mode, truncateTo, contentAlign }: C
         {item.title ? (
           <Box>
             <Typography
+              variant="h5"
+              component="h2"
               sx={{
-                fontSize: "1rem",
-                lineHeight: 1.7,
-                fontWeight: 500,
+                fontWeight: 700,
                 wordBreak: "break-word",
                 color: "text.primary",
                 mb: 0.5
@@ -198,10 +198,10 @@ export default function CardRenderer({ item, mode, truncateTo, contentAlign }: C
           <Box sx={(contentAlign ?? "center") === "center" ? { marginTop: "auto", marginBottom: "auto" } : undefined}>
             {item.title ? (
               <Typography
+                variant="h4"
+                component="h1"
                 sx={{
-                  fontSize: "1.15rem",
-                  lineHeight: 1.8,
-                  fontWeight: 500,
+                  fontWeight: 700,
                   wordBreak: "break-word",
                   textAlign: "center",
                   color: "text.primary",
@@ -266,10 +266,10 @@ export default function CardRenderer({ item, mode, truncateTo, contentAlign }: C
     <>
       {item.title && (
         <Typography
+          variant="h5"
+          component="h2"
           sx={{
-            fontSize: "1.25rem",
-            lineHeight: 1.6,
-            fontWeight: 600,
+            fontWeight: 700,
             wordBreak: "break-word",
             color: "text.primary",
             mb: 3,

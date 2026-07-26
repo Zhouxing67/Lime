@@ -24,10 +24,6 @@ interface UseReviewOptions {
   setSidebarTab: (tab: "projects" | "review" | "backup") => void
   reviewItems: Item[]
   setReviewItems: (items: Item[]) => void
-  previewCount: number
-  setPreviewCount: (n: number) => void
-  previewItems: Item[]
-  setPreviewItems: (items: Item[]) => void
   reviewDateFilter: string | null
   setReviewDateFilter: (key: string | null) => void
 }
@@ -39,9 +35,6 @@ export function useReview(options: UseReviewOptions) {
     onSearch,
     sidebarTab,
     setSidebarTab,
-    previewCount,
-    setPreviewCount,
-    setPreviewItems,
     reviewItems,
     reviewDateFilter,
     setReviewDateFilter,
@@ -97,8 +90,8 @@ export function useReview(options: UseReviewOptions) {
   // Load due cards every time the user enters review tab (always from DB)
   // allItemsUnfiltered NOT in deps to prevent refreshAllData from racing with rating timeout
   useEffect(() => {
-    if (sidebarTab !== "review" || reviewDateFilter || previewCount) {
-      console.debug("[review:load] guard blocked", { sidebarTab, reviewDateFilter, previewCount })
+    if (sidebarTab !== "review" || reviewDateFilter) {
+      console.debug("[review:load] guard blocked", { sidebarTab, reviewDateFilter })
       return
     }
     console.debug("[review:load] guard passed, loading...", { allItemsUnfiltered: allItemsRef.current.length })
@@ -107,7 +100,7 @@ export function useReview(options: UseReviewOptions) {
       console.debug("[review:load] result", { dueCount: due.length, pairedCount: items.length })
       setReviewItems(items)
     })
-  }, [sidebarTab, reviewDateFilter, previewCount]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sidebarTab, reviewDateFilter]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const recentDates = useMemo(() => {
     const DAY_MS = 86400000
@@ -130,13 +123,11 @@ export function useReview(options: UseReviewOptions) {
 
   // Entering review tab: load due cards (fresh, no session persistence)
   const handleStartReview = useCallback(async () => {
-    setPreviewCount(0)
-    setPreviewItems([])
     const due = await getDueReviews()
     const items = pairWithItems(due, allItemsUnfiltered)
     setReviewItems(items)
     setSidebarTab("review")
-  }, [allItemsUnfiltered, setSidebarTab, setPreviewCount, setPreviewItems, setReviewItems])
+  }, [allItemsUnfiltered, setSidebarTab, setReviewItems])
 
   const handleExitReview = useCallback(async () => {
     setReviewItems([])
@@ -145,28 +136,11 @@ export function useReview(options: UseReviewOptions) {
     await onSearch()
   }, [onSearch, setSidebarTab, setReviewItems, setReviewDateFilter])
 
-  const handlePreview = useCallback(
-    async (count: number) => {
-      if (count === previewCount) {
-        setPreviewCount(0); setPreviewItems([]); setSidebarTab("projects"); return
-      }
-      setPreviewCount(count)
-      setReviewDateFilter(null)
-      setSidebarTab("review")
-      const due = await getDueReviews()
-      const items = pairWithItems(due, allItemsUnfiltered)
-      setPreviewItems(items.slice(0, count))
-    },
-    [previewCount, allItemsUnfiltered, setSidebarTab, setPreviewCount, setPreviewItems, setReviewDateFilter]
-  )
-
   const handleReviewDateClick = useCallback((dateKey: string | null) => {
     if (dateKey) setReviewItems([])
     setReviewDateFilter(dateKey)
-    setPreviewCount(0)
-    setPreviewItems([])
     if (dateKey) setSidebarTab("review")
-  }, [setSidebarTab, setReviewDateFilter, setPreviewCount, setPreviewItems, setReviewItems])
+  }, [setSidebarTab, setReviewDateFilter, setReviewItems])
 
   return {
     dueCount,
@@ -177,7 +151,6 @@ export function useReview(options: UseReviewOptions) {
     reviewDateItems,
     handleStartReview,
     handleExitReview,
-    handlePreview,
     handleReviewDateClick,
     recentItems
   }

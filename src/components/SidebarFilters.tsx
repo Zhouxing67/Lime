@@ -40,8 +40,6 @@ interface SidebarFiltersProps {
   sidebarTab: "projects" | "review" | "backup"
   backupSelectedIds: string[]
   syncStatus: string
-  previewCount: number
-  onPreview: (count: number) => void
   recentDates: { key: string; label: string; count: number }[]
   reviewDateFilter: string | null
   onReviewDateClick: (dateKey: string | null) => void
@@ -84,8 +82,6 @@ export default function SidebarFilters({
   sidebarTab,
   backupSelectedIds,
   syncStatus,
-  previewCount,
-  onPreview,
   recentDates,
   reviewDateFilter,
   onReviewDateClick,
@@ -246,22 +242,6 @@ export default function SidebarFilters({
           /* Review tab content */
           <Box sx={{ bgcolor: "background.paper", borderRadius: 1, border: "1px solid", borderColor: "divider", overflow: "hidden" }}>
           <Stack spacing={1.5} sx={{ p: 2, pt: 3 }}>
-            <Box>
-              <SectionLabel>预习</SectionLabel>
-              <Stack direction="row" spacing={1}>
-                {[5, 10, 15].map((n) => (
-                  <Button
-                    key={n}
-                    size="small"
-                    variant={previewCount === n ? "contained" : "outlined"}
-                    fullWidth
-                    onClick={() => onPreview(n)}
-                    sx={{ borderRadius: 1, fontSize: "0.7rem" }}>
-                    {n}张
-                  </Button>
-                ))}
-              </Stack>
-            </Box>
             {recentDates.length > 0 && (
               <Box>
                 <SectionLabel>近期回顾</SectionLabel>

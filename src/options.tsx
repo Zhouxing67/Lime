@@ -89,8 +89,6 @@ export default function OptionsPage() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [sidebarTab, setSidebarTab] = useState<"projects" | "review" | "backup">("projects")
   const [reviewItems, setReviewItems] = useState<Item[]>([])
-  const [previewCount, setPreviewCount] = useState(0)
-  const [previewItems, setPreviewItems] = useState<Item[]>([])
   const [reviewDateFilter, setReviewDateFilter] = useState<string | null>(null)
   const [ratingFilter, setRatingFilter] = useState<1 | 2 | 3 | 4 | null>(null)
   const [allItemsUnfiltered, setAllItemsUnfiltered] = useState<Item[]>([])
@@ -123,7 +121,6 @@ export default function OptionsPage() {
     reviewFlipped,
     sidebarTab,
     reviewDateFilter,
-    previewCount,
     reviewItemIds: reviewItemIds.size
   })
   const [slideDir, setSlideDir] = useState<1 | -1>(1)
@@ -203,7 +200,6 @@ export default function OptionsPage() {
     reviewDateItems,
     handleStartReview,
     handleExitReview,
-    handlePreview,
     handleReviewDateClick,
     todayRatings,
     streakDays
@@ -214,8 +210,6 @@ export default function OptionsPage() {
     sidebarTab,
     setSidebarTab,
     reviewItems, setReviewItems,
-    previewCount, setPreviewCount,
-    previewItems, setPreviewItems,
     reviewDateFilter, setReviewDateFilter
   })
 
@@ -241,8 +235,6 @@ export default function OptionsPage() {
       if (!dialogItem) return
       const list = sidebarTab === "review" && reviewDateFilter
         ? filteredDateItems
-        : sidebarTab === "review" && previewCount > 0
-        ? previewItems
         : displayedItems
       const idx = list.findIndex((i) => i.id === dialogItem.id)
       if (idx === -1) return
@@ -250,13 +242,11 @@ export default function OptionsPage() {
       if (nextIdx < 0 || nextIdx >= list.length) return
       setDialogItem(list[nextIdx])
     },
-    [dialogItem, displayedItems, filteredDateItems, previewItems, sidebarTab, reviewDateFilter, previewCount]
+    [dialogItem, displayedItems, filteredDateItems, sidebarTab, reviewDateFilter]
   )
 
   const navList = sidebarTab === "review" && reviewDateFilter
     ? filteredDateItems
-    : sidebarTab === "review" && previewCount > 0
-    ? previewItems
     : displayedItems
   const navIndex = dialogItem ? navList.findIndex((i) => i.id === dialogItem.id) : -1
   const hasPrev = navIndex > 0
@@ -732,8 +722,6 @@ export default function OptionsPage() {
           onImportBackup={() => backupFileInputRef.current?.click()}
           onUploadSync={handleUploadSync}
           onDownloadSync={handleDownloadSync}
-          previewCount={previewCount}
-          onPreview={handlePreview}
           recentDates={recentDates}
           reviewDateFilter={reviewDateFilter}
           onReviewDateClick={handleReviewDateClick}
@@ -879,25 +867,6 @@ export default function OptionsPage() {
                       {...sharedCardGridProps}
                     />
                     )}
-                  </Box>
-                ) : sidebarTab === "review" && previewCount > 0 ? (
-                  <Box>
-                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
-                      <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                        🔍 预习 — 接下来 {previewCount} 张卡片
-                      </Typography>
-                      <Button size="small" onClick={() => { setPreviewCount(0); setPreviewItems([]) }} sx={{ borderRadius: 1 }}>
-                        退出
-                      </Button>
-                    </Stack>
-                    <CardGrid
-                      items={previewItems}
-                      selectMode={false}
-                      readOnly
-                      onSelectItem={() => {}}
-                      onDeleteItem={() => {}}
-                      {...sharedCardGridProps}
-                    />
                   </Box>
                 ) : sidebarTab === "review" ? (
                   <ReviewSession
