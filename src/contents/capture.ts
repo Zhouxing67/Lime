@@ -11,6 +11,9 @@ chrome.runtime.onMessage.addListener((msg) => {
   if (msg?.kind === "toast" && msg?.text) {
     showToast(msg.text)
   }
+  if (msg?.kind === "reload-extension") {
+    location.reload()
+  }
 })
 
 function showToast(text: string) {

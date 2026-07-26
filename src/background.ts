@@ -81,6 +81,14 @@ chrome.storage.onChanged.addListener((changes) => {
 chrome.runtime.onInstalled.addListener(() => {
   createMenus().catch((e) => console.warn("onInstalled createMenus failed:", e))
   updateBadge()
+  // Notify all tabs to reload content scripts
+  chrome.tabs.query({}, (tabs) => {
+    for (const tab of tabs) {
+      if (tab.id) {
+        chrome.tabs.sendMessage(tab.id, { kind: "reload-extension" as const }).catch(() => {})
+      }
+    }
+  })
 })
 
 chrome.runtime.onStartup.addListener(() => {
@@ -232,7 +240,7 @@ chrome.runtime.onMessage.addListener((raw: any, _sender, sendResponse) => {
         })
         .catch((e) => {
           clearTimeout(timer)
-          sendResponse({ ok: false, status: 0, body: e.message })
+          sendResponse({ ok: false, status: 0, body: e?.message ?? "Request failed" })
         })
       return true
     }
@@ -260,7 +268,7 @@ chrome.runtime.onMessage.addListener((raw: any, _sender, sendResponse) => {
       }
       addProject(project)
         .then(() => sendResponse({ ok: true, id: project.id }))
-        .catch((e) => sendResponse({ ok: false, error: e.message }))
+        .catch((e) => sendResponse({ ok: false, error: e?.message ?? "创建失败" }))
       return true
     }
     case "capture-visible-tab": {
@@ -285,11 +293,11 @@ async function handleCapture(
     : (await getRecentProjects(1))[0]
 
   if (targetProject) {
-    const item = createItem({ type: payload.type, content: payload.content, source: payload.source, projectId: targetProject.id })
+    const item = createItem({ type: payload.type, content: payload.content, title: payload.title, source: payload.source, projectId: targetProject.id })
     const saved = await addItem(item)
     if (saved) touchProject(targetProject.id).catch(() => {})
     notifyTab(senderTab?.id, saved, item.type)
-    sendResponse({ ok: true })
+    sendResponse({ ok: true, saved })
     return
   }
 

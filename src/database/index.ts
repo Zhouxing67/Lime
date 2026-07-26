@@ -108,8 +108,8 @@ async function withStore<T>(
         if (mode === "readwrite") broadcastDbChange(name)
         resolve()
       }
-      tx.onerror = () => reject(tx.error)
-      tx.onabort = () => reject(tx.error)
+      tx.onerror = () => reject(tx.error ?? new Error("Transaction failed"))
+      tx.onabort = () => reject(tx.error ?? new Error("Transaction aborted"))
     })
     return result
   } catch (err) {
@@ -323,6 +323,10 @@ export async function updateItem(item: Item): Promise<void> {
 // ---- Projects ----
 
 export async function addProject(project: Project): Promise<void> {
+  const existing = await getProjectByName(project.name)
+  if (existing) {
+    throw new Error(`项目已存在`)
+  }
   await withStore("projects", "readwrite", (store) => {
     store.put(project)
   })
