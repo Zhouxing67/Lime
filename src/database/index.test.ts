@@ -1,10 +1,20 @@
-import type { Item, SearchQuery } from '../types'
+import type { Item, Project, ReviewEntry, SearchQuery } from '../types'
+import { rateSrs } from '../hooks/useSrs'
 import {
   addItem,
+  addProject,
+  addReview,
+  bulkReplace,
   deleteItem,
   deleteItems,
+  deleteProject,
+  getAllReviews,
+  getDueReviews,
+  getProjectByName,
+  listProjects,
   searchItems,
-  updateItem
+  updateItem,
+  updateReviewSrs
 } from './index'
 
 // Helper to create a test item
@@ -242,6 +252,159 @@ describe('database', () => {
       const after = await searchItems({})
       expect(after.find((i) => i.id === "batch1")).toBeFalsy()
       expect(after.find((i) => i.id === "batch2")).toBeFalsy()
+    })
+  })
+
+  const createTestReview = (
+    id: string,
+    itemId: string,
+    projectId = "",
+    srs?: Partial<ReviewEntry["srs"]>
+  ): ReviewEntry => {
+    const now = Date.now()
+    const dueDate = srs?.dueDate ?? now
+    return {
+      id,
+      itemId,
+      projectId,
+      status: "active",
+      dueDate,
+      addedAt: now,
+      srs: {
+        dueDate,
+        interval: 0,
+        easeFactor: 2.5,
+        reviewCount: 0,
+        lastReviewDate: 0,
+        ...srs
+      }
+    }
+  }
+
+  describe("project CRUD", () => {
+    const createProject = (name: string, overrides: Partial<Project> = {}): Project => ({
+      id: `proj-${name}`,
+      name,
+      createdAt: Date.now(),
+      ...overrides
+    })
+
+    it("should add a project", async () => {
+      const project = createProject("Test Project")
+      await addProject(project)
+      const projects = await listProjects()
+      expect(projects).toHaveLength(1)
+      expect(projects[0].name).toBe("Test Project")
+    })
+
+    it("should reject duplicate project names", async () => {
+      const project = createProject("Unique Project")
+      await addProject(project)
+      await expect(addProject(createProject("Unique Project"))).rejects.toThrow("项目已存在")
+    })
+
+    it("should delete project and its items atomically", async () => {
+      const project = createProject("To Delete")
+      await addProject(project)
+      await addItem(createTestItem({ id: "p-item", projectId: project.id }))
+      await addReview(createTestReview("review-1", "p-item", project.id))
+
+      await deleteProject(project.id)
+
+      const projects = await listProjects()
+      expect(projects).toHaveLength(0)
+      const items = await searchItems({ projectId: project.id })
+      expect(items).toHaveLength(0)
+      const reviews = await getAllReviews()
+      expect(reviews).toHaveLength(0)
+    })
+
+    it("getProjectByName should find existing project", async () => {
+      const project = createProject("Find Me")
+      await addProject(project)
+      const found = await getProjectByName("Find Me")
+      expect(found?.id).toBe(project.id)
+    })
+  })
+
+  describe("review lifecycle", () => {
+    it("addReview + getDueReviews should return only currently due active cards", async () => {
+      await addReview(createTestReview("r1", "item1", "", { dueDate: Date.now() - 1000 }))
+      await addReview(createTestReview("r2", "item2", "", { dueDate: Date.now() + 86400000, interval: 1 }))
+
+      const due = await getDueReviews()
+      expect(due).toHaveLength(1)
+      expect(due[0].itemId).toBe("item1")
+    })
+
+    it("updateReviewSrs should promote mastered when interval reaches max", async () => {
+      await addReview(createTestReview("r3", "item3"))
+      const srs = rateSrs(
+        { dueDate: Date.now(), interval: 0, easeFactor: 2.5, reviewCount: 0, lastReviewDate: 0 },
+        4
+      )
+      // Rating 4 several times to push interval to 365
+      let current = srs
+      for (let i = 0; i < 10; i++) {
+        current = rateSrs(current, 4)
+      }
+      expect(current.interval).toBe(365)
+
+      await updateReviewSrs("item3", current)
+
+      const due = await getDueReviews()
+      expect(due).toHaveLength(0)
+      const all = await getAllReviews()
+      expect(all[0].status).toBe("mastered")
+    })
+
+    it("updateReviewSrs should keep active card due today when rated <3", async () => {
+      await addReview(createTestReview("r4", "item4"))
+      const srs = rateSrs(
+        { dueDate: Date.now(), interval: 0, easeFactor: 2.5, reviewCount: 0, lastReviewDate: 0 },
+        1
+      )
+      expect(srs.interval).toBe(1)
+
+      await updateReviewSrs("item4", srs)
+
+      const due = await getDueReviews()
+      expect(due).toHaveLength(1)
+      expect(due[0].itemId).toBe("item4")
+    })
+  })
+
+  describe("bulkReplace", () => {
+    it("should upsert remote and delete missing local atomically", async () => {
+      const project: Project = { id: "p1", name: "P1", createdAt: 1000 }
+      await addProject(project)
+      await addItem(createTestItem({ id: "i1", projectId: "p1" }))
+      await addReview(createTestReview("rv1", "i1", "p1"))
+
+      const remoteItem = createTestItem({ id: "i2", projectId: "p2" })
+      const remoteProject: Project = { id: "p2", name: "P2", createdAt: 2000 }
+      const remoteReview = createTestReview("rv2", "i2", "p2")
+
+      await bulkReplace(
+        [remoteItem],
+        [remoteProject],
+        [remoteReview],
+        await searchItems({}),
+        await listProjects(),
+        await getAllReviews()
+      )
+
+      const items = await searchItems({})
+      expect(items).toHaveLength(1)
+      expect(items[0].id).toBe("i2")
+
+      const projects = await listProjects()
+      expect(projects).toHaveLength(1)
+      expect(projects[0].id).toBe("p2")
+
+      const reviews = await getAllReviews()
+      expect(reviews).toHaveLength(1)
+      expect(reviews[0].itemId).toBe("i2")
     })
   })
 

@@ -222,14 +222,31 @@ export async function addItem(item: Item): Promise<boolean> {
         ? await computeItemHash(item.content, item.source.url)
         : await computeItemHash(item.content, ""))
   }
-  if (await isDuplicate(normalized.hash, normalized.projectId, normalized.source?.url)) {
-    return false
-  }
 
-  await withStore("items", "readwrite", (store) => {
-    store.put(normalized)
+  return withStore("items", "readwrite", async (store) => {
+    const idx = store.index("hash")
+    return new Promise<boolean>((resolve, reject) => {
+      const req = idx.openCursor(IDBKeyRange.only(normalized.hash))
+      req.onsuccess = () => {
+        const cursor = req.result
+        if (!cursor) {
+          store.put(normalized)
+          resolve(true)
+          return
+        }
+        const existing = cursor.value as Item
+        if (
+          existing.projectId === normalized.projectId &&
+          existing.source?.url === normalized.source?.url
+        ) {
+          resolve(false)
+        } else {
+          cursor.continue()
+        }
+      }
+      req.onerror = () => reject(req.error)
+    })
   })
-  return true
 }
 
 export async function searchItems(q: SearchQuery): Promise<Item[]> {
@@ -323,12 +340,20 @@ export async function updateItem(item: Item): Promise<void> {
 // ---- Projects ----
 
 export async function addProject(project: Project): Promise<void> {
-  const existing = await getProjectByName(project.name)
-  if (existing) {
-    throw new Error(`项目已存在`)
-  }
-  await withStore("projects", "readwrite", (store) => {
-    store.put(project)
+  await withStore("projects", "readwrite", async (store) => {
+    return new Promise<void>((resolve, reject) => {
+      const idx = store.index("name")
+      const req = idx.get(project.name)
+      req.onsuccess = () => {
+        if (req.result) {
+          reject(new Error("项目已存在"))
+          return
+        }
+        store.put(project)
+        resolve()
+      }
+      req.onerror = () => reject(req.error)
+    })
   })
 }
 
@@ -372,27 +397,41 @@ export async function updateProject(project: Project): Promise<void> {
 }
 
 export async function deleteProject(id: string): Promise<void> {
-  // Cascade: collect all item ids for this project, delete them, then delete the project record
-  const itemIds: string[] = []
-  await withStore("items", "readonly", (store) => {
-    const idx = store.index("projectId")
-    const range = IDBKeyRange.only(id)
-    return new Promise<void>((resolve) => {
-      const req = idx.openCursor(range)
+  // Atomic cascade: delete project, its items, and associated reviews in one transaction
+  await tx({ items: "readwrite", reviews: "readwrite", projects: "readwrite" }, async (stores) => {
+    const itemIds: string[] = await new Promise((resolve, reject) => {
+      const ids: string[] = []
+      const idx = stores.items.index("projectId")
+      const req = idx.openCursor(IDBKeyRange.only(id))
       req.onsuccess = () => {
         const cursor = req.result
         if (cursor) {
-          itemIds.push(cursor.primaryKey as string)
+          ids.push(cursor.primaryKey as string)
           cursor.continue()
         } else {
-          resolve()
+          resolve(ids)
         }
       }
+      req.onerror = () => reject(req.error)
     })
-  })
-  if (itemIds.length > 0) await deleteItems(itemIds)
-  await withStore("projects", "readwrite", (store) => {
-    store.delete(id)
+
+    const reviewIdx = stores.reviews.index("itemId")
+    const reviewKeys = await Promise.all(
+      itemIds.map((itemId) =>
+        new Promise<IDBValidKey | null>((resolve) => {
+          const req = reviewIdx.getKey(itemId)
+          req.onsuccess = () => resolve(req.result ?? null)
+          req.onerror = () => resolve(null)
+        })
+      )
+    )
+    for (const key of reviewKeys) {
+      if (key) stores.reviews.delete(key)
+    }
+    for (const itemId of itemIds) {
+      stores.items.delete(itemId)
+    }
+    stores.projects.delete(id)
   })
 }
 
