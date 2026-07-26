@@ -317,7 +317,9 @@ export default function CardRenderer({ item, mode, truncateTo, contentAlign }: C
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
           <Box sx={{ color: "text.secondary", opacity: 0.7 }}>{typeIcon(item.type)}</Box>
           <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.75rem", letterSpacing: "0.03em" }}>
-            {item.type.toUpperCase()} ·{" "}
+            {item.type.toUpperCase()}
+            {!item.source && " · 自建卡片"}
+            {" · "}
             {new Date(item.createdAt).toLocaleDateString("zh-CN", {
               year: "numeric", month: "long", day: "numeric"
             })}

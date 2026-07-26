@@ -90,18 +90,6 @@ export default function ItemCard({
           {firstRating && (
             <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: ["#ef4444", "#f97316", "#22c55e", "#3b82f6"][firstRating - 1] }} />
           )}
-          <Typography
-            variant="caption"
-            sx={{
-              color: "text.secondary",
-              fontSize: "0.7rem",
-              letterSpacing: "0.05em"
-            }}>
-            {new Date(item.createdAt).toLocaleDateString("zh-CN", {
-              month: "long",
-              day: "numeric"
-            })}
-          </Typography>
         </Stack>
         <ItemCardOperations
           item={item}
@@ -119,34 +107,61 @@ export default function ItemCard({
         <CardRenderer item={item} mode="preview" truncateTo={160} />
       </Box>
 
-        {item.source && (
-        <Box
+      <Box
+        sx={{
+          mt: 1.5,
+          pt: 1.5,
+          borderTop: "1px solid",
+          borderColor: "divider",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 1
+        }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0, flex: 1 }}>
+          {item.source ? (
+            <Link
+              href={item.source.url}
+              target="_blank"
+              rel="noreferrer"
+              underline="hover"
+              onClick={(e) => e.stopPropagation()}
+              sx={{
+                color: "text.secondary",
+                fontSize: "0.72rem",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                maxWidth: "100%"
+              }}>
+              {item.source.title || prettyUrl(item.source.url)}
+            </Link>
+          ) : (
+            <Typography
+              variant="caption"
+              sx={{
+                color: "text.disabled",
+                fontSize: "0.72rem",
+                letterSpacing: "0.03em"
+              }}>
+              自建卡片
+            </Typography>
+          )}
+        </Box>
+        <Typography
+          variant="caption"
           sx={{
-            mt: 1.5,
-            pt: 1.5,
-            borderTop: "1px solid",
-            borderColor: "divider",
-            display: "flex",
-            alignItems: "center",
-            gap: 0.5
+            color: "text.disabled",
+            fontSize: "0.7rem",
+            letterSpacing: "0.05em",
+            flexShrink: 0
           }}>
-          <Link
-            href={item.source.url}
-            target="_blank"
-            rel="noreferrer"
-            underline="hover"
-            onClick={(e) => e.stopPropagation()}
-            sx={{
-              color: "text.secondary",
-              fontSize: "0.72rem",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-              maxWidth: "100%"
-            }}>
-            {item.source.title || prettyUrl(item.source.url)}
-          </Link>
-        </Box>)}
+          {new Date(item.createdAt).toLocaleDateString("zh-CN", {
+            month: "long",
+            day: "numeric"
+          })}
+        </Typography>
+      </Box>
     </Paper>
   )
 }
