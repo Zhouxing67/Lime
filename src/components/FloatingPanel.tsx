@@ -188,13 +188,15 @@ function FloatingPanelContent({
   // Drag handle
   const dragRef = useRef<{ ox: number; oy: number } | null>(null)
   const handleRef = useRef<HTMLSpanElement | null>(null)
+  const wasPinnedRef = useRef(false)
   const pd = useCallback((e: React.PointerEvent) => {
-    if (!pinned || !ref.current || !handleRef.current) return
+    if (!ref.current || !handleRef.current) return
+    if (!pinned) onPinChange(true)
     const r = ref.current.getBoundingClientRect()
     dragRef.current = { ox: e.clientX - r.left, oy: e.clientY - r.top }
     handleRef.current.style.cursor = "grabbing"
     e.preventDefault()
-  }, [pinned])
+  }, [pinned, onPinChange])
 
   useEffect(() => {
     const el = ref.current; if (!el) return
@@ -224,6 +226,12 @@ function FloatingPanelContent({
     if (pinned) {
       el.style.left = `${position.left}px`
       el.style.top = `${position.top}px`
+      wasPinnedRef.current = true
+      return
+    }
+    // Just unpinned: keep current position until the user selects new text or closes the panel
+    if (wasPinnedRef.current) {
+      wasPinnedRef.current = false
       return
     }
     const pw = 320, ph = el.offsetHeight || 340
@@ -302,14 +310,14 @@ function FloatingPanelContent({
         <span
           ref={handleRef}
           onPointerDown={pd}
-          title="拖拽移动"
+          title={pinned ? "拖拽移动" : "拖拽以固定位置"}
           style={{
             display: "inline-flex",
             alignItems: "center",
-            cursor: pinned ? "grab" : "default",
+            cursor: "grab",
             padding: "0 4px",
             marginLeft: -4,
-            opacity: pinned ? 1 : 0.6
+            opacity: 1
           }}>
           <svg viewBox="0 0 24 24" style={{ display: "block", width: 14, height: 14, fill: "rgba(255,255,255,0.9)" }}>
             <path d="M7 5h2v2H7zm0 6h2v2H7zm0 6h2v2H7zm4-12h2v2h-2zm0 6h2v2h-2zm0 6h2v2h-2z" />
