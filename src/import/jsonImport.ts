@@ -66,6 +66,29 @@ function validateItem(raw: unknown, index: number): { item: Item } | { error: st
     item.hash = obj.hash
   }
 
+  if (typeof obj.title === "string" && obj.title.length > 0) {
+    item.title = obj.title
+  }
+
+  if (typeof obj.read === "boolean") {
+    item.read = obj.read
+  }
+
+  if (typeof obj.order === "number") {
+    item.order = obj.order
+  }
+
+  if (typeof obj.updatedAt === "number" && obj.updatedAt > 0) {
+    item.updatedAt = obj.updatedAt
+  }
+
+  if (
+    Array.isArray(obj.images) &&
+    obj.images.every((v) => typeof v === "string" && v.length > 0)
+  ) {
+    item.images = obj.images as string[]
+  }
+
   return { item }
 }
 
@@ -73,12 +96,16 @@ function validateProject(raw: unknown): Project | null {
   if (!raw || typeof raw !== "object") return null
   const obj = raw as Record<string, unknown>
   if (typeof obj.name !== "string" || obj.name.length === 0) return null
-  return {
+  const project: Project = {
     id: typeof obj.id === "string" && obj.id.length > 0 ? obj.id : crypto.randomUUID(),
     name: obj.name,
     createdAt: typeof obj.createdAt === "number" && obj.createdAt > 0 ? obj.createdAt : Date.now(),
     note: typeof obj.note === "string" ? obj.note : undefined
   }
+  if (typeof obj.lastOpened === "number" && obj.lastOpened > 0) {
+    project.lastOpened = obj.lastOpened
+  }
+  return project
 }
 
 export async function importFromZip(

@@ -1,13 +1,16 @@
 import { Box, TextField, Typography } from "@mui/material"
 
 import DialogShell from "./DialogShell"
+import ImageUrlInput from "./ImageUrlInput"
 
 interface NewCardDialogProps {
   open: boolean
   title: string
   content: string
+  images: string[]
   onTitleChange: (v: string) => void
   onContentChange: (v: string) => void
+  onImagesChange: (v: string[]) => void
   onClose: () => void
   onSave: () => void
 }
@@ -16,8 +19,10 @@ export default function NewCardDialog({
   open,
   title,
   content,
+  images,
   onTitleChange,
   onContentChange,
+  onImagesChange,
   onClose,
   onSave
 }: NewCardDialogProps) {
@@ -57,7 +62,17 @@ export default function NewCardDialog({
           }
         }}
       />
-      <Typography variant="caption" sx={{ color: "text.disabled", mt: 1, display: "block" }}>
+
+      <Typography
+        variant="caption"
+        sx={{ color: "text.secondary", mt: 2, mb: 0.5, display: "block" }}>
+        图片（选填）
+      </Typography>
+      <ImageUrlInput images={images} onChange={onImagesChange} />
+
+      <Typography
+        variant="caption"
+        sx={{ color: "text.disabled", mt: 1, display: "block" }}>
         提示：可在卡片详情中添加笔记（复习背面）和标签
       </Typography>
     </DialogShell>

@@ -97,6 +97,16 @@ export default function LimePanel() {
     return () => { chrome.runtime.onMessage.removeListener(h) }
   }, [])
 
+  // Plasmo's overlay host (`#__plasmo`) sets aria-hidden="true" by default.
+  // Our panel is interactive, so clear the attribute while open — otherwise the
+  // focused buttons inside trigger a "Blocked aria-hidden on focused element"
+  // a11y warning.
+  useEffect(() => {
+    if (!open) return
+    const host = document.getElementById("__plasmo")
+    if (host) host.removeAttribute("aria-hidden")
+  }, [open])
+
   if (!open || !data) return null
 
   return (

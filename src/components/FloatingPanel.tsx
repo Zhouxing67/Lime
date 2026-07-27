@@ -134,6 +134,8 @@ function FloatingPanelContent({
 }) {
   const [title, setTitle] = useState("")
   const [content, setContent] = useState(data.text)
+  const [images, setImages] = useState<string[]>([])
+  const [imageDraft, setImageDraft] = useState("")
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [creating, setCreating] = useState(false)
@@ -150,7 +152,7 @@ function FloatingPanelContent({
   const txtSecondary = COLORS.textSecondary
 
   // Sync content from new selection
-  useEffect(() => { setContent(data.text); setSaving(false); setSaved(false); setError("") }, [data.text])
+  useEffect(() => { setContent(data.text); setSaving(false); setSaved(false); setError(""); setImages([]); setImageDraft("") }, [data.text])
 
   // Load projects
   const load = useCallback(async () => {
@@ -254,7 +256,8 @@ function FloatingPanelContent({
           type: "text", content: content.trim(),
           title: title.trim() || undefined,
           source: { title: document.title, url: window.location.href, site: window.location.hostname },
-          projectId: selectedProjectId || undefined
+          projectId: selectedProjectId || undefined,
+          ...(images.length > 0 ? { images } : {})
         }
       })
       if (res?.saved === false) {
@@ -264,7 +267,7 @@ function FloatingPanelContent({
       }
       setSaved(true)
       // Keep the panel open after save; only the explicit close button closes it.
-      setTimeout(() => { setSaved(false); setSaving(false); setContent(""); setTitle("") }, 1200)
+      setTimeout(() => { setSaved(false); setSaving(false); setContent(""); setTitle(""); setImages([]); setImageDraft("") }, 1200)
     } catch (err) {
       console.warn("[lime] save failed:", err)
       setError("保存失败")
@@ -376,6 +379,64 @@ function FloatingPanelContent({
             width: "100%", boxSizing: "border-box", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "8px 10px",
             fontSize: 13, lineHeight: 1.7, resize: "vertical", outline: "none", fontFamily: "inherit"
           }} />
+
+        {/* Image URL input — plain DOM, no MUI (content-script bundle) */}
+        <div style={{ display: "flex", gap: 4, marginTop: 8 }}>
+          <input
+            placeholder="图片 URL（可选，回车添加）"
+            value={imageDraft}
+            onChange={(e) => setImageDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault()
+                const url = imageDraft.trim()
+                if (url && !images.includes(url)) setImages([...images, url])
+                setImageDraft("")
+              }
+            }}
+            style={{
+              flex: "1 1 auto", minWidth: 0, boxSizing: "border-box",
+              border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "6px 10px",
+              fontSize: 12, outline: "none"
+            }}
+          />
+          <button
+            type="button"
+            disabled={!imageDraft.trim()}
+            onClick={() => {
+              const url = imageDraft.trim()
+              if (url && !images.includes(url)) setImages([...images, url])
+              setImageDraft("")
+            }}
+            style={{
+              border: "none", borderRadius: 8, padding: "0 10px",
+              fontSize: 13, fontWeight: 600, cursor: "pointer",
+              background: imageDraft.trim() ? primary : "#cbd5e1",
+              color: "#fff", flexShrink: 0
+            }}>
+            ＋
+          </button>
+        </div>
+        {images.length > 0 && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(48px, 1fr))", gap: 4, marginTop: 6 }}>
+            {images.map((url) => (
+              <div key={url} style={{ position: "relative", borderRadius: 6, overflow: "hidden", aspectRatio: "1 / 1", background: "#f1f5f9" }}>
+                <img src={url} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                <button
+                  type="button"
+                  onClick={() => setImages(images.filter((u) => u !== url))}
+                  style={{
+                    position: "absolute", top: 2, right: 2, border: "none",
+                    background: "rgba(0,0,0,0.5)", color: "#fff", borderRadius: "50%",
+                    width: 16, height: 16, fontSize: 10, lineHeight: 1, cursor: "pointer",
+                    padding: 0, display: "flex", alignItems: "center", justifyContent: "center"
+                  }}>
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Footer */}

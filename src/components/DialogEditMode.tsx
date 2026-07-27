@@ -1,15 +1,21 @@
-import { Box, TextField } from "@mui/material"
+import { Box, TextField, Typography } from "@mui/material"
+
+import ImageUrlInput from "./ImageUrlInput"
 
 export default function DialogEditMode({
   draftTitle,
   draftContent,
+  draftImages,
   onTitleChange,
-  onContentChange
+  onContentChange,
+  onImagesChange
 }: {
   draftTitle: string
   draftContent: string
+  draftImages: string[]
   onTitleChange: (v: string) => void
   onContentChange: (v: string) => void
+  onImagesChange: (v: string[]) => void
 }) {
   return (
     <Box
@@ -49,6 +55,12 @@ export default function DialogEditMode({
           }
         }}
       />
+      <Typography
+        variant="caption"
+        sx={{ color: "text.secondary", mt: 2, mb: 0.5, display: "block" }}>
+        图片
+      </Typography>
+      <ImageUrlInput images={draftImages} onChange={onImagesChange} />
     </Box>
   )
 }

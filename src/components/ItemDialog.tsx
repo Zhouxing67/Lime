@@ -19,6 +19,7 @@ import type { Item } from "../types"
 import { prettyUrl } from "../utils"
 import CardRenderer from "./CardRenderer"
 import DialogEditMode from "./DialogEditMode"
+import ImageUrlInput from "./ImageUrlInput"
 
 export default function ItemDialog({
   item,
@@ -44,20 +45,24 @@ export default function ItemDialog({
   const [editing, setEditing] = useState(false)
   const [draftTitle, setDraftTitle] = useState(item.title ?? "")
   const [draftContent, setDraftContent] = useState(item.content)
+  const [draftImages, setDraftImages] = useState<string[]>(item.images ?? [])
 
   useEffect(() => {
     setEditing(false)
     setDraftTitle(item.title ?? "")
     setDraftContent(item.content)
+    setDraftImages(item.images ?? [])
   }, [item.id])
 
   const [animDir, setAnimDir] = useState<"prev" | "next" | null>(null)
 
   const handleSave = async () => {
+    const images = draftImages.map((u) => u.trim()).filter(Boolean)
     const updated: Item = {
       ...item,
       title: draftTitle.trim() || undefined,
-      content: draftContent
+      content: draftContent,
+      ...(images.length > 0 ? { images } : {})
     }
     if (onSave) await onSave(updated)
     setEditing(false)
@@ -66,6 +71,7 @@ export default function ItemDialog({
   const handleCancel = () => {
     setDraftTitle(item.title ?? "")
     setDraftContent(item.content)
+    setDraftImages(item.images ?? [])
     setEditing(false)
   }
 
@@ -230,8 +236,10 @@ export default function ItemDialog({
             <DialogEditMode
               draftTitle={draftTitle}
               draftContent={draftContent}
+              draftImages={draftImages}
               onTitleChange={setDraftTitle}
               onContentChange={setDraftContent}
+              onImagesChange={setDraftImages}
             />
           ) : (
             <Box

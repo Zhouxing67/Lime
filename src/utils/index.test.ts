@@ -63,6 +63,33 @@ describe('utils', () => {
 
       expect(hash1).not.toBe(hash2)
     })
+
+    it('should ignore undefined images argument (backward compatible)', async () => {
+      const content = 'hello'
+      const url = 'https://example.com'
+      const withoutImages = await computeItemHash(content, url)
+      const withUndefined = await computeItemHash(content, url, undefined)
+
+      expect(withUndefined).toBe(withoutImages)
+    })
+
+    it('should generate different hashes when images differ', async () => {
+      const content = 'same content'
+      const url = 'https://example.com'
+      const hash1 = await computeItemHash(content, url, ['https://img.example.com/a.png'])
+      const hash2 = await computeItemHash(content, url, ['https://img.example.com/b.png'])
+
+      expect(hash1).not.toBe(hash2)
+    })
+
+    it('should treat empty images array same as no images', async () => {
+      const content = 'same content'
+      const url = 'https://example.com'
+      const noImages = await computeItemHash(content, url)
+      const emptyImages = await computeItemHash(content, url, [])
+
+      expect(emptyImages).toBe(noImages)
+    })
   })
 
   describe('prettyUrl', () => {

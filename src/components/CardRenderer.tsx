@@ -35,6 +35,116 @@ const typeIcon = (type: string) => {
   }
 }
 
+function ImageGallery({
+  images,
+  variant = "full"
+}: {
+  images: string[]
+  variant?: "preview" | "full"
+}) {
+  if (!images || images.length === 0) return null
+
+  const count = images.length
+  const isSingle = count === 1
+
+  // Preview variant: compact thumbnails grid, cap at 4.
+  if (variant === "preview") {
+    return (
+      <Box
+        sx={{
+          mt: 1,
+          display: "grid",
+          gridTemplateColumns: isSingle ? "1fr" : "repeat(2, 1fr)",
+          gap: 0.5
+        }}>
+        {images.slice(0, 4).map((url, i) => (
+          <Box
+            key={url + i}
+            sx={{
+              borderRadius: 1,
+              overflow: "hidden",
+              aspectRatio: "4 / 3",
+              position: "relative"
+            }}>
+            <img
+              src={url}
+              alt=""
+              loading="lazy"
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            />
+            {i === 3 && count > 4 && (
+              <Box
+                sx={{
+                  position: "absolute",
+                  inset: 0,
+                  bgcolor: "rgba(0,0,0,0.55)",
+                  color: "common.white",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "1rem",
+                  fontWeight: 600
+                }}>
+                +{count - 4}
+              </Box>
+            )}
+          </Box>
+        ))}
+      </Box>
+    )
+  }
+
+  // Full variant: vertical flow, each image full-width preserving
+  // its natural aspect ratio. Container scrolls when overflowing —
+  // matches the long-text reading UX with a right-side scrollbar.
+  return (
+    <Box
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 1,
+        width: "100%",
+        maxHeight: "calc(85vh - 280px)",
+        overflowY: "auto",
+        pr: 0.5,
+        "&::-webkit-scrollbar": { width: 6 },
+        "&::-webkit-scrollbar-thumb": {
+          bgcolor: "divider",
+          borderRadius: 3
+        },
+        "&::-webkit-scrollbar-thumb:hover": {
+          bgcolor: "action.selected"
+        },
+        "&::-webkit-scrollbar-track": { bgcolor: "transparent" }
+      }}>
+      {images.map((url, i) => (
+        <Box
+          key={url + i}
+          onClick={(e) => e.stopPropagation()}
+          sx={{
+            borderRadius: 1,
+            overflow: "hidden",
+            width: "100%",
+            flexShrink: 0,
+            bgcolor: "background.paper"
+          }}>
+          <img
+            src={url}
+            alt=""
+            loading="lazy"
+            style={{
+              display: "block",
+              width: "100%",
+              height: "auto",
+              objectFit: "contain"
+            }}
+          />
+        </Box>
+      ))}
+    </Box>
+  )
+}
+
 function ContentBlock({ item }: { item: Item }) {
   if (item.type === "image") {
     return (
@@ -176,6 +286,9 @@ export default function CardRenderer({ item, mode, truncateTo, contentAlign }: C
             )}
           </>
         )}
+        {item.images && item.images.length > 0 && (
+          <ImageGallery images={item.images} variant="preview" />
+        )}
       </Box>
     )
   }
@@ -212,6 +325,9 @@ export default function CardRenderer({ item, mode, truncateTo, contentAlign }: C
             ) : (
               <ContentBlock item={item} />
             )}
+            {item.images && item.images.length > 0 && (
+              <ImageGallery images={item.images} />
+            )}
           </Box>
         </Box>
         {item.source?.url && (
@@ -244,6 +360,9 @@ export default function CardRenderer({ item, mode, truncateTo, contentAlign }: C
             <ContentBlock item={item} />
           )}
         </Box>
+        {item.images && item.images.length > 0 && (
+          <ImageGallery images={item.images} />
+        )}
         {item.source?.url && (
           <Typography
             variant="body2" component="a" href={item.source.url} target="_blank"
@@ -305,13 +424,46 @@ export default function CardRenderer({ item, mode, truncateTo, contentAlign }: C
           }}>
           原文
         </Typography>
-        {item.type === "text" ? (
-          <Box sx={{ pl: 2, borderLeft: "4px solid", borderLeftColor: "primary.main" }}>
-            <MarkdownRenderer content={item.content} />
-          </Box>
-        ) : (
-          <ContentBlock item={item} />
-        )}
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          {(item.type === "text" && item.content) || item.type !== "text" ? (
+            <Box>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "text.disabled",
+                  fontSize: "0.7rem",
+                  letterSpacing: "0.03em",
+                  mb: 0.5,
+                  display: "block"
+                }}>
+                {item.type === "text" ? "文本" : TYPE_LABEL[item.type] ?? "内容"}
+              </Typography>
+              {item.type === "text" ? (
+                <Box sx={{ pl: 2, borderLeft: "4px solid", borderLeftColor: "primary.main" }}>
+                  <MarkdownRenderer content={item.content} />
+                </Box>
+              ) : (
+                <ContentBlock item={item} />
+              )}
+            </Box>
+          ) : null}
+          {item.images && item.images.length > 0 && (
+            <Box>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "text.disabled",
+                  fontSize: "0.7rem",
+                  letterSpacing: "0.03em",
+                  mb: 0.5,
+                  display: "block"
+                }}>
+                图片
+              </Typography>
+              <ImageGallery images={item.images} />
+            </Box>
+          )}
+        </Box>
       </Box>
       <Box sx={{ mt: 2 }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>

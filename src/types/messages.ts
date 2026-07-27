@@ -6,6 +6,7 @@ export interface CaptureMessage {
     title?: string
     source: { title: string; url: string; site: string }
     projectId?: string
+    images?: string[]
   }
 }
 

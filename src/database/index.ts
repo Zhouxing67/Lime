@@ -219,8 +219,8 @@ export async function addItem(item: Item): Promise<boolean> {
     hash:
       item.hash ||
       (item.source
-        ? await computeItemHash(item.content, item.source.url)
-        : await computeItemHash(item.content, ""))
+        ? await computeItemHash(item.content, item.source.url, item.images)
+        : await computeItemHash(item.content, "", item.images))
   }
 
   return withStore("items", "readwrite", async (store) => {

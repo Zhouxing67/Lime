@@ -310,8 +310,10 @@ export default function OptionsPage() {
     newCardOpen,
     newCardTitle,
     newCardContent,
+    newCardImages,
     setNewCardTitle,
     setNewCardContent,
+    setNewCardImages,
     setNewCardOpen,
     handleNewCard,
     handleSaveNewCard
@@ -1006,8 +1008,10 @@ export default function OptionsPage() {
               open={newCardOpen}
               title={newCardTitle}
               content={newCardContent}
+              images={newCardImages}
               onTitleChange={setNewCardTitle}
               onContentChange={setNewCardContent}
+              onImagesChange={setNewCardImages}
               onClose={() => setNewCardOpen(false)}
               onSave={handleSaveNewCard}
             />

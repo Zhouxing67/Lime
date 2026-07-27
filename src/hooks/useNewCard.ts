@@ -13,17 +13,20 @@ export function useNewCard({
   const [newCardOpen, setNewCardOpen] = useState(false)
   const [newCardTitle, setNewCardTitle] = useState("")
   const [newCardContent, setNewCardContent] = useState("")
+  const [newCardImages, setNewCardImages] = useState<string[]>([])
 
   const handleNewCard = useCallback(() => {
     if (!activeProjectId) return
     setNewCardTitle("")
     setNewCardContent("")
+    setNewCardImages([])
     setNewCardOpen(true)
   }, [activeProjectId])
 
   const handleSaveNewCard = useCallback(async () => {
     const title = newCardTitle.trim()
     const content = newCardContent.trim()
+    const images = newCardImages.map((u) => u.trim()).filter(Boolean)
     if (!title || !activeProjectId) return
     const item: Item = {
       id: crypto.randomUUID(),
@@ -31,21 +34,26 @@ export function useNewCard({
       title,
       content,
       createdAt: Date.now(),
-      projectId: activeProjectId
+      projectId: activeProjectId,
+      images: images.length > 0 ? images : undefined
     }
+    console.debug("[lime:newcard] saving item", { images: item.images, title })
     await addItem(item)
     setNewCardOpen(false)
     setNewCardTitle("")
     setNewCardContent("")
+    setNewCardImages([])
     onSearch(activeProjectId)
-  }, [newCardTitle, newCardContent, activeProjectId, onSearch])
+  }, [newCardTitle, newCardContent, newCardImages, activeProjectId, onSearch])
 
   return {
     newCardOpen,
     newCardTitle,
     newCardContent,
+    newCardImages,
     setNewCardTitle,
     setNewCardContent,
+    setNewCardImages,
     setNewCardOpen,
     handleNewCard,
     handleSaveNewCard

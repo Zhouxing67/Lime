@@ -55,8 +55,8 @@ function notifySystem(text: string) {
   }
 }
 
-function createItem(data: { type: Item["type"]; content: string; title?: string; source?: SourceMeta; projectId?: string }): Item {
-  return {
+function createItem(data: { type: Item["type"]; content: string; title?: string; source?: SourceMeta; projectId?: string; images?: string[] }): Item {
+  const item: Item = {
     id: crypto.randomUUID(),
     type: data.type,
     title: data.title,
@@ -65,6 +65,8 @@ function createItem(data: { type: Item["type"]; content: string; title?: string;
     createdAt: Date.now(),
     projectId: data.projectId
   }
+  if (data.images && data.images.length > 0) item.images = data.images
+  return item
 }
 
   // Listen for database changes broadcast via storage
@@ -293,7 +295,7 @@ async function handleCapture(
     : (await getRecentProjects(1))[0]
 
   if (targetProject) {
-    const item = createItem({ type: payload.type, content: payload.content, title: payload.title, source: payload.source, projectId: targetProject.id })
+    const item = createItem({ type: payload.type, content: payload.content, title: payload.title, source: payload.source, projectId: targetProject.id, images: payload.images })
     const saved = await addItem(item)
     if (saved) touchProject(targetProject.id).catch(() => {})
     notifyTab(senderTab?.id, saved, item.type)

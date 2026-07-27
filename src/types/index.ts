@@ -36,6 +36,8 @@ export interface Item {
   order?: number
   /** Last modification timestamp (for incremental sync) */
   updatedAt?: number
+  /** Optional attached image URLs (mixed cards: text + images) */
+  images?: string[]
 }
 
 export interface SearchQuery {

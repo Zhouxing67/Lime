@@ -96,6 +96,31 @@ describe('database', () => {
       const items = await searchItems({})
       expect(items).toHaveLength(2)
     })
+
+    it('should treat different images as different items even with same content and source', async () => {
+      const base = {
+        content: 'mixed content text',
+        source: { title: 'Mixed', url: 'https://example.com/mixed', site: 'example.com' }
+      }
+      await addItem(createTestItem({ ...base, images: ['https://img.example.com/a.png'] }))
+      await addItem(createTestItem({ ...base, images: ['https://img.example.com/b.png'] }))
+
+      const items = await searchItems({})
+      expect(items).toHaveLength(2)
+    })
+
+    it('should dedupe mixed cards when content and images match', async () => {
+      const base = {
+        content: 'mixed card dedup',
+        source: { title: 'Mixed', url: 'https://example.com/mixed-dedup', site: 'example.com' }
+      }
+      const images = ['https://img.example.com/a.png', 'https://img.example.com/b.png']
+      await addItem(createTestItem({ ...base, images }))
+      await addItem(createTestItem({ ...base, images }))
+
+      const items = await searchItems({})
+      expect(items).toHaveLength(1)
+    })
   })
 
   describe('searchItems', () => {

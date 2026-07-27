@@ -8,9 +8,11 @@ export async function sha256(input: string): Promise<string> {
 
 export async function computeItemHash(
   content: string,
-  url: string
+  url: string,
+  images?: string[]
 ): Promise<string> {
-  return sha256(`${url}|${content}`)
+  const imgs = images && images.length > 0 ? `\u0000${images.join("\n")}` : ""
+  return sha256(`${url}|${content}${imgs}`)
 }
 
 export function prettyUrl(url: string): string {
