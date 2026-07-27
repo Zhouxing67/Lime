@@ -1,7 +1,7 @@
 {
   "name": "lime",
   "displayName": "lime",
-  "version": "1.9.0",
+  "version": "1.9.3",
   "description": "一款轻巧的浏览器摘录插件，让你在浏览网页时随手收藏精彩句子、图片或链接。",
   "author": "minorcell",
   "scripts": {
