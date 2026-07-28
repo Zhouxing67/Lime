@@ -1,7 +1,7 @@
 import JSZip from "jszip"
 
 import { addItem, addProject, getProjectByName } from "../database"
-import type { Item, ItemType, Project } from "../types"
+import type { Item, ItemType, Project, Section } from "../types"
 
 export interface ImportResult {
   imported: number
@@ -89,6 +89,10 @@ function validateItem(raw: unknown, index: number): { item: Item } | { error: st
     item.images = obj.images as string[]
   }
 
+  if (typeof obj.sectionId === "string" && obj.sectionId.length > 0) {
+    item.sectionId = obj.sectionId
+  }
+
   return { item }
 }
 
@@ -104,6 +108,28 @@ function validateProject(raw: unknown): Project | null {
   }
   if (typeof obj.lastOpened === "number" && obj.lastOpened > 0) {
     project.lastOpened = obj.lastOpened
+  }
+  if (Array.isArray(obj.sections) && obj.sections.length > 0) {
+    const sections: Section[] = []
+    for (const s of obj.sections) {
+      if (!s || typeof s !== "object") continue
+      const so = s as Record<string, unknown>
+      if (
+        typeof so.id === "string" &&
+        typeof so.title === "string" &&
+        (so.level === 1 || so.level === 2) &&
+        typeof so.order === "number"
+      ) {
+        sections.push({
+          id: so.id,
+          parentId: typeof so.parentId === "string" ? so.parentId : null,
+          title: so.title,
+          order: so.order,
+          level: so.level
+        })
+      }
+    }
+    if (sections.length > 0) project.sections = sections
   }
   return project
 }

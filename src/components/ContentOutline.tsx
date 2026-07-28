@@ -353,7 +353,7 @@ export default function ContentOutline({
               onCardDrop={draggedItem ? (e) => handleSectionHeaderCardDrop(e, s1.id) : undefined}
             />
             <Collapse in={!collapse1} sx={{ pl: 2 }}>
-              <Stack spacing={1} sx={{ mt: 0.5 }}>
+              <Stack spacing={0.5} sx={{ mt: 1 }}>
                 {cardGrid(s1Items, s1.id)}
                 {subs.map((s2) => {
                   const s2Items = itemsForSection(s2.id)
@@ -377,7 +377,7 @@ export default function ContentOutline({
                         onCardDragOver={draggedItem ? (e) => handleSectionHeaderCardDragOver(e, s2.id) : undefined}
                         onCardDrop={draggedItem ? (e) => handleSectionHeaderCardDrop(e, s2.id) : undefined}
                       />
-                      <Collapse in={!collapse2} sx={{ pl: 2 }}>
+                      <Collapse in={!collapse2} sx={{ pl: 2, mt: 1 }}>
                         {cardGrid(s2Items, s2.id)}
                       </Collapse>
                     </Box>
@@ -456,7 +456,7 @@ function SectionHeader({
   if (editing) {
     return (
       <Stack direction="row" spacing={0.5} alignItems="center" sx={{ py: 0.25, pl: isChild ? 1 : 0 }}>
-        <ChevronRightRoundedIcon sx={{ fontSize: 16, color: "text.disabled", transform: "rotate(90deg)" }} />
+        <ChevronRightRoundedIcon sx={{ fontSize: 18, color: "text.disabled", transform: "rotate(90deg)" }} />
         <TextField
           autoFocus
           size="small"
@@ -501,19 +501,19 @@ function SectionHeader({
           opacity: isDragging ? 0.4 : 1,
           bgcolor: showCardDrop
             ? alpha("#6366f1", 0.12)
-            : isChild
-            ? alpha("#000", 0.03)
-            : alpha("#6366f1", 0.05),
+            : alpha("#6366f1", 0.08),
+          border: "1px solid",
+          borderColor: isChild ? "divider" : "primary.main",
           borderLeft: isChild ? undefined : "3px solid",
-          borderColor: isChild ? undefined : "primary.main",
+          borderLeftColor: isChild ? undefined : "primary.main",
           transition: "background 0.15s, opacity 0.15s",
           "&:hover .section-actions": { opacity: 1 }
         }}>
-        <IconButton size="small" onClick={onToggle} sx={{ p: 0.25, cursor: "grab" }}>
+        <IconButton size="small" onClick={onToggle} sx={{ p: 0.5 }}>
           {collapsed ? (
-            <ChevronRightRoundedIcon sx={{ fontSize: 14, color: "text.secondary", transform: "rotate(0deg)" }} />
+            <ChevronRightRoundedIcon sx={{ fontSize: 18, color: "text.secondary", transform: "rotate(0deg)" }} />
           ) : (
-            <ExpandMoreRoundedIcon sx={{ fontSize: 16, color: "text.secondary" }} />
+            <ExpandMoreRoundedIcon sx={{ fontSize: 18, color: "text.secondary" }} />
           )}
         </IconButton>
         <Typography
@@ -525,20 +525,21 @@ fontSize: isChild ? "0.9rem" : "0.95rem",
             flex: 1,
             "&:hover": { color: "primary.main" }
           }}
-          onClick={() => { setDraft(section.title); setEditing(true) }}>
+          onClick={onToggle}
+          onDoubleClick={() => { setDraft(section.title); setEditing(true) }}>
           {section.title}
         </Typography>
-        <Box className="section-actions" sx={{ display: "flex", gap: 0.25, opacity: 0, transition: "opacity 0.15s" }}>
+        <Box className="section-actions" sx={{ display: "flex", gap: 0.5, opacity: 0, transition: "opacity 0.15s" }}>
           {onAddChild && (
             <Tooltip title="添加子章节">
-              <IconButton size="small" onClick={onAddChild} sx={{ p: 0.25 }}>
-                <AddRoundedIcon sx={{ fontSize: 14 }} />
+              <IconButton size="small" onClick={onAddChild} sx={{ p: 0.5 }}>
+                <AddRoundedIcon sx={{ fontSize: 18 }} />
               </IconButton>
             </Tooltip>
           )}
           <Tooltip title="删除章节">
-            <IconButton size="small" onClick={onDelete} sx={{ p: 0.25, "&:hover": { color: "error.main" } }}>
-              <DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />
+            <IconButton size="small" onClick={onDelete} sx={{ p: 0.5, "&:hover": { color: "error.main" } }}>
+              <DeleteOutlineRoundedIcon sx={{ fontSize: 18 }} />
             </IconButton>
           </Tooltip>
         </Box>
@@ -627,7 +628,7 @@ function UnclassifiedGroup({
           未分类 · {unclassifiedItems.length} 张
         </Typography>
       </Stack>
-      <Collapse in={!collapsed} sx={{ mt: 0.5 }}>
+      <Collapse in={!collapsed} sx={{ mt: 1 }}>
         {cardGrid(unclassifiedItems, null)}
       </Collapse>
     </Box>

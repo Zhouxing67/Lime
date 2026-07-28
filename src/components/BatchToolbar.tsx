@@ -2,7 +2,8 @@ import DeleteSweepRoundedIcon from "@mui/icons-material/DeleteSweepRounded"
 import DoneAllRoundedIcon from "@mui/icons-material/DoneAllRounded"
 import DriveFileMoveOutlinedIcon from "@mui/icons-material/DriveFileMoveOutlined"
 import FileCopyOutlinedIcon from "@mui/icons-material/FileCopyOutlined"
-import { alpha, Box, Button, Divider, type ButtonOwnProps, Stack, Typography } from "@mui/material"
+import MergeTypeRoundedIcon from "@mui/icons-material/MergeTypeRounded"
+import { Button, Divider, type ButtonOwnProps, Stack, Typography } from "@mui/material"
 import { Fragment, type ReactElement, useMemo } from "react"
 
 interface BatchToolbarProps {
@@ -14,6 +15,7 @@ interface BatchToolbarProps {
   onBatchMove: () => void
   onBatchMoveToSection: () => void
   onBatchCopy: () => void
+  onBatchMerge: () => void
 }
 
 interface ButtonConfig {
@@ -34,9 +36,11 @@ export default function BatchToolbar({
   onBatchDelete,
   onBatchMove,
   onBatchMoveToSection,
-  onBatchCopy
+  onBatchCopy,
+  onBatchMerge
 }: BatchToolbarProps) {
   const hasSelection = selectedIds.length > 0
+  const hasMulti = selectedIds.length >= 2
 
   const buttons = useMemo<ButtonConfig[]>(
     () => [
@@ -66,6 +70,12 @@ export default function BatchToolbar({
         disabled: !hasSelection
       },
       {
+        label: "合并",
+        icon: <MergeTypeRoundedIcon sx={{ fontSize: 16, mr: 0.5 }} />,
+        onClick: onBatchMerge,
+        disabled: !hasMulti
+      },
+      {
         label: "删除选中",
         icon: <DeleteSweepRoundedIcon sx={{ fontSize: 16, mr: 0.5 }} />,
         onClick: onBatchDelete,
@@ -75,44 +85,29 @@ export default function BatchToolbar({
         color: "error"
       }
     ],
-    [onSelectAll, onBatchMove, onBatchCopy, onBatchDelete, hasSelection, allSelected, hasSections, onBatchMoveToSection]
+    [onSelectAll, onBatchMove, onBatchCopy, onBatchDelete, onBatchMerge, hasSelection, hasMulti, allSelected, hasSections, onBatchMoveToSection]
   )
 
   return (
-    <Box
-      sx={(theme) => ({
-        py: 1.5,
-        px: 2,
-        mb: 2,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        bgcolor: alpha(theme.palette.primary.main, 0.06),
-        boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-        borderRadius: 1,
-        border: "1px solid",
-        borderColor: "divider"
-      })}>
-      <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.85rem" }}>
-        ✅ 已选 {selectedIds.length} 条
+    <Stack direction="row" spacing={1} alignItems="center" flexShrink={0}>
+      <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.82rem", whiteSpace: "nowrap" }}>
+        已选 {selectedIds.length} 条
       </Typography>
-      <Stack direction="row" spacing={1} alignItems="center">
-        {buttons.map((btn) => (
-          <Fragment key={btn.label}>
-            {btn.dividerBefore && <Divider orientation="vertical" flexItem />}
-            <Button
-              size="small"
-              variant={btn.variant ?? "text"}
-              color={btn.color ?? "primary"}
-              sx={{ borderRadius: 1, fontSize: "0.75rem", whiteSpace: "nowrap" }}
-              disabled={btn.disabled}
-              onClick={btn.onClick}>
-              {btn.icon}
-              {btn.label}
-            </Button>
-          </Fragment>
-        ))}
-      </Stack>
-    </Box>
+      {buttons.map((btn) => (
+        <Fragment key={btn.label}>
+          {btn.dividerBefore && <Divider orientation="vertical" flexItem />}
+          <Button
+            size="small"
+            variant={btn.variant ?? "text"}
+            color={btn.color ?? "primary"}
+            sx={{ borderRadius: 1, fontSize: "0.75rem", whiteSpace: "nowrap" }}
+            disabled={btn.disabled}
+            onClick={btn.onClick}>
+            {btn.icon}
+            {btn.label}
+          </Button>
+        </Fragment>
+      ))}
+    </Stack>
   )
 }

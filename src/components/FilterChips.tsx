@@ -1,14 +1,17 @@
+import type { ReactNode } from "react"
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded"
 import { alpha, Box, Chip, Stack, TextField } from "@mui/material"
 
 interface FilterChipsProps {
   keyword: string
   onKeywordChange: (v: string) => void
+  children?: ReactNode
 }
 
 export default function FilterChips({
   keyword,
-  onKeywordChange
+  onKeywordChange,
+  children
 }: FilterChipsProps) {
   return (
     <Box
@@ -47,6 +50,8 @@ export default function FilterChips({
             sx={{ borderRadius: 1 }}
           />
         )}
+        {children && <Box sx={{ flexGrow: 1 }} />}
+        {children}
       </Stack>
     </Box>
   )

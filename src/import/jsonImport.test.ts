@@ -60,4 +60,44 @@ describe("jsonImport", () => {
     expect(projects).toHaveLength(1)
     expect(projects[0].lastOpened).toBe(1695000000000)
   })
+
+  it("preserves project.sections and item.sectionId on import", async () => {
+    const sections = [
+      { id: "s1", parentId: null, title: "第一章", order: 0, level: 1 as const },
+      { id: "s2", parentId: "s1", title: "1.1 小节", order: 0, level: 2 as const },
+      { id: "s3", parentId: null, title: "第二章", order: 1, level: 1 as const }
+    ]
+    const item = {
+      id: "sec-item",
+      type: "text" as const,
+      title: "带章节的卡",
+      content: "内容",
+      sectionId: "s2",
+      order: 0,
+      source: { title: "P", url: "https://example.com/x", site: "example.com" },
+      createdAt: 1690000000000,
+      projectId: "p2"
+    }
+    const data = {
+      items: [item],
+      projects: [{ id: "p2", name: "章节项目", createdAt: 1690000000000, sections }]
+    }
+    const file = await packZip(data)
+
+    const result = await importFromZip(file, ["p2"])
+    expect(result.errors).toHaveLength(0)
+    expect(result.imported).toBe(1)
+
+    const items = await searchItems({})
+    expect(items).toHaveLength(1)
+    expect(items[0].sectionId).toBe("s2")
+
+    const projects = await listProjects()
+    expect(projects).toHaveLength(1)
+    expect(projects[0].sections).toBeDefined()
+    expect(projects[0].sections?.map((s) => s.id).sort()).toEqual(["s1", "s2", "s3"])
+    const s2 = projects[0].sections?.find((s) => s.id === "s2")
+    expect(s2?.parentId).toBe("s1")
+    expect(s2?.level).toBe(2)
+  })
 })

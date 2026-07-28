@@ -1,0 +1,9 @@
+{
+  "name": "com.lime.editor",
+  "description": "Lime external editor host",
+  "path": "HOST_PATH_PLACEHOLDER",
+  "type": "stdio",
+  "allowed_origins": [
+    "ALLOWED_ORIGINS_PLACEHOLDER"
+  ]
+}

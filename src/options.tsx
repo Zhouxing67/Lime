@@ -39,6 +39,7 @@ import FilterChips from "./components/FilterChips"
 import FooterBar from "./components/FooterBar"
 import ItemDialog from "./components/ItemDialog"
 import MoveCopyCards from "./components/MoveCopyCards"
+import MergeConfirmDialog from "./components/MergeConfirmDialog"
 import MoveToSectionDialog from "./components/MoveToSectionDialog"
 import NewCardDialog from "./components/NewCardDialog"
 import NewProjectDialog from "./components/NewProjectDialog"
@@ -120,6 +121,7 @@ export default function OptionsPage() {
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set())
   const [pendingSectionDelete, setPendingSectionDelete] = useState<{ sectionId: string; cardCount: number; subSectionCount: number } | null>(null)
   const [moveToSectionState, setMoveToSectionState] = useState<{ itemId?: string; multi: boolean } | null>(null)
+  const [mergeState, setMergeState] = useState<Item[] | null>(null)
 
   console.debug("[review:state]", {
     reviewItems: reviewItems.length,
@@ -382,6 +384,84 @@ export default function OptionsPage() {
   const handleBatchDelete = () => {
     if (selectedIds.length === 0) return
     setConfirmBatchDelete(true)
+  }
+
+  const handleBatchMerge = () => {
+    if (selectedIds.length < 2) return
+    const items = allItems.filter((i) => selectedIds.includes(i.id))
+    setMergeState(items)
+  }
+
+  const handleConfirmMerge = async (mergedTitle: string) => {
+    if (!mergeState || !activeProjectId) return
+
+    const selectedItems = mergeState
+    const ids = selectedItems.map((i) => i.id)
+
+    // Build merged content
+    const contentParts = selectedItems.map((item) => {
+      const header = item.title ? `## ${item.title}\n` : ""
+      return `${header}${item.content}`
+    })
+    const mergedContent = contentParts.join("\n\n---\n\n")
+
+    // Merge images (dedup by URL)
+    const allImages: string[] = []
+    for (const item of selectedItems) {
+      if (item.images) {
+        for (const url of item.images) {
+          if (!allImages.includes(url)) allImages.push(url)
+        }
+      }
+    }
+
+    // Inherit sectionId if all same
+    const firstSectionId = selectedItems[0].sectionId
+    const sameSection = selectedItems.every((i) => i.sectionId === firstSectionId)
+
+    const newItem: Item = {
+      id: crypto.randomUUID(),
+      type: "text",
+      title: mergedTitle.trim(),
+      content: mergedContent,
+      createdAt: Date.now(),
+      projectId: activeProjectId,
+      ...(allImages.length > 0 ? { images: allImages } : {}),
+      ...(sameSection && firstSectionId ? { sectionId: firstSectionId } : {})
+    }
+
+    // Atomic transaction: insert new + delete originals + cleanup reviews
+    await tx({ items: "readwrite", reviews: "readwrite" }, async (stores) => {
+      await new Promise<void>((resolve, reject) => {
+        const req = stores.items.put(newItem)
+        req.onsuccess = () => resolve()
+        req.onerror = () => reject(req.error)
+      })
+      for (const id of ids) {
+        await new Promise<void>((resolve, reject) => {
+          const req = stores.items.delete(id)
+          req.onsuccess = () => resolve()
+          req.onerror = () => reject(req.error)
+        })
+      }
+      for (const id of ids) {
+        await new Promise<void>((resolve) => {
+          const req = stores.reviews.index("itemId").openCursor(IDBKeyRange.only(id))
+          req.onsuccess = () => {
+            const cursor = req.result
+            if (cursor) { cursor.delete(); cursor.continue() }
+            else resolve()
+          }
+          req.onerror = () => resolve()
+        })
+      }
+    })
+
+    setMergeState(null)
+    setSelectedIds([])
+    setSelectMode(false)
+    await refreshAllData()
+    setSnackbarMsg(`已合并为「${mergedTitle}」`)
   }
 
   const handleConfirmBatchDelete = async () => {
@@ -671,6 +751,17 @@ export default function OptionsPage() {
     return () => chrome.storage.onChanged.removeListener(onChange)
   }, [])
 
+  // Listen for editor-updated messages from the native host
+  useEffect(() => {
+    const handler = (raw: any) => {
+      if (raw?.kind === "editor-updated" && dialogItem?.id === raw.itemId) {
+        refreshAllData()
+      }
+    }
+    chrome.runtime.onMessage.addListener(handler)
+    return () => chrome.runtime.onMessage.removeListener(handler)
+  }, [dialogItem?.id])
+
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null
   const otherProjects = useMemo(
     () => projects.filter((p) => p.id !== activeProjectId),
@@ -902,8 +993,27 @@ export default function OptionsPage() {
             {sidebarTab !== "review" && (
             <FilterChips
               keyword={keyword}
-              onKeywordChange={setKeyword}
-            />
+              onKeywordChange={setKeyword}>
+              {selectMode && (
+                <BatchToolbar
+                  selectedIds={selectedIds}
+                  allSelected={selectedIds.length > 0 && selectedIds.length === displayedItems.length}
+                  hasSections={Boolean(activeProject?.sections?.length)}
+                  onSelectAll={() => {
+                    if (selectedIds.length === displayedItems.length) {
+                      setSelectedIds([])
+                    } else {
+                      setSelectedIds(displayedItems.map((i) => i.id))
+                    }
+                  }}
+                  onBatchDelete={handleBatchDelete}
+                  onBatchMove={handleBatchMove}
+                  onBatchMoveToSection={onBatchMoveToSection}
+                  onBatchCopy={handleBatchCopy}
+                  onBatchMerge={handleBatchMerge}
+                />
+              )}
+            </FilterChips>
             )}
           </Box>
 
@@ -945,25 +1055,6 @@ export default function OptionsPage() {
 
           <Box sx={{ flex: 1, overflow: "auto", minHeight: 0, bgcolor: (t: any) => t.palette.mode === "light" ? "#fcf9f3" : undefined }}>
           <Container sx={{ py: 4 }} maxWidth="xl">
-
-            {selectMode && (
-              <BatchToolbar
-                selectedIds={selectedIds}
-                allSelected={selectedIds.length > 0 && selectedIds.length === displayedItems.length}
-                hasSections={Boolean(activeProject?.sections?.length)}
-                onSelectAll={() => {
-                  if (selectedIds.length === displayedItems.length) {
-                    setSelectedIds([])
-                  } else {
-                    setSelectedIds(displayedItems.map((i) => i.id))
-                  }
-                }}
-                onBatchDelete={handleBatchDelete}
-                onBatchMove={handleBatchMove}
-                onBatchMoveToSection={onBatchMoveToSection}
-                onBatchCopy={handleBatchCopy}
-              />
-            )}
 
             <Fade in key={sidebarTab} timeout={250}>
               <Box>
@@ -1098,7 +1189,7 @@ export default function OptionsPage() {
               )
             )}
 
-            {hasMore && activeProject && !readingFilter && (
+            {hasMore && activeProject && !readingFilter && (keyword || dateRange) && (
               <Box ref={loadMoreRef} sx={{ display: "flex", justifyContent: "center", py: 4 }}>
                 <CircularProgress size={24} />
               </Box>
@@ -1248,6 +1339,13 @@ export default function OptionsPage() {
               count={moveToSectionState?.multi ? selectedIds.length : 1}
               onClose={() => setMoveToSectionState(null)}
               onConfirm={confirmMoveToSection}
+            />
+
+            <MergeConfirmDialog
+              open={Boolean(mergeState)}
+              items={mergeState ?? []}
+              onClose={() => setMergeState(null)}
+              onConfirm={handleConfirmMerge}
             />
 
             <NewProjectDialog

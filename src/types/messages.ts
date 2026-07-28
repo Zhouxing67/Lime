@@ -50,6 +50,19 @@ export interface CaptureVisibleTabMessage {
   kind: "capture-visible-tab"
 }
 
+export interface OpenInEditorMessage {
+  kind: "open-in-editor"
+  itemId: string
+  title?: string
+  content: string
+  images?: string[]
+}
+
+export interface EditorUpdatedMessage {
+  kind: "editor-updated"
+  itemId: string
+}
+
 export type ExtensionMessage =
   | CaptureMessage
   | ToastMessage
@@ -59,6 +72,8 @@ export type ExtensionMessage =
   | ListProjectsMessage
   | AddProjectMessage
   | CaptureVisibleTabMessage
+  | OpenInEditorMessage
+  | EditorUpdatedMessage
 
 export function sendMessage<T = any>(msg: ExtensionMessage): Promise<T> {
   return new Promise((resolve, reject) => {

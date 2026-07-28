@@ -1,4 +1,4 @@
-import { addItem, addProject, getDueReviews, getRecentProjects, listProjects, searchItems, touchProject } from "./database"
+import { addItem, addProject, getDueReviews, getRecentProjects, listProjects, searchItems, touchProject, tx } from "./database"
 import { createMenus, ensureMenusReady, rebuildProjectMenus, rebuildRecentMenus } from "./background/menus"
 import type { Item, Project, SourceMeta } from "./types"
 import type { ExtensionMessage } from "./types/messages"
@@ -277,6 +277,10 @@ chrome.runtime.onMessage.addListener((raw: any, _sender, sendResponse) => {
       chrome.tabs.captureVisibleTab((dataUrl) => sendResponse(dataUrl))
       return true
     }
+    case "open-in-editor": {
+      handleOpenInEditor(msg, sendResponse)
+      return true
+    }
     default: {
       sendResponse({ ok: false, error: `Unknown message kind: ${msg.kind}` })
       return false
@@ -319,6 +323,70 @@ async function handleCapture(
     height: 460
   })
   sendResponse({ ok: true })
+}
+
+async function handleOpenInEditor(
+  msg: any,
+  sendResponse: (response: any) => void
+) {
+  try {
+    const data = await chrome.storage.sync.get("editorCommand")
+    const editorCommand = data.editorCommand as string | undefined
+    if (!editorCommand) {
+      sendResponse({ ok: false, error: "请先在设置中配置编辑器命令" })
+      return
+    }
+
+    const port = chrome.runtime.connectNative("com.lime.editor")
+    port.postMessage({
+      action: "open",
+      itemId: msg.itemId,
+      title: msg.title,
+      content: msg.content,
+      images: msg.images,
+      editorCommand
+    })
+
+    port.onMessage.addListener(async (response: any) => {
+      if (response?.action === "saved" && response.itemId) {
+        const itemId = response.itemId as string
+        const newContent = response.content as string
+        if (typeof newContent === "string" && newContent.trim()) {
+          // Read existing item, merge content, write back — preserves
+          // createdAt / projectId / source / context / hash etc.
+          await tx({ items: "readwrite" }, async (stores) => {
+            const existing: Item = await new Promise((resolve) => {
+              const req = stores.items.get(itemId)
+              req.onsuccess = () => resolve(req.result)
+              req.onerror = () => resolve(null)
+            })
+            if (existing) {
+              Object.assign(existing, { content: newContent, updatedAt: Date.now() })
+              stores.items.put(existing)
+            }
+          })
+        }
+
+        // Notify options page to refresh the item
+        chrome.runtime.sendMessage({
+          kind: "editor-updated",
+          itemId
+        })
+      }
+    })
+
+    port.onDisconnect.addListener(() => {
+      // Editor process runs independently; nothing to clean up.
+    })
+
+    sendResponse({ ok: true })
+  } catch (e: any) {
+    if (e?.message?.includes?.("not found") || e?.message?.includes?.("native host")) {
+      sendResponse({ ok: false, error: `Native Host 未安装。请运行 editor-host/install.sh <extension-id>` })
+    } else {
+      sendResponse({ ok: false, error: e?.message ?? "打开编辑器失败" })
+    }
+  }
 }
 
 chrome.action.onClicked.addListener(() => {
