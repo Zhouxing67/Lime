@@ -10,6 +10,10 @@ export default function ItemCard({
   firstRating,
   inReview,
   readOnly,
+  draggable,
+  selectMode,
+  onDragStart,
+  onDragEnd,
   onDelete,
   onClick,
   onToggleReview,
@@ -21,6 +25,10 @@ export default function ItemCard({
   firstRating?: 1 | 2 | 3 | 4
   inReview?: boolean
   readOnly?: boolean
+  draggable?: boolean
+  selectMode?: boolean
+  onDragStart?: (e: React.DragEvent) => void
+  onDragEnd?: (e: React.DragEvent) => void
   onDelete: (id: string) => void
   onClick?: () => void
   onToggleReview?: (id: string) => void
@@ -31,6 +39,9 @@ export default function ItemCard({
   return (
     <Paper
       elevation={0}
+      draggable={draggable}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
       sx={{
         position: "relative",
         overflow: "hidden",
@@ -61,6 +72,7 @@ export default function ItemCard({
         justifyContent="space-between"
         sx={{ mb: 2 }}>
         <Stack direction="row" spacing={1} alignItems="center">
+          {!selectMode && (
           <Chip
             label={item.type === "text" ? "文本" : item.type === "image" ? "图片" : "链接"}
             size="small"
@@ -72,6 +84,7 @@ export default function ItemCard({
               letterSpacing: "0.04em"
             }}
           />
+          )}
           {!item.title && (
             <Chip
               label="未设置摘要"

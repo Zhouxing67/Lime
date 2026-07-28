@@ -1,5 +1,13 @@
 export type ItemType = "text" | "image" | "link"
 
+export interface Section {
+  id: string
+  parentId: string | null
+  title: string
+  order: number
+  level: 1 | 2
+}
+
 export interface SourceMeta {
   title: string
   url: string
@@ -27,6 +35,7 @@ export interface Item {
   source?: SourceMeta
   createdAt: number
   projectId?: string
+  sectionId?: string
   /** Mark as read/unread for link type */
   read?: boolean
   hash?: string
@@ -68,6 +77,7 @@ export interface Project {
   createdAt: number
   note?: string
   lastOpened?: number
+  sections?: Section[]
 }
 
 export type PresetName = "classic" | "indigo-crimson" | "forest" | "terracotta"

@@ -10,6 +10,7 @@ interface CardGridProps {
   readOnly?: boolean
   firstRating?: Map<string, 1 | 2 | 3 | 4>
   reviewItemIds?: Set<string>
+  draggable?: boolean
   onSelectItem: (id: string) => void
   onDeleteItem: (id: string) => void
   onOpenDialog: (item: Item) => void
@@ -17,6 +18,10 @@ interface CardGridProps {
   onToggleRead?: (id: string) => void
   onMoveToProject?: (id: string) => void
   onCopyToProject?: (id: string) => void
+  onCardDragStart?: (item: Item) => void
+  onCardDragEnd?: () => void
+  onCardDragOver?: (e: React.DragEvent, itemId: string) => void
+  onCardDrop?: (e: React.DragEvent, targetItemId: string) => void
 }
 
 function roundRobinCols<T>(items: T[], cols: number): T[][] {
@@ -31,6 +36,7 @@ export default function CardGrid({
   selectedIds,
   readOnly,
   firstRating,
+  draggable,
   onSelectItem,
   onDeleteItem,
   onOpenDialog,
@@ -38,7 +44,11 @@ export default function CardGrid({
   onToggleRead,
   onMoveToProject,
   onCopyToProject,
-  reviewItemIds
+  reviewItemIds,
+  onCardDragStart,
+  onCardDragEnd,
+  onCardDragOver,
+  onCardDrop
 }: CardGridProps) {
   const theme = useTheme()
   const isMd = useMediaQuery(theme.breakpoints.up(900))
@@ -67,7 +77,9 @@ export default function CardGrid({
                   key={it.id}
                   className="masonry-item"
                   sx={{ position: "relative", breakInside: "avoid" }}
-                  style={{ animationDelay: `${globalIdx * 40}ms` }}>
+                  style={{ animationDelay: `${globalIdx * 40}ms` }}
+                  onDragOver={(e) => { if (draggable && onCardDragOver) onCardDragOver(e, it.id) }}
+                  onDrop={(e) => { if (draggable && onCardDrop) onCardDrop(e, it.id) }}>
                   {selectMode && (
                     <Box
                       sx={{
@@ -93,6 +105,10 @@ export default function CardGrid({
                     inReview={reviewItemIds?.has(it.id)}
                     readOnly={readOnly}
                     firstRating={firstRating?.get(it.id)}
+                    draggable={draggable && !selectMode}
+                    selectMode={selectMode}
+                    onDragStart={() => onCardDragStart?.(it)}
+                    onDragEnd={() => onCardDragEnd?.()}
                     onDelete={onDeleteItem}
                     onClick={() => {
                       if (selectMode) return onSelectItem(it.id)

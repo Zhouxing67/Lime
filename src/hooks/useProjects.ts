@@ -3,11 +3,12 @@ import { useCallback, useEffect, useState } from "react"
 import {
   addProject,
   deleteProject,
+  deleteSection as dbDeleteSection,
   getProjectByName,
   listProjects,
   updateProject
 } from "../database"
-import type { Project } from "../types"
+import type { Project, Section } from "../types"
 
 interface UseProjectsArgs {
   onSearch: (projectId?: string | null) => void
@@ -26,6 +27,10 @@ interface UseProjectsResult {
   handleRenameProject: (id: string, name: string) => Promise<void>
   handleUpdateNote: (id: string, note: string) => Promise<void>
   handleDeleteProject: (id: string) => Promise<void>
+  handleAddSection: (projectId: string, title: string, parentId: string | null) => Promise<void>
+  handleRenameSection: (projectId: string, sectionId: string, title: string) => Promise<void>
+  handleDeleteSection: (projectId: string, sectionId: string) => Promise<void>
+  handleMoveSection: (projectId: string, sectionId: string, parentId: string | null, order: number) => Promise<void>
 }
 
 /**
@@ -108,6 +113,78 @@ export function useProjects({
     [loadProjects, onDeactivate]
   )
 
+  const handleAddSection = useCallback(
+    async (projectId: string, title: string, parentId: string | null) => {
+      const proj = projects.find((p) => p.id === projectId)
+      if (!proj) return
+      const level: Section["level"] = parentId === null ? 1 : 2
+      if (level === 2) {
+        const parent = (proj.sections ?? []).find((s) => s.id === parentId)
+        if (!parent || parent.level !== 1) return
+      }
+      const siblings = (proj.sections ?? []).filter((s) => s.parentId === parentId)
+      const maxOrder = siblings.length > 0 ? Math.max(...siblings.map((s) => s.order)) : -1
+      const section: Section = {
+        id: crypto.randomUUID(),
+        parentId,
+        title: title.trim() || "新章节",
+        order: maxOrder + 1,
+        level
+      }
+      const updated: Project = { ...proj, sections: [...(proj.sections ?? []), section] }
+      await updateProject(updated)
+      await loadProjects()
+    },
+    [projects, loadProjects]
+  )
+
+  const handleRenameSection = useCallback(
+    async (projectId: string, sectionId: string, title: string) => {
+      const proj = projects.find((p) => p.id === projectId)
+      if (!proj || !proj.sections) return
+      const sections = proj.sections.map((s) =>
+        s.id === sectionId ? { ...s, title: title.trim() || s.title } : s
+      )
+      await updateProject({ ...proj, sections })
+      await loadProjects()
+    },
+    [projects, loadProjects]
+  )
+
+  const handleDeleteSection = useCallback(
+    async (projectId: string, sectionId: string) => {
+      await dbDeleteSection(projectId, sectionId)
+      await loadProjects()
+    },
+    [loadProjects]
+  )
+
+  const handleMoveSection = useCallback(
+    async (projectId: string, sectionId: string, parentId: string | null, order: number) => {
+      const proj = projects.find((p) => p.id === projectId)
+      if (!proj || !proj.sections) return
+      const target = proj.sections.find((s) => s.id === sectionId)
+      if (!target) return
+      const level: Section["level"] = parentId === null ? 1 : 2
+      if (level === 2) {
+        const parent = proj.sections.find((s) => s.id === parentId)
+        if (!parent || parent.level !== 1) return
+      }
+      const newSections = proj.sections
+        .map((s) =>
+          s.id === sectionId ? { ...s, parentId, level, order } : s
+        )
+        .sort((a, b) =>
+          (a.parentId ?? "") === (b.parentId ?? "")
+            ? a.order - b.order
+            : 0
+        )
+      await updateProject({ ...proj, sections: newSections })
+      await loadProjects()
+    },
+    [projects, loadProjects]
+  )
+
   return {
     projects,
     newProjectName,
@@ -118,6 +195,10 @@ export function useProjects({
     handleCreateProject,
     handleRenameProject,
     handleUpdateNote,
-    handleDeleteProject
+    handleDeleteProject,
+    handleAddSection,
+    handleRenameSection,
+    handleDeleteSection,
+    handleMoveSection
   }
 }

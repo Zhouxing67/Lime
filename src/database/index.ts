@@ -444,6 +444,110 @@ export async function touchProject(id: string): Promise<void> {
   }
 }
 
+// ---- Sections (embedded in Project) ----
+
+/**
+ * Atomic cascade delete of a Section:
+ *  1. Collects the target section id + all descendant section ids (level-2 children).
+ *  2. Removes those sections from Project.sections.
+ *  3. Clears `sectionId` on all items that were attached to any deleted section.
+ *  Single transaction across projects + items for atomicity.
+ */
+export async function deleteSection(projectId: string, sectionId: string): Promise<void> {
+  await tx({ projects: "readwrite", items: "readwrite" }, async (stores) => {
+    const project = await new Promise<Project | undefined>((resolve) => {
+      const req = stores.projects.get(projectId)
+      req.onsuccess = () => resolve(req.result as Project | undefined)
+      req.onerror = () => resolve(undefined)
+    })
+    if (!project || !project.sections) return
+
+    const sections = project.sections
+    const target = sections.find((s) => s.id === sectionId)
+    if (!target) return
+
+    const deletedIds = new Set<string>([sectionId])
+    if (target.level === 1) {
+      for (const s of sections) {
+        if (s.parentId === sectionId) deletedIds.add(s.id)
+      }
+    }
+
+    project.sections = sections.filter((s) => !deletedIds.has(s.id))
+    stores.projects.put(project)
+
+    const idx = stores.items.index("projectId")
+    await new Promise<void>((resolve, reject) => {
+      const cursorReq = idx.openCursor(IDBKeyRange.only(projectId))
+      cursorReq.onsuccess = () => {
+        const cursor = cursorReq.result
+        if (cursor) {
+          const item = cursor.value as Item
+          if (item.sectionId && deletedIds.has(item.sectionId)) {
+            cursor.update({ ...item, sectionId: undefined })
+          }
+          cursor.continue()
+        } else {
+          resolve()
+        }
+      }
+      cursorReq.onerror = () => reject(cursorReq.error)
+    })
+  })
+}
+
+/**
+ * Update a single item's sectionId.
+ * Pass undefined to move the card to "未分类".
+ */
+export async function updateItemSection(itemId: string, sectionId: string | undefined): Promise<void> {
+  await withStore("items", "readwrite", async (store) => {
+    return new Promise<void>((resolve, reject) => {
+      const req = store.get(itemId)
+      req.onsuccess = () => {
+        const item = req.result as Item | undefined
+        if (!item) { resolve(); return }
+        store.put({ ...item, sectionId, updatedAt: Date.now() })
+        resolve()
+      }
+      req.onerror = () => reject(req.error)
+    })
+  })
+}
+
+/**
+ * Batch update multiple items' sectionId and/or order in a single atomic transaction.
+ * Only items whose id is in the updates array are touched; others are unchanged.
+ */
+export async function batchUpdateItems(
+  updates: { id: string; sectionId?: string; order?: number }[]
+): Promise<void> {
+  if (updates.length === 0) return
+  await withStore("items", "readwrite", async (store) => {
+    const items = await Promise.all(
+      updates.map(
+        (u) =>
+          new Promise<{ id: string; item?: Item }>((resolve) => {
+            const req = store.get(u.id)
+            req.onsuccess = () => resolve({ id: u.id, item: req.result as Item | undefined })
+            req.onerror = () => resolve({ id: u.id })
+          })
+      )
+    )
+    for (let i = 0; i < items.length; i++) {
+      const { item } = items[i]
+      if (!item) continue
+      const u = updates[i]
+      store.put({
+        ...item,
+        ...("sectionId" in u ? { sectionId: u.sectionId } : {}),
+        ...("order" in u ? { order: u.order } : {}),
+        updatedAt: Date.now()
+      })
+    }
+  })
+}
+
 export async function getRecentProjects(limit = 3): Promise<Project[]> {
   const projects = await listProjects()
   return projects.sort((a, b) => (b.lastOpened ?? 0) - (a.lastOpened ?? 0)).slice(0, limit)

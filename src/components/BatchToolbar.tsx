@@ -7,9 +7,12 @@ import { Fragment, type ReactElement, useMemo } from "react"
 
 interface BatchToolbarProps {
   selectedIds: string[]
+  allSelected: boolean
+  hasSections: boolean
   onSelectAll: () => void
   onBatchDelete: () => void
   onBatchMove: () => void
+  onBatchMoveToSection: () => void
   onBatchCopy: () => void
 }
 
@@ -25,9 +28,12 @@ interface ButtonConfig {
 
 export default function BatchToolbar({
   selectedIds,
+  allSelected,
+  hasSections,
   onSelectAll,
   onBatchDelete,
   onBatchMove,
+  onBatchMoveToSection,
   onBatchCopy
 }: BatchToolbarProps) {
   const hasSelection = selectedIds.length > 0
@@ -35,10 +41,17 @@ export default function BatchToolbar({
   const buttons = useMemo<ButtonConfig[]>(
     () => [
       {
-        label: "全选",
+        label: allSelected ? "取消全选" : "全选",
         icon: <DoneAllRoundedIcon sx={{ fontSize: 16, mr: 0.5 }} />,
         onClick: onSelectAll
       },
+      ...(hasSections ? [{
+        label: "移动到章节",
+        icon: <DriveFileMoveOutlinedIcon sx={{ fontSize: 16, mr: 0.5 }} />,
+        onClick: onBatchMoveToSection,
+        dividerBefore: true,
+        disabled: !hasSelection
+      } as ButtonConfig] : []),
       {
         label: "移动到",
         icon: <DriveFileMoveOutlinedIcon sx={{ fontSize: 16, mr: 0.5 }} />,
@@ -62,7 +75,7 @@ export default function BatchToolbar({
         color: "error"
       }
     ],
-    [onSelectAll, onBatchMove, onBatchCopy, onBatchDelete, hasSelection]
+    [onSelectAll, onBatchMove, onBatchCopy, onBatchDelete, hasSelection, allSelected, hasSections, onBatchMoveToSection]
   )
 
   return (

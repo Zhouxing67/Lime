@@ -30,13 +30,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import AppHeader from "./components/AppHeader"
 import BatchToolbar from "./components/BatchToolbar"
 import CardGrid from "./components/CardGrid"
+import ContentOutline from "./components/ContentOutline"
 import DateRangeFilter from "./components/DateRangeFilter"
 import DeleteConfirmDialog from "./components/DeleteConfirmDialog"
+import DialogShell from "./components/DialogShell"
 import EmptyState from "./components/EmptyState"
 import FilterChips from "./components/FilterChips"
 import FooterBar from "./components/FooterBar"
 import ItemDialog from "./components/ItemDialog"
 import MoveCopyCards from "./components/MoveCopyCards"
+import MoveToSectionDialog from "./components/MoveToSectionDialog"
 import NewCardDialog from "./components/NewCardDialog"
 import NewProjectDialog from "./components/NewProjectDialog"
 import ReviewSession from "./components/ReviewSession"
@@ -50,6 +53,7 @@ import { dayKey, rateSrs } from "./hooks/useSrs"
 import {
   addItem,
   addReview,
+  batchUpdateItems,
   deleteItem,
   deleteItems,
   getAllReviews,
@@ -113,6 +117,9 @@ export default function OptionsPage() {
   const [sessionRatings, setSessionRatings] = useState<Map<string, number>>(new Map())
   const [animating, setAnimating] = useState(false)
   const [sessionTotal, setSessionTotal] = useState(0)
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set())
+  const [pendingSectionDelete, setPendingSectionDelete] = useState<{ sectionId: string; cardCount: number; subSectionCount: number } | null>(null)
+  const [moveToSectionState, setMoveToSectionState] = useState<{ itemId?: string; multi: boolean } | null>(null)
 
   console.debug("[review:state]", {
     reviewItems: reviewItems.length,
@@ -178,7 +185,11 @@ export default function OptionsPage() {
     handleCreateProject,
     handleRenameProject,
     handleUpdateNote,
-    handleDeleteProject
+    handleDeleteProject,
+    handleAddSection,
+    handleRenameSection,
+    handleDeleteSection,
+    handleMoveSection
   } = useProjects({
     onSearch,
     onActivate: (id) => {
@@ -546,6 +557,95 @@ export default function OptionsPage() {
     setSelectMode((prev) => !prev)
   }, [])
 
+  // ---- Section handlers ----
+  const onToggleSectionCollapse = useCallback((sectionId: string) => {
+    setCollapsedSections((prev) => {
+      const next = new Set(prev)
+      if (next.has(sectionId)) next.delete(sectionId)
+      else next.add(sectionId)
+      return next
+    })
+  }, [])
+
+  const onAddSection = useCallback((parentId: string | null) => {
+    if (!activeProjectId) return
+    handleAddSection(activeProjectId, "新章节", parentId)
+  }, [activeProjectId, handleAddSection])
+
+  const onRenameSection = useCallback((parentId: string | null, sectionId: string, title: string) => {
+    if (!activeProjectId) return
+    handleRenameSection(activeProjectId, sectionId, title)
+  }, [activeProjectId, handleRenameSection])
+
+  const onDeleteSectionCb = useCallback((sectionId: string, cardCount: number, subSectionCount: number) => {
+    if (!activeProjectId) return
+    setPendingSectionDelete({ sectionId, cardCount, subSectionCount })
+  }, [activeProjectId])
+
+  const confirmDeleteSection = useCallback(async () => {
+    if (!activeProjectId || !pendingSectionDelete) return
+    await handleDeleteSection(activeProjectId, pendingSectionDelete.sectionId)
+    setPendingSectionDelete(null)
+  }, [activeProjectId, handleDeleteSection, pendingSectionDelete])
+
+  const onMoveSection = useCallback(
+    (sectionId: string, newParentId: string | null, newOrder: number) => {
+      if (!activeProjectId) return
+      handleMoveSection(activeProjectId, sectionId, newParentId, newOrder)
+    },
+    [activeProjectId, handleMoveSection]
+  )
+
+  const onMoveCard = useCallback(
+    async (itemId: string, targetSectionId: string | null, targetOrder: number) => {
+      if (!activeProjectId) return
+      const sectionItems = allItems.filter((i) =>
+        targetSectionId ? i.sectionId === targetSectionId : !i.sectionId
+      )
+      const sorted = sectionItems.sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.createdAt - b.createdAt)
+      const filtered = sorted.filter((i) => i.id !== itemId)
+      filtered.splice(targetOrder, 0, { ...allItems.find((i) => i.id === itemId)!, sectionId: targetSectionId ?? undefined })
+      const updates = filtered.map((item, idx) => ({ id: item.id, sectionId: targetSectionId ?? undefined, order: idx }))
+      await batchUpdateItems(updates)
+      await refreshAllData()
+      const proj = projects.find((p) => p.id === activeProjectId)
+      const section = proj?.sections?.find((s) => s.id === targetSectionId)
+      setSnackbarMsg(section ? `已移动到「${section.title}」` : "已移动到未分类")
+    },
+    [activeProjectId, allItems, refreshAllData, projects]
+  )
+
+  const onBatchMoveCards = useCallback(
+    async (itemIds: string[], targetSectionId: string | null) => {
+      if (itemIds.length === 0) return
+      await batchUpdateItems(itemIds.map((id) => ({ id, sectionId: targetSectionId ?? undefined })))
+      await refreshAllData()
+    },
+    [refreshAllData]
+  )
+
+  const onMoveCardToSection = useCallback((itemId: string) => {
+    setMoveToSectionState({ itemId, multi: false })
+  }, [])
+
+  const onBatchMoveToSection = useCallback(() => {
+    if (selectedIds.length === 0) return
+    setMoveToSectionState({ multi: true })
+  }, [selectedIds.length])
+
+  const confirmMoveToSection = useCallback(
+    async (targetSectionId: string | null) => {
+      if (!moveToSectionState) return
+      if (moveToSectionState.multi) {
+        await onBatchMoveCards(selectedIds, targetSectionId)
+      } else if (moveToSectionState.itemId) {
+        await onMoveCard(moveToSectionState.itemId, targetSectionId, Number.MAX_SAFE_INTEGER)
+      }
+      setMoveToSectionState(null)
+    },
+    [moveToSectionState, onBatchMoveCards, onMoveCard, selectedIds]
+  )
+
   // Load LXGW WenKai font from CDN
   useEffect(() => {
     const link = document.createElement("link")
@@ -778,6 +878,14 @@ export default function OptionsPage() {
                       <AddRoundedIcon sx={{ fontSize: 20 }} />
                     </IconButton>
                   </Tooltip>
+                  <Tooltip title="新建章节（项目根下新增一级章节）">
+                    <IconButton
+                      size="small"
+                      onClick={() => onAddSection(null)}
+                      sx={{ color: "text.secondary", "&:hover": { color: "primary.main" }, "&.Mui-focusVisible": { outline: "none" } }}>
+                      <NoteAddRoundedIcon sx={{ fontSize: 20 }} />
+                    </IconButton>
+                  </Tooltip>
                   <Tooltip title={selectMode ? "取消选择" : "选择卡片"}>
                     <IconButton
                       size="small"
@@ -841,11 +949,18 @@ export default function OptionsPage() {
             {selectMode && (
               <BatchToolbar
                 selectedIds={selectedIds}
-                onSelectAll={() =>
-                  setSelectedIds(displayedItems.map((i) => i.id))
-                }
+                allSelected={selectedIds.length > 0 && selectedIds.length === displayedItems.length}
+                hasSections={Boolean(activeProject?.sections?.length)}
+                onSelectAll={() => {
+                  if (selectedIds.length === displayedItems.length) {
+                    setSelectedIds([])
+                  } else {
+                    setSelectedIds(displayedItems.map((i) => i.id))
+                  }
+                }}
                 onBatchDelete={handleBatchDelete}
                 onBatchMove={handleBatchMove}
+                onBatchMoveToSection={onBatchMoveToSection}
                 onBatchCopy={handleBatchCopy}
               />
             )}
@@ -922,7 +1037,32 @@ export default function OptionsPage() {
               )
             ) : null}
 
-            {!readingFilter && activeProject && (
+            {!readingFilter && activeProject && !keyword && !dateRange && (
+              <ContentOutline
+                items={allItems}
+                sections={activeProject.sections ?? []}
+                collapsedSections={collapsedSections}
+                selectMode={selectMode}
+                selectedIds={selectedIds}
+                onToggleCollapse={onToggleSectionCollapse}
+                onAddSection={onAddSection}
+                onRenameSection={onRenameSection}
+                onDeleteSection={onDeleteSectionCb}
+                onMoveSection={onMoveSection}
+                onMoveCard={onMoveCard}
+                onBatchMoveCards={onBatchMoveCards}
+                onMoveCardToSection={onMoveCardToSection}
+                onSelectItem={(id) =>
+                  setSelectedIds((prev) =>
+                    prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+                  )
+                }
+                onDeleteItem={onDelete}
+                {...sharedCardGridProps}
+              />
+            )}
+
+            {!readingFilter && activeProject && (keyword || dateRange) && (
               <CardGrid
                 items={displayedItems}
                 selectMode={selectMode}
@@ -1081,6 +1221,33 @@ export default function OptionsPage() {
                 setConfirmBatchDelete(false)
               }}
               onConfirm={confirmBatchDelete ? handleConfirmBatchDelete : handleConfirmDelete}
+            />
+
+            <DialogShell
+              open={Boolean(pendingSectionDelete)}
+              onClose={() => setPendingSectionDelete(null)}
+              title="删除章节"
+              confirmLabel="删除"
+              confirmColor="error"
+              onConfirm={confirmDeleteSection}>
+              <>
+                {pendingSectionDelete && (
+                  <Typography variant="body2" color="text.secondary">
+                    确定要删除此章节
+                    {pendingSectionDelete.subSectionCount > 0 && ` 及 ${pendingSectionDelete.subSectionCount} 个子章节`}
+                    ？其中 {pendingSectionDelete.cardCount} 张卡片将移至未分类。
+                  </Typography>
+                )}
+              </>
+            </DialogShell>
+
+            <MoveToSectionDialog
+              open={Boolean(moveToSectionState)}
+              sections={activeProject?.sections ?? []}
+              multi={moveToSectionState?.multi}
+              count={moveToSectionState?.multi ? selectedIds.length : 1}
+              onClose={() => setMoveToSectionState(null)}
+              onConfirm={confirmMoveToSection}
             />
 
             <NewProjectDialog
