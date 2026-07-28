@@ -11,85 +11,13 @@ import {
   Tooltip,
   Typography
 } from "@mui/material"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 
 import { palettes } from "../theme"
 import type { PresetName } from "../types"
 import { PRESET_LABELS } from "../types"
 import { testConnection } from "../utils/sync"
 import type { SyncCredentials } from "../utils/sync"
-
-function EditorConfig() {
-  const [editorCommand, setEditorCommand] = useState("")
-  const [hostStatus, setHostStatus] = useState<"checking" | "ok" | "missing">("checking")
-  const resolvedRef = useRef(false)
-
-  useEffect(() => {
-    ;(async () => {
-      const data = await chrome.storage.sync.get("editorCommand")
-      if (data.editorCommand) setEditorCommand(data.editorCommand)
-      try {
-        const port = (chrome as any).runtime?.connectNative?.("com.lime.editor")
-        if (port) {
-          port.postMessage({ action: "ping" })
-          port.onMessage.addListener((resp: any) => {
-            if (resp?.action === "pong" && !resolvedRef.current) {
-              resolvedRef.current = true
-              setHostStatus("ok")
-              port.disconnect()
-            }
-          })
-          port.onDisconnect.addListener(() => {
-            if (!resolvedRef.current) {
-              resolvedRef.current = true
-              setHostStatus("missing")
-            }
-          })
-        } else {
-          setHostStatus("missing")
-        }
-      } catch {
-        setHostStatus("missing")
-      }
-    })()
-  }, [])
-
-  const save = (v: string) => {
-    setEditorCommand(v)
-    chrome.storage.sync.set({ editorCommand: v })
-  }
-
-  return (
-    <Stack spacing={1.5}>
-      <TextField
-        fullWidth
-        size="small"
-        label="编辑器命令"
-        placeholder="code --wait  或  typora"
-        value={editorCommand}
-        onChange={(e) => save(e.target.value)}
-        helperText="如 code --wait / typora / vim"
-        sx={{ "& .MuiOutlinedInput-root": { borderRadius: 1 } }}
-      />
-      <Typography
-        variant="caption"
-        sx={{
-          color: hostStatus === "ok" ? "success.main" : hostStatus === "missing" ? "error.main" : "text.disabled"
-        }}>
-        {hostStatus === "ok" && "● 已连接"}
-        {hostStatus === "missing" && "● 未安装 Native Host"}
-        {hostStatus === "checking" && "⏳ 检测中…"}
-      </Typography>
-      {hostStatus === "missing" && (
-        <Typography variant="caption" sx={{ color: "text.disabled", fontSize: "0.65rem", lineHeight: 1.6 }}>
-          请运行仓库根目录下的 editor-host/install.sh {'<extension-id>'}，然后重启浏览器。
-          <br />
-          当前扩展 ID：{chrome.runtime.id}
-        </Typography>
-      )}
-    </Stack>
-  )
-}
 
 export default function SettingsDialog({
   open,
@@ -235,15 +163,6 @@ export default function SettingsDialog({
             <br />
             上传/下载操作请在侧栏「备份与同步」中进行。
           </Typography>
-
-          <Box sx={{ mt: 2, pt: 2, borderTop: "1px solid", borderColor: "divider" }}>
-            <Typography
-              variant="subtitle2"
-              sx={{ mb: 1.5, color: "text.secondary", fontSize: "0.85rem" }}>
-              🖊 外部编辑器
-            </Typography>
-            <EditorConfig />
-          </Box>
 
           <Box sx={{ mt: 2, pt: 2, borderTop: "1px solid", borderColor: "divider" }}>
             <Typography

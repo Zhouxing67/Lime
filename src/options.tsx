@@ -751,17 +751,6 @@ export default function OptionsPage() {
     return () => chrome.storage.onChanged.removeListener(onChange)
   }, [])
 
-  // Listen for editor-updated messages from the native host
-  useEffect(() => {
-    const handler = (raw: any) => {
-      if (raw?.kind === "editor-updated" && dialogItem?.id === raw.itemId) {
-        refreshAllData()
-      }
-    }
-    chrome.runtime.onMessage.addListener(handler)
-    return () => chrome.runtime.onMessage.removeListener(handler)
-  }, [dialogItem?.id])
-
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null
   const otherProjects = useMemo(
     () => projects.filter((p) => p.id !== activeProjectId),

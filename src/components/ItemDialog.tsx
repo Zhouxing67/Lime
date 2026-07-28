@@ -4,7 +4,6 @@ import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded"
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded"
 import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded"
 import EditRoundedIcon from "@mui/icons-material/EditRounded"
-import OpenInNewRoundedIcon from "@mui/icons-material/OpenInNewRounded"
 import {
   Box,
   Dialog,
@@ -18,10 +17,8 @@ import { useEffect, useState } from "react"
 
 import type { Item } from "../types"
 import { prettyUrl } from "../utils"
-import { sendMessage } from "../types/messages"
 import CardRenderer from "./CardRenderer"
 import DialogEditMode from "./DialogEditMode"
-import ImageUrlInput from "./ImageUrlInput"
 
 export default function ItemDialog({
   item,
@@ -75,19 +72,6 @@ export default function ItemDialog({
     setDraftContent(item.content)
     setDraftImages(item.images ?? [])
     setEditing(false)
-  }
-
-  const handleOpenInEditor = async () => {
-    const res = await sendMessage<{ ok: boolean; error?: string }>({
-      kind: "open-in-editor",
-      itemId: item.id,
-      title: draftTitle.trim() || undefined,
-      content: draftContent,
-      images: draftImages.map((u) => u.trim()).filter(Boolean)
-    })
-    if (!res?.ok && res?.error) {
-      alert(res.error)
-    }
   }
 
   const handleNavigate = (dir: "prev" | "next") => {
@@ -189,11 +173,6 @@ export default function ItemDialog({
               <Tooltip title="取消">
                 <IconButton size="small" onClick={handleCancel}>
                   <CloseRoundedIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title="用外部编辑器打开">
-                <IconButton size="small" onClick={handleOpenInEditor}>
-                  <OpenInNewRoundedIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
             </>
