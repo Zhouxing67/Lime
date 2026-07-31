@@ -1,9 +1,12 @@
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded"
 import {
+  Box,
   Button,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  IconButton,
   type ButtonOwnProps
 } from "@mui/material"
 import type { ReactNode } from "react"
@@ -11,7 +14,7 @@ import type { ReactNode } from "react"
 interface DialogShellProps {
   open: boolean
   onClose: () => void
-  title: string
+  title: ReactNode
   children: ReactNode
   actions?: ReactNode
   maxWidth?: "xs" | "sm" | "md"
@@ -55,8 +58,22 @@ export default function DialogShell({
       maxWidth={maxWidth}
       fullWidth
       slotProps={{ paper: { sx: { borderRadius: 1 } } }}>
-      <DialogTitle sx={{ py: 2.5, px: 3, fontSize: "1rem" }}>
-        {title}
+      <DialogTitle
+        sx={{
+          py: 2.5,
+          px: 3,
+          fontSize: "1rem",
+          display: "flex",
+          alignItems: "center",
+          gap: 1
+        }}>
+        <Box sx={{ flex: 1, minWidth: 0 }}>{title}</Box>
+        <IconButton
+          size="small"
+          onClick={onClose}
+          sx={{ color: "text.secondary", "&:hover": { color: "text.primary" } }}>
+          <CloseRoundedIcon fontSize="small" />
+        </IconButton>
       </DialogTitle>
       <DialogContent sx={{ px: 3, py: 1 }}>{children}</DialogContent>
       {actions === undefined ? defaultActions : actions}

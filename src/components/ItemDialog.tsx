@@ -11,13 +11,14 @@ import {
   DialogTitle,
   IconButton,
   Stack,
-  Tooltip
+  Tooltip,
+  Typography
 } from "@mui/material"
 import { useEffect, useState } from "react"
 
 import type { Item } from "../types"
 import { prettyUrl } from "../utils"
-import CardRenderer from "./CardRenderer"
+import CardRenderer, { typeIcon } from "./CardRenderer"
 import DialogEditMode from "./DialogEditMode"
 
 export default function ItemDialog({
@@ -99,46 +100,6 @@ export default function ItemDialog({
           }
         }
       }}>
-      {onNavigate && (
-        <>
-          <IconButton
-            onClick={() => handleNavigate("prev")}
-            disabled={!hasPrev}
-            sx={{
-              position: "fixed",
-              left: 24,
-              top: "50%",
-              "&.Mui-disabled": { opacity: 0.3 },
-              transform: "translateY(-50%)",
-              zIndex: (theme) => theme.zIndex.modal + 1,
-              bgcolor: "background.paper",
-              border: "1px solid",
-              borderColor: "divider",
-              boxShadow: 2,
-              "&:hover": { bgcolor: "action.hover" }
-            }}>
-            <ChevronLeftRoundedIcon sx={{ fontSize: 28 }} />
-          </IconButton>
-          <IconButton
-            onClick={() => handleNavigate("next")}
-            disabled={!hasNext}
-            sx={{
-              position: "fixed",
-              right: 24,
-              top: "50%",
-              "&.Mui-disabled": { opacity: 0.3 },
-              transform: "translateY(-50%)",
-              zIndex: (theme) => theme.zIndex.modal + 1,
-              bgcolor: "background.paper",
-              border: "1px solid",
-              borderColor: "divider",
-              boxShadow: 2,
-              "&:hover": { bgcolor: "action.hover" }
-            }}>
-            <ChevronRightRoundedIcon sx={{ fontSize: 28 }} />
-          </IconButton>
-        </>
-      )}
       <style>{`
         @keyframes dialogSlideOutLeft {
           to { opacity: 0; transform: translateX(-24px); }
@@ -155,13 +116,54 @@ export default function ItemDialog({
         sx={{
           display: "flex",
           alignItems: "center",
-          justifyContent: "flex-end",
-          gap: 1,
+          gap: 0.5,
           borderBottom: "1px solid",
           borderColor: "divider",
           py: 2.5,
           px: 3
         }}>
+        {onNavigate && (
+          <>
+            <IconButton
+              size="small"
+              onClick={() => handleNavigate("prev")}
+              disabled={!hasPrev}
+              sx={{ "&.Mui-disabled": { opacity: 0.3 } }}>
+              <ChevronLeftRoundedIcon fontSize="small" />
+            </IconButton>
+            <IconButton
+              size="small"
+              onClick={() => handleNavigate("next")}
+              disabled={!hasNext}
+              sx={{ "&.Mui-disabled": { opacity: 0.3 } }}>
+              <ChevronRightRoundedIcon fontSize="small" />
+            </IconButton>
+          </>
+        )}
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            color: "text.disabled",
+            ml: 0.5,
+            flexShrink: 0
+          }}>
+          {typeIcon(item.type)}
+        </Box>
+        <Typography
+          sx={{
+            flex: 1,
+            minWidth: 0,
+            fontSize: "1rem",
+            fontWeight: 600,
+            fontFamily: (t) => t.custom.serif,
+            color: "text.primary",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap"
+          }}>
+          {item.title || "未命名卡片"}
+        </Typography>
         <Stack direction="row" spacing={0.5} alignItems="center">
           {!readOnly &&
             (editing ? (
@@ -197,6 +199,11 @@ export default function ItemDialog({
                 )
               }}>
               <ContentCopyRoundedIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="关闭">
+            <IconButton size="small" onClick={onClose}>
+              <CloseRoundedIcon fontSize="small" />
             </IconButton>
           </Tooltip>
         </Stack>
