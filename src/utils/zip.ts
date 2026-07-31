@@ -31,11 +31,12 @@ export async function toJsonZip(
 
   const payload: { items: Item[]; projects?: Project[] } = { items }
   if (projects && projects.length > 0) {
-    payload.projects = projects.map(({ id, name, createdAt, note }) => ({
+    payload.projects = projects.map(({ id, name, createdAt, note, sections }) => ({
       id,
       name,
       createdAt,
-      note
+      note,
+      sections
     }))
   }
   const json = JSON.stringify(payload, null, 2)

@@ -195,11 +195,15 @@ export default function OptionsPage() {
   } = useProjects({
     onSearch,
     onActivate: (id) => {
+      setSelectedIds([])
+      setSelectMode(false)
       setActiveProjectId(id)
       onSearch(id)
       sendMessage({ kind: "set-recent-project", projectId: id }).catch(() => {})
     },
     onDeactivate: () => {
+      setSelectedIds([])
+      setSelectMode(false)
       setActiveProjectId(null)
       setDialogItem(null)
       onSearch(null)
@@ -297,6 +301,12 @@ export default function OptionsPage() {
     return () => clearTimeout(t)
   }, [keyword])
 
+  // Clear selection when the search scope changes so batch ops never act on
+  // cards hidden by a new keyword/date range/reading filter.
+  useEffect(() => {
+    setSelectedIds([])
+  }, [keyword, dateRange, activeProjectId, readingFilter])
+
   // Reset review session state when exiting review
   useEffect(() => {
     if (reviewItems.length === 0 && sidebarTab !== "review") {
@@ -314,6 +324,8 @@ export default function OptionsPage() {
   }
 
   const handleOpenProject = (id: string) => {
+    setSelectedIds([])
+    setSelectMode(false)
     setActiveProjectId(id)
     onSearch(id)
     sendMessage({ kind: "set-recent-project", projectId: id }).catch(() => {})
@@ -843,6 +855,11 @@ export default function OptionsPage() {
     (i) => i.type === "link" && !i.read
   )
 
+  // Full card set the current view renders. 全选 must target this scope, not
+  // the paginated displayedItems slice (which only holds the first page) —
+  // otherwise select-all in the section/outline view only picks 20 cards.
+  const viewItems = readingFilter ? readingFilteredItems : allItems
+
   const sharedCardGridProps = {
     selectedIds,
     reviewItemIds,
@@ -886,6 +903,8 @@ export default function OptionsPage() {
           onSetSidebarTab={setSidebarTab}
           onNewProjectClick={() => setCreateDialogOpen(true)}
           onCloseProject={() => {
+            setSelectedIds([])
+            setSelectMode(false)
             setActiveProjectId(null)
             setDialogItem(null)
             onSearch(null)
@@ -986,13 +1005,13 @@ export default function OptionsPage() {
               {selectMode && (
                 <BatchToolbar
                   selectedIds={selectedIds}
-                  allSelected={selectedIds.length > 0 && selectedIds.length === displayedItems.length}
+                  allSelected={selectedIds.length > 0 && selectedIds.length === viewItems.length}
                   hasSections={Boolean(activeProject?.sections?.length)}
                   onSelectAll={() => {
-                    if (selectedIds.length === displayedItems.length) {
+                    if (selectedIds.length === viewItems.length) {
                       setSelectedIds([])
                     } else {
-                      setSelectedIds(displayedItems.map((i) => i.id))
+                      setSelectedIds(viewItems.map((i) => i.id))
                     }
                   }}
                   onBatchDelete={handleBatchDelete}

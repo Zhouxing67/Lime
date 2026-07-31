@@ -431,6 +431,20 @@ describe('database', () => {
       expect(reviews).toHaveLength(1)
       expect(reviews[0].itemId).toBe("i2")
     })
+
+    it("should replace local review with same itemId instead of hitting unique index", async () => {
+      await addItem(createTestItem({ id: "i1", projectId: "p1" }))
+      await addReview(createTestReview("local-rv", "i1", "p1"))
+
+      const remoteReview = createTestReview("remote-rv", "i1", "p1")
+
+      await bulkReplace([], [], [remoteReview], [], [], await getAllReviews())
+
+      const reviews = await getAllReviews()
+      expect(reviews).toHaveLength(1)
+      expect(reviews[0].id).toBe("remote-rv")
+      expect(reviews[0].itemId).toBe("i1")
+    })
   })
 
 })

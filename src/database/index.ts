@@ -584,8 +584,19 @@ export async function bulkReplace(
         if (!remoteProjectIds.has(project.id)) stores.projects.delete(project.id)
       }
       // reviews: upsert remote, delete local-not-in-remote
-      for (const review of remoteReviews) stores.reviews.put(review)
       const idx = stores.reviews.index("itemId")
+      // Remote review ids differ across devices (each side generates its own
+      // uuid), but `itemId` is unique-indexed — delete the local review for the
+      // same itemId before put to avoid ConstraintError aborting the sync.
+      for (const review of remoteReviews) {
+        const req = idx.getKey(review.itemId)
+        const existing = await new Promise<string | null>((resolve) => {
+          req.onsuccess = () => resolve((req.result as string) ?? null)
+          req.onerror = () => resolve(null)
+        })
+        if (existing) stores.reviews.delete(existing)
+        stores.reviews.put(review)
+      }
       for (const review of localReviews) {
         if (!remoteReviewItemIds.has(review.itemId)) {
           const req = idx.getKey(review.itemId)

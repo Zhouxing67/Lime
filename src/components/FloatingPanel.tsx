@@ -273,7 +273,7 @@ function FloatingPanelContent({
       setError("保存失败")
       setSaving(false)
     }
-  }, [content, title, selectedProjectId, onSaved])
+  }, [content, title, images, selectedProjectId, onSaved])
 
   const createProject = useCallback(async () => {
     if (!newName.trim()) return

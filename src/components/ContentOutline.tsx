@@ -206,7 +206,12 @@ export default function ContentOutline({
       const targetSection = targetItem.sectionId ?? null
       const sectionCards = itemsForSection(targetSection ?? "")
       const unclassifiedCards = unclassified
-      const cards = targetSection ? sectionCards : unclassifiedCards
+      // Exclude the dragged card from the reference list so insertIndex matches
+      // onMoveCard's splice (which drops the dragged item first). Without this,
+      // downward drops within the same section land one slot too far.
+      const cards = (targetSection ? sectionCards : unclassifiedCards).filter(
+        (c) => c.id !== draggedItem.id
+      )
       const targetIndex = cards.findIndex((c) => c.id === targetItemId)
       const insertIndex = dropTarget?.pos === "after" ? targetIndex + 1 : targetIndex
       // New order = insertIndex (others shift)
