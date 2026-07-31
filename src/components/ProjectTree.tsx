@@ -16,7 +16,7 @@ import {
   Tooltip,
   Typography
 } from "@mui/material"
-import { useCallback, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 
 import type { Project, Section } from "../types"
 
@@ -83,6 +83,32 @@ export default function ProjectTree({
   const [addTitle, setAddTitle] = useState("")
   const [renaming, setRenaming] = useState<string | null>(null)
   const [renameDraft, setRenameDraft] = useState("")
+  const [showAllProjects, setShowAllProjects] = useState(false)
+
+  // Active project pinned first, then others by most-recently-opened, so the
+  // sidebar never drowns under a long project list. The rest collapse behind
+  // a "全部项目" toggle.
+  const RECENT_TOTAL = 7
+  const orderedProjects = useMemo(() => {
+    const sorted = [...projects].sort(
+      (a, b) =>
+        (b.lastOpened ?? 0) - (a.lastOpened ?? 0) || b.createdAt - a.createdAt
+    )
+    if (activeProjectId) {
+      const active = sorted.find((p) => p.id === activeProjectId)
+      if (active) {
+        return [
+          active,
+          ...sorted.filter((p) => p.id !== activeProjectId)
+        ]
+      }
+    }
+    return sorted
+  }, [projects, activeProjectId])
+  const visibleProjects = showAllProjects
+    ? orderedProjects
+    : orderedProjects.slice(0, RECENT_TOTAL)
+  const hiddenCount = orderedProjects.length - visibleProjects.length
 
   const startAdd = (
     target: { type: "project"; id: string } | { type: "section"; id: string }
@@ -276,7 +302,7 @@ export default function ProjectTree({
 
   return (
     <Box>
-      {projects.map((project) => {
+      {visibleProjects.map((project) => {
         const sections = sortByOrder(project.sections ?? [])
         const l1s = sections.filter((s) => s.level === 1)
         const l2Of = (l1Id: string) =>
@@ -388,6 +414,33 @@ export default function ProjectTree({
           </Box>
         )
       })}
+      {hiddenCount > 0 && (
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 0.75,
+            px: 1.5,
+            py: 0.5,
+            cursor: "pointer",
+            "&:hover": { bgcolor: "action.hover" }
+          }}
+          onClick={() => setShowAllProjects((v) => !v)}>
+          <ExpandMoreRoundedIcon
+            sx={{
+              fontSize: 14,
+              color: "text.secondary",
+              transform: showAllProjects ? "rotate(180deg)" : "none",
+              transition: "transform 0.15s"
+            }}
+          />
+          <Typography
+            variant="body2"
+            sx={{ fontSize: "0.75rem", color: "text.secondary" }}>
+            {showAllProjects ? "收起" : `全部项目（${projects.length}）`}
+          </Typography>
+        </Box>
+      )}
       {projects.length === 0 && (
         <Box sx={{ px: 1.5, py: 1 }}>
           <Typography variant="caption" sx={{ color: "text.secondary" }}>
