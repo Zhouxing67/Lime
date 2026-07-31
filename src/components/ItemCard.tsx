@@ -1,9 +1,12 @@
-import { Box, Chip, Link, Paper, Stack, Typography } from "@mui/material"
+import { Box, Link, Paper, Stack, Typography, alpha } from "@mui/material"
+import { useState } from "react"
 
 import type { Item } from "../types"
-import { prettyUrl } from "../utils"
-import CardRenderer from "./CardRenderer"
+import { hostnameOf } from "../utils"
+import CardRenderer, { typeIcon } from "./CardRenderer"
 import ItemCardOperations from "./ItemCardOperations"
+
+const RATING_COLORS = ["#ef4444", "#f97316", "#22c55e", "#3b82f6"]
 
 export default function ItemCard({
   item,
@@ -36,119 +39,114 @@ export default function ItemCard({
   onMoveToProject?: (id: string) => void
   onCopyToProject?: (id: string) => void
 }) {
+  const [hovered, setHovered] = useState(false)
+
   return (
     <Paper
       elevation={0}
       draggable={draggable}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      sx={{
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      sx={(theme) => ({
         position: "relative",
         overflow: "hidden",
         borderRadius: 1,
         p: 2.5,
-        mb: 2,
         minHeight: 100,
         cursor: "pointer",
-        bgcolor: "background.paper",
-        transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+        bgcolor: selectMode
+          ? alpha(theme.palette.primary.main, 0.04)
+          : "background.paper",
+        boxShadow: theme.custom.cardShadow,
         border: "1px solid",
-        borderColor: "divider",
+        borderColor: selectMode ? "primary.main" : "divider",
+        transition:
+          "box-shadow 0.25s ease, transform 0.25s ease, border-color 0.25s ease, background-color 0.25s ease",
         "&:hover": {
-          boxShadow: 2,
-          transform: "translateY(-2px)",
-          borderColor: "primary.light"
+          boxShadow: theme.custom.cardShadowHover,
+          transform: "translateY(-1px)",
+          borderColor: selectMode ? "primary.main" : theme.custom.borderStrong
         },
         "&:active": {
-          transform: "scale(0.97)",
-          transition: "transform 0.1s"
+          transform: "scale(0.99)",
+          transition: "transform 0.08s"
         }
-      }}
+      })}
       onClick={onClick}>
-      <Box
-        sx={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          width: 48,
-          height: 3,
-          bgcolor: "secondary.main",
-          borderTopLeftRadius: 16
-        }}
-      />
       <Stack
         direction="row"
         alignItems="center"
-        justifyContent="space-between"
-        sx={{ mb: 2 }}>
-        <Stack direction="row" spacing={1} alignItems="center">
-          {!selectMode && (
-            <Chip
-              label={
-                item.type === "text"
-                  ? "文本"
-                  : item.type === "image"
-                    ? "图片"
-                    : "链接"
-              }
-              size="small"
-              variant="outlined"
-              sx={{
-                height: 20,
-                fontSize: "0.65rem",
-                fontWeight: 500,
-                letterSpacing: "0.04em"
-              }}
-            />
-          )}
-          {!item.title && (
-            <Chip
-              label="未设置摘要"
-              size="small"
-              sx={{
-                height: 18,
-                fontSize: "0.6rem",
-                fontWeight: 500,
-                bgcolor: "action.hover",
-                color: "text.disabled",
-                borderRadius: 1,
-                letterSpacing: "0.02em"
-              }}
-            />
-          )}
+        spacing={1}
+        sx={{ mb: 1.5, minHeight: 28 }}>
+        <Stack
+          direction="row"
+          spacing={0.75}
+          alignItems="center"
+          sx={{ minWidth: 0, flex: 1 }}>
           {firstRating && (
             <Box
               sx={{
                 width: 8,
                 height: 8,
                 borderRadius: "50%",
-                bgcolor: ["#ef4444", "#f97316", "#22c55e", "#3b82f6"][
-                  firstRating - 1
-                ]
+                flexShrink: 0,
+                bgcolor: RATING_COLORS[firstRating - 1]
               }}
             />
           )}
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              color: "text.disabled",
+              flexShrink: 0
+            }}>
+            {typeIcon(item.type)}
+          </Box>
+          {item.title && (
+            <Typography
+              sx={{
+                fontSize: "1rem",
+                fontWeight: 700,
+                lineHeight: 1.45,
+                fontFamily: (t) => t.custom.serif,
+                color: "text.primary",
+                wordBreak: "break-word",
+                minWidth: 0,
+                overflow: "hidden",
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical"
+              }}>
+              {item.title}
+            </Typography>
+          )}
         </Stack>
-        <ItemCardOperations
-          item={item}
-          inReview={inReview}
-          readOnly={readOnly}
-          onDelete={onDelete}
-          onToggleReview={onToggleReview}
-          onMoveToProject={onMoveToProject}
-          onCopyToProject={onCopyToProject}
-          onToggleRead={onToggleRead}
-        />
+        {!selectMode && (
+          <ItemCardOperations
+            item={item}
+            inReview={inReview}
+            readOnly={readOnly}
+            visible={hovered}
+            onDelete={onDelete}
+            onToggleReview={onToggleReview}
+            onMoveToProject={onMoveToProject}
+            onCopyToProject={onCopyToProject}
+            onToggleRead={onToggleRead}
+          />
+        )}
       </Stack>
 
-      <Box sx={{ mb: 2 }}>
+      <Box sx={{ mb: 1.5 }}>
         <CardRenderer item={item} mode="preview" truncateTo={160} />
       </Box>
 
       <Box
         sx={{
-          mt: 1.5,
-          pt: 1.5,
+          mt: 1.25,
+          pt: 1.25,
           borderTop: "1px solid",
           borderColor: "divider",
           display: "flex",
@@ -160,10 +158,19 @@ export default function ItemCard({
           sx={{
             display: "flex",
             alignItems: "center",
-            gap: 0.5,
+            gap: 0.6,
             minWidth: 0,
             flex: 1
           }}>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              color: "text.disabled",
+              flexShrink: 0
+            }}>
+            {typeIcon(item.type)}
+          </Box>
           {item.source ? (
             <Link
               href={item.source.url}
@@ -179,28 +186,19 @@ export default function ItemCard({
                 whiteSpace: "nowrap",
                 maxWidth: "100%"
               }}>
-              {item.source.title || prettyUrl(item.source.url)}
+              {hostnameOf(item.source.url)}
             </Link>
           ) : (
             <Typography
               variant="caption"
-              sx={{
-                color: "text.disabled",
-                fontSize: "0.72rem",
-                letterSpacing: "0.03em"
-              }}>
+              sx={{ color: "text.disabled", fontSize: "0.72rem" }}>
               自建卡片
             </Typography>
           )}
         </Box>
         <Typography
           variant="caption"
-          sx={{
-            color: "text.disabled",
-            fontSize: "0.7rem",
-            letterSpacing: "0.05em",
-            flexShrink: 0
-          }}>
+          sx={{ color: "text.disabled", fontSize: "0.7rem", flexShrink: 0 }}>
           {new Date(item.createdAt).toLocaleDateString("zh-CN", {
             month: "long",
             day: "numeric"

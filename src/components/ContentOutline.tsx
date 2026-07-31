@@ -450,7 +450,7 @@ export default function ContentOutline({
               }
             />
             <Collapse in={!collapse1} sx={{ pl: 2 }}>
-              <Stack spacing={0.5} sx={{ mt: 1 }}>
+              <Stack spacing={1.5} sx={{ mt: 1.5 }}>
                 {cardGrid(s1Items, s1.id)}
                 {subs.map((s2) => {
                   const s2Items = itemsForSection(s2.id)
@@ -491,7 +491,7 @@ export default function ContentOutline({
                             : undefined
                         }
                       />
-                      <Collapse in={!collapse2} sx={{ pl: 2, mt: 1 }}>
+                      <Collapse in={!collapse2} sx={{ pl: 2, mt: 1.5 }}>
                         {cardGrid(s2Items, s2.id)}
                       </Collapse>
                     </Box>
@@ -820,7 +820,7 @@ function UnclassifiedGroup({
           未分类 · {unclassifiedItems.length} 张
         </Typography>
       </Stack>
-      <Collapse in={!collapsed} sx={{ mt: 1 }}>
+      <Collapse in={!collapsed} sx={{ mt: 1.5 }}>
         {cardGrid(unclassifiedItems, null)}
       </Collapse>
     </Box>

@@ -2,7 +2,7 @@ import ArticleRoundedIcon from "@mui/icons-material/ArticleRounded"
 import FormatQuoteRoundedIcon from "@mui/icons-material/FormatQuoteRounded"
 import ImageRoundedIcon from "@mui/icons-material/ImageRounded"
 import LinkRoundedIcon from "@mui/icons-material/LinkRounded"
-import { Box, Chip, Stack, Typography } from "@mui/material"
+import { Box, Chip, Typography } from "@mui/material"
 
 import type { Item } from "../types"
 import { prettyUrl, truncateText } from "../utils"
@@ -21,7 +21,7 @@ const TYPE_LABEL: Record<string, string> = {
   link: "链接"
 }
 
-const typeIcon = (type: string) => {
+export const typeIcon = (type: string) => {
   switch (type) {
     case "text":
       return <FormatQuoteRoundedIcon fontSize="small" />
@@ -46,8 +46,33 @@ function ImageGallery({
   const count = images.length
   const isSingle = count === 1
 
-  // Preview variant: compact thumbnails grid, cap at 4.
+  // Preview variant: compact thumbnails grid, cap at 4. A single image
+  // renders as a full-width 16:9 cover block.
   if (variant === "preview") {
+    if (count === 1) {
+      return (
+        <Box
+          sx={{
+            mt: 1,
+            borderRadius: 1,
+            overflow: "hidden",
+            aspectRatio: "16 / 9",
+            bgcolor: "action.hover"
+          }}>
+          <img
+            src={images[0]}
+            alt=""
+            loading="lazy"
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              display: "block"
+            }}
+          />
+        </Box>
+      )
+    }
     return (
       <Box
         sx={{
@@ -230,7 +255,29 @@ export default function CardRenderer({
 }: CardRendererProps) {
   if (mode === "preview") {
     return (
-      <Box sx={{ mb: 2 }}>
+      <Box>
+        {item.type === "image" && (
+          <Box
+            sx={{
+              mb: 1.5,
+              borderRadius: 1,
+              overflow: "hidden",
+              aspectRatio: "16 / 9",
+              bgcolor: "action.hover"
+            }}>
+            <img
+              src={item.content}
+              alt={item.source?.title || ""}
+              loading="lazy"
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                display: "block"
+              }}
+            />
+          </Box>
+        )}
         {item.title ? (
           <Box>
             <Typography
@@ -244,114 +291,61 @@ export default function CardRenderer({
               }}>
               {truncateTo ? truncateText(item.title, truncateTo) : item.title}
             </Typography>
-            <Box
-              sx={{
-                maxHeight: `${previewMaxLines(item.content) * 1.8}rem`,
-                overflow: "hidden",
-                position: "relative"
-              }}>
-              {item.type === "text" ? (
-                <MarkdownRenderer
-                  content={item.content}
-                  maxLines={previewMaxLines(item.content)}
-                />
-              ) : item.type === "link" ? (
-                <Typography
-                  variant="caption"
-                  sx={{
-                    color: "text.disabled",
-                    fontSize: "0.7rem",
-                    fontStyle: "italic"
-                  }}>
-                  {prettyUrl(item.content)}
-                </Typography>
-              ) : (
-                <Typography
-                  variant="caption"
-                  sx={{
-                    color: "text.disabled",
-                    fontSize: "0.7rem",
-                    fontStyle: "italic"
-                  }}>
-                  点击查看图片
-                </Typography>
-              )}
-              <Box
-                sx={{
-                  position: "absolute",
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  height: 20,
-                  background: "linear-gradient(transparent, background.paper)"
-                }}
+            {item.type === "text" ? (
+              <MarkdownRenderer
+                content={item.content}
+                maxLines={previewMaxLines(item.content)}
               />
-            </Box>
+            ) : item.type === "link" ? (
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "text.disabled",
+                  fontSize: "0.7rem",
+                  fontStyle: "italic"
+                }}>
+                {prettyUrl(item.content)}
+              </Typography>
+            ) : null}
           </Box>
         ) : (
           <>
             {item.type === "text" && (
-              <Box sx={{ position: "relative" }}>
-                <Box
-                  sx={{
-                    position: "absolute",
-                    top: -6,
-                    left: -6,
-                    fontSize: "2rem",
-                    color: "text.disabled",
-                    opacity: 0.3,
-                    fontFamily: "Georgia, serif"
-                  }}>
-                  "
-                </Box>
-                <Box sx={{ pl: 2, pr: 1 }}>
-                  <MarkdownRenderer
-                    content={item.content}
-                    maxLines={previewMaxLines(item.content)}
-                  />
-                </Box>
-              </Box>
-            )}
-            {item.type === "image" && (
-              <Box sx={{ display: "flex", justifyContent: "center", py: 1 }}>
-                <img
-                  src={item.content}
-                  alt={
-                    item.source?.title ||
-                    (item.source ? prettyUrl(item.source.url) : "")
-                  }
-                  draggable={false}
-                  style={{
-                    maxWidth: "100%",
-                    maxHeight: 200,
-                    borderRadius: "8px"
-                  }}
-                />
-              </Box>
+              <MarkdownRenderer
+                content={item.content}
+                maxLines={previewMaxLines(item.content)}
+              />
             )}
             {item.type === "link" && (
-              <Stack spacing={0.5}>
-                <Typography variant="body2" sx={{ fontSize: "0.9rem" }}>
-                  <Box
-                    component="a"
-                    href={item.content}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    sx={{
-                      color: "primary.main",
-                      textDecoration: "none",
-                      "&:hover": { textDecoration: "underline" }
-                    }}>
-                    {prettyUrl(item.content)}
-                  </Box>
-                </Typography>
-              </Stack>
+              <Typography
+                variant="body2"
+                sx={{ fontSize: "0.9rem", wordBreak: "break-word" }}>
+                <Box
+                  component="a"
+                  href={item.content}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  sx={{
+                    color: "primary.main",
+                    textDecoration: "none",
+                    "&:hover": { textDecoration: "underline" }
+                  }}>
+                  {prettyUrl(item.content)}
+                </Box>
+              </Typography>
             )}
           </>
         )}
         {item.images && item.images.length > 0 && (
-          <ImageGallery images={item.images} variant="preview" />
+          <ImageGallery
+            images={
+              item.type === "image"
+                ? item.images.filter((u) => u !== item.content)
+                : item.images
+            }
+            variant="preview"
+          />
         )}
       </Box>
     )
