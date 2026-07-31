@@ -25,7 +25,14 @@ import {
   useMediaQuery
 } from "@mui/material"
 import { ThemeProvider } from "@mui/material/styles"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react"
 
 import AppHeader from "./components/AppHeader"
 import BatchToolbar from "./components/BatchToolbar"
@@ -943,6 +950,21 @@ export default function OptionsPage() {
     return allItems.filter((i) => i.sectionId === activeSectionId)
   }, [allItems, activeSectionId, activeProject])
 
+  // Full breadcrumb path: project / L1 / L2
+  const sectionPath = useMemo(() => {
+    if (!activeSectionId || !activeProject) return []
+    const sections = activeProject.sections ?? []
+    if (activeSectionId === "__unclassified__")
+      return [{ id: "__unclassified__", title: "未分类" }]
+    const sec = sections.find((s) => s.id === activeSectionId)
+    if (!sec) return []
+    if (sec.level === 2) {
+      const parent = sections.find((s) => s.id === sec.parentId)
+      return parent ? [parent, sec] : [sec]
+    }
+    return [sec]
+  }, [activeSectionId, activeProject])
+
   const handleSelectSection = useCallback(
     (sectionId: string | null) => {
       if (!activeProjectId) return
@@ -1491,25 +1513,26 @@ export default function OptionsPage() {
                                 }}>
                                 <Box
                                   component="span"
-                                  sx={{ color: "text.primary", fontWeight: 600 }}>
+                                  sx={{
+                                    color: "text.primary",
+                                    fontWeight: 600
+                                  }}>
                                   {activeProject.name}
                                 </Box>
-                                {activeSectionId && (
-                                  <>
-                                    <Box
-                                      component="span"
-                                      sx={{ mx: 0.75, color: "text.disabled" }}>
-                                      /
-                                    </Box>
-                                    <Box component="span">
-                                      {activeSectionId === "__unclassified__"
-                                        ? "未分类"
-                                        : (activeProject.sections ?? []).find(
-                                            (s) => s.id === activeSectionId
-                                          )?.title ?? ""}
-                                    </Box>
-                                  </>
-                                )}
+                                {sectionPath.length > 0 &&
+                                  sectionPath.map((seg, i) => (
+                                    <Fragment key={seg.id}>
+                                      <Box
+                                        component="span"
+                                        sx={{
+                                          mx: 0.75,
+                                          color: "text.disabled"
+                                        }}>
+                                        /
+                                      </Box>
+                                      <Box component="span">{seg.title}</Box>
+                                    </Fragment>
+                                  ))}
                               </Typography>
                               <Typography
                                 variant="caption"

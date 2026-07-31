@@ -9,6 +9,7 @@ import {
   alpha,
   Box,
   Button,
+  Divider,
   IconButton,
   Stack,
   TextField,
@@ -19,7 +20,7 @@ import { useCallback, useState } from "react"
 
 import type { Project, Section } from "../types"
 
-type DropPos = "before" | "after" | "inside"
+type DropPos = "before" | "after"
 
 interface ProjectTreeProps {
   projects: Project[]
@@ -51,6 +52,19 @@ interface ProjectTreeProps {
 
 const sortByOrder = (list: Section[]) =>
   [...list].sort((a, b) => a.order - b.order)
+
+const addRowStyle = (pl: number) => ({
+  display: "flex",
+  alignItems: "center",
+  gap: 0.75,
+  pl,
+  pr: 1.5,
+  py: 0.5,
+  cursor: "pointer",
+  "&:hover": { bgcolor: "action.hover" },
+  "& .add-row-icon": { color: "text.disabled" },
+  "&:hover .add-row-icon": { color: "primary.main" }
+})
 
 export default function ProjectTree({
   projects,
@@ -111,7 +125,7 @@ export default function ProjectTree({
     setRenameDraft("")
   }
 
-  // ---- Section drag (reorder / reparent within the tree) ----
+  // ---- Section drag (reorder among same-parent siblings only; no reparent) ----
   const handleSectionDragStart = useCallback(
     (e: React.DragEvent, sectionId: string) => {
       e.dataTransfer.effectAllowed = "move"
@@ -137,29 +151,14 @@ export default function ProjectTree({
         (s) => s.id === draggedSection
       )
       if (!dragged) return
+      // Reparent disabled: only reorder among same-parent, same-level siblings.
+      if (dragged.level !== target.level) return
+      if ((dragged.parentId ?? null) !== (target.parentId ?? null)) return
 
       const el = e.currentTarget as HTMLElement
       const rect = el.getBoundingClientRect()
-      let pos: DropPos
-      const innerTop = rect.top + rect.height * 0.3
-      const innerBottom = rect.top + rect.height * 0.7
-      if (
-        target.level === 1 &&
-        e.clientY > innerTop &&
-        e.clientY < innerBottom
-      ) {
-        pos = "inside"
-      } else {
-        pos = e.clientY < rect.top + rect.height / 2 ? "before" : "after"
-      }
-
-      if (pos === "inside") {
-        if (target.level !== 1) return
-        if (dragged.level === 2 && dragged.parentId === target.id) return
-      } else {
-        if (dragged.level !== target.level) return
-      }
-
+      const pos: DropPos =
+        e.clientY < rect.top + rect.height / 2 ? "before" : "after"
       e.preventDefault()
       e.dataTransfer.dropEffect = "move"
       setDropTarget({ id: target.id, pos })
@@ -178,36 +177,30 @@ export default function ProjectTree({
       if (!hostProject?.sections) return
       const sections = hostProject.sections
 
-      if (dropTarget.pos === "inside") {
-        const children = sections.filter(
-          (s) => s.level === 2 && s.parentId === target.id
-        )
-        onMoveSection(draggedSection, target.id, children.length)
-      } else {
-        const parentId = target.parentId
-        const siblings = sections
-          .filter((s) => s.parentId === parentId && s.level === target.level)
-          .sort((a, b) => a.order - b.order)
-        const targetIdx = siblings.findIndex((s) => s.id === target.id)
-        const newIdx = dropTarget.pos === "before" ? targetIdx : targetIdx + 1
-        const others = siblings.filter((s) => s.id !== draggedSection)
-        let newOrder: number
-        if (others.length === 0) newOrder = 0
-        else if (newIdx === 0) newOrder = others[0].order - 1
-        else if (newIdx >= others.length)
-          newOrder = others[others.length - 1].order + 1
-        else newOrder = (others[newIdx - 1].order + others[newIdx].order) / 2
-        onMoveSection(draggedSection, parentId, newOrder)
-      }
+      const parentId = target.parentId
+      const siblings = sections
+        .filter((s) => s.parentId === parentId && s.level === target.level)
+        .sort((a, b) => a.order - b.order)
+      const targetIdx = siblings.findIndex((s) => s.id === target.id)
+      const newIdx = dropTarget.pos === "before" ? targetIdx : targetIdx + 1
+      const others = siblings.filter((s) => s.id !== draggedSection)
+      let newOrder: number
+      if (others.length === 0) newOrder = 0
+      else if (newIdx === 0) newOrder = others[0].order - 1
+      else if (newIdx >= others.length)
+        newOrder = others[others.length - 1].order + 1
+      else newOrder = (others[newIdx - 1].order + others[newIdx].order) / 2
+      onMoveSection(draggedSection, parentId, newOrder)
+
       setDraggedSection(null)
       setDropTarget(null)
     },
     [draggedSection, dropTarget, onMoveSection, projects]
   )
 
-  const renderInlineAdd = () =>
+  const renderInlineAdd = (pl: number) =>
     addingFor ? (
-      <Box sx={{ px: 2.5, py: 0.5 }}>
+      <Box sx={{ pl, pr: 1.5, py: 0.5 }}>
         <TextField
           autoFocus
           fullWidth
@@ -235,15 +228,10 @@ export default function ProjectTree({
   const sectionRow = (
     section: Section,
     isChild: boolean,
-    opts: {
-      collapsed: boolean
-      onToggle?: () => void
-      onAddChild?: () => void
-      onDelete?: () => void
-    }
+    opts: { collapsed: boolean; onToggle?: () => void; onDelete?: () => void }
   ) =>
     renaming === section.id ? (
-      <Box sx={{ px: isChild ? 3.5 : 1.5, py: 0.25 }}>
+      <Box sx={{ pl: isChild ? 0 : 1, pr: 1.5, py: 0.25 }}>
         <TextField
           autoFocus
           fullWidth
@@ -276,7 +264,6 @@ export default function ProjectTree({
         }
         onToggle={opts.onToggle}
         onSelect={() => onSelectSection(section.id)}
-        onAddChild={opts.onAddChild}
         onRename={() => startRename(section.id, section.title)}
         onDelete={
           opts.onDelete ??
@@ -296,7 +283,7 @@ export default function ProjectTree({
 
   return (
     <Box>
-      {projects.map((project) => {
+      {projects.map((project, pi) => {
         const sections = sortByOrder(project.sections ?? [])
         const l1s = sections.filter((s) => s.level === 1)
         const l2Of = (l1Id: string) =>
@@ -311,6 +298,7 @@ export default function ProjectTree({
 
         return (
           <Box key={project.id}>
+            {pi > 0 && <Divider sx={{ mx: 1, my: 0.75 }} />}
             <ProjectNode
               project={project}
               active={activeProjectId === project.id}
@@ -324,7 +312,7 @@ export default function ProjectTree({
               onDelete={() => onDeleteProject(project.id)}
             />
             {isExpanded && (
-              <Box sx={{ pl: 0.5 }}>
+              <Box sx={{ pl: 1.5 }}>
                 {l1s.map((s1) => {
                   const subs = l2Of(s1.id)
                   const collapsed = !expanded.has(s1.id)
@@ -333,8 +321,6 @@ export default function ProjectTree({
                       {sectionRow(s1, false, {
                         collapsed,
                         onToggle: () => onToggleExpanded(s1.id),
-                        onAddChild: () =>
-                          startAdd({ type: "section", id: s1.id }),
                         onDelete: () =>
                           onDeleteSection(
                             s1.id,
@@ -342,27 +328,39 @@ export default function ProjectTree({
                             subs.length
                           )
                       })}
-                      {addingFor?.type === "section" &&
-                        addingFor.id === s1.id &&
-                        renderInlineAdd()}
                       {!collapsed && (
-                        <Box sx={{ pl: 2 }}>
+                        <Box
+                          sx={{
+                            pl: 2,
+                            borderLeft: "1px solid",
+                            borderColor: "divider"
+                          }}>
                           {subs.map((s2) => (
                             <Box key={s2.id}>
                               {sectionRow(s2, true, { collapsed: false })}
                             </Box>
                           ))}
-                          {subs.length === 0 && (
-                            <Box
+                          <Box
+                            sx={addRowStyle(0)}
+                            onClick={() =>
+                              startAdd({ type: "section", id: s1.id })
+                            }>
+                            <AddRoundedIcon
+                              className="add-row-icon"
+                              sx={{ fontSize: 14 }}
+                            />
+                            <Typography
+                              variant="body2"
                               sx={{
-                                pl: 3,
-                                py: 0.5,
-                                fontSize: "0.75rem",
-                                color: "text.disabled"
+                                fontSize: "0.78rem",
+                                color: "text.secondary"
                               }}>
-                              无子章节
-                            </Box>
-                          )}
+                              添加子章节
+                            </Typography>
+                          </Box>
+                          {addingFor?.type === "section" &&
+                            addingFor.id === s1.id &&
+                            renderInlineAdd(0)}
                         </Box>
                       )}
                     </Box>
@@ -373,7 +371,7 @@ export default function ProjectTree({
                 <TreeRow
                   active={activeSectionId === "__unclassified__"}
                   onClick={() => onSelectSection("__unclassified__")}
-                  indent={1.5}>
+                  indent={1}>
                   <Box sx={{ width: 21, flexShrink: 0 }} />
                   <Typography
                     variant="body2"
@@ -396,28 +394,21 @@ export default function ProjectTree({
 
                 {/* 添加一级章节 */}
                 <Box
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 0.75,
-                    px: 1.5,
-                    py: 0.5,
-                    cursor: "pointer",
-                    "&:hover": { bgcolor: "action.hover" }
-                  }}
+                  sx={addRowStyle(1)}
                   onClick={() => startAdd({ type: "project", id: project.id })}>
                   <AddRoundedIcon
-                    sx={{ fontSize: 16, color: "text.secondary" }}
+                    className="add-row-icon"
+                    sx={{ fontSize: 14 }}
                   />
                   <Typography
                     variant="body2"
-                    sx={{ fontSize: "0.8rem", color: "text.secondary" }}>
+                    sx={{ fontSize: "0.78rem", color: "text.secondary" }}>
                     添加章节
                   </Typography>
                 </Box>
                 {addingFor?.type === "project" &&
                   addingFor.id === project.id &&
-                  renderInlineAdd()}
+                  renderInlineAdd(1)}
               </Box>
             )}
           </Box>
@@ -488,19 +479,13 @@ function TreeRow({
           pr: 1.5,
           py: 0.5,
           cursor: onClick ? "pointer" : "default",
-          bgcolor:
-            dropIndicator === "inside"
-              ? alpha(theme.palette.primary.main, 0.1)
-              : active
-                ? alpha(theme.palette.primary.main, 0.05)
-                : "transparent",
+          bgcolor: active
+            ? alpha(theme.palette.primary.main, 0.05)
+            : "transparent",
           "&:hover": {
-            bgcolor:
-              dropIndicator === "inside"
-                ? alpha(theme.palette.primary.main, 0.1)
-                : active
-                  ? alpha(theme.palette.primary.main, 0.05)
-                  : "action.hover"
+            bgcolor: active
+              ? alpha(theme.palette.primary.main, 0.05)
+              : "action.hover"
           },
           "&:hover .tree-actions": { opacity: 1 }
         })}
@@ -756,7 +741,6 @@ function SectionNode({
   dropIndicator,
   onToggle,
   onSelect,
-  onAddChild,
   onRename,
   onDelete,
   onDragStart,
@@ -772,7 +756,6 @@ function SectionNode({
   dropIndicator?: DropPos | null
   onToggle?: () => void
   onSelect: () => void
-  onAddChild?: () => void
   onRename: () => void
   onDelete: () => void
   onDragStart: (e: React.DragEvent) => void
@@ -785,7 +768,7 @@ function SectionNode({
       active={active}
       dropIndicator={dropIndicator}
       onClick={onSelect}
-      indent={isChild ? 3.5 : 1.5}>
+      indent={isChild ? 0 : 1}>
       <Box
         draggable
         onDragStart={onDragStart}
@@ -848,13 +831,6 @@ function SectionNode({
           transition: "opacity 0.15s"
         }}
         onClick={(e) => e.stopPropagation()}>
-        {onAddChild && (
-          <Tooltip title="添加子章节">
-            <IconButton size="small" onClick={onAddChild}>
-              <AddRoundedIcon sx={{ fontSize: 14 }} />
-            </IconButton>
-          </Tooltip>
-        )}
         <Tooltip title="重命名">
           <IconButton size="small" onClick={onRename}>
             <EditRoundedIcon sx={{ fontSize: 14 }} />
