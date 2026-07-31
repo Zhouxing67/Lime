@@ -20,6 +20,18 @@
 | `pnpm run format:check`  | Prettier check (CI-friendly)                           |
 | `pnpm run test:watch`    | Jest watch mode                                        |
 
+## Versioning
+
+SemVer `X.Y.Z`. `package.json` `version` is the single source — Plasmo writes it into `manifest.version`; never edit the manifest version anywhere else.
+
+- **MAJOR (X)** — user data or the core info architecture breaks: a `DB_VERSION` / SyncPayload schema change (migration required), replacing the navigation/organization model, or removing a capability existing data depends on. Current major is **2.0.0** (workspace rework).
+- **MINOR (Y)** — new backward-compatible capability (a feature milestone).
+- **PATCH (Z)** — bug fixes / polish / docs only.
+
+Chrome Web Store restriction: the manifest version must be dot-separated integers — **no `-beta` / `-rc` suffixes in the store version**. Pre-release info lives only in git tags / CHANGELOG.
+
+Release flow (always, in order): bump `package.json` → move the CHANGELOG "Unreleased" section into a versioned heading → git tag `vX.Y.Z` → push. Keep an "Unreleased" heading at the top of CHANGELOG during development.
+
 ## Entrypoints
 
 | File                              | Bundle                 | URL                     |

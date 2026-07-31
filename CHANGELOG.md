@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased — Workspace rework (NavRail + tree + hub + pointer drag)
+## Unreleased
+
+## 2.0.0 — Workspace rework (NavRail + tree + hub + pointer drag)
 
 ### Layout
 - Three-column workspace: **NavRail | Sidebar | Main**. The three view buttons (项目/复习/备份) moved from inside the sidebar to a leftmost ~52px vertical rail; the settings gear is pinned to the rail's bottom. The sidebar's own nav icons and close button were removed — the AppHeader toggle is the single sidebar open/close control.
