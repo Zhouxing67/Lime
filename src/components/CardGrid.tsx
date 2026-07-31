@@ -1,6 +1,13 @@
 import AddRoundedIcon from "@mui/icons-material/AddRounded"
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded"
-import { Box, Checkbox, Typography, useMediaQuery, useTheme } from "@mui/material"
+import {
+  Box,
+  Checkbox,
+  Paper,
+  Typography,
+  useMediaQuery,
+  useTheme
+} from "@mui/material"
 import { useLayoutEffect, useRef } from "react"
 
 import type { CardDropState } from "../hooks/useCardDragReorder"
@@ -205,13 +212,15 @@ export default function CardGrid({
             )
           })}
           {ci === items.length % cols && onNewCard && items.length > 0 && (
-            <Box
+            <Paper
+              elevation={0}
               onClick={onNewCard}
-              sx={{
+              sx={(theme) => ({
                 borderRadius: 1,
                 border: "1px dashed",
                 borderColor: "divider",
                 minHeight: 110,
+                p: 2,
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
@@ -219,16 +228,20 @@ export default function CardGrid({
                 gap: 1,
                 cursor: "pointer",
                 color: "text.secondary",
+                bgcolor: "background.paper",
+                boxShadow: theme.custom.cardShadow,
                 transition: "all 0.2s",
                 "&:hover": {
                   borderColor: "primary.main",
-                  color: "primary.main"
+                  color: "primary.main",
+                  boxShadow: theme.custom.cardShadowHover,
+                  transform: "translateY(-1px)"
                 }
-              }}>
+              })}>
               <Box
                 sx={{
-                  width: 32,
-                  height: 32,
+                  width: 36,
+                  height: 36,
                   borderRadius: "50%",
                   border: "1px dashed",
                   borderColor: "divider",
@@ -236,12 +249,12 @@ export default function CardGrid({
                   alignItems: "center",
                   justifyContent: "center"
                 }}>
-                <AddRoundedIcon sx={{ fontSize: 18 }} />
+                <AddRoundedIcon sx={{ fontSize: 20 }} />
               </Box>
-              <Typography variant="body2" sx={{ fontSize: "0.78rem" }}>
+              <Typography variant="body2" sx={{ fontSize: "0.8rem" }}>
                 新建卡片
               </Typography>
-            </Box>
+            </Paper>
           )}
         </Box>
       ))}

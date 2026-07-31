@@ -290,39 +290,6 @@ export default function OptionsPage() {
     )
   }, [reviewDateItems, ratingFilter, cardFirstRating])
 
-  // Navigation within the current active list
-  const handleNavigate = useCallback(
-    (direction: "prev" | "next") => {
-      if (!dialogItem) return
-      const list =
-        sidebarTab === "review" && reviewDateFilter
-          ? filteredDateItems
-          : displayedItems
-      const idx = list.findIndex((i) => i.id === dialogItem.id)
-      if (idx === -1) return
-      const nextIdx = direction === "prev" ? idx - 1 : idx + 1
-      if (nextIdx < 0 || nextIdx >= list.length) return
-      setDialogItem(list[nextIdx])
-    },
-    [
-      dialogItem,
-      displayedItems,
-      filteredDateItems,
-      sidebarTab,
-      reviewDateFilter
-    ]
-  )
-
-  const navList =
-    sidebarTab === "review" && reviewDateFilter
-      ? filteredDateItems
-      : displayedItems
-  const navIndex = dialogItem
-    ? navList.findIndex((i) => i.id === dialogItem.id)
-    : -1
-  const hasPrev = navIndex > 0
-  const hasNext = navIndex >= 0 && navIndex < navList.length - 1
-
   // Mount: initial load
   useEffect(() => {
     onSearch()
@@ -969,6 +936,33 @@ export default function OptionsPage() {
     items: scopeItems,
     onMoveCard
   })
+
+  // ItemDialog navigation follows the current view: review dates, full search
+  // hits, or the visible section/project scope — not the paginated 20-card page.
+  const navList =
+    sidebarTab === "review" && reviewDateFilter
+      ? filteredDateItems
+      : keyword || dateRange
+        ? allItems
+        : scopeItems
+
+  const handleNavigate = useCallback(
+    (direction: "prev" | "next") => {
+      if (!dialogItem) return
+      const idx = navList.findIndex((i) => i.id === dialogItem.id)
+      if (idx === -1) return
+      const nextIdx = direction === "prev" ? idx - 1 : idx + 1
+      if (nextIdx < 0 || nextIdx >= navList.length) return
+      setDialogItem(navList[nextIdx])
+    },
+    [dialogItem, navList]
+  )
+
+  const navIndex = dialogItem
+    ? navList.findIndex((i) => i.id === dialogItem.id)
+    : -1
+  const hasPrev = navIndex > 0
+  const hasNext = navIndex >= 0 && navIndex < navList.length - 1
 
   const handleSetSidebarTab = useCallback(
     (tab: "projects" | "review" | "backup") => {
