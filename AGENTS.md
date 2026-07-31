@@ -37,7 +37,7 @@ Plasmo v0.90+: custom popup pages go in `src/tabs/`, not `src/`.
 ```
 src/
   components/       # MUI components
-  hooks/            # useProjects, useReview, useSrs, useBackupSync, useNewCard
+  hooks/            # useProjects, useReview, useSrs, useBackupSync, useNewCard, useCardDragReorder
   database/         # IndexedDB via withStore() + tx() wrappers
   types/            # Item, Project, ReviewEntry, SearchQuery, ExtensionMessage
   contents/         # content script entry (not src/content-scripts/)
@@ -74,13 +74,41 @@ sendMessage({ kind: "set-recent-project", ... })   // update lastOpened
 
 Kinds: `capture`, `toast` (SW→tab), `webdav`, `save-feedback` (SW→tab), `set-recent-project`, `list-projects`, `add-project`, `capture-visible-tab`. Always use `sendMessage()` — never raw `chrome.runtime.sendMessage`.
 
-## Sections (v1.10.0)
+## Workspace & Navigation (v1.11)
 
-- `Section` type: `id/parentId/title/order/level` (level 1|2) — embedded in `Project.sections` (no separate store, DB still v8)
-- `Item.sectionId` points into `project.sections`; `undefined` = 未分类
-- CRUD: `deleteSection` (atomic cascade: sub-sections + cards→unclassified), `batchUpdateItems` (atomic batch sectionId/order), `updateItemSection` (single card move)
-- UI: `ContentOutline` replaces `CardGrid` in project view (unfiltered); `MoveToSectionDialog` for batch moves; AppHeader `+Section` button
-- Drag-drop: section reorder/reparent (level constraints), card move between sections + manual ordering
+Layout is three columns: **NavRail | Sidebar | Main**.
+
+- **NavRail** (`src/components/NavRail.tsx`) — leftmost ~52px rail, always visible. Vertical stack of the three view buttons (项目/复习/备份; review carries a due-count badge); the settings gear is pinned at the bottom. Clicking a view also opens the sidebar. The old in-sidebar nav icons and the sidebar's own close button are gone — the AppHeader toggle is the single open/close control.
+- **Sidebar** (`SidebarFilters.tsx`) — resizable drawer (width persisted in `_uiNav`). Top row = current view title. The projects-tab body is injected as `children` (the `ProjectTree`), followed by 新建项目 and 稍后阅读 rows. Review/backup tabs unchanged.
+- **Main** — content only.
+
+**ProjectTree** (`src/components/ProjectTree.tsx`):
+
+- Projects are recent-first (active pinned); the top ~7 show by default with a "全部项目 (N)" toggle; each project renders as a subtle card well.
+- Sections (level 1/2) are tree nodes with per-section card counts and an 未分类 node.
+- Row actions: project `＋` (add L1) + `⋯` menu (重命名/编辑备注/删除); L1 `＋` (add L2) + `⋯` menu (重命名/删除); L2 has `⋯` only. Adding/renaming use inline inputs.
+- Section drag reorders among **same-parent siblings only** (before/after lines); reparent is intentionally disabled.
+- Section CRUD goes through `useProjects` handlers. Tree state (expanded set, per-project active section, sidebar width) persists in `chrome.storage.local` under `_uiNav`.
+
+**ProjectHub** (`src/components/ProjectHub.tsx`):
+
+- With no project open, the main area shows a responsive grid of project tiles (initial avatar, serif title, note, card count, relative last-opened) plus a dashed 新建项目 tile, sorted by lastOpened.
+- In hub mode the top search filters **projects** by name/note. Projects are strictly isolated (the process/address-space model) — there is no cross-project card search, and the card search is gated off while no project is open.
+
+**Main area**:
+
+- Single-section view: clickable breadcrumb `项目 / L1 / L2` (clicking a parent segment navigates up; project root = all cards). L1 selection aggregates its L2 descendant cards. Cards cannot change project or section after creation — they stay where they were created.
+- New cards default into the active section (`useNewCard`); a dashed 新建卡片 tile sits at the masonry's next slot (about 2× card height).
+- Search/date override to flat results; the reading list is a separate cross-project queue.
+
+**ItemDialog**:
+
+- Header: `◀▶` view-aware prev/next (`scopeItems` in the section view, `allItems` for search hits, `filteredDateItems` in the review-date view) + type icon + serif title + edit/copy/close.
+- `←`/`→` arrow keys navigate cards; input/textarea/select targets are skipped so edit-mode cursor movement is safe, and navigation is gated on hasPrev/hasNext.
+
+**Card drag** (`src/hooks/useCardDragReorder.ts`): pointer-event custom drag — **not** HTML5 DnD. The `⋮⋮` grip is the only drag source; a 6px movement threshold arms the drag; a ghost clone follows the cursor; drop targets are hit-tested via `elementFromPoint` on `[data-card-id]`. Same-section only; a "放到末尾" dashed zone appends to the section's end; CardGrid FLIP-animates the reorder. `computeDropIndex` (in `utils`) is the pure insertion-index function with unit tests.
+
+**Removed features (v1.11)**: move-to-section and move-to-project were removed. Copy-to-project remains (`CopyCardsDialog`, renamed from `MoveCopyCards`). The `updateItemSection` DB function was deleted.
 
 ## CRITICAL Constraints
 
@@ -103,6 +131,8 @@ Kinds: `capture`, `toast` (SW→tab), `webdav`, `save-feedback` (SW→tab), `set
 - Mixed cards (text+images) → `Item.images: string[]` on any type; `computeItemHash` takes images as optional 3rd param (different images = different card); UI entry is `NewCardDialog` (URL paste) + `ItemDialog`→`DialogEditMode`; shared `ImageUrlInput` component
 - `refreshAllData()` wraps `loadProjects()` + `onSearch()` — call for import/sync-download operations
 - `~` path alias maps to root (used in imports as `~/src/...`)
+- Card drag-reorder → `useCardDragReorder` (pointer events, same-section only); never use HTML5 `draggable` for cards
+- Projects are strictly isolated: no cross-project card search (hub search filters projects by name/note); new cards default into the active section via `useNewCard`
 
 ## Review (SRS)
 

@@ -503,31 +503,6 @@ export async function deleteSection(
 }
 
 /**
- * Update a single item's sectionId.
- * Pass undefined to move the card to "未分类".
- */
-export async function updateItemSection(
-  itemId: string,
-  sectionId: string | undefined
-): Promise<void> {
-  await withStore("items", "readwrite", async (store) => {
-    return new Promise<void>((resolve, reject) => {
-      const req = store.get(itemId)
-      req.onsuccess = () => {
-        const item = req.result as Item | undefined
-        if (!item) {
-          resolve()
-          return
-        }
-        store.put({ ...item, sectionId, updatedAt: Date.now() })
-        resolve()
-      }
-      req.onerror = () => reject(req.error)
-    })
-  })
-}
-
-/**
  * Batch update multiple items' sectionId and/or order in a single atomic transaction.
  * Only items whose id is in the updates array are touched; others are unchanged.
  */
