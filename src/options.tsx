@@ -1178,7 +1178,6 @@ export default function OptionsPage() {
           backupSelectedIds={backupSelectedIds}
           syncStatus={syncStatus}
           onToggleReadingFilter={handleToggleReadingFilter}
-          onClose={handleToggleDrawer}
           onWidthChange={(w) => setDrawerWidth(w)}
           onNewProjectClick={() => setCreateDialogOpen(true)}
           onToggleBackup={(id) =>

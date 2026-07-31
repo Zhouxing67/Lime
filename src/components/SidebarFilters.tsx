@@ -1,5 +1,4 @@
 import AddRoundedIcon from "@mui/icons-material/AddRounded"
-import CloseRoundedIcon from "@mui/icons-material/CloseRounded"
 import CloudDownloadRoundedIcon from "@mui/icons-material/CloudDownloadRounded"
 import CloudUploadRoundedIcon from "@mui/icons-material/CloudUploadRounded"
 import FileDownloadRoundedIcon from "@mui/icons-material/FileDownloadRounded"
@@ -11,7 +10,6 @@ import {
   Divider,
   Drawer,
   FormControlLabel,
-  IconButton,
   Stack,
   Typography
 } from "@mui/material"
@@ -32,7 +30,6 @@ interface SidebarFiltersProps {
   reviewDateFilter: string | null
   children?: ReactNode
   onReviewDateClick: (dateKey: string | null) => void
-  onClose: () => void
   onWidthChange: (w: number) => void
   onToggleReadingFilter: () => void
   onNewProjectClick: () => void
@@ -81,7 +78,6 @@ export default function SidebarFilters({
   reviewDateFilter,
   children,
   onReviewDateClick,
-  onClose,
   onWidthChange,
   onToggleReadingFilter,
   onNewProjectClick,
@@ -151,16 +147,8 @@ export default function SidebarFilters({
           }}
         />
         <Stack spacing={1.5} sx={{ p: 2, pt: 2.5 }}>
-          {/* Top: current view title + close */}
-          <Stack
-            direction="row"
-            alignItems="center"
-            justifyContent="space-between">
-            <SectionLabel>{TAB_TITLES[sidebarTab]}</SectionLabel>
-            <IconButton size="small" onClick={onClose}>
-              <CloseRoundedIcon fontSize="small" />
-            </IconButton>
-          </Stack>
+          {/* Top: current view title */}
+          <SectionLabel>{TAB_TITLES[sidebarTab]}</SectionLabel>
 
           <Divider sx={{ mx: 0.5 }} />
 

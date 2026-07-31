@@ -1,5 +1,6 @@
-import FilterListRoundedIcon from "@mui/icons-material/FilterListRounded"
 import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded"
+import ViewSidebarOutlinedIcon from "@mui/icons-material/ViewSidebarOutlined"
+import ViewSidebarRoundedIcon from "@mui/icons-material/ViewSidebarRounded"
 import { Box, IconButton, Stack, Tooltip, Typography } from "@mui/material"
 import type { ReactNode } from "react"
 
@@ -41,7 +42,7 @@ export default function AppHeader({
         spacing={1.5}
         alignItems="center"
         sx={{ width: "100%", px: 2 }}>
-        <Tooltip title={drawerOpen ? "关闭项目面板" : "打开项目面板"}>
+        <Tooltip title={drawerOpen ? "关闭侧边栏" : "打开侧边栏"}>
           <IconButton
             size="small"
             onClick={onToggleDrawer}
@@ -50,7 +51,11 @@ export default function AppHeader({
               transition: "color 0.2s",
               "&:hover": { color: "primary.main" }
             }}>
-            <FilterListRoundedIcon />
+            {drawerOpen ? (
+              <ViewSidebarRoundedIcon />
+            ) : (
+              <ViewSidebarOutlinedIcon />
+            )}
           </IconButton>
         </Tooltip>
         <Stack
