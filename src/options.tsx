@@ -1538,6 +1538,7 @@ export default function OptionsPage() {
                               dropIndicator={cardDrop}
                               flipRectsRef={flipRectsRef}
                               onGripPointerDown={handleGripPointerDown}
+                              onNewCard={handleNewCard}
                               selectMode={selectMode}
                               onSelectItem={(id) =>
                                 setSelectedIds((prev) =>

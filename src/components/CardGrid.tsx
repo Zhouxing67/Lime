@@ -1,5 +1,6 @@
+import AddRoundedIcon from "@mui/icons-material/AddRounded"
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded"
-import { Box, Checkbox, useMediaQuery, useTheme } from "@mui/material"
+import { Box, Checkbox, Typography, useMediaQuery, useTheme } from "@mui/material"
 import { useLayoutEffect, useRef } from "react"
 
 import type { CardDropState } from "../hooks/useCardDragReorder"
@@ -13,6 +14,7 @@ interface CardGridProps {
   readOnly?: boolean
   firstRating?: Map<string, 1 | 2 | 3 | 4>
   reviewItemIds?: Set<string>
+  onNewCard?: () => void
   draggable?: boolean
   draggedId?: string | null
   dropIndicator?: CardDropState | null
@@ -49,7 +51,8 @@ export default function CardGrid({
   onToggleReview,
   onToggleRead,
   onCopyToProject,
-  reviewItemIds
+  reviewItemIds,
+  onNewCard
 }: CardGridProps) {
   const theme = useTheme()
   const isMd = useMediaQuery(theme.breakpoints.up(900))
@@ -201,6 +204,45 @@ export default function CardGrid({
               </Box>
             )
           })}
+          {ci === items.length % cols && onNewCard && items.length > 0 && (
+            <Box
+              onClick={onNewCard}
+              sx={{
+                borderRadius: 1,
+                border: "1px dashed",
+                borderColor: "divider",
+                minHeight: 110,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 1,
+                cursor: "pointer",
+                color: "text.secondary",
+                transition: "all 0.2s",
+                "&:hover": {
+                  borderColor: "primary.main",
+                  color: "primary.main"
+                }
+              }}>
+              <Box
+                sx={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: "50%",
+                  border: "1px dashed",
+                  borderColor: "divider",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center"
+                }}>
+                <AddRoundedIcon sx={{ fontSize: 18 }} />
+              </Box>
+              <Typography variant="body2" sx={{ fontSize: "0.78rem" }}>
+                新建卡片
+              </Typography>
+            </Box>
+          )}
         </Box>
       ))}
       </Box>
