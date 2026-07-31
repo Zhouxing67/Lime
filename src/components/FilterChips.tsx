@@ -5,12 +5,14 @@ import type { ReactNode } from "react"
 interface FilterChipsProps {
   keyword: string
   onKeywordChange: (v: string) => void
+  placeholder?: string
   children?: ReactNode
 }
 
 export default function FilterChips({
   keyword,
   onKeywordChange,
+  placeholder = "搜索当前项目中的卡片…",
   children
 }: FilterChipsProps) {
   return (
@@ -30,7 +32,7 @@ export default function FilterChips({
         useFlexGap>
         <TextField
           size="small"
-          placeholder="搜索当前项目中的卡片…"
+          placeholder={placeholder}
           value={keyword}
           onChange={(e) => onKeywordChange(e.target.value)}
           variant="outlined"

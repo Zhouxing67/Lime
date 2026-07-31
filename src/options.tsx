@@ -1,7 +1,6 @@
 import AddRoundedIcon from "@mui/icons-material/AddRounded"
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded"
 import DoneAllRoundedIcon from "@mui/icons-material/DoneAllRounded"
-import InboxRoundedIcon from "@mui/icons-material/InboxRounded"
 import NoteAddRoundedIcon from "@mui/icons-material/NoteAddRounded"
 import SearchOffRoundedIcon from "@mui/icons-material/SearchOffRounded"
 import {
@@ -50,6 +49,7 @@ import MoveToSectionDialog from "./components/MoveToSectionDialog"
 import NavRail from "./components/NavRail"
 import NewCardDialog from "./components/NewCardDialog"
 import NewProjectDialog from "./components/NewProjectDialog"
+import ProjectHub from "./components/ProjectHub"
 import ProjectTree from "./components/ProjectTree"
 import ReviewSession from "./components/ReviewSession"
 import SettingsDialog from "./components/SettingsDialog"
@@ -242,6 +242,8 @@ export default function OptionsPage() {
       setSelectMode(false)
       setActiveProjectId(null)
       setDialogItem(null)
+      setKeyword("")
+      setDateRange(null)
       if (id) {
         setActiveSectionByProject((prev) => {
           const next = { ...prev }
@@ -352,13 +354,16 @@ export default function OptionsPage() {
     onSearch()
   }, [activeProjectId, dateRange])
 
-  // Debounced search for keyword (avoids per-keystroke queries)
+  // Debounced search for keyword (avoids per-keystroke queries).
+  // Projects are strictly isolated: without an active project the search bar
+  // filters the project hub by name/note instead of searching cards.
   useEffect(() => {
+    if (!activeProjectId) return
     const t = setTimeout(() => {
       onSearch()
     }, 300)
     return () => clearTimeout(t)
-  }, [keyword])
+  }, [keyword, activeProjectId])
 
   // Clear selection when the search scope changes so batch ops never act on
   // cards hidden by a new keyword/date range/reading filter.
@@ -928,6 +933,14 @@ export default function OptionsPage() {
     return m
   }, [allItems])
 
+  // Per-project card counts (meaningful when no project is open, since
+  // allItems then holds every project's cards for the hub overview).
+  const countByProject = useMemo(() => {
+    const m: Record<string, number> = {}
+    for (const it of allItems) m[it.projectId] = (m[it.projectId] ?? 0) + 1
+    return m
+  }, [allItems])
+
   const scopeItems = useMemo(() => {
     if (!activeSectionId) return allItems
     if (activeSectionId === "__unclassified__")
@@ -1198,6 +1211,8 @@ export default function OptionsPage() {
               setSelectMode(false)
               setActiveProjectId(null)
               setDialogItem(null)
+              setKeyword("")
+              setDateRange(null)
               onSearch(null)
             }}
             onSelectSection={handleSelectSection}
@@ -1294,7 +1309,12 @@ export default function OptionsPage() {
             </AppHeader>
 
             {sidebarTab !== "review" && (
-              <FilterChips keyword={keyword} onKeywordChange={setKeyword}>
+              <FilterChips
+                keyword={keyword}
+                onKeywordChange={setKeyword}
+                placeholder={
+                  activeProjectId ? "搜索当前项目中的卡片…" : "搜索项目…"
+                }>
                 {selectMode && (
                   <BatchToolbar
                     selectedIds={selectedIds}
@@ -1446,15 +1466,12 @@ export default function OptionsPage() {
                   ) : (
                     <>
                       {!readingFilter && !activeProject && (
-                        <EmptyState
-                          icon={
-                            <InboxRoundedIcon
-                              className="empty-icon"
-                              sx={{ fontSize: 80, mb: 3 }}
-                            />
-                          }
-                          title="选择一个项目"
-                          subtitle="从左侧项目面板新建或打开项目，开始整理你的灵感卡片"
+                        <ProjectHub
+                          projects={projects}
+                          countByProject={countByProject}
+                          keyword={keyword}
+                          onOpenProject={handleOpenProject}
+                          onNewProject={() => setCreateDialogOpen(true)}
                         />
                       )}
 
@@ -1515,24 +1532,54 @@ export default function OptionsPage() {
                                   component="span"
                                   sx={{
                                     color: "text.primary",
-                                    fontWeight: 600
-                                  }}>
+                                    fontWeight: 600,
+                                    cursor: activeSectionId
+                                      ? "pointer"
+                                      : "default",
+                                    "&:hover": activeSectionId
+                                      ? { color: "primary.main" }
+                                      : undefined
+                                  }}
+                                  onClick={
+                                    activeSectionId
+                                      ? () => handleSelectSection(null)
+                                      : undefined
+                                  }>
                                   {activeProject.name}
                                 </Box>
                                 {sectionPath.length > 0 &&
-                                  sectionPath.map((seg, i) => (
-                                    <Fragment key={seg.id}>
-                                      <Box
-                                        component="span"
-                                        sx={{
-                                          mx: 0.75,
-                                          color: "text.disabled"
-                                        }}>
-                                        /
-                                      </Box>
-                                      <Box component="span">{seg.title}</Box>
-                                    </Fragment>
-                                  ))}
+                                  sectionPath.map((seg, i) => {
+                                    const isLast = i === sectionPath.length - 1
+                                    const goTo = isLast
+                                      ? undefined
+                                      : () => handleSelectSection(seg.id)
+                                    return (
+                                      <Fragment key={seg.id}>
+                                        <Box
+                                          component="span"
+                                          sx={{
+                                            mx: 0.75,
+                                            color: "text.disabled"
+                                          }}>
+                                          /
+                                        </Box>
+                                        <Box
+                                          component="span"
+                                          sx={{
+                                            cursor: goTo ? "pointer" : "default",
+                                            color: isLast
+                                              ? "text.secondary"
+                                              : "text.primary",
+                                            "&:hover": goTo
+                                              ? { color: "primary.main" }
+                                              : undefined
+                                          }}
+                                          onClick={goTo}>
+                                          {seg.title}
+                                        </Box>
+                                      </Fragment>
+                                    )
+                                  })}
                               </Typography>
                               <Typography
                                 variant="caption"
@@ -1543,19 +1590,6 @@ export default function OptionsPage() {
                                 }}>
                                 {scopeItems.length} 张
                               </Typography>
-                              {activeSectionId && (
-                                <Box sx={{ ml: "auto" }}>
-                                  <Button
-                                    size="small"
-                                    onClick={() => handleSelectSection(null)}
-                                    sx={{
-                                      borderRadius: 1,
-                                      fontSize: "0.75rem"
-                                    }}>
-                                    查看全部
-                                  </Button>
-                                </Box>
-                              )}
                             </Box>
                             <CardGrid
                               items={scopeItems}
