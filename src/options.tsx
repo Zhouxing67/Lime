@@ -396,6 +396,12 @@ export default function OptionsPage() {
     sendMessage({ kind: "set-recent-project", projectId: id }).catch(() => {})
   }
 
+  // Active section in the current project (sidebar tree -> main area).
+  // Declared before useNewCard so new cards can default into it.
+  const activeSectionId = activeProjectId
+    ? (activeSectionByProject[activeProjectId] ?? null)
+    : null
+
   const {
     newCardOpen,
     newCardTitle,
@@ -407,7 +413,7 @@ export default function OptionsPage() {
     setNewCardOpen,
     handleNewCard,
     handleSaveNewCard
-  } = useNewCard({ activeProjectId, onSearch })
+  } = useNewCard({ activeProjectId, activeSectionId, onSearch })
 
   const onDelete = (id: string) => {
     setConfirmDeleteId(id)
@@ -858,6 +864,10 @@ export default function OptionsPage() {
     [refreshAllData]
   )
 
+  const onMoveCardToSection = useCallback((itemId: string) => {
+    setMoveToSectionState({ itemId, multi: false })
+  }, [])
+
   const onBatchMoveToSection = useCallback(() => {
     if (selectedIds.length === 0) return
     setMoveToSectionState({ multi: true })
@@ -913,10 +923,6 @@ export default function OptionsPage() {
   )
 
   // ---- Section view state (sidebar tree -> main area) ----
-  const activeSectionId = activeProjectId
-    ? (activeSectionByProject[activeProjectId] ?? null)
-    : null
-
   const countBySection = useMemo(() => {
     const m = new Map<string, number>()
     for (const it of allItems) {
@@ -1143,7 +1149,8 @@ export default function OptionsPage() {
     onToggleReview: handleToggleReview,
     onToggleRead: handleToggleRead,
     onMoveToProject: setMoveCardId,
-    onCopyToProject: setCopyCardId
+    onCopyToProject: setCopyCardId,
+    onMoveToSection: onMoveCardToSection
   }
 
   return (
@@ -1469,7 +1476,13 @@ export default function OptionsPage() {
                           projects={projects}
                           countByProject={countByProject}
                           keyword={keyword}
-                          onOpenProject={handleOpenProject}
+                          onOpenProject={(id) => {
+                            // Hub keyword is a project filter, never a card
+                            // search — clear it so the project opens unfiltered.
+                            setKeyword("")
+                            setDateRange(null)
+                            handleOpenProject(id)
+                          }}
                           onNewProject={() => setCreateDialogOpen(true)}
                         />
                       )}

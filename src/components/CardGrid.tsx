@@ -18,6 +18,7 @@ interface CardGridProps {
   onToggleRead?: (id: string) => void
   onMoveToProject?: (id: string) => void
   onCopyToProject?: (id: string) => void
+  onMoveToSection?: (id: string) => void
   onCardDragStart?: (item: Item) => void
   onCardDragEnd?: () => void
   onCardDragOver?: (e: React.DragEvent, itemId: string) => void
@@ -44,6 +45,7 @@ export default function CardGrid({
   onToggleRead,
   onMoveToProject,
   onCopyToProject,
+  onMoveToSection,
   reviewItemIds,
   onCardDragStart,
   onCardDragEnd,
@@ -130,6 +132,7 @@ export default function CardGrid({
                     onToggleRead={onToggleRead}
                     onMoveToProject={onMoveToProject}
                     onCopyToProject={onCopyToProject}
+                    onMoveToSection={onMoveToSection}
                   />
                 </Box>
               )

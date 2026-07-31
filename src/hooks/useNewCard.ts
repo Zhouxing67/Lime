@@ -5,9 +5,11 @@ import type { Item } from "../types"
 
 export function useNewCard({
   activeProjectId,
+  activeSectionId,
   onSearch
 }: {
   activeProjectId: string | null
+  activeSectionId: string | null
   onSearch: (projectId?: string | null) => void
 }) {
   const [newCardOpen, setNewCardOpen] = useState(false)
@@ -28,6 +30,12 @@ export function useNewCard({
     const content = newCardContent.trim()
     const images = newCardImages.map((u) => u.trim()).filter(Boolean)
     if (!title || !activeProjectId) return
+    // Default into the active section so the new card stays visible in the
+    // current single-section view ("__unclassified__" / null = unclassified).
+    const sectionId =
+      activeSectionId && activeSectionId !== "__unclassified__"
+        ? activeSectionId
+        : undefined
     const item: Item = {
       id: crypto.randomUUID(),
       type: "text",
@@ -35,16 +43,23 @@ export function useNewCard({
       content,
       createdAt: Date.now(),
       projectId: activeProjectId,
+      ...(sectionId ? { sectionId } : {}),
       images: images.length > 0 ? images : undefined
     }
-    console.debug("[lime:newcard] saving item", { images: item.images, title })
     await addItem(item)
     setNewCardOpen(false)
     setNewCardTitle("")
     setNewCardContent("")
     setNewCardImages([])
     onSearch(activeProjectId)
-  }, [newCardTitle, newCardContent, newCardImages, activeProjectId, onSearch])
+  }, [
+    newCardTitle,
+    newCardContent,
+    newCardImages,
+    activeProjectId,
+    activeSectionId,
+    onSearch
+  ])
 
   return {
     newCardOpen,
