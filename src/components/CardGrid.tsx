@@ -1,3 +1,4 @@
+import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded"
 import { Box, Checkbox, useMediaQuery, useTheme } from "@mui/material"
 import { useLayoutEffect, useRef } from "react"
 
@@ -108,19 +109,18 @@ export default function CardGrid({
   }, [items, flipRectsRef])
 
   return (
-    <Box
-      ref={rootRef}
-      sx={{ display: "flex", gap: 2, minWidth: 0 }}>
-      {columns.map((col, ci) => (
-        <Box
-          key={ci}
-          sx={{
-            flex: 1,
-            minWidth: 0,
-            display: "flex",
-            flexDirection: "column",
-            gap: 2
-          }}>
+    <Box ref={rootRef} sx={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+      <Box sx={{ display: "flex", gap: 2, minWidth: 0 }}>
+        {columns.map((col, ci) => (
+          <Box
+            key={ci}
+            sx={{
+              flex: 1,
+              minWidth: 0,
+              display: "flex",
+              flexDirection: "column",
+              gap: 2
+            }}>
           {col.map((it) => {
             const isDragging = draggedId === it.id
             const dropPos =
@@ -209,6 +209,32 @@ export default function CardGrid({
           })}
         </Box>
       ))}
+      </Box>
+      {draggable && draggedId && (
+        <Box
+          data-card-drop-end="true"
+          sx={{
+            mt: 2,
+            border: "1.5px dashed",
+            borderColor:
+              dropIndicator?.id === "__end__" ? "primary.main" : "divider",
+            borderRadius: 1,
+            py: 1.5,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 1,
+            color:
+              dropIndicator?.id === "__end__" ? "primary.main" : "text.disabled",
+            fontSize: "0.8rem",
+            transition: "all 0.15s",
+            bgcolor:
+              dropIndicator?.id === "__end__" ? "action.selected" : "transparent"
+          }}>
+          <ExpandMoreRoundedIcon sx={{ fontSize: 16 }} />
+          放到末尾
+        </Box>
+      )}
     </Box>
   )
 }

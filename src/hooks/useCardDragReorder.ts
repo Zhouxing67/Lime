@@ -5,7 +5,7 @@ import { computeDropIndex, type DropPos } from "../utils"
 
 export interface CardDropState {
   id: string
-  pos: DropPos
+  pos: DropPos | "append"
 }
 
 export interface UseCardDragReorderArgs {
@@ -103,6 +103,12 @@ export function useCardDragReorder({
     const d = dragRef.current
     if (!d) return
     const el = document.elementFromPoint(clientX, clientY) as HTMLElement | null
+    // Drop onto the "放到末尾" zone appends the card to its section's end.
+    if (el?.closest?.("[data-card-drop-end]")) {
+      const dragged = itemsRef.current.find((i) => i.id === d.itemId)
+      if (dragged) setDrop({ id: "__end__", pos: "append" })
+      return
+    }
     const cardEl = el?.closest?.("[data-card-id]") as HTMLElement | null
     const id = cardEl?.getAttribute("data-card-id")
     if (!cardEl || !id || id === d.itemId) {
@@ -139,25 +145,34 @@ export function useCardDragReorder({
     const dropState = dropRef.current
     if (!d || !dropState) return
     const dragged = itemsRef.current.find((i) => i.id === d.itemId)
-    const target = itemsRef.current.find((i) => i.id === dropState.id)
-    if (
-      dragged &&
-      target &&
-      (dragged.sectionId ?? null) === (target.sectionId ?? null)
-    ) {
-      const targetSection = target.sectionId ?? null
-      const sectionCards = itemsRef.current.filter(
-        (i) => (i.sectionId ?? null) === targetSection
-      )
-      const index = computeDropIndex(
+    if (!dragged) return
+    const targetSection = dragged.sectionId ?? null
+    const sectionCards = itemsRef.current.filter(
+      (i) => (i.sectionId ?? null) === targetSection
+    )
+    const fullSorted = sectionCards
+      .slice()
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    const oldIndex = fullSorted.findIndex((c) => c.id === d.itemId)
+
+    let index: number
+    if (dropState.id === "__end__") {
+      index = fullSorted.filter((c) => c.id !== d.itemId).length
+    } else {
+      const target = itemsRef.current.find((i) => i.id === dropState.id)
+      if (!target || (target.sectionId ?? null) !== targetSection) return
+      index = computeDropIndex(
         sectionCards,
         d.itemId,
         dropState.id,
-        dropState.pos
+        dropState.pos as DropPos
       )
-      snapshotRects()
-      onMoveCardRef.current(d.itemId, targetSection, index)
     }
+    // Skip no-op moves (card already sits at the target position) so we
+    // don't trigger a pointless reflow + toast that reads like a "swap".
+    if (index === oldIndex) return
+    snapshotRects()
+    onMoveCardRef.current(d.itemId, targetSection, index)
   }, [snapshotRects])
 
   const cleanup = useCallback(() => {

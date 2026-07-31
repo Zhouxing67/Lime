@@ -827,6 +827,8 @@ export default function OptionsPage() {
       targetOrder: number
     ) => {
       if (!activeProjectId) return
+      const origSectionId =
+        allItems.find((i) => i.id === itemId)?.sectionId ?? null
       const sectionItems = allItems.filter((i) =>
         targetSectionId ? i.sectionId === targetSectionId : !i.sectionId
       )
@@ -845,11 +847,15 @@ export default function OptionsPage() {
       }))
       await batchUpdateItems(updates)
       await refreshAllData()
-      const proj = projects.find((p) => p.id === activeProjectId)
-      const section = proj?.sections?.find((s) => s.id === targetSectionId)
-      setSnackbarMsg(
-        section ? `已移动到「${section.title}」` : "已移动到未分类"
-      )
+      // Only toast when the card actually moved to another section — a
+      // same-section reorder is its own visual feedback.
+      if ((origSectionId ?? null) !== (targetSectionId ?? null)) {
+        const proj = projects.find((p) => p.id === activeProjectId)
+        const section = proj?.sections?.find((s) => s.id === targetSectionId)
+        setSnackbarMsg(
+          section ? `已移动到「${section.title}」` : "已移动到未分类"
+        )
+      }
     },
     [activeProjectId, allItems, refreshAllData, projects]
   )
