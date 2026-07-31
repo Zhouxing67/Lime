@@ -30,7 +30,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import AppHeader from "./components/AppHeader"
 import BatchToolbar from "./components/BatchToolbar"
 import CardGrid from "./components/CardGrid"
-import ContentOutline from "./components/ContentOutline"
 import DateRangeFilter from "./components/DateRangeFilter"
 import DeleteConfirmDialog from "./components/DeleteConfirmDialog"
 import DialogShell from "./components/DialogShell"
@@ -38,11 +37,13 @@ import EmptyState from "./components/EmptyState"
 import FilterChips from "./components/FilterChips"
 import FooterBar from "./components/FooterBar"
 import ItemDialog from "./components/ItemDialog"
-import MergeConfirmDialog from "./components/MergeConfirmDialog"
 import MoveCopyCards from "./components/MoveCopyCards"
+import MergeConfirmDialog from "./components/MergeConfirmDialog"
 import MoveToSectionDialog from "./components/MoveToSectionDialog"
+import NavRail from "./components/NavRail"
 import NewCardDialog from "./components/NewCardDialog"
 import NewProjectDialog from "./components/NewProjectDialog"
+import ProjectTree from "./components/ProjectTree"
 import ReviewSession from "./components/ReviewSession"
 import SettingsDialog from "./components/SettingsDialog"
 import SidebarFilters from "./components/SidebarFilters"
@@ -129,9 +130,10 @@ export default function OptionsPage() {
   )
   const [animating, setAnimating] = useState(false)
   const [sessionTotal, setSessionTotal] = useState(0)
-  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(
-    new Set()
-  )
+  const [expandedNav, setExpandedNav] = useState<Set<string>>(new Set())
+  const [activeSectionByProject, setActiveSectionByProject] = useState<
+    Record<string, string | null>
+  >({})
   const [pendingSectionDelete, setPendingSectionDelete] = useState<{
     sectionId: string
     cardCount: number
@@ -224,14 +226,22 @@ export default function OptionsPage() {
       setSelectedIds([])
       setSelectMode(false)
       setActiveProjectId(id)
+      setExpandedNav((prev) => new Set(prev).add(id))
       onSearch(id)
       sendMessage({ kind: "set-recent-project", projectId: id }).catch(() => {})
     },
-    onDeactivate: () => {
+    onDeactivate: (id?: string) => {
       setSelectedIds([])
       setSelectMode(false)
       setActiveProjectId(null)
       setDialogItem(null)
+      if (id) {
+        setActiveSectionByProject((prev) => {
+          const next = { ...prev }
+          delete next[id]
+          return next
+        })
+      }
       onSearch(null)
     }
   })
@@ -369,6 +379,7 @@ export default function OptionsPage() {
     setSelectedIds([])
     setSelectMode(false)
     setActiveProjectId(id)
+    setExpandedNav((prev) => new Set(prev).add(id))
     onSearch(id)
     sendMessage({ kind: "set-recent-project", projectId: id }).catch(() => {})
   }
@@ -722,19 +733,24 @@ export default function OptionsPage() {
   }, [])
 
   // ---- Section handlers ----
-  const onToggleSectionCollapse = useCallback((sectionId: string) => {
-    setCollapsedSections((prev) => {
+  const toggleExpanded = useCallback((id: string) => {
+    setExpandedNav((prev) => {
       const next = new Set(prev)
-      if (next.has(sectionId)) next.delete(sectionId)
-      else next.add(sectionId)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
       return next
     })
   }, [])
 
-  const onAddSection = useCallback(
-    (parentId: string | null) => {
+  const addSectionWithTitle = useCallback(
+    async (parentId: string | null, title: string) => {
       if (!activeProjectId) return
-      handleAddSection(activeProjectId, "新章节", parentId)
+      await handleAddSection(activeProjectId, title, parentId)
+      setExpandedNav((prev) => {
+        const next = new Set(prev)
+        next.add(parentId ?? activeProjectId)
+        return next
+      })
     },
     [activeProjectId, handleAddSection]
   )
@@ -757,9 +773,25 @@ export default function OptionsPage() {
 
   const confirmDeleteSection = useCallback(async () => {
     if (!activeProjectId || !pendingSectionDelete) return
-    await handleDeleteSection(activeProjectId, pendingSectionDelete.sectionId)
+    const { sectionId } = pendingSectionDelete
+    await handleDeleteSection(activeProjectId, sectionId)
     setPendingSectionDelete(null)
-  }, [activeProjectId, handleDeleteSection, pendingSectionDelete])
+    setActiveSectionByProject((prev) => {
+      const cur = prev[activeProjectId] ?? null
+      if (!cur) return prev
+      const secs =
+        projects.find((p) => p.id === activeProjectId)?.sections ?? []
+      const deleted = secs.find((s) => s.id === sectionId)
+      const affected =
+        sectionId === cur ||
+        (deleted?.level === 1 &&
+          secs.some(
+            (s) => s.level === 2 && s.parentId === sectionId && s.id === cur
+          ))
+      if (!affected) return prev
+      return { ...prev, [activeProjectId]: null }
+    })
+  }, [activeProjectId, handleDeleteSection, pendingSectionDelete, projects])
 
   const onMoveSection = useCallback(
     (sectionId: string, newParentId: string | null, newOrder: number) => {
@@ -814,10 +846,6 @@ export default function OptionsPage() {
     [refreshAllData]
   )
 
-  const onMoveCardToSection = useCallback((itemId: string) => {
-    setMoveToSectionState({ itemId, multi: false })
-  }, [])
-
   const onBatchMoveToSection = useCallback(() => {
     if (selectedIds.length === 0) return
     setMoveToSectionState({ multi: true })
@@ -871,6 +899,98 @@ export default function OptionsPage() {
     () => projects.filter((p) => p.id !== activeProjectId),
     [projects, activeProjectId]
   )
+
+  // ---- Section view state (sidebar tree -> main area) ----
+  const activeSectionId = activeProjectId
+    ? (activeSectionByProject[activeProjectId] ?? null)
+    : null
+
+  const countBySection = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const it of allItems) {
+      if (it.sectionId) m.set(it.sectionId, (m.get(it.sectionId) ?? 0) + 1)
+    }
+    return m
+  }, [allItems])
+
+  const unclassifiedByProject = useMemo(() => {
+    const m: Record<string, number> = {}
+    for (const it of allItems) {
+      if (!it.sectionId) m[it.projectId] = (m[it.projectId] ?? 0) + 1
+    }
+    return m
+  }, [allItems])
+
+  const scopeItems = useMemo(() => {
+    if (!activeSectionId) return allItems
+    if (activeSectionId === "__unclassified__")
+      return allItems.filter((i) => !i.sectionId)
+    const section = activeProject?.sections?.find(
+      (s) => s.id === activeSectionId
+    )
+    if (section?.level === 1) {
+      const childIds = new Set(
+        (activeProject?.sections ?? [])
+          .filter((s) => s.level === 2 && s.parentId === activeSectionId)
+          .map((s) => s.id)
+      )
+      return allItems.filter(
+        (i) =>
+          i.sectionId === activeSectionId ||
+          (i.sectionId !== undefined && childIds.has(i.sectionId))
+      )
+    }
+    return allItems.filter((i) => i.sectionId === activeSectionId)
+  }, [allItems, activeSectionId, activeProject])
+
+  const handleSelectSection = useCallback(
+    (sectionId: string | null) => {
+      if (!activeProjectId) return
+      setActiveSectionByProject((prev) => ({
+        ...prev,
+        [activeProjectId]: sectionId
+      }))
+      setSelectedIds([])
+      setSelectMode(false)
+    },
+    [activeProjectId]
+  )
+
+  const handleSetSidebarTab = useCallback(
+    (tab: "projects" | "review" | "backup") => {
+      setSidebarTab(tab)
+      setDrawerOpen(true)
+    },
+    []
+  )
+
+  // Persist tree/nav state across sessions
+  useEffect(() => {
+    chrome.storage.local.get("_uiNav", (data) => {
+      const nav = data._uiNav as
+        | {
+            expanded?: string[]
+            activeSectionByProject?: Record<string, string | null>
+            width?: number
+          }
+        | undefined
+      if (!nav) return
+      if (nav.expanded) setExpandedNav(new Set(nav.expanded))
+      if (nav.activeSectionByProject)
+        setActiveSectionByProject(nav.activeSectionByProject)
+      if (typeof nav.width === "number") setDrawerWidth(nav.width)
+    })
+  }, [])
+
+  useEffect(() => {
+    chrome.storage.local.set({
+      _uiNav: {
+        expanded: [...expandedNav],
+        activeSectionByProject,
+        width: drawerWidth
+      }
+    })
+  }, [expandedNav, activeSectionByProject, drawerWidth])
 
   const handleToggleRead = async (id: string) => {
     const item = allItems.find((i) => i.id === id)
@@ -975,7 +1095,11 @@ export default function OptionsPage() {
   // Full card set the current view renders. 全选 must target this scope, not
   // the paginated displayedItems slice (which only holds the first page) —
   // otherwise select-all in the section/outline view only picks 20 cards.
-  const viewItems = readingFilter ? readingFilteredItems : allItems
+  const viewItems = readingFilter
+    ? readingFilteredItems
+    : keyword || dateRange
+      ? allItems
+      : scopeItems
 
   const sharedCardGridProps = {
     selectedIds,
@@ -1005,32 +1129,23 @@ export default function OptionsPage() {
           minHeight: "100vh",
           bgcolor: "background.default"
         }}>
+        <NavRail
+          sidebarTab={sidebarTab}
+          dueCount={dueCount}
+          onSetSidebarTab={handleSetSidebarTab}
+        />
         <SidebarFilters
           open={drawerOpen}
           width={drawerWidth}
           projects={projects}
-          activeProjectId={activeProjectId}
-          readingFilter={readingFilter}
-          dueCount={dueCount}
           sidebarTab={sidebarTab}
+          readingFilter={readingFilter}
           backupSelectedIds={backupSelectedIds}
           syncStatus={syncStatus}
           onToggleReadingFilter={handleToggleReadingFilter}
           onClose={handleToggleDrawer}
-          onOpenProject={handleOpenProject}
-          onRenameProject={handleRenameProject}
-          onUpdateNote={handleUpdateNote}
-          onDeleteProject={handleDeleteProject}
           onWidthChange={(w) => setDrawerWidth(w)}
-          onSetSidebarTab={setSidebarTab}
           onNewProjectClick={() => setCreateDialogOpen(true)}
-          onCloseProject={() => {
-            setSelectedIds([])
-            setSelectMode(false)
-            setActiveProjectId(null)
-            setDialogItem(null)
-            onSearch(null)
-          }}
           onToggleBackup={(id) =>
             setBackupSelectedIds((prev) =>
               prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
@@ -1047,8 +1162,33 @@ export default function OptionsPage() {
           onDownloadSync={handleDownloadSync}
           recentDates={recentDates}
           reviewDateFilter={reviewDateFilter}
-          onReviewDateClick={handleReviewDateClick}
-        />
+          onReviewDateClick={handleReviewDateClick}>
+          <ProjectTree
+            projects={projects}
+            activeProjectId={activeProjectId}
+            activeSectionId={activeSectionId}
+            expanded={expandedNav}
+            countBySection={countBySection}
+            unclassifiedByProject={unclassifiedByProject}
+            onSelectProject={handleOpenProject}
+            onCloseProject={() => {
+              setSelectedIds([])
+              setSelectMode(false)
+              setActiveProjectId(null)
+              setDialogItem(null)
+              onSearch(null)
+            }}
+            onSelectSection={handleSelectSection}
+            onToggleExpanded={toggleExpanded}
+            onAddSection={addSectionWithTitle}
+            onRenameSection={onRenameSection}
+            onDeleteSection={onDeleteSectionCb}
+            onMoveSection={onMoveSection}
+            onRenameProject={handleRenameProject}
+            onUpdateNote={handleUpdateNote}
+            onDeleteProject={handleDeleteProject}
+          />
+        </SidebarFilters>
 
         <Box
           sx={{
@@ -1108,18 +1248,6 @@ export default function OptionsPage() {
                           "&.Mui-focusVisible": { outline: "none" }
                         }}>
                         <AddRoundedIcon sx={{ fontSize: 20 }} />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="新建章节（项目根下新增一级章节）">
-                      <IconButton
-                        size="small"
-                        onClick={() => onAddSection(null)}
-                        sx={{
-                          color: "text.secondary",
-                          "&:hover": { color: "primary.main" },
-                          "&.Mui-focusVisible": { outline: "none" }
-                        }}>
-                        <NoteAddRoundedIcon sx={{ fontSize: 20 }} />
                       </IconButton>
                     </Tooltip>
                     <Tooltip title={selectMode ? "取消选择" : "选择卡片"}>
@@ -1341,30 +1469,85 @@ export default function OptionsPage() {
                         activeProject &&
                         !keyword &&
                         !dateRange && (
-                          <ContentOutline
-                            items={allItems}
-                            sections={activeProject.sections ?? []}
-                            collapsedSections={collapsedSections}
-                            selectMode={selectMode}
-                            selectedIds={selectedIds}
-                            onToggleCollapse={onToggleSectionCollapse}
-                            onAddSection={onAddSection}
-                            onRenameSection={onRenameSection}
-                            onDeleteSection={onDeleteSectionCb}
-                            onMoveSection={onMoveSection}
-                            onMoveCard={onMoveCard}
-                            onBatchMoveCards={onBatchMoveCards}
-                            onMoveCardToSection={onMoveCardToSection}
-                            onSelectItem={(id) =>
-                              setSelectedIds((prev) =>
-                                prev.includes(id)
-                                  ? prev.filter((i) => i !== id)
-                                  : [...prev, id]
-                              )
-                            }
-                            onDeleteItem={onDelete}
-                            {...sharedCardGridProps}
-                          />
+                          <>
+                            <Box
+                              sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 1,
+                                px: 0.5,
+                                pb: 1.5,
+                                mb: 1,
+                                borderBottom: "1px solid",
+                                borderColor: "divider"
+                              }}>
+                              <Typography
+                                variant="body2"
+                                noWrap
+                                sx={{
+                                  color: "text.secondary",
+                                  fontSize: "0.85rem",
+                                  minWidth: 0
+                                }}>
+                                <Box
+                                  component="span"
+                                  sx={{ color: "text.primary", fontWeight: 600 }}>
+                                  {activeProject.name}
+                                </Box>
+                                {activeSectionId && (
+                                  <>
+                                    <Box
+                                      component="span"
+                                      sx={{ mx: 0.75, color: "text.disabled" }}>
+                                      /
+                                    </Box>
+                                    <Box component="span">
+                                      {activeSectionId === "__unclassified__"
+                                        ? "未分类"
+                                        : (activeProject.sections ?? []).find(
+                                            (s) => s.id === activeSectionId
+                                          )?.title ?? ""}
+                                    </Box>
+                                  </>
+                                )}
+                              </Typography>
+                              <Typography
+                                variant="caption"
+                                sx={{
+                                  color: "text.disabled",
+                                  fontSize: "0.75rem",
+                                  flexShrink: 0
+                                }}>
+                                {scopeItems.length} 张
+                              </Typography>
+                              {activeSectionId && (
+                                <Box sx={{ ml: "auto" }}>
+                                  <Button
+                                    size="small"
+                                    onClick={() => handleSelectSection(null)}
+                                    sx={{
+                                      borderRadius: 1,
+                                      fontSize: "0.75rem"
+                                    }}>
+                                    查看全部
+                                  </Button>
+                                </Box>
+                              )}
+                            </Box>
+                            <CardGrid
+                              items={scopeItems}
+                              selectMode={selectMode}
+                              onSelectItem={(id) =>
+                                setSelectedIds((prev) =>
+                                  prev.includes(id)
+                                    ? prev.filter((i) => i !== id)
+                                    : [...prev, id]
+                                )
+                              }
+                              onDeleteItem={onDelete}
+                              {...sharedCardGridProps}
+                            />
+                          </>
                         )}
 
                       {!readingFilter &&
@@ -1423,6 +1606,24 @@ export default function OptionsPage() {
                             subtitle="点击顶部 ＋ 按钮新建一张卡片"
                           />
                         ))}
+
+                      {!readingFilter &&
+                        activeProject &&
+                        !keyword &&
+                        !dateRange &&
+                        allItems.length > 0 &&
+                        scopeItems.length === 0 && (
+                          <EmptyState
+                            icon={
+                              <NoteAddRoundedIcon
+                                className="empty-icon"
+                                sx={{ fontSize: 80, mb: 3 }}
+                              />
+                            }
+                            title="此章节暂无卡片"
+                            subtitle="选中卡片后拖入侧栏对应章节，或使用「移动到章节」"
+                          />
+                        )}
 
                       {hasMore &&
                         activeProject &&

@@ -13,7 +13,7 @@ import type { Project, Section } from "../types"
 interface UseProjectsArgs {
   onSearch: (projectId?: string | null) => void
   onActivate: (id: string) => void
-  onDeactivate: () => void
+  onDeactivate: (id?: string) => void
 }
 
 interface UseProjectsResult {
@@ -121,7 +121,7 @@ export function useProjects({
     async (id: string) => {
       await deleteProject(id)
       await loadProjects()
-      onDeactivate()
+      onDeactivate(id)
     },
     [loadProjects, onDeactivate]
   )

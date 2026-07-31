@@ -1,63 +1,53 @@
 import AddRoundedIcon from "@mui/icons-material/AddRounded"
-import BackupRoundedIcon from "@mui/icons-material/BackupRounded"
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded"
 import CloudDownloadRoundedIcon from "@mui/icons-material/CloudDownloadRounded"
 import CloudUploadRoundedIcon from "@mui/icons-material/CloudUploadRounded"
-import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
-import EditRoundedIcon from "@mui/icons-material/EditRounded"
 import FileDownloadRoundedIcon from "@mui/icons-material/FileDownloadRounded"
 import FileUploadRoundedIcon from "@mui/icons-material/FileUploadRounded"
-import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded"
-import SchoolRoundedIcon from "@mui/icons-material/SchoolRounded"
 import {
-  Badge,
   Box,
   Button,
   Checkbox,
-  Chip,
   Divider,
   Drawer,
   FormControlLabel,
   IconButton,
   Stack,
-  TextField,
-  Tooltip,
   Typography
 } from "@mui/material"
-import { alpha } from "@mui/material/styles"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useEffect, useRef } from "react"
+import type { ReactNode } from "react"
 
 import type { Project } from "../types"
 
 interface SidebarFiltersProps {
   open: boolean
   width: number
-  projects: Project[]
-  activeProjectId: string | null
-  readingFilter: boolean
-  dueCount: number
   sidebarTab: "projects" | "review" | "backup"
+  projects: Project[]
+  readingFilter: boolean
   backupSelectedIds: string[]
   syncStatus: string
   recentDates: { key: string; label: string; count: number }[]
   reviewDateFilter: string | null
+  children?: ReactNode
   onReviewDateClick: (dateKey: string | null) => void
   onClose: () => void
-  onOpenProject: (id: string) => void
-  onRenameProject: (id: string, name: string) => void
-  onUpdateNote: (id: string, note: string) => void
-  onDeleteProject: (id: string) => void
   onWidthChange: (w: number) => void
   onToggleReadingFilter: () => void
-  onSetSidebarTab: (tab: "projects" | "review" | "backup") => void
   onNewProjectClick: () => void
-  onCloseProject: () => void
   onToggleBackup: (id: string) => void
   onToggleBackupAll: () => void
   onExportBackup: () => void
   onImportBackup: () => void
   onUploadSync: () => void
   onDownloadSync: () => void
+}
+
+const TAB_TITLES: Record<"projects" | "review" | "backup", string> = {
+  projects: "项目",
+  review: "复习",
+  backup: "备份与同步"
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -82,26 +72,19 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 export default function SidebarFilters({
   open,
   width,
-  projects,
-  activeProjectId,
-  readingFilter,
-  dueCount,
   sidebarTab,
+  projects,
+  readingFilter,
   backupSelectedIds,
   syncStatus,
   recentDates,
   reviewDateFilter,
+  children,
   onReviewDateClick,
   onClose,
-  onOpenProject,
-  onRenameProject,
-  onUpdateNote,
-  onDeleteProject,
   onWidthChange,
   onToggleReadingFilter,
-  onSetSidebarTab,
   onNewProjectClick,
-  onCloseProject,
   onToggleBackup,
   onToggleBackupAll,
   onExportBackup,
@@ -117,7 +100,6 @@ export default function SidebarFilters({
 
   return (
     <>
-      <style>{`@keyframes sidebarFadeIn { from { opacity: 0; } to { opacity: 1; } }`}</style>
       <Drawer
         variant="persistent"
         anchor="left"
@@ -162,7 +144,6 @@ export default function SidebarFilters({
             }
             document.addEventListener("mousemove", onMove)
             document.addEventListener("mouseup", onUp)
-            // Store in ref so useEffect cleanup can remove them on unmount
             dragRef.current = () => {
               document.removeEventListener("mousemove", onMove)
               document.removeEventListener("mouseup", onUp)
@@ -170,124 +151,17 @@ export default function SidebarFilters({
           }}
         />
         <Stack spacing={1.5} sx={{ p: 2, pt: 2.5 }}>
-          {/* Row 1: title */}
+          {/* Top: current view title + close */}
           <Stack
             direction="row"
             alignItems="center"
             justifyContent="space-between">
-            <Typography
-              sx={{
-                fontWeight: 500,
-                letterSpacing: "0.04em",
-                fontSize: "1rem",
-                color: "text.primary"
-              }}>
-              lime
-            </Typography>
+            <SectionLabel>{TAB_TITLES[sidebarTab]}</SectionLabel>
             <IconButton size="small" onClick={onClose}>
               <CloseRoundedIcon fontSize="small" />
             </IconButton>
           </Stack>
 
-          {/* Row 2: navigation icons — 📂 left, 📚 centered, 💾 right */}
-          <Box
-            sx={{
-              position: "relative",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between"
-            }}>
-            <Tooltip title="项目管理">
-              <IconButton
-                size="small"
-                onClick={() => onSetSidebarTab("projects")}
-                sx={(theme) => ({
-                  color:
-                    sidebarTab === "projects"
-                      ? "primary.main"
-                      : "text.secondary",
-                  bgcolor:
-                    sidebarTab === "projects"
-                      ? alpha(theme.palette.primary.main, 0.08)
-                      : "transparent",
-                  borderRadius: 1,
-                  p: 0.75,
-                  "&:hover": {
-                    color: "primary.main",
-                    bgcolor: alpha(theme.palette.primary.main, 0.08)
-                  }
-                })}>
-                <FolderOpenRoundedIcon sx={{ fontSize: 22 }} />
-              </IconButton>
-            </Tooltip>
-            <Box
-              sx={{
-                position: "absolute",
-                left: "50%",
-                transform: "translateX(-50%)"
-              }}>
-              <Tooltip title="间隔复习">
-                <IconButton
-                  size="small"
-                  onClick={() => onSetSidebarTab("review")}
-                  sx={(theme) => ({
-                    color:
-                      sidebarTab === "review"
-                        ? "primary.main"
-                        : "text.secondary",
-                    bgcolor:
-                      sidebarTab === "review"
-                        ? alpha(theme.palette.primary.main, 0.08)
-                        : "transparent",
-                    borderRadius: 1,
-                    p: 0.75,
-                    "&:hover": {
-                      color: "primary.main",
-                      bgcolor: alpha(theme.palette.primary.main, 0.08)
-                    }
-                  })}>
-                  <Badge
-                    badgeContent={dueCount}
-                    color="error"
-                    invisible={dueCount === 0}
-                    sx={{
-                      "& .MuiBadge-badge": {
-                        fontSize: "0.6rem",
-                        height: 16,
-                        minWidth: 16,
-                        right: -6,
-                        top: 0
-                      }
-                    }}>
-                    <SchoolRoundedIcon sx={{ fontSize: 22 }} />
-                  </Badge>
-                </IconButton>
-              </Tooltip>
-            </Box>
-            <Tooltip title="备份与同步">
-              <IconButton
-                size="small"
-                onClick={() => onSetSidebarTab("backup")}
-                sx={(theme) => ({
-                  color:
-                    sidebarTab === "backup" ? "primary.main" : "text.secondary",
-                  bgcolor:
-                    sidebarTab === "backup"
-                      ? alpha(theme.palette.primary.main, 0.08)
-                      : "transparent",
-                  borderRadius: 1,
-                  p: 0.75,
-                  "&:hover": {
-                    color: "primary.main",
-                    bgcolor: alpha(theme.palette.primary.main, 0.08)
-                  }
-                })}>
-                <BackupRoundedIcon sx={{ fontSize: 22 }} />
-              </IconButton>
-            </Tooltip>
-          </Box>
-
-          {/* Thin divider */}
           <Divider sx={{ mx: 0.5 }} />
 
           {sidebarTab === "review" ? (
@@ -430,33 +304,10 @@ export default function SidebarFilters({
               </Stack>
             </Box>
           ) : (
-            /* Project tab content */
-            <Box>
-              <Box sx={{ px: 1.5, pt: 1.5, pb: 0.5 }}>
-                <SectionLabel>项目管理</SectionLabel>
-              </Box>
-              {projects.map((p) => (
-                <ProjectRow
-                  key={p.id}
-                  project={p}
-                  active={activeProjectId === p.id}
-                  onOpen={() => onOpenProject(p.id)}
-                  onRename={(name) => onRenameProject(p.id, name)}
-                  onUpdateNote={(note) => onUpdateNote(p.id, note)}
-                  onDelete={() => onDeleteProject(p.id)}
-                  onCloseProject={onCloseProject}
-                />
-              ))}
-              {projects.length === 0 && (
-                <Box sx={{ px: 1.5, py: 1 }}>
-                  <Typography
-                    variant="caption"
-                    sx={{ color: "text.secondary" }}>
-                    暂无项目
-                  </Typography>
-                </Box>
-              )}
-              {/* "+" tab — always last */}
+            /* Project tab content: tree + actions */
+            <>
+              {children}
+
               <Stack
                 direction="row"
                 alignItems="center"
@@ -523,222 +374,10 @@ export default function SidebarFilters({
                   稍后阅读
                 </Typography>
               </Stack>
-            </Box>
+            </>
           )}
         </Stack>
       </Drawer>
     </>
-  )
-}
-
-interface ProjectRowProps {
-  project: Project
-  active: boolean
-  onOpen: () => void
-  onRename: (name: string) => void
-  onUpdateNote: (note: string) => void
-  onDelete: () => void
-  onCloseProject: () => void
-}
-
-function ProjectRow({
-  project,
-  active,
-  onOpen,
-  onRename,
-  onUpdateNote,
-  onDelete,
-  onCloseProject
-}: ProjectRowProps) {
-  const [editing, setEditing] = useState(false)
-  const [draftName, setDraftName] = useState(project.name)
-  const [draftNote, setDraftNote] = useState(project.note ?? "")
-  const [confirming, setConfirming] = useState(false)
-
-  const commitRename = () => {
-    const trimmed = draftName.trim()
-    if (trimmed && trimmed !== project.name) onRename(trimmed)
-    else setDraftName(project.name)
-    setEditing(false)
-  }
-
-  if (editing) {
-    return (
-      <Box sx={{ px: 1.5, py: 1, bgcolor: "action.selected" }}>
-        <TextField
-          autoFocus
-          fullWidth
-          size="small"
-          label="项目名称"
-          value={draftName}
-          onChange={(e) => setDraftName(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") commitRename()
-            if (e.key === "Escape") {
-              setDraftName(project.name)
-              setEditing(false)
-            }
-          }}
-          sx={{ mb: 1 }}
-        />
-        <TextField
-          fullWidth
-          size="small"
-          multiline
-          minRows={2}
-          label="备注"
-          placeholder="可选"
-          value={draftNote}
-          onChange={(e) => setDraftNote(e.target.value)}
-          sx={{ mb: 1 }}
-        />
-        <Stack direction="row" spacing={1} justifyContent="flex-end">
-          <Button
-            size="small"
-            onClick={() => {
-              setEditing(false)
-              setDraftName(project.name)
-              setDraftNote(project.note ?? "")
-            }}>
-            取消
-          </Button>
-          <Button
-            size="small"
-            variant="contained"
-            onClick={() => {
-              commitRename()
-              if (draftNote !== (project.note ?? ""))
-                onUpdateNote(draftNote.trim())
-            }}>
-            保存
-          </Button>
-        </Stack>
-      </Box>
-    )
-  }
-
-  if (confirming) {
-    return (
-      <Box
-        sx={{
-          px: 1.5,
-          py: 1,
-          bgcolor: "action.selected",
-          "&:hover": { bgcolor: "action.selected" }
-        }}>
-        <Typography variant="caption" sx={{ display: "block", mb: 1 }}>
-          删除「{project.name}」？该项目的所有卡片也将一并删除。
-        </Typography>
-        <Stack direction="row" spacing={1} justifyContent="flex-end">
-          <Button size="small" onClick={() => setConfirming(false)}>
-            取消
-          </Button>
-          <Button
-            size="small"
-            color="error"
-            variant="contained"
-            onClick={() => {
-              setConfirming(false)
-              onDelete()
-            }}>
-            删除
-          </Button>
-        </Stack>
-      </Box>
-    )
-  }
-
-  return (
-    <Stack
-      direction="row"
-      alignItems="center"
-      spacing={1}
-      sx={(theme) => ({
-        pl: 1.5,
-        pr: 1.5,
-        py: 0.5,
-        cursor: "pointer",
-        borderLeft: "3px solid",
-        borderColor: active ? "primary.main" : "transparent",
-        bgcolor: active
-          ? alpha(theme.palette.primary.main, 0.05)
-          : "transparent",
-        "&:hover": {
-          bgcolor: active
-            ? alpha(theme.palette.primary.main, 0.05)
-            : "action.hover"
-        }
-      })}
-      onClick={active ? undefined : onOpen}>
-      <FolderOpenRoundedIcon
-        sx={{
-          fontSize: 16,
-          color: active ? "primary.main" : "text.secondary"
-        }}
-      />
-      <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Typography
-          variant="body2"
-          noWrap
-          sx={{
-            fontSize: "0.8rem",
-            fontWeight: active ? 600 : 400,
-            color: active ? "primary.main" : "text.primary"
-          }}>
-          {project.name}
-        </Typography>
-        {project.note && (
-          <Typography
-            variant="caption"
-            noWrap
-            sx={{
-              color: "text.secondary",
-              display: "block",
-              fontSize: "0.65rem"
-            }}>
-            {project.note}
-          </Typography>
-        )}
-      </Box>
-      {active ? (
-        <Tooltip title="关闭项目">
-          <IconButton
-            size="small"
-            onClick={(e) => {
-              e.stopPropagation()
-              onCloseProject()
-            }}
-            sx={{
-              color: "text.secondary",
-              opacity: 0.8,
-              "&:hover": { opacity: 1 }
-            }}>
-            <CloseRoundedIcon sx={{ fontSize: 14 }} />
-          </IconButton>
-        </Tooltip>
-      ) : (
-        <Box
-          sx={{
-            display: "flex",
-            gap: 0.25,
-            opacity: 0.6,
-            "&:hover": { opacity: 1 }
-          }}
-          onClick={(e) => e.stopPropagation()}>
-          <IconButton
-            size="small"
-            onClick={() => {
-              setDraftName(project.name)
-              setDraftNote(project.note ?? "")
-              setEditing(true)
-            }}>
-            <EditRoundedIcon sx={{ fontSize: 14 }} />
-          </IconButton>
-          <IconButton size="small" onClick={() => setConfirming(true)}>
-            <DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />
-          </IconButton>
-        </Box>
-      )}
-    </Stack>
   )
 }
