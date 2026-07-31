@@ -1,16 +1,16 @@
 import AddRoundedIcon from "@mui/icons-material/AddRounded"
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded"
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded"
-import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
-import EditRoundedIcon from "@mui/icons-material/EditRounded"
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded"
 import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded"
+import MoreHorizRoundedIcon from "@mui/icons-material/MoreHorizRounded"
 import {
   alpha,
   Box,
   Button,
-  Divider,
   IconButton,
+  Menu,
+  MenuItem,
   Stack,
   TextField,
   Tooltip,
@@ -52,19 +52,6 @@ interface ProjectTreeProps {
 
 const sortByOrder = (list: Section[]) =>
   [...list].sort((a, b) => a.order - b.order)
-
-const addRowStyle = (pl: number) => ({
-  display: "flex",
-  alignItems: "center",
-  gap: 0.75,
-  pl,
-  pr: 1.5,
-  py: 0.5,
-  cursor: "pointer",
-  "&:hover": { bgcolor: "action.hover" },
-  "& .add-row-icon": { color: "text.disabled" },
-  "&:hover .add-row-icon": { color: "primary.main" }
-})
 
 export default function ProjectTree({
   projects,
@@ -228,7 +215,12 @@ export default function ProjectTree({
   const sectionRow = (
     section: Section,
     isChild: boolean,
-    opts: { collapsed: boolean; onToggle?: () => void; onDelete?: () => void }
+    opts: {
+      collapsed: boolean
+      onToggle?: () => void
+      onAddChild?: () => void
+      onDelete?: () => void
+    }
   ) =>
     renaming === section.id ? (
       <Box sx={{ pl: isChild ? 0 : 1, pr: 1.5, py: 0.25 }}>
@@ -264,6 +256,7 @@ export default function ProjectTree({
         }
         onToggle={opts.onToggle}
         onSelect={() => onSelectSection(section.id)}
+        onAddChild={opts.onAddChild}
         onRename={() => startRename(section.id, section.title)}
         onDelete={
           opts.onDelete ??
@@ -283,7 +276,7 @@ export default function ProjectTree({
 
   return (
     <Box>
-      {projects.map((project, pi) => {
+      {projects.map((project) => {
         const sections = sortByOrder(project.sections ?? [])
         const l1s = sections.filter((s) => s.level === 1)
         const l2Of = (l1Id: string) =>
@@ -297,8 +290,14 @@ export default function ProjectTree({
         const isExpanded = expanded.has(project.id)
 
         return (
-          <Box key={project.id}>
-            {pi > 0 && <Divider sx={{ mx: 1, my: 0.75 }} />}
+          <Box
+            key={project.id}
+            sx={{
+              mb: 0.75,
+              borderRadius: 1,
+              bgcolor: "background.default",
+              p: 0.25
+            }}>
             <ProjectNode
               project={project}
               active={activeProjectId === project.id}
@@ -307,12 +306,19 @@ export default function ProjectTree({
               onToggle={() => onToggleExpanded(project.id)}
               onOpen={() => onSelectProject(project.id)}
               onClose={onCloseProject}
+              onAdd={() => {
+                if (!isExpanded) onToggleExpanded(project.id)
+                startAdd({ type: "project", id: project.id })
+              }}
               onRename={(name) => onRenameProject(project.id, name)}
               onUpdateNote={(note) => onUpdateNote(project.id, note)}
               onDelete={() => onDeleteProject(project.id)}
             />
             {isExpanded && (
               <Box sx={{ pl: 1.5 }}>
+                {addingFor?.type === "project" &&
+                  addingFor.id === project.id &&
+                  renderInlineAdd(1)}
                 {l1s.map((s1) => {
                   const subs = l2Of(s1.id)
                   const collapsed = !expanded.has(s1.id)
@@ -321,6 +327,10 @@ export default function ProjectTree({
                       {sectionRow(s1, false, {
                         collapsed,
                         onToggle: () => onToggleExpanded(s1.id),
+                        onAddChild: () => {
+                          if (collapsed) onToggleExpanded(s1.id)
+                          startAdd({ type: "section", id: s1.id })
+                        },
                         onDelete: () =>
                           onDeleteSection(
                             s1.id,
@@ -335,32 +345,14 @@ export default function ProjectTree({
                             borderLeft: "1px solid",
                             borderColor: "divider"
                           }}>
+                          {addingFor?.type === "section" &&
+                            addingFor.id === s1.id &&
+                            renderInlineAdd(0)}
                           {subs.map((s2) => (
                             <Box key={s2.id}>
                               {sectionRow(s2, true, { collapsed: false })}
                             </Box>
                           ))}
-                          <Box
-                            sx={addRowStyle(0)}
-                            onClick={() =>
-                              startAdd({ type: "section", id: s1.id })
-                            }>
-                            <AddRoundedIcon
-                              className="add-row-icon"
-                              sx={{ fontSize: 14 }}
-                            />
-                            <Typography
-                              variant="body2"
-                              sx={{
-                                fontSize: "0.78rem",
-                                color: "text.secondary"
-                              }}>
-                              添加子章节
-                            </Typography>
-                          </Box>
-                          {addingFor?.type === "section" &&
-                            addingFor.id === s1.id &&
-                            renderInlineAdd(0)}
                         </Box>
                       )}
                     </Box>
@@ -391,24 +383,6 @@ export default function ProjectTree({
                     count={unclassifiedByProject[project.id] ?? 0}
                   />
                 </TreeRow>
-
-                {/* 添加一级章节 */}
-                <Box
-                  sx={addRowStyle(1)}
-                  onClick={() => startAdd({ type: "project", id: project.id })}>
-                  <AddRoundedIcon
-                    className="add-row-icon"
-                    sx={{ fontSize: 14 }}
-                  />
-                  <Typography
-                    variant="body2"
-                    sx={{ fontSize: "0.78rem", color: "text.secondary" }}>
-                    添加章节
-                  </Typography>
-                </Box>
-                {addingFor?.type === "project" &&
-                  addingFor.id === project.id &&
-                  renderInlineAdd(1)}
               </Box>
             )}
           </Box>
@@ -520,6 +494,7 @@ function ProjectNode({
   onToggle,
   onOpen,
   onClose,
+  onAdd,
   onRename,
   onUpdateNote,
   onDelete
@@ -531,6 +506,7 @@ function ProjectNode({
   onToggle: () => void
   onOpen: () => void
   onClose: () => void
+  onAdd: () => void
   onRename: (name: string) => void
   onUpdateNote: (note: string) => void
   onDelete: () => void
@@ -539,6 +515,7 @@ function ProjectNode({
   const [draftName, setDraftName] = useState(project.name)
   const [draftNote, setDraftNote] = useState(project.note ?? "")
   const [confirming, setConfirming] = useState(false)
+  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null)
 
   const commitRename = () => {
     const trimmed = draftName.trim()
@@ -686,46 +663,62 @@ function ProjectNode({
         )}
       </Box>
       <CountBadge count={total} />
-      {active ? (
-        <Tooltip title="关闭项目">
-          <IconButton
-            size="small"
-            onClick={(e) => {
-              e.stopPropagation()
-              onClose()
-            }}
-            sx={{
-              color: "text.secondary",
-              opacity: 0.8,
-              "&:hover": { opacity: 1 }
-            }}>
-            <CloseRoundedIcon sx={{ fontSize: 14 }} />
+      <Box
+        className="tree-actions"
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 0.25,
+          opacity: 0,
+          transition: "opacity 0.15s"
+        }}
+        onClick={(e) => e.stopPropagation()}>
+        <Tooltip title="添加章节">
+          <IconButton size="small" onClick={onAdd}>
+            <AddRoundedIcon sx={{ fontSize: 16 }} />
           </IconButton>
         </Tooltip>
-      ) : (
-        <Box
-          className="tree-actions"
-          sx={{
-            display: "flex",
-            gap: 0.25,
-            opacity: 0,
-            transition: "opacity 0.15s"
-          }}
-          onClick={(e) => e.stopPropagation()}>
-          <IconButton
-            size="small"
-            onClick={() => {
-              setDraftName(project.name)
-              setDraftNote(project.note ?? "")
-              setEditing(true)
-            }}>
-            <EditRoundedIcon sx={{ fontSize: 14 }} />
-          </IconButton>
-          <IconButton size="small" onClick={() => setConfirming(true)}>
-            <DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />
-          </IconButton>
-        </Box>
-      )}
+        {active ? (
+          <Tooltip title="关闭项目">
+            <IconButton size="small" onClick={onClose}>
+              <CloseRoundedIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Tooltip>
+        ) : (
+          <>
+            <IconButton
+              size="small"
+              onClick={(e) => setMenuAnchor(e.currentTarget)}>
+              <MoreHorizRoundedIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+            <Menu
+              anchorEl={menuAnchor}
+              open={Boolean(menuAnchor)}
+              onClose={() => setMenuAnchor(null)}
+              anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+              transformOrigin={{ vertical: "top", horizontal: "right" }}>
+              <MenuItem
+                sx={{ fontSize: "0.8rem" }}
+                onClick={() => {
+                  setMenuAnchor(null)
+                  setDraftName(project.name)
+                  setDraftNote(project.note ?? "")
+                  setEditing(true)
+                }}>
+                重命名 / 编辑备注
+              </MenuItem>
+              <MenuItem
+                sx={{ fontSize: "0.8rem" }}
+                onClick={() => {
+                  setMenuAnchor(null)
+                  setConfirming(true)
+                }}>
+                删除项目
+              </MenuItem>
+            </Menu>
+          </>
+        )}
+      </Box>
     </TreeRow>
   )
 }
@@ -741,6 +734,7 @@ function SectionNode({
   dropIndicator,
   onToggle,
   onSelect,
+  onAddChild,
   onRename,
   onDelete,
   onDragStart,
@@ -756,6 +750,7 @@ function SectionNode({
   dropIndicator?: DropPos | null
   onToggle?: () => void
   onSelect: () => void
+  onAddChild?: () => void
   onRename: () => void
   onDelete: () => void
   onDragStart: (e: React.DragEvent) => void
@@ -763,6 +758,8 @@ function SectionNode({
   onDragOver: (e: React.DragEvent) => void
   onDrop: (e: React.DragEvent) => void
 }) {
+  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null)
+
   return (
     <TreeRow
       active={active}
@@ -826,24 +823,47 @@ function SectionNode({
         className="tree-actions"
         sx={{
           display: "flex",
+          alignItems: "center",
           gap: 0.25,
           opacity: 0,
           transition: "opacity 0.15s"
         }}
         onClick={(e) => e.stopPropagation()}>
-        <Tooltip title="重命名">
-          <IconButton size="small" onClick={onRename}>
-            <EditRoundedIcon sx={{ fontSize: 14 }} />
-          </IconButton>
-        </Tooltip>
-        <Tooltip title="删除章节">
-          <IconButton
-            size="small"
-            onClick={onDelete}
-            sx={{ "&:hover": { color: "error.main" } }}>
-            <DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />
-          </IconButton>
-        </Tooltip>
+        {onAddChild && (
+          <Tooltip title="添加子章节">
+            <IconButton size="small" onClick={onAddChild}>
+              <AddRoundedIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Tooltip>
+        )}
+        <IconButton
+          size="small"
+          onClick={(e) => setMenuAnchor(e.currentTarget)}>
+          <MoreHorizRoundedIcon sx={{ fontSize: 16 }} />
+        </IconButton>
+        <Menu
+          anchorEl={menuAnchor}
+          open={Boolean(menuAnchor)}
+          onClose={() => setMenuAnchor(null)}
+          anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+          transformOrigin={{ vertical: "top", horizontal: "right" }}>
+          <MenuItem
+            sx={{ fontSize: "0.8rem" }}
+            onClick={() => {
+              setMenuAnchor(null)
+              onRename()
+            }}>
+            重命名
+          </MenuItem>
+          <MenuItem
+            sx={{ fontSize: "0.8rem" }}
+            onClick={() => {
+              setMenuAnchor(null)
+              onDelete()
+            }}>
+            删除章节
+          </MenuItem>
+        </Menu>
       </Box>
     </TreeRow>
   )
