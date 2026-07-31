@@ -40,3 +40,23 @@ export function truncateText(text: string, max: number): string {
   if (text.length <= max) return text
   return text.slice(0, max) + "..."
 }
+
+export type DropPos = "before" | "after"
+
+/**
+ * Computes the insertion index for a dragged card relative to a target card
+ * within the target section's ordered card list (dragged card excluded).
+ */
+export function computeDropIndex<T extends { id: string; order?: number }>(
+  cards: T[],
+  draggedId: string,
+  targetId: string,
+  pos: DropPos
+): number {
+  const sorted = cards
+    .filter((c) => c.id !== draggedId)
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+  const targetIndex = sorted.findIndex((c) => c.id === targetId)
+  if (targetIndex === -1) return sorted.length
+  return pos === "after" ? targetIndex + 1 : targetIndex
+}

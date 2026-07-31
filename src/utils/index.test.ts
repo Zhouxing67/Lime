@@ -1,4 +1,9 @@
-import { computeItemHash, prettyUrl, sha256 } from "./index"
+import {
+  computeDropIndex,
+  computeItemHash,
+  prettyUrl,
+  sha256
+} from "./index"
 
 describe("utils", () => {
   describe("sha256", () => {
@@ -153,6 +158,46 @@ describe("utils", () => {
     it("should handle subdomains", () => {
       const result = prettyUrl("https://blog.example.com/post")
       expect(result).toBe("blog.example.com/post")
+    })
+  })
+
+  describe("computeDropIndex", () => {
+    const cards = [
+      { id: "a", order: 0 },
+      { id: "b", order: 1 },
+      { id: "c", order: 2 },
+      { id: "d", order: 3 }
+    ]
+
+    it("drops before the target", () => {
+      expect(computeDropIndex(cards, "d", "b", "before")).toBe(1)
+    })
+
+    it("drops after the target", () => {
+      expect(computeDropIndex(cards, "d", "b", "after")).toBe(2)
+    })
+
+    it("drops before the first card", () => {
+      expect(computeDropIndex(cards, "c", "a", "before")).toBe(0)
+    })
+
+    it("drops after the last card", () => {
+      expect(computeDropIndex(cards, "a", "d", "after")).toBe(3)
+    })
+
+    it("excludes the dragged card from the list", () => {
+      // dragging b after d, with b removed: [a, c, d] -> d at index 2, after = 3
+      expect(computeDropIndex(cards, "b", "d", "after")).toBe(3)
+    })
+
+    it("sorts cards by order before computing", () => {
+      const unordered = [
+        { id: "x", order: 5 },
+        { id: "y", order: 1 },
+        { id: "z", order: 3 }
+      ]
+      // sorted: y(1), z(3), x(5); drag x before z -> index 1
+      expect(computeDropIndex(unordered, "x", "z", "before")).toBe(1)
     })
   })
 })

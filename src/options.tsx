@@ -70,6 +70,7 @@ import {
   updateReviewSrs
 } from "./database"
 import { useBackupSync } from "./hooks/useBackupSync"
+import { useCardDragReorder } from "./hooks/useCardDragReorder"
 import { useNewCard } from "./hooks/useNewCard"
 import { useProjects } from "./hooks/useProjects"
 import { useReview } from "./hooks/useReview"
@@ -997,6 +998,17 @@ export default function OptionsPage() {
     [activeProjectId]
   )
 
+  // Pointer-based card drag-reorder within the current scope (same section only).
+  const {
+    draggedId: cardDraggedId,
+    drop: cardDrop,
+    flipRectsRef,
+    handleGripPointerDown
+  } = useCardDragReorder({
+    items: scopeItems,
+    onMoveCard
+  })
+
   const handleSetSidebarTab = useCallback(
     (tab: "projects" | "review" | "backup") => {
       setSidebarTab(tab)
@@ -1605,6 +1617,11 @@ export default function OptionsPage() {
                             </Box>
                             <CardGrid
                               items={scopeItems}
+                              draggable
+                              draggedId={cardDraggedId}
+                              dropIndicator={cardDrop}
+                              flipRectsRef={flipRectsRef}
+                              onGripPointerDown={handleGripPointerDown}
                               selectMode={selectMode}
                               onSelectItem={(id) =>
                                 setSelectedIds((prev) =>

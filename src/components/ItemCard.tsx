@@ -1,3 +1,4 @@
+import DragIndicatorRoundedIcon from "@mui/icons-material/DragIndicatorRounded"
 import { Box, Link, Paper, Stack, Typography, alpha } from "@mui/material"
 import { useState } from "react"
 
@@ -15,8 +16,7 @@ export default function ItemCard({
   readOnly,
   draggable,
   selectMode,
-  onDragStart,
-  onDragEnd,
+  onGripPointerDown,
   onDelete,
   onClick,
   onToggleReview,
@@ -31,8 +31,7 @@ export default function ItemCard({
   readOnly?: boolean
   draggable?: boolean
   selectMode?: boolean
-  onDragStart?: (e: React.DragEvent) => void
-  onDragEnd?: (e: React.DragEvent) => void
+  onGripPointerDown?: (e: React.PointerEvent, item: Item) => void
   onDelete: (id: string) => void
   onClick?: () => void
   onToggleReview?: (id: string) => void
@@ -46,9 +45,6 @@ export default function ItemCard({
   return (
     <Paper
       elevation={0}
-      draggable={draggable}
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       sx={(theme) => ({
@@ -87,6 +83,25 @@ export default function ItemCard({
           spacing={0.75}
           alignItems="center"
           sx={{ minWidth: 0, flex: 1 }}>
+          {draggable && onGripPointerDown && (
+            <Box
+              component="span"
+              onPointerDown={(e) => onGripPointerDown(e, item)}
+              onClick={(e) => e.stopPropagation()}
+              sx={{
+                display: "inline-flex",
+                alignItems: "center",
+                cursor: "grab",
+                color: "text.disabled",
+                opacity: 0.25,
+                transition: "opacity 0.15s",
+                touchAction: "none",
+                flexShrink: 0,
+                "&:hover": { opacity: 0.9, color: "primary.main" }
+              }}>
+              <DragIndicatorRoundedIcon sx={{ fontSize: 18 }} />
+            </Box>
+          )}
           {firstRating && (
             <Box
               sx={{
