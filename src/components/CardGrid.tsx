@@ -23,9 +23,7 @@ interface CardGridProps {
   onOpenDialog: (item: Item) => void
   onToggleReview?: (id: string) => void
   onToggleRead?: (id: string) => void
-  onMoveToProject?: (id: string) => void
   onCopyToProject?: (id: string) => void
-  onMoveToSection?: (id: string) => void
 }
 
 function roundRobinCols<T>(items: T[], cols: number): T[][] {
@@ -50,9 +48,7 @@ export default function CardGrid({
   onOpenDialog,
   onToggleReview,
   onToggleRead,
-  onMoveToProject,
   onCopyToProject,
-  onMoveToSection,
   reviewItemIds
 }: CardGridProps) {
   const theme = useTheme()
@@ -200,9 +196,7 @@ export default function CardGrid({
                   }}
                   onToggleReview={onToggleReview}
                   onToggleRead={onToggleRead}
-                  onMoveToProject={onMoveToProject}
                   onCopyToProject={onCopyToProject}
-                  onMoveToSection={onMoveToSection}
                 />
               </Box>
             )

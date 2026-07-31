@@ -1,6 +1,5 @@
 import DeleteSweepRoundedIcon from "@mui/icons-material/DeleteSweepRounded"
 import DoneAllRoundedIcon from "@mui/icons-material/DoneAllRounded"
-import DriveFileMoveOutlinedIcon from "@mui/icons-material/DriveFileMoveOutlined"
 import FileCopyOutlinedIcon from "@mui/icons-material/FileCopyOutlined"
 import MergeTypeRoundedIcon from "@mui/icons-material/MergeTypeRounded"
 import {
@@ -15,11 +14,8 @@ import { Fragment, useMemo, type ReactElement } from "react"
 interface BatchToolbarProps {
   selectedIds: string[]
   allSelected: boolean
-  hasSections: boolean
   onSelectAll: () => void
   onBatchDelete: () => void
-  onBatchMove: () => void
-  onBatchMoveToSection: () => void
   onBatchCopy: () => void
   onBatchMerge: () => void
 }
@@ -37,11 +33,8 @@ interface ButtonConfig {
 export default function BatchToolbar({
   selectedIds,
   allSelected,
-  hasSections,
   onSelectAll,
   onBatchDelete,
-  onBatchMove,
-  onBatchMoveToSection,
   onBatchCopy,
   onBatchMerge
 }: BatchToolbarProps) {
@@ -55,30 +48,11 @@ export default function BatchToolbar({
         icon: <DoneAllRoundedIcon sx={{ fontSize: 16, mr: 0.5 }} />,
         onClick: onSelectAll
       },
-      ...(hasSections
-        ? [
-            {
-              label: "移动到章节",
-              icon: (
-                <DriveFileMoveOutlinedIcon sx={{ fontSize: 16, mr: 0.5 }} />
-              ),
-              onClick: onBatchMoveToSection,
-              dividerBefore: true,
-              disabled: !hasSelection
-            } as ButtonConfig
-          ]
-        : []),
-      {
-        label: "移动到",
-        icon: <DriveFileMoveOutlinedIcon sx={{ fontSize: 16, mr: 0.5 }} />,
-        onClick: onBatchMove,
-        dividerBefore: true,
-        disabled: !hasSelection
-      },
       {
         label: "复制到",
         icon: <FileCopyOutlinedIcon sx={{ fontSize: 16, mr: 0.5 }} />,
         onClick: onBatchCopy,
+        dividerBefore: true,
         disabled: !hasSelection
       },
       {
@@ -97,18 +71,7 @@ export default function BatchToolbar({
         color: "error"
       }
     ],
-    [
-      onSelectAll,
-      onBatchMove,
-      onBatchCopy,
-      onBatchDelete,
-      onBatchMerge,
-      hasSelection,
-      hasMulti,
-      allSelected,
-      hasSections,
-      onBatchMoveToSection
-    ]
+    [onSelectAll, onBatchCopy, onBatchDelete, onBatchMerge, hasSelection, hasMulti, allSelected]
   )
 
   return (

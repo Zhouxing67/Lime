@@ -21,9 +21,7 @@ export default function ItemCard({
   onClick,
   onToggleReview,
   onToggleRead,
-  onMoveToProject,
-  onCopyToProject,
-  onMoveToSection
+  onCopyToProject
 }: {
   item: Item
   firstRating?: 1 | 2 | 3 | 4
@@ -36,9 +34,7 @@ export default function ItemCard({
   onClick?: () => void
   onToggleReview?: (id: string) => void
   onToggleRead?: (id: string) => void
-  onMoveToProject?: (id: string) => void
   onCopyToProject?: (id: string) => void
-  onMoveToSection?: (id: string) => void
 }) {
   const [hovered, setHovered] = useState(false)
 
@@ -149,9 +145,7 @@ export default function ItemCard({
             visible={hovered}
             onDelete={onDelete}
             onToggleReview={onToggleReview}
-            onMoveToProject={onMoveToProject}
             onCopyToProject={onCopyToProject}
-            onMoveToSection={onMoveToSection}
           />
         )}
       </Stack>

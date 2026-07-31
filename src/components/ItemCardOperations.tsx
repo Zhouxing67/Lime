@@ -1,8 +1,6 @@
 import CheckCircleOutlineRoundedIcon from "@mui/icons-material/CheckCircleOutlineRounded"
 import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded"
-import CreateNewFolderRoundedIcon from "@mui/icons-material/CreateNewFolderRounded"
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
-import DriveFileMoveOutlinedIcon from "@mui/icons-material/DriveFileMoveOutlined"
 import FileCopyOutlinedIcon from "@mui/icons-material/FileCopyOutlined"
 import PlaylistAddCheckRoundedIcon from "@mui/icons-material/PlaylistAddCheckRounded"
 import PlaylistRemoveRoundedIcon from "@mui/icons-material/PlaylistRemoveRounded"
@@ -19,9 +17,7 @@ interface ItemCardOperationsProps {
   visible?: boolean
   onDelete: (id: string) => void
   onToggleReview?: (id: string) => void
-  onMoveToProject?: (id: string) => void
   onCopyToProject?: (id: string) => void
-  onMoveToSection?: (id: string) => void
   onToggleRead?: (id: string) => void
 }
 
@@ -32,9 +28,7 @@ export default function ItemCardOperations({
   visible = false,
   onDelete,
   onToggleReview,
-  onMoveToProject,
   onCopyToProject,
-  onMoveToSection,
   onToggleRead
 }: ItemCardOperationsProps) {
   const [copied, setCopied] = useState(false)
@@ -72,19 +66,6 @@ export default function ItemCardOperations({
         </Tooltip>
         {!readOnly && (
           <>
-            {onMoveToProject && (
-              <Tooltip title="移动到…">
-                <IconButton
-                  size="small"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onMoveToProject(item.id)
-                  }}
-                  sx={{ p: 0.75 }}>
-                  <DriveFileMoveOutlinedIcon sx={{ fontSize: 16 }} />
-                </IconButton>
-              </Tooltip>
-            )}
             {onCopyToProject && (
               <Tooltip title="复制到…">
                 <IconButton
@@ -95,19 +76,6 @@ export default function ItemCardOperations({
                   }}
                   sx={{ p: 0.75 }}>
                   <FileCopyOutlinedIcon sx={{ fontSize: 16 }} />
-                </IconButton>
-              </Tooltip>
-            )}
-            {onMoveToSection && (
-              <Tooltip title="移动到章节…">
-                <IconButton
-                  size="small"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onMoveToSection(item.id)
-                  }}
-                  sx={{ p: 0.75 }}>
-                  <CreateNewFolderRoundedIcon sx={{ fontSize: 16 }} />
                 </IconButton>
               </Tooltip>
             )}

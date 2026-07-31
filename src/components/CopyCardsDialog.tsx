@@ -10,7 +10,7 @@ import {
 import type { Project } from "../types"
 import DialogShell from "./DialogShell"
 
-export default function MoveCopyCards({
+export default function CopyCardsDialog({
   open,
   title,
   projects,

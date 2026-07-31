@@ -43,9 +43,8 @@ import EmptyState from "./components/EmptyState"
 import FilterChips from "./components/FilterChips"
 import FooterBar from "./components/FooterBar"
 import ItemDialog from "./components/ItemDialog"
-import MoveCopyCards from "./components/MoveCopyCards"
+import CopyCardsDialog from "./components/CopyCardsDialog"
 import MergeConfirmDialog from "./components/MergeConfirmDialog"
-import MoveToSectionDialog from "./components/MoveToSectionDialog"
 import NavRail from "./components/NavRail"
 import NewCardDialog from "./components/NewCardDialog"
 import NewProjectDialog from "./components/NewProjectDialog"
@@ -62,7 +61,6 @@ import {
   deleteItems,
   getAllReviews,
   getDueReviews,
-  isDuplicate,
   removeReview,
   searchItems,
   tx,
@@ -79,7 +77,6 @@ import { importFromZip } from "./import"
 import { createAppTheme } from "./theme"
 import type { Item, PresetName, SearchQuery, SrsData } from "./types"
 import { sendMessage } from "./types/messages"
-import { computeItemHash } from "./utils"
 
 const MIN_DRAWER_WIDTH = 200
 const MAX_DRAWER_WIDTH = 500
@@ -115,9 +112,8 @@ export default function OptionsPage() {
     to?: number
   } | null>(null)
   const loadMoreRef = useRef<HTMLDivElement>(null)
-  const [moveCardId, setMoveCardId] = useState<string | null>(null)
   const [copyCardId, setCopyCardId] = useState<string | null>(null)
-  const [batchAction, setBatchAction] = useState<"move" | "copy" | null>(null)
+  const [batchCopyOpen, setBatchCopyOpen] = useState(false)
   const [snackbarMsg, setSnackbarMsg] = useState("")
   const [backupSelectedIds, setBackupSelectedIds] = useState<string[]>([])
   const [syncStatus, setSyncStatus] = useState("")
@@ -146,10 +142,6 @@ export default function OptionsPage() {
     sectionId: string
     cardCount: number
     subSectionCount: number
-  } | null>(null)
-  const [moveToSectionState, setMoveToSectionState] = useState<{
-    itemId?: string
-    multi: boolean
   } | null>(null)
   const [mergeState, setMergeState] = useState<Item[] | null>(null)
 
@@ -860,43 +852,6 @@ export default function OptionsPage() {
     [activeProjectId, allItems, refreshAllData, projects]
   )
 
-  const onBatchMoveCards = useCallback(
-    async (itemIds: string[], targetSectionId: string | null) => {
-      if (itemIds.length === 0) return
-      await batchUpdateItems(
-        itemIds.map((id) => ({ id, sectionId: targetSectionId ?? undefined }))
-      )
-      await refreshAllData()
-    },
-    [refreshAllData]
-  )
-
-  const onMoveCardToSection = useCallback((itemId: string) => {
-    setMoveToSectionState({ itemId, multi: false })
-  }, [])
-
-  const onBatchMoveToSection = useCallback(() => {
-    if (selectedIds.length === 0) return
-    setMoveToSectionState({ multi: true })
-  }, [selectedIds.length])
-
-  const confirmMoveToSection = useCallback(
-    async (targetSectionId: string | null) => {
-      if (!moveToSectionState) return
-      if (moveToSectionState.multi) {
-        await onBatchMoveCards(selectedIds, targetSectionId)
-      } else if (moveToSectionState.itemId) {
-        await onMoveCard(
-          moveToSectionState.itemId,
-          targetSectionId,
-          Number.MAX_SAFE_INTEGER
-        )
-      }
-      setMoveToSectionState(null)
-    },
-    [moveToSectionState, onBatchMoveCards, onMoveCard, selectedIds]
-  )
-
   // Load LXGW WenKai font from CDN
   useEffect(() => {
     const link = document.createElement("link")
@@ -1062,30 +1017,6 @@ export default function OptionsPage() {
     setReadingFilter((prev) => !prev)
   }
 
-  const handleMoveCard = async (targetProjectId: string) => {
-    if (!moveCardId) return
-    const card = allItems.find((i) => i.id === moveCardId)
-    if (card) {
-      const hash =
-        card.hash ||
-        (card.source
-          ? await computeItemHash(card.content, card.source.url)
-          : await computeItemHash(card.content, ""))
-      if (await isDuplicate(hash, targetProjectId, card.source?.url)) {
-        setSnackbarMsg("目标项目已存在相同内容，跳过移动")
-        setMoveCardId(null)
-        return
-      }
-      await updateItem({
-        ...card,
-        projectId: targetProjectId,
-        order: undefined
-      })
-    }
-    setMoveCardId(null)
-    onSearch()
-  }
-
   const handleCopyCard = async (targetProjectId: string) => {
     if (!copyCardId) return
     const card = allItems.find((i) => i.id === copyCardId)
@@ -1108,39 +1039,23 @@ export default function OptionsPage() {
     onSearch()
   }
 
-  const handleBatchMove = () => setBatchAction("move")
-  const handleBatchCopy = () => setBatchAction("copy")
+  const handleBatchCopy = () => setBatchCopyOpen(true)
 
-  const handleBatchMoveCopy = async (targetProjectId: string) => {
+  const handleBatchCopyCards = async (targetProjectId: string) => {
     let skipped = 0
     for (const id of selectedIds) {
       const card = allItems.find((i) => i.id === id)
       if (!card) continue
-      if (batchAction === "move") {
-        const hash =
-          card.hash ??
-          (await computeItemHash(card.content, card.source?.url ?? ""))
-        if (await isDuplicate(hash, targetProjectId, card.source?.url)) {
-          skipped++
-          continue
-        }
-        await updateItem({
-          ...card,
-          projectId: targetProjectId,
-          order: undefined
-        })
-      } else {
-        const newCard = {
-          ...card,
-          id: crypto.randomUUID(),
-          createdAt: Date.now(),
-          projectId: targetProjectId
-        }
-        const saved = await addItem(newCard)
-        if (!saved) skipped++
+      const newCard = {
+        ...card,
+        id: crypto.randomUUID(),
+        createdAt: Date.now(),
+        projectId: targetProjectId
       }
+      const saved = await addItem(newCard)
+      if (!saved) skipped++
     }
-    setBatchAction(null)
+    setBatchCopyOpen(false)
     setSelectMode(false)
     setSelectedIds([])
     if (skipped > 0) setSnackbarMsg(`跳过 ${skipped} 条重复内容`)
@@ -1166,9 +1081,7 @@ export default function OptionsPage() {
     onOpenDialog: setDialogItem,
     onToggleReview: handleToggleReview,
     onToggleRead: handleToggleRead,
-    onMoveToProject: setMoveCardId,
-    onCopyToProject: setCopyCardId,
-    onMoveToSection: onMoveCardToSection
+    onCopyToProject: setCopyCardId
   }
 
   return (
@@ -1346,7 +1259,6 @@ export default function OptionsPage() {
                       selectedIds.length > 0 &&
                       selectedIds.length === viewItems.length
                     }
-                    hasSections={Boolean(activeProject?.sections?.length)}
                     onSelectAll={() => {
                       if (selectedIds.length === viewItems.length) {
                         setSelectedIds([])
@@ -1355,8 +1267,6 @@ export default function OptionsPage() {
                       }
                     }}
                     onBatchDelete={handleBatchDelete}
-                    onBatchMove={handleBatchMove}
-                    onBatchMoveToSection={onBatchMoveToSection}
                     onBatchCopy={handleBatchCopy}
                     onBatchMerge={handleBatchMerge}
                   />
@@ -1898,15 +1808,6 @@ export default function OptionsPage() {
                 </>
               </DialogShell>
 
-              <MoveToSectionDialog
-                open={Boolean(moveToSectionState)}
-                sections={activeProject?.sections ?? []}
-                multi={moveToSectionState?.multi}
-                count={moveToSectionState?.multi ? selectedIds.length : 1}
-                onClose={() => setMoveToSectionState(null)}
-                onConfirm={confirmMoveToSection}
-              />
-
               <MergeConfirmDialog
                 open={Boolean(mergeState)}
                 items={mergeState ?? []}
@@ -1952,15 +1853,7 @@ export default function OptionsPage() {
                 </Alert>
               </Snackbar>
 
-              <MoveCopyCards
-                open={Boolean(moveCardId)}
-                title="移动到…"
-                projects={otherProjects}
-                onSelect={handleMoveCard}
-                onClose={() => setMoveCardId(null)}
-              />
-
-              <MoveCopyCards
+              <CopyCardsDialog
                 open={Boolean(copyCardId)}
                 title="复制到…"
                 projects={otherProjects}
@@ -1968,12 +1861,12 @@ export default function OptionsPage() {
                 onClose={() => setCopyCardId(null)}
               />
 
-              <MoveCopyCards
-                open={Boolean(batchAction)}
-                title={batchAction === "move" ? "批量移动到…" : "批量复制到…"}
+              <CopyCardsDialog
+                open={batchCopyOpen}
+                title="批量复制到…"
                 projects={otherProjects}
-                onSelect={handleBatchMoveCopy}
-                onClose={() => setBatchAction(null)}
+                onSelect={handleBatchCopyCards}
+                onClose={() => setBatchCopyOpen(false)}
               />
               <input
                 ref={backupFileInputRef}
