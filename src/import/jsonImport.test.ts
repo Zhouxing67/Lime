@@ -24,7 +24,10 @@ describe("jsonImport", () => {
       read: true,
       order: 2,
       updatedAt: 1700000000000,
-      images: ["https://img.example.com/a.png", "https://img.example.com/b.png"],
+      images: [
+        "https://img.example.com/a.png",
+        "https://img.example.com/b.png"
+      ],
       source: {
         title: "Page",
         url: "https://example.com/p",
@@ -35,7 +38,14 @@ describe("jsonImport", () => {
     }
     const data = {
       items: [item],
-      projects: [{ id: "p1", name: "导入项目", createdAt: 1690000000000, lastOpened: 1695000000000 }]
+      projects: [
+        {
+          id: "p1",
+          name: "导入项目",
+          createdAt: 1690000000000,
+          lastOpened: 1695000000000
+        }
+      ]
     }
     const file = await packZip(data)
 
@@ -54,7 +64,10 @@ describe("jsonImport", () => {
     expect(imported.read).toBe(true)
     expect(imported.order).toBe(2)
     expect(imported.updatedAt).toBe(1700000000000)
-    expect(imported.images).toEqual(["https://img.example.com/a.png", "https://img.example.com/b.png"])
+    expect(imported.images).toEqual([
+      "https://img.example.com/a.png",
+      "https://img.example.com/b.png"
+    ])
 
     const projects = await listProjects()
     expect(projects).toHaveLength(1)
@@ -63,8 +76,20 @@ describe("jsonImport", () => {
 
   it("preserves project.sections and item.sectionId on import", async () => {
     const sections = [
-      { id: "s1", parentId: null, title: "第一章", order: 0, level: 1 as const },
-      { id: "s2", parentId: "s1", title: "1.1 小节", order: 0, level: 2 as const },
+      {
+        id: "s1",
+        parentId: null,
+        title: "第一章",
+        order: 0,
+        level: 1 as const
+      },
+      {
+        id: "s2",
+        parentId: "s1",
+        title: "1.1 小节",
+        order: 0,
+        level: 2 as const
+      },
       { id: "s3", parentId: null, title: "第二章", order: 1, level: 1 as const }
     ]
     const item = {
@@ -80,7 +105,9 @@ describe("jsonImport", () => {
     }
     const data = {
       items: [item],
-      projects: [{ id: "p2", name: "章节项目", createdAt: 1690000000000, sections }]
+      projects: [
+        { id: "p2", name: "章节项目", createdAt: 1690000000000, sections }
+      ]
     }
     const file = await packZip(data)
 
@@ -95,7 +122,11 @@ describe("jsonImport", () => {
     const projects = await listProjects()
     expect(projects).toHaveLength(1)
     expect(projects[0].sections).toBeDefined()
-    expect(projects[0].sections?.map((s) => s.id).sort()).toEqual(["s1", "s2", "s3"])
+    expect(projects[0].sections?.map((s) => s.id).sort()).toEqual([
+      "s1",
+      "s2",
+      "s3"
+    ])
     const s2 = projects[0].sections?.find((s) => s.id === "s2")
     expect(s2?.parentId).toBe("s1")
     expect(s2?.level).toBe(2)

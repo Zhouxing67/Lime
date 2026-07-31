@@ -163,26 +163,27 @@ export default function ItemDialog({
           px: 3
         }}>
         <Stack direction="row" spacing={0.5} alignItems="center">
-          {!readOnly && (editing ? (
-            <>
-              <Tooltip title="保存">
-                <IconButton size="small" onClick={handleSave} color="primary">
-                  <CheckRoundedIcon fontSize="small" />
+          {!readOnly &&
+            (editing ? (
+              <>
+                <Tooltip title="保存">
+                  <IconButton size="small" onClick={handleSave} color="primary">
+                    <CheckRoundedIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="取消">
+                  <IconButton size="small" onClick={handleCancel}>
+                    <CloseRoundedIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </>
+            ) : (
+              <Tooltip title="编辑">
+                <IconButton size="small" onClick={() => setEditing(true)}>
+                  <EditRoundedIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
-              <Tooltip title="取消">
-                <IconButton size="small" onClick={handleCancel}>
-                  <CloseRoundedIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            </>
-          ) : (
-            <Tooltip title="编辑">
-              <IconButton size="small" onClick={() => setEditing(true)}>
-                <EditRoundedIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          ))}
+            ))}
           <Tooltip title="复制引用">
             <IconButton
               size="small"
@@ -191,7 +192,9 @@ export default function ItemDialog({
                 const src = item.source?.url
                   ? `\n\n— ${item.source.title || prettyUrl(item.source.url)}`
                   : ""
-                navigator.clipboard.writeText(`${header}> ${item.content}${src}`)
+                navigator.clipboard.writeText(
+                  `${header}> ${item.content}${src}`
+                )
               }}>
               <ContentCopyRoundedIcon fontSize="small" />
             </IconButton>
@@ -230,7 +233,14 @@ export default function ItemDialog({
             }
           }
         }}>
-        <Box key={item.id} sx={{ flex: 1, display: "flex", flexDirection: "column", animation: animDir ? "none" : "dialogSlideIn 0.25s ease-out" }}>
+        <Box
+          key={item.id}
+          sx={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            animation: animDir ? "none" : "dialogSlideIn 0.25s ease-out"
+          }}>
           {editing ? (
             <DialogEditMode
               draftTitle={draftTitle}
@@ -261,7 +271,6 @@ export default function ItemDialog({
           )}
         </Box>
       </DialogContent>
-
-      </Dialog>
+    </Dialog>
   )
 }

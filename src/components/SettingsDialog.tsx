@@ -146,7 +146,9 @@ export default function SettingsDialog({
             </Typography>
           )}
 
-          <Typography variant="caption" sx={{ color: "text.disabled", display: "block" }}>
+          <Typography
+            variant="caption"
+            sx={{ color: "text.disabled", display: "block" }}>
             上次同步：{lastSync}
           </Typography>
 
@@ -164,7 +166,13 @@ export default function SettingsDialog({
             上传/下载操作请在侧栏「备份与同步」中进行。
           </Typography>
 
-          <Box sx={{ mt: 2, pt: 2, borderTop: "1px solid", borderColor: "divider" }}>
+          <Box
+            sx={{
+              mt: 2,
+              pt: 2,
+              borderTop: "1px solid",
+              borderColor: "divider"
+            }}>
             <Typography
               variant="subtitle2"
               sx={{ mb: 1.5, color: "text.secondary", fontSize: "0.85rem" }}>
@@ -196,9 +204,7 @@ export default function SettingsDialog({
                       sx={{
                         fontSize: "0.6rem",
                         color:
-                          preset === name
-                            ? "primary.main"
-                            : "text.disabled",
+                          preset === name ? "primary.main" : "text.disabled",
                         fontWeight: preset === name ? 600 : 400
                       }}>
                       {PRESET_LABELS[name]}

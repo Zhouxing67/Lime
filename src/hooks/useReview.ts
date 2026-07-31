@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
-import { getAllReviews, getDueReviews, getReviewStatsByStore, searchItems as dbSearch } from "../database"
+import {
+  searchItems as dbSearch,
+  getAllReviews,
+  getDueReviews,
+  getReviewStatsByStore
+} from "../database"
 import type { Item } from "../types"
-import { getRecentItems as getRecentItemsBySrs } from "./useSrs"
-import { dayKey } from "./useSrs"
+import { dayKey, getRecentItems as getRecentItemsBySrs } from "./useSrs"
 import type { ReviewStats } from "./useSrs"
 
 function pairWithItems(
@@ -43,10 +47,16 @@ export function useReview(options: UseReviewOptions) {
 
   const [dueCount, setDueCount] = useState(0)
   const [reviewStats, setReviewStats] = useState<ReviewStats>({
-    masteredCount: 0, dueCount: 0, activeCount: 0
+    masteredCount: 0,
+    dueCount: 0,
+    activeCount: 0
   })
-  const [recentItems, setRecentItems] = useState<{ date: string; items: Item[] }[]>([])
-  const [todayRatings, setTodayRatings] = useState<[number, number, number, number]>([0, 0, 0, 0])
+  const [recentItems, setRecentItems] = useState<
+    { date: string; items: Item[] }[]
+  >([])
+  const [todayRatings, setTodayRatings] = useState<
+    [number, number, number, number]
+  >([0, 0, 0, 0])
   const [streakDays, setStreakDays] = useState(0)
 
   const allItemsRef = useRef(allItemsUnfiltered)
@@ -55,7 +65,11 @@ export function useReview(options: UseReviewOptions) {
   useEffect(() => {
     getReviewStatsByStore().then((s) => {
       setDueCount(s.dueCount)
-      setReviewStats({ masteredCount: s.masteredCount, dueCount: s.dueCount, activeCount: s.activeCount })
+      setReviewStats({
+        masteredCount: s.masteredCount,
+        dueCount: s.dueCount,
+        activeCount: s.activeCount
+      })
     })
     getRecentItemsBySrs(allItemsUnfiltered).then(setRecentItems)
     getAllReviews().then((reviews) => {
@@ -91,13 +105,21 @@ export function useReview(options: UseReviewOptions) {
   // allItemsUnfiltered NOT in deps to prevent refreshAllData from racing with rating timeout
   useEffect(() => {
     if (sidebarTab !== "review" || reviewDateFilter) {
-      console.debug("[review:load] guard blocked", { sidebarTab, reviewDateFilter })
+      console.debug("[review:load] guard blocked", {
+        sidebarTab,
+        reviewDateFilter
+      })
       return
     }
-    console.debug("[review:load] guard passed, loading...", { allItemsUnfiltered: allItemsRef.current.length })
+    console.debug("[review:load] guard passed, loading...", {
+      allItemsUnfiltered: allItemsRef.current.length
+    })
     getDueReviews().then((due) => {
       const items = pairWithItems(due, allItemsRef.current)
-      console.debug("[review:load] result", { dueCount: due.length, pairedCount: items.length })
+      console.debug("[review:load] result", {
+        dueCount: due.length,
+        pairedCount: items.length
+      })
       setReviewItems(items)
     })
   }, [sidebarTab, reviewDateFilter]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -111,7 +133,12 @@ export function useReview(options: UseReviewOptions) {
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
       const label = i === 0 ? "（今天）" : i === 1 ? "（昨天）" : "（前天）"
       const group = recentItems.find((g) => g.date === key)
-      if (group) result.push({ key, label: `${d.getMonth() + 1}月${d.getDate()}日${label}`, count: group.items.length })
+      if (group)
+        result.push({
+          key,
+          label: `${d.getMonth() + 1}月${d.getDate()}日${label}`,
+          count: group.items.length
+        })
     }
     return result
   }, [recentItems])
@@ -136,11 +163,14 @@ export function useReview(options: UseReviewOptions) {
     await onSearch()
   }, [onSearch, setSidebarTab, setReviewItems, setReviewDateFilter])
 
-  const handleReviewDateClick = useCallback((dateKey: string | null) => {
-    if (dateKey) setReviewItems([])
-    setReviewDateFilter(dateKey)
-    if (dateKey) setSidebarTab("review")
-  }, [setSidebarTab, setReviewDateFilter, setReviewItems])
+  const handleReviewDateClick = useCallback(
+    (dateKey: string | null) => {
+      if (dateKey) setReviewItems([])
+      setReviewDateFilter(dateKey)
+      if (dateKey) setSidebarTab("review")
+    },
+    [setSidebarTab, setReviewDateFilter, setReviewItems]
+  )
 
   return {
     dueCount,

@@ -11,7 +11,10 @@ export interface ImportResult {
 
 const VALID_TYPES: ItemType[] = ["text", "image", "link"]
 
-function validateItem(raw: unknown, index: number): { item: Item } | { error: string } {
+function validateItem(
+  raw: unknown,
+  index: number
+): { item: Item } | { error: string } {
   if (!raw || typeof raw !== "object") {
     return { error: "条目不是有效对象" }
   }
@@ -35,7 +38,10 @@ function validateItem(raw: unknown, index: number): { item: Item } | { error: st
     return { error: "source.url 缺失或为空" }
   }
 
-  const id = typeof obj.id === "string" && obj.id.length > 0 ? obj.id : crypto.randomUUID()
+  const id =
+    typeof obj.id === "string" && obj.id.length > 0
+      ? obj.id
+      : crypto.randomUUID()
 
   const createdAt =
     typeof obj.createdAt === "number" && obj.createdAt > 0
@@ -101,9 +107,15 @@ function validateProject(raw: unknown): Project | null {
   const obj = raw as Record<string, unknown>
   if (typeof obj.name !== "string" || obj.name.length === 0) return null
   const project: Project = {
-    id: typeof obj.id === "string" && obj.id.length > 0 ? obj.id : crypto.randomUUID(),
+    id:
+      typeof obj.id === "string" && obj.id.length > 0
+        ? obj.id
+        : crypto.randomUUID(),
     name: obj.name,
-    createdAt: typeof obj.createdAt === "number" && obj.createdAt > 0 ? obj.createdAt : Date.now(),
+    createdAt:
+      typeof obj.createdAt === "number" && obj.createdAt > 0
+        ? obj.createdAt
+        : Date.now(),
     note: typeof obj.note === "string" ? obj.note : undefined
   }
   if (typeof obj.lastOpened === "number" && obj.lastOpened > 0) {
@@ -144,19 +156,28 @@ export async function importFromZip(
   try {
     zip = await JSZip.loadAsync(file)
   } catch {
-    return { ...result, errors: [{ index: -1, reason: "无法解压 ZIP 文件，文件可能已损坏" }] }
+    return {
+      ...result,
+      errors: [{ index: -1, reason: "无法解压 ZIP 文件，文件可能已损坏" }]
+    }
   }
 
   const jsonFile = zip.file("export.json")
   if (!jsonFile) {
-    return { ...result, errors: [{ index: -1, reason: "ZIP 中未找到 export.json" }] }
+    return {
+      ...result,
+      errors: [{ index: -1, reason: "ZIP 中未找到 export.json" }]
+    }
   }
 
   let rawJson: string
   try {
     rawJson = await jsonFile.async("string")
   } catch {
-    return { ...result, errors: [{ index: -1, reason: "读取 export.json 失败" }] }
+    return {
+      ...result,
+      errors: [{ index: -1, reason: "读取 export.json 失败" }]
+    }
   }
 
   let rawArray: unknown[]
@@ -177,13 +198,21 @@ export async function importFromZip(
         }
       }
       if (Array.isArray(obj.projects)) {
-        importedProjects = obj.projects.map(validateProject).filter((p): p is Project => p !== null)
+        importedProjects = obj.projects
+          .map(validateProject)
+          .filter((p): p is Project => p !== null)
       }
     } else {
-      return { ...result, errors: [{ index: -1, reason: "export.json 格式无效" }] }
+      return {
+        ...result,
+        errors: [{ index: -1, reason: "export.json 格式无效" }]
+      }
     }
   } catch {
-    return { ...result, errors: [{ index: -1, reason: "export.json JSON 解析失败" }] }
+    return {
+      ...result,
+      errors: [{ index: -1, reason: "export.json JSON 解析失败" }]
+    }
   }
 
   // ---- project id remapping ----

@@ -69,7 +69,15 @@ export default function CardGrid({
       `}</style>
       <Box sx={{ display: "flex", gap: 1.5, overflow: "hidden", minWidth: 0 }}>
         {columns.map((col, ci) => (
-          <Box key={ci} sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1.5 }}>
+          <Box
+            key={ci}
+            sx={{
+              flex: 1,
+              minWidth: 0,
+              display: "flex",
+              flexDirection: "column",
+              gap: 1.5
+            }}>
             {col.map((it, idx) => {
               const globalIdx = idx * cols + ci
               return (
@@ -78,8 +86,12 @@ export default function CardGrid({
                   className="masonry-item"
                   sx={{ position: "relative", breakInside: "avoid" }}
                   style={{ animationDelay: `${globalIdx * 40}ms` }}
-                  onDragOver={(e) => { if (draggable && onCardDragOver) onCardDragOver(e, it.id) }}
-                  onDrop={(e) => { if (draggable && onCardDrop) onCardDrop(e, it.id) }}>
+                  onDragOver={(e) => {
+                    if (draggable && onCardDragOver) onCardDragOver(e, it.id)
+                  }}
+                  onDrop={(e) => {
+                    if (draggable && onCardDrop) onCardDrop(e, it.id)
+                  }}>
                   {selectMode && (
                     <Box
                       sx={{

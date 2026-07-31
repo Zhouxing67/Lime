@@ -1,9 +1,9 @@
+import AddRoundedIcon from "@mui/icons-material/AddRounded"
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded"
+import DoneAllRoundedIcon from "@mui/icons-material/DoneAllRounded"
 import InboxRoundedIcon from "@mui/icons-material/InboxRounded"
 import NoteAddRoundedIcon from "@mui/icons-material/NoteAddRounded"
 import SearchOffRoundedIcon from "@mui/icons-material/SearchOffRounded"
-import AddRoundedIcon from "@mui/icons-material/AddRounded"
-import DoneAllRoundedIcon from "@mui/icons-material/DoneAllRounded"
 import {
   Alert,
   Box,
@@ -24,7 +24,7 @@ import {
   Typography,
   useMediaQuery
 } from "@mui/material"
-import { ThemeProvider, alpha } from "@mui/material/styles"
+import { ThemeProvider } from "@mui/material/styles"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import AppHeader from "./components/AppHeader"
@@ -38,19 +38,14 @@ import EmptyState from "./components/EmptyState"
 import FilterChips from "./components/FilterChips"
 import FooterBar from "./components/FooterBar"
 import ItemDialog from "./components/ItemDialog"
-import MoveCopyCards from "./components/MoveCopyCards"
 import MergeConfirmDialog from "./components/MergeConfirmDialog"
+import MoveCopyCards from "./components/MoveCopyCards"
 import MoveToSectionDialog from "./components/MoveToSectionDialog"
 import NewCardDialog from "./components/NewCardDialog"
 import NewProjectDialog from "./components/NewProjectDialog"
 import ReviewSession from "./components/ReviewSession"
 import SettingsDialog from "./components/SettingsDialog"
 import SidebarFilters from "./components/SidebarFilters"
-import { useBackupSync } from "./hooks/useBackupSync"
-import { useNewCard } from "./hooks/useNewCard"
-import { useProjects } from "./hooks/useProjects"
-import { useReview } from "./hooks/useReview"
-import { dayKey, rateSrs } from "./hooks/useSrs"
 import {
   addItem,
   addReview,
@@ -66,11 +61,16 @@ import {
   updateItem,
   updateReviewSrs
 } from "./database"
+import { useBackupSync } from "./hooks/useBackupSync"
+import { useNewCard } from "./hooks/useNewCard"
+import { useProjects } from "./hooks/useProjects"
+import { useReview } from "./hooks/useReview"
+import { dayKey, rateSrs } from "./hooks/useSrs"
 import { importFromZip } from "./import"
 import { createAppTheme } from "./theme"
 import type { Item, PresetName, SearchQuery, SrsData } from "./types"
-import { computeItemHash } from "./utils"
 import { sendMessage } from "./types/messages"
+import { computeItemHash } from "./utils"
 
 const MIN_DRAWER_WIDTH = 200
 const MAX_DRAWER_WIDTH = 500
@@ -92,14 +92,19 @@ export default function OptionsPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [preset, setPreset] = useState<PresetName>("classic")
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [sidebarTab, setSidebarTab] = useState<"projects" | "review" | "backup">("projects")
+  const [sidebarTab, setSidebarTab] = useState<
+    "projects" | "review" | "backup"
+  >("projects")
   const [reviewItems, setReviewItems] = useState<Item[]>([])
   const [reviewDateFilter, setReviewDateFilter] = useState<string | null>(null)
   const [ratingFilter, setRatingFilter] = useState<1 | 2 | 3 | 4 | null>(null)
   const [allItemsUnfiltered, setAllItemsUnfiltered] = useState<Item[]>([])
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
   const [readingFilter, setReadingFilter] = useState(false)
-  const [dateRange, setDateRange] = useState<{ from?: number; to?: number } | null>(null)
+  const [dateRange, setDateRange] = useState<{
+    from?: number
+    to?: number
+  } | null>(null)
   const loadMoreRef = useRef<HTMLDivElement>(null)
   const [moveCardId, setMoveCardId] = useState<string | null>(null)
   const [copyCardId, setCopyCardId] = useState<string | null>(null)
@@ -108,19 +113,34 @@ export default function OptionsPage() {
   const [backupSelectedIds, setBackupSelectedIds] = useState<string[]>([])
   const [syncStatus, setSyncStatus] = useState("")
   const [reviewItemIds, setReviewItemIds] = useState<Set<string>>(new Set())
-  const [reviewSrsMap, setReviewSrsMap] = useState<Map<string, SrsData>>(new Map())
-  const [reviewTitlePending, setReviewTitlePending] = useState<string | null>(null)
+  const [reviewSrsMap, setReviewSrsMap] = useState<Map<string, SrsData>>(
+    new Map()
+  )
+  const [reviewTitlePending, setReviewTitlePending] = useState<string | null>(
+    null
+  )
   const [reviewTitleDraft, setReviewTitleDraft] = useState("")
   // Review session state (owned by options.tsx, not ReviewSession)
   const [reviewIndex, setReviewIndex] = useState(0)
   const [reviewFlipped, setReviewFlipped] = useState(false)
   const [reviewCompleted, setReviewCompleted] = useState(false)
-  const [sessionRatings, setSessionRatings] = useState<Map<string, number>>(new Map())
+  const [sessionRatings, setSessionRatings] = useState<Map<string, number>>(
+    new Map()
+  )
   const [animating, setAnimating] = useState(false)
   const [sessionTotal, setSessionTotal] = useState(0)
-  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set())
-  const [pendingSectionDelete, setPendingSectionDelete] = useState<{ sectionId: string; cardCount: number; subSectionCount: number } | null>(null)
-  const [moveToSectionState, setMoveToSectionState] = useState<{ itemId?: string; multi: boolean } | null>(null)
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(
+    new Set()
+  )
+  const [pendingSectionDelete, setPendingSectionDelete] = useState<{
+    sectionId: string
+    cardCount: number
+    subSectionCount: number
+  } | null>(null)
+  const [moveToSectionState, setMoveToSectionState] = useState<{
+    itemId?: string
+    multi: boolean
+  } | null>(null)
   const [mergeState, setMergeState] = useState<Item[] | null>(null)
 
   console.debug("[review:state]", {
@@ -134,11 +154,15 @@ export default function OptionsPage() {
   })
   const [slideDir, setSlideDir] = useState<1 | -1>(1)
 
-  const reviewProgress = useMemo(() => ({
-    current: Math.min(reviewIndex + 1, reviewItems.length),
-    total: reviewItems.length,
-    sessionMastered: Array.from(sessionRatings.values()).filter((r) => r >= 3).length
-  }), [reviewIndex, reviewItems.length, sessionRatings])
+  const reviewProgress = useMemo(
+    () => ({
+      current: Math.min(reviewIndex + 1, reviewItems.length),
+      total: reviewItems.length,
+      sessionMastered: Array.from(sessionRatings.values()).filter((r) => r >= 3)
+        .length
+    }),
+    [reviewIndex, reviewItems.length, sessionRatings]
+  )
 
   const ITEMS_PER_PAGE = 20
 
@@ -169,7 +193,9 @@ export default function OptionsPage() {
         to: dateRange?.to
       }
       const list = await searchItems(q)
-      list.sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.createdAt - b.createdAt)
+      list.sort(
+        (a, b) => (a.order ?? 0) - (b.order ?? 0) || a.createdAt - b.createdAt
+      )
       setAllItems(list)
       setDisplayedItems(list.slice(0, ITEMS_PER_PAGE))
       setHasMore(list.length > ITEMS_PER_PAGE)
@@ -226,8 +252,10 @@ export default function OptionsPage() {
     onSearch,
     sidebarTab,
     setSidebarTab,
-    reviewItems, setReviewItems,
-    reviewDateFilter, setReviewDateFilter
+    reviewItems,
+    setReviewItems,
+    reviewDateFilter,
+    setReviewDateFilter
   })
 
   const cardFirstRating = useMemo(() => {
@@ -235,7 +263,9 @@ export default function OptionsPage() {
     if (!reviewDateFilter) return m
     for (const [itemId, srs] of reviewSrsMap) {
       if (!srs.reviewHistory) continue
-      const entry = srs.reviewHistory.find((e) => dayKey(e.date) === reviewDateFilter)
+      const entry = srs.reviewHistory.find(
+        (e) => dayKey(e.date) === reviewDateFilter
+      )
       if (entry) m.set(itemId, entry.rating)
     }
     return m
@@ -243,29 +273,41 @@ export default function OptionsPage() {
 
   const filteredDateItems = useMemo(() => {
     if (!ratingFilter) return reviewDateItems
-    return reviewDateItems.filter((item) => cardFirstRating.get(item.id) === ratingFilter)
+    return reviewDateItems.filter(
+      (item) => cardFirstRating.get(item.id) === ratingFilter
+    )
   }, [reviewDateItems, ratingFilter, cardFirstRating])
 
   // Navigation within the current active list
   const handleNavigate = useCallback(
     (direction: "prev" | "next") => {
       if (!dialogItem) return
-      const list = sidebarTab === "review" && reviewDateFilter
-        ? filteredDateItems
-        : displayedItems
+      const list =
+        sidebarTab === "review" && reviewDateFilter
+          ? filteredDateItems
+          : displayedItems
       const idx = list.findIndex((i) => i.id === dialogItem.id)
       if (idx === -1) return
       const nextIdx = direction === "prev" ? idx - 1 : idx + 1
       if (nextIdx < 0 || nextIdx >= list.length) return
       setDialogItem(list[nextIdx])
     },
-    [dialogItem, displayedItems, filteredDateItems, sidebarTab, reviewDateFilter]
+    [
+      dialogItem,
+      displayedItems,
+      filteredDateItems,
+      sidebarTab,
+      reviewDateFilter
+    ]
   )
 
-  const navList = sidebarTab === "review" && reviewDateFilter
-    ? filteredDateItems
-    : displayedItems
-  const navIndex = dialogItem ? navList.findIndex((i) => i.id === dialogItem.id) : -1
+  const navList =
+    sidebarTab === "review" && reviewDateFilter
+      ? filteredDateItems
+      : displayedItems
+  const navIndex = dialogItem
+    ? navList.findIndex((i) => i.id === dialogItem.id)
+    : -1
   const hasPrev = navIndex > 0
   const hasNext = navIndex >= 0 && navIndex < navList.length - 1
 
@@ -429,7 +471,9 @@ export default function OptionsPage() {
 
     // Inherit sectionId if all same
     const firstSectionId = selectedItems[0].sectionId
-    const sameSection = selectedItems.every((i) => i.sectionId === firstSectionId)
+    const sameSection = selectedItems.every(
+      (i) => i.sectionId === firstSectionId
+    )
 
     const newItem: Item = {
       id: crypto.randomUUID(),
@@ -458,11 +502,15 @@ export default function OptionsPage() {
       }
       for (const id of ids) {
         await new Promise<void>((resolve) => {
-          const req = stores.reviews.index("itemId").openCursor(IDBKeyRange.only(id))
+          const req = stores.reviews
+            .index("itemId")
+            .openCursor(IDBKeyRange.only(id))
           req.onsuccess = () => {
             const cursor = req.result
-            if (cursor) { cursor.delete(); cursor.continue() }
-            else resolve()
+            if (cursor) {
+              cursor.delete()
+              cursor.continue()
+            } else resolve()
           }
           req.onerror = () => resolve()
         })
@@ -524,7 +572,13 @@ export default function OptionsPage() {
         id: crypto.randomUUID(),
         itemId: card.id,
         projectId: card.projectId ?? "",
-        srs: { dueDate: Date.now(), interval: 0, easeFactor: 2.5, reviewCount: 0, lastReviewDate: 0 },
+        srs: {
+          dueDate: Date.now(),
+          interval: 0,
+          easeFactor: 2.5,
+          reviewCount: 0,
+          lastReviewDate: 0
+        },
         dueDate: Date.now(),
         status: "active",
         addedAt: Date.now()
@@ -543,14 +597,25 @@ export default function OptionsPage() {
 
   const handleReviewRate = useCallback(
     async (rating: 1 | 2 | 3 | 4) => {
-      if (reviewIndex >= reviewItems.length || animating || reviewItems.length === 0) return
+      if (
+        reviewIndex >= reviewItems.length ||
+        animating ||
+        reviewItems.length === 0
+      )
+        return
       const current = reviewItems[reviewIndex]
       if (!current) return
       const currentSrs = reviewSrsMap.get(current.id)
       const newSrs = currentSrs
         ? rateSrs(currentSrs, rating)
         : rateSrs(
-            { dueDate: Date.now(), interval: 0, easeFactor: 2.5, reviewCount: 0, lastReviewDate: 0 },
+            {
+              dueDate: Date.now(),
+              interval: 0,
+              easeFactor: 2.5,
+              reviewCount: 0,
+              lastReviewDate: 0
+            },
             rating
           )
       await updateReviewSrs(current.id, newSrs)
@@ -565,7 +630,9 @@ export default function OptionsPage() {
       setTimeout(async () => {
         const due = await getDueReviews()
         const itemMap = new Map(allItemsUnfiltered.map((i) => [i.id, i]))
-        const items = due.map((r) => itemMap.get(r.itemId)).filter((i): i is Item => i !== undefined)
+        const items = due
+          .map((r) => itemMap.get(r.itemId))
+          .filter((i): i is Item => i !== undefined)
         setReviewFlipped(false)
         if (items.length === 0) {
           setReviewCompleted(true)
@@ -620,11 +687,16 @@ export default function OptionsPage() {
     setSnackbarMsg
   })
 
-  const handleImportBackupFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportBackupFile = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = e.target.files?.[0]
     if (!file) return
     try {
-      const result = await importFromZip(file, backupSelectedIds.length > 0 ? backupSelectedIds : undefined)
+      const result = await importFromZip(
+        file,
+        backupSelectedIds.length > 0 ? backupSelectedIds : undefined
+      )
       const msg = `导入完成：成功 ${result.imported} 条`
       const skipMsg = result.skipped > 0 ? `，跳过 ${result.skipped} 条` : ""
       if (result.errors.length > 0) {
@@ -659,20 +731,29 @@ export default function OptionsPage() {
     })
   }, [])
 
-  const onAddSection = useCallback((parentId: string | null) => {
-    if (!activeProjectId) return
-    handleAddSection(activeProjectId, "新章节", parentId)
-  }, [activeProjectId, handleAddSection])
+  const onAddSection = useCallback(
+    (parentId: string | null) => {
+      if (!activeProjectId) return
+      handleAddSection(activeProjectId, "新章节", parentId)
+    },
+    [activeProjectId, handleAddSection]
+  )
 
-  const onRenameSection = useCallback((parentId: string | null, sectionId: string, title: string) => {
-    if (!activeProjectId) return
-    handleRenameSection(activeProjectId, sectionId, title)
-  }, [activeProjectId, handleRenameSection])
+  const onRenameSection = useCallback(
+    (parentId: string | null, sectionId: string, title: string) => {
+      if (!activeProjectId) return
+      handleRenameSection(activeProjectId, sectionId, title)
+    },
+    [activeProjectId, handleRenameSection]
+  )
 
-  const onDeleteSectionCb = useCallback((sectionId: string, cardCount: number, subSectionCount: number) => {
-    if (!activeProjectId) return
-    setPendingSectionDelete({ sectionId, cardCount, subSectionCount })
-  }, [activeProjectId])
+  const onDeleteSectionCb = useCallback(
+    (sectionId: string, cardCount: number, subSectionCount: number) => {
+      if (!activeProjectId) return
+      setPendingSectionDelete({ sectionId, cardCount, subSectionCount })
+    },
+    [activeProjectId]
+  )
 
   const confirmDeleteSection = useCallback(async () => {
     if (!activeProjectId || !pendingSectionDelete) return
@@ -689,20 +770,35 @@ export default function OptionsPage() {
   )
 
   const onMoveCard = useCallback(
-    async (itemId: string, targetSectionId: string | null, targetOrder: number) => {
+    async (
+      itemId: string,
+      targetSectionId: string | null,
+      targetOrder: number
+    ) => {
       if (!activeProjectId) return
       const sectionItems = allItems.filter((i) =>
         targetSectionId ? i.sectionId === targetSectionId : !i.sectionId
       )
-      const sorted = sectionItems.sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.createdAt - b.createdAt)
+      const sorted = sectionItems.sort(
+        (a, b) => (a.order ?? 0) - (b.order ?? 0) || a.createdAt - b.createdAt
+      )
       const filtered = sorted.filter((i) => i.id !== itemId)
-      filtered.splice(targetOrder, 0, { ...allItems.find((i) => i.id === itemId)!, sectionId: targetSectionId ?? undefined })
-      const updates = filtered.map((item, idx) => ({ id: item.id, sectionId: targetSectionId ?? undefined, order: idx }))
+      filtered.splice(targetOrder, 0, {
+        ...allItems.find((i) => i.id === itemId)!,
+        sectionId: targetSectionId ?? undefined
+      })
+      const updates = filtered.map((item, idx) => ({
+        id: item.id,
+        sectionId: targetSectionId ?? undefined,
+        order: idx
+      }))
       await batchUpdateItems(updates)
       await refreshAllData()
       const proj = projects.find((p) => p.id === activeProjectId)
       const section = proj?.sections?.find((s) => s.id === targetSectionId)
-      setSnackbarMsg(section ? `已移动到「${section.title}」` : "已移动到未分类")
+      setSnackbarMsg(
+        section ? `已移动到「${section.title}」` : "已移动到未分类"
+      )
     },
     [activeProjectId, allItems, refreshAllData, projects]
   )
@@ -710,7 +806,9 @@ export default function OptionsPage() {
   const onBatchMoveCards = useCallback(
     async (itemIds: string[], targetSectionId: string | null) => {
       if (itemIds.length === 0) return
-      await batchUpdateItems(itemIds.map((id) => ({ id, sectionId: targetSectionId ?? undefined })))
+      await batchUpdateItems(
+        itemIds.map((id) => ({ id, sectionId: targetSectionId ?? undefined }))
+      )
       await refreshAllData()
     },
     [refreshAllData]
@@ -731,7 +829,11 @@ export default function OptionsPage() {
       if (moveToSectionState.multi) {
         await onBatchMoveCards(selectedIds, targetSectionId)
       } else if (moveToSectionState.itemId) {
-        await onMoveCard(moveToSectionState.itemId, targetSectionId, Number.MAX_SAFE_INTEGER)
+        await onMoveCard(
+          moveToSectionState.itemId,
+          targetSectionId,
+          Number.MAX_SAFE_INTEGER
+        )
       }
       setMoveToSectionState(null)
     },
@@ -742,7 +844,8 @@ export default function OptionsPage() {
   useEffect(() => {
     const link = document.createElement("link")
     link.rel = "stylesheet"
-    link.href = "https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.1.0/style.css"
+    link.href =
+      "https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.1.0/style.css"
     document.head.appendChild(link)
     return () => link.remove()
   }, [])
@@ -784,13 +887,21 @@ export default function OptionsPage() {
     if (!moveCardId) return
     const card = allItems.find((i) => i.id === moveCardId)
     if (card) {
-      const hash = card.hash || (card.source ? await computeItemHash(card.content, card.source.url) : await computeItemHash(card.content, ""))
+      const hash =
+        card.hash ||
+        (card.source
+          ? await computeItemHash(card.content, card.source.url)
+          : await computeItemHash(card.content, ""))
       if (await isDuplicate(hash, targetProjectId, card.source?.url)) {
         setSnackbarMsg("目标项目已存在相同内容，跳过移动")
         setMoveCardId(null)
         return
       }
-      await updateItem({ ...card, projectId: targetProjectId, order: undefined })
+      await updateItem({
+        ...card,
+        projectId: targetProjectId,
+        order: undefined
+      })
     }
     setMoveCardId(null)
     onSearch()
@@ -827,12 +938,18 @@ export default function OptionsPage() {
       const card = allItems.find((i) => i.id === id)
       if (!card) continue
       if (batchAction === "move") {
-      const hash = card.hash ?? await computeItemHash(card.content, card.source?.url ?? "")
+        const hash =
+          card.hash ??
+          (await computeItemHash(card.content, card.source?.url ?? ""))
         if (await isDuplicate(hash, targetProjectId, card.source?.url)) {
           skipped++
           continue
         }
-        await updateItem({ ...card, projectId: targetProjectId, order: undefined })
+        await updateItem({
+          ...card,
+          projectId: targetProjectId,
+          order: undefined
+        })
       } else {
         const newCard = {
           ...card,
@@ -882,7 +999,12 @@ export default function OptionsPage() {
         }
         ::-webkit-scrollbar-thumb:hover { background: #a0a0a0; }
       `}</style>
-      <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
+      <Box
+        sx={{
+          display: "flex",
+          minHeight: "100vh",
+          bgcolor: "background.default"
+        }}>
         <SidebarFilters
           open={drawerOpen}
           width={drawerWidth}
@@ -936,11 +1058,11 @@ export default function OptionsPage() {
             flexDirection: "column",
             overflow: "hidden",
             height: "100vh",
-            borderLeft: "2px solid",
-            borderColor: "primary.main"
+            borderLeft: "1px solid",
+            borderColor: "divider"
           }}>
           <Box sx={{ flexShrink: 0 }}>
-          <style>{`
+            <style>{`
             @keyframes emptyFloat {
               0%, 100% { transform: translateY(0); }
               50% { transform: translateY(-8px); }
@@ -950,12 +1072,14 @@ export default function OptionsPage() {
               animation: emptyFloat 4s ease-in-out infinite;
             }
           `}</style>
-          <AppHeader
+            <AppHeader
               drawerOpen={drawerOpen}
               headerHeight={headerHeight}
               onToggleDrawer={handleToggleDrawer}
               onSettingsClick={() => setSettingsOpen(true)}
-              reviewProgress={sidebarTab === "review" ? reviewProgress : undefined}
+              reviewProgress={
+                sidebarTab === "review" ? reviewProgress : undefined
+              }
               reviewStats={sidebarTab === "review" ? reviewStats : undefined}
               activeProjectName={activeProject?.name}>
               {sidebarTab === "review" ? (
@@ -963,73 +1087,110 @@ export default function OptionsPage() {
                   <IconButton
                     size="small"
                     onClick={handleExitReview}
-                    sx={{ color: "text.secondary", "&:hover": { color: "error.main" }, "&.Mui-focusVisible": { outline: "none" } }}>
+                    sx={{
+                      color: "text.secondary",
+                      "&:hover": { color: "error.main" },
+                      "&.Mui-focusVisible": { outline: "none" }
+                    }}>
                     <CloseRoundedIcon sx={{ fontSize: 20 }} />
                   </IconButton>
                 </Tooltip>
-              ) : activeProject && (
-                <>
-                  <Tooltip title="新建卡片">
-                    <IconButton
-                      size="small"
-                      onClick={handleNewCard}
-                      sx={{ color: "text.secondary", "&:hover": { color: "primary.main" }, "&.Mui-focusVisible": { outline: "none" } }}>
-                      <AddRoundedIcon sx={{ fontSize: 20 }} />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="新建章节（项目根下新增一级章节）">
-                    <IconButton
-                      size="small"
-                      onClick={() => onAddSection(null)}
-                      sx={{ color: "text.secondary", "&:hover": { color: "primary.main" }, "&.Mui-focusVisible": { outline: "none" } }}>
-                      <NoteAddRoundedIcon sx={{ fontSize: 20 }} />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title={selectMode ? "取消选择" : "选择卡片"}>
-                    <IconButton
-                      size="small"
-                      onClick={onToggleSelectMode}
-                      sx={{ color: selectMode ? "error.main" : "text.secondary", "&:hover": { color: "error.main" }, "&.Mui-focusVisible": { outline: "none" } }}>
-                      <DoneAllRoundedIcon sx={{ fontSize: 20 }} />
-                    </IconButton>
-                  </Tooltip>
-                  <DateRangeFilter value={dateRange} onChange={setDateRange} />
-                </>
+              ) : (
+                activeProject && (
+                  <>
+                    <Tooltip title="新建卡片">
+                      <IconButton
+                        size="small"
+                        onClick={handleNewCard}
+                        sx={{
+                          color: "text.secondary",
+                          "&:hover": { color: "primary.main" },
+                          "&.Mui-focusVisible": { outline: "none" }
+                        }}>
+                        <AddRoundedIcon sx={{ fontSize: 20 }} />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="新建章节（项目根下新增一级章节）">
+                      <IconButton
+                        size="small"
+                        onClick={() => onAddSection(null)}
+                        sx={{
+                          color: "text.secondary",
+                          "&:hover": { color: "primary.main" },
+                          "&.Mui-focusVisible": { outline: "none" }
+                        }}>
+                        <NoteAddRoundedIcon sx={{ fontSize: 20 }} />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title={selectMode ? "取消选择" : "选择卡片"}>
+                      <IconButton
+                        size="small"
+                        onClick={onToggleSelectMode}
+                        sx={{
+                          color: selectMode ? "error.main" : "text.secondary",
+                          "&:hover": { color: "error.main" },
+                          "&.Mui-focusVisible": { outline: "none" }
+                        }}>
+                        <DoneAllRoundedIcon sx={{ fontSize: 20 }} />
+                      </IconButton>
+                    </Tooltip>
+                    <DateRangeFilter
+                      value={dateRange}
+                      onChange={setDateRange}
+                    />
+                  </>
+                )
               )}
             </AppHeader>
 
             {sidebarTab !== "review" && (
-            <FilterChips
-              keyword={keyword}
-              onKeywordChange={setKeyword}>
-              {selectMode && (
-                <BatchToolbar
-                  selectedIds={selectedIds}
-                  allSelected={selectedIds.length > 0 && selectedIds.length === viewItems.length}
-                  hasSections={Boolean(activeProject?.sections?.length)}
-                  onSelectAll={() => {
-                    if (selectedIds.length === viewItems.length) {
-                      setSelectedIds([])
-                    } else {
-                      setSelectedIds(viewItems.map((i) => i.id))
+              <FilterChips keyword={keyword} onKeywordChange={setKeyword}>
+                {selectMode && (
+                  <BatchToolbar
+                    selectedIds={selectedIds}
+                    allSelected={
+                      selectedIds.length > 0 &&
+                      selectedIds.length === viewItems.length
                     }
-                  }}
-                  onBatchDelete={handleBatchDelete}
-                  onBatchMove={handleBatchMove}
-                  onBatchMoveToSection={onBatchMoveToSection}
-                  onBatchCopy={handleBatchCopy}
-                  onBatchMerge={handleBatchMerge}
-                />
-              )}
-            </FilterChips>
+                    hasSections={Boolean(activeProject?.sections?.length)}
+                    onSelectAll={() => {
+                      if (selectedIds.length === viewItems.length) {
+                        setSelectedIds([])
+                      } else {
+                        setSelectedIds(viewItems.map((i) => i.id))
+                      }
+                    }}
+                    onBatchDelete={handleBatchDelete}
+                    onBatchMove={handleBatchMove}
+                    onBatchMoveToSection={onBatchMoveToSection}
+                    onBatchCopy={handleBatchCopy}
+                    onBatchMerge={handleBatchMerge}
+                  />
+                )}
+              </FilterChips>
             )}
           </Box>
 
           {sidebarTab === "review" && reviewDateFilter && (
-            <Box sx={(theme: any) => ({ bgcolor: alpha(theme.palette.primary.main, 0.03), py: 1, px: 2 })}>
-              <Stack direction="row" alignItems="center" spacing={0.5} flexWrap="wrap">
-                <Typography variant="body2" sx={{ color: "text.secondary", mr: 1 }}>
-                  回顾：{recentDates.find((d) => d.key === reviewDateFilter)?.label ?? reviewDateFilter}
+            <Box
+              sx={{
+                bgcolor: "background.paper",
+                py: 1,
+                px: 2,
+                borderBottom: "1px solid",
+                borderColor: "divider"
+              }}>
+              <Stack
+                direction="row"
+                alignItems="center"
+                spacing={0.5}
+                flexWrap="wrap">
+                <Typography
+                  variant="body2"
+                  sx={{ color: "text.secondary", mr: 1 }}>
+                  回顾：
+                  {recentDates.find((d) => d.key === reviewDateFilter)?.label ??
+                    reviewDateFilter}
                 </Typography>
                 {([null, 1, 2, 3, 4] as const).map((r) => {
                   const active = ratingFilter === r
@@ -1042,380 +1203,493 @@ export default function OptionsPage() {
                       <Box
                         onClick={() => setRatingFilter(active ? null : r)}
                         sx={{
-                          width: 14, height: 14, borderRadius: "50%", cursor: "pointer", flexShrink: 0,
+                          width: 14,
+                          height: 14,
+                          borderRadius: "50%",
+                          cursor: "pointer",
+                          flexShrink: 0,
                           bgcolor: active ? color : "transparent",
                           border: "2px solid",
                           borderColor: active ? color : "divider",
                           transition: "all 0.15s",
-                          "&:hover": { borderColor: color, bgcolor: active ? color : `${color}22` }
+                          "&:hover": {
+                            borderColor: color,
+                            bgcolor: active ? color : `${color}22`
+                          }
                         }}
                       />
                     </Tooltip>
                   )
                 })}
                 <Box sx={{ flex: 1 }} />
-                <Button size="small" onClick={() => { setReviewDateFilter(null); setRatingFilter(null) }} sx={{ borderRadius: 1 }}>
+                <Button
+                  size="small"
+                  onClick={() => {
+                    setReviewDateFilter(null)
+                    setRatingFilter(null)
+                  }}
+                  sx={{ borderRadius: 1 }}>
                   退出
                 </Button>
               </Stack>
             </Box>
           )}
 
-          <Box sx={{ flex: 1, overflow: "auto", minHeight: 0, bgcolor: (t: any) => t.palette.mode === "light" ? "#fcf9f3" : undefined }}>
-          <Container sx={{ py: 4 }} maxWidth="xl">
-
-            <Fade in key={sidebarTab} timeout={250}>
-              <Box>
-                {sidebarTab === "review" && reviewDateFilter ? (
-                  <Box>
-                    {ratingFilter && filteredDateItems.length === 0 ? (
-                      <Typography variant="body2" sx={{ color: "text.secondary", textAlign: "center", py: 4 }}>
-                        该评分下无卡片
-                      </Typography>
-                    ) : (
-                    <CardGrid
-                      items={filteredDateItems}
-                      selectMode={false}
-                      readOnly
-                      onSelectItem={() => {}}
-                      onDeleteItem={() => {}}
-                      firstRating={cardFirstRating}
-                      {...sharedCardGridProps}
-                    />
-                    )}
-                  </Box>
-                ) : sidebarTab === "review" ? (
-                  <ReviewSession
-                    item={reviewItems[reviewIndex] ?? null}
-                    total={reviewCompleted ? sessionRatings.size : reviewItems.length}
-                    current={Math.min(reviewIndex + 1, reviewItems.length)}
-                    flipped={reviewFlipped}
-                    completed={reviewCompleted}
-                    animating={animating}
-                    slideDir={slideDir}
-                    ratings={sessionRatings}
-                    masteredCount={reviewStats.masteredCount}
-                    activeCount={reviewStats.activeCount}
-                    todayRatings={todayRatings}
-                    streakDays={streakDays}
-                    onFlip={handleReviewFlip}
-                    onRate={handleReviewRate}
-                    onPrev={handleReviewPrev}
-                    onNext={handleReviewNext}
-                    onExit={handleExitReview}
-                  />
-            ) : (
-              <>
-            {!readingFilter && !activeProject && (
-              <EmptyState
-                icon={<InboxRoundedIcon className="empty-icon" sx={{ fontSize: 80, mb: 3 }} />}
-                title="选择一个项目"
-                subtitle="从左侧项目面板新建或打开项目，开始整理你的灵感卡片"
-              />
-            )}
-
-            {readingFilter ? (
-              readingFilteredItems.length === 0 ? (
-                <EmptyState
-                  icon={<SearchOffRoundedIcon className="empty-icon" sx={{ fontSize: 80, mb: 3 }} />}
-                  title="阅读清单已清空"
-                  subtitle="所有链接都已标记为已读"
-                />
-              ) : (
-                <CardGrid
-                  items={readingFilteredItems}
-                  selectMode={selectMode}
-                  onSelectItem={(id) =>
-                    setSelectedIds((prev) =>
-                      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
-                    )
-                  }
-                   onDeleteItem={onDelete}
-                   {...sharedCardGridProps}
-                />
-              )
-            ) : null}
-
-            {!readingFilter && activeProject && !keyword && !dateRange && (
-              <ContentOutline
-                items={allItems}
-                sections={activeProject.sections ?? []}
-                collapsedSections={collapsedSections}
-                selectMode={selectMode}
-                selectedIds={selectedIds}
-                onToggleCollapse={onToggleSectionCollapse}
-                onAddSection={onAddSection}
-                onRenameSection={onRenameSection}
-                onDeleteSection={onDeleteSectionCb}
-                onMoveSection={onMoveSection}
-                onMoveCard={onMoveCard}
-                onBatchMoveCards={onBatchMoveCards}
-                onMoveCardToSection={onMoveCardToSection}
-                onSelectItem={(id) =>
-                  setSelectedIds((prev) =>
-                    prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
-                  )
-                }
-                onDeleteItem={onDelete}
-                {...sharedCardGridProps}
-              />
-            )}
-
-            {!readingFilter && activeProject && (keyword || dateRange) && (
-              <CardGrid
-                items={displayedItems}
-                selectMode={selectMode}
-                onSelectItem={(id) =>
-                  setSelectedIds((prev) =>
-                    prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
-                  )
-                }
-                onDeleteItem={onDelete}
-                {...sharedCardGridProps}
-              />
-            )}
-
-            {!readingFilter && activeProject && !hasMore && allItems.length === 0 && (
-              keyword ? (
-                <EmptyState
-                  icon={<SearchOffRoundedIcon className="empty-icon" sx={{ fontSize: 80, mb: 3 }} />}
-                  title="没有找到匹配的卡片"
-                  subtitle="试试其他关键词"
-                />
-              ) : dateRange ? (
-                <EmptyState
-                  icon={<SearchOffRoundedIcon className="empty-icon" sx={{ fontSize: 80, mb: 3 }} />}
-                  title="该时间段内无相关卡片"
-                  subtitle="请调整日期范围"
-                />
-              ) : (
-                <EmptyState
-                  icon={<NoteAddRoundedIcon className="empty-icon" sx={{ fontSize: 80, mb: 3 }} />}
-                  title="此项目暂无卡片"
-                  subtitle="点击顶部 ＋ 按钮新建一张卡片"
-                />
-              )
-            )}
-
-            {hasMore && activeProject && !readingFilter && (keyword || dateRange) && (
-              <Box ref={loadMoreRef} sx={{ display: "flex", justifyContent: "center", py: 4 }}>
-                <CircularProgress size={24} />
-              </Box>
-            )}
-              </>
-            )}
-              </Box>
-            </Fade>
-
-            <ItemDialog
-              item={dialogItem}
-              open={Boolean(dialogItem)}
-              readOnly={sidebarTab === "review"}
-              hasPrev={hasPrev}
-              hasNext={hasNext}
-              onClose={() => setDialogItem(null)}
-              onNavigate={handleNavigate}
-              onSave={async (updated) => {
-                // Atomically save item update and optionally remove from review
-                await tx({ items: "readwrite", reviews: "readwrite" }, async (stores) => {
-                  stores.items.put({ ...updated, updatedAt: Date.now() })
-                  if (!updated.title) {
-                    const idx = stores.reviews.index("itemId")
-                    return new Promise<void>((resolve, reject) => {
-                      const req = idx.getKey(updated.id)
-                      req.onsuccess = () => {
-                        if (req.result) stores.reviews.delete(req.result as string)
-                        resolve()
+          <Box
+            sx={{
+              flex: 1,
+              overflow: "auto",
+              minHeight: 0,
+              bgcolor: (t) => t.custom.surface2
+            }}>
+            <Container sx={{ py: 4 }} maxWidth="xl">
+              <Fade in key={sidebarTab} timeout={250}>
+                <Box>
+                  {sidebarTab === "review" && reviewDateFilter ? (
+                    <Box>
+                      {ratingFilter && filteredDateItems.length === 0 ? (
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            color: "text.secondary",
+                            textAlign: "center",
+                            py: 4
+                          }}>
+                          该评分下无卡片
+                        </Typography>
+                      ) : (
+                        <CardGrid
+                          items={filteredDateItems}
+                          selectMode={false}
+                          readOnly
+                          onSelectItem={() => {}}
+                          onDeleteItem={() => {}}
+                          firstRating={cardFirstRating}
+                          {...sharedCardGridProps}
+                        />
+                      )}
+                    </Box>
+                  ) : sidebarTab === "review" ? (
+                    <ReviewSession
+                      item={reviewItems[reviewIndex] ?? null}
+                      total={
+                        reviewCompleted
+                          ? sessionRatings.size
+                          : reviewItems.length
                       }
-                      req.onerror = () => reject(req.error)
+                      current={Math.min(reviewIndex + 1, reviewItems.length)}
+                      flipped={reviewFlipped}
+                      completed={reviewCompleted}
+                      animating={animating}
+                      slideDir={slideDir}
+                      ratings={sessionRatings}
+                      masteredCount={reviewStats.masteredCount}
+                      activeCount={reviewStats.activeCount}
+                      todayRatings={todayRatings}
+                      streakDays={streakDays}
+                      onFlip={handleReviewFlip}
+                      onRate={handleReviewRate}
+                      onPrev={handleReviewPrev}
+                      onNext={handleReviewNext}
+                      onExit={handleExitReview}
+                    />
+                  ) : (
+                    <>
+                      {!readingFilter && !activeProject && (
+                        <EmptyState
+                          icon={
+                            <InboxRoundedIcon
+                              className="empty-icon"
+                              sx={{ fontSize: 80, mb: 3 }}
+                            />
+                          }
+                          title="选择一个项目"
+                          subtitle="从左侧项目面板新建或打开项目，开始整理你的灵感卡片"
+                        />
+                      )}
+
+                      {readingFilter ? (
+                        readingFilteredItems.length === 0 ? (
+                          <EmptyState
+                            icon={
+                              <SearchOffRoundedIcon
+                                className="empty-icon"
+                                sx={{ fontSize: 80, mb: 3 }}
+                              />
+                            }
+                            title="阅读清单已清空"
+                            subtitle="所有链接都已标记为已读"
+                          />
+                        ) : (
+                          <CardGrid
+                            items={readingFilteredItems}
+                            selectMode={selectMode}
+                            onSelectItem={(id) =>
+                              setSelectedIds((prev) =>
+                                prev.includes(id)
+                                  ? prev.filter((i) => i !== id)
+                                  : [...prev, id]
+                              )
+                            }
+                            onDeleteItem={onDelete}
+                            {...sharedCardGridProps}
+                          />
+                        )
+                      ) : null}
+
+                      {!readingFilter &&
+                        activeProject &&
+                        !keyword &&
+                        !dateRange && (
+                          <ContentOutline
+                            items={allItems}
+                            sections={activeProject.sections ?? []}
+                            collapsedSections={collapsedSections}
+                            selectMode={selectMode}
+                            selectedIds={selectedIds}
+                            onToggleCollapse={onToggleSectionCollapse}
+                            onAddSection={onAddSection}
+                            onRenameSection={onRenameSection}
+                            onDeleteSection={onDeleteSectionCb}
+                            onMoveSection={onMoveSection}
+                            onMoveCard={onMoveCard}
+                            onBatchMoveCards={onBatchMoveCards}
+                            onMoveCardToSection={onMoveCardToSection}
+                            onSelectItem={(id) =>
+                              setSelectedIds((prev) =>
+                                prev.includes(id)
+                                  ? prev.filter((i) => i !== id)
+                                  : [...prev, id]
+                              )
+                            }
+                            onDeleteItem={onDelete}
+                            {...sharedCardGridProps}
+                          />
+                        )}
+
+                      {!readingFilter &&
+                        activeProject &&
+                        (keyword || dateRange) && (
+                          <CardGrid
+                            items={displayedItems}
+                            selectMode={selectMode}
+                            onSelectItem={(id) =>
+                              setSelectedIds((prev) =>
+                                prev.includes(id)
+                                  ? prev.filter((i) => i !== id)
+                                  : [...prev, id]
+                              )
+                            }
+                            onDeleteItem={onDelete}
+                            {...sharedCardGridProps}
+                          />
+                        )}
+
+                      {!readingFilter &&
+                        activeProject &&
+                        !hasMore &&
+                        allItems.length === 0 &&
+                        (keyword ? (
+                          <EmptyState
+                            icon={
+                              <SearchOffRoundedIcon
+                                className="empty-icon"
+                                sx={{ fontSize: 80, mb: 3 }}
+                              />
+                            }
+                            title="没有找到匹配的卡片"
+                            subtitle="试试其他关键词"
+                          />
+                        ) : dateRange ? (
+                          <EmptyState
+                            icon={
+                              <SearchOffRoundedIcon
+                                className="empty-icon"
+                                sx={{ fontSize: 80, mb: 3 }}
+                              />
+                            }
+                            title="该时间段内无相关卡片"
+                            subtitle="请调整日期范围"
+                          />
+                        ) : (
+                          <EmptyState
+                            icon={
+                              <NoteAddRoundedIcon
+                                className="empty-icon"
+                                sx={{ fontSize: 80, mb: 3 }}
+                              />
+                            }
+                            title="此项目暂无卡片"
+                            subtitle="点击顶部 ＋ 按钮新建一张卡片"
+                          />
+                        ))}
+
+                      {hasMore &&
+                        activeProject &&
+                        !readingFilter &&
+                        (keyword || dateRange) && (
+                          <Box
+                            ref={loadMoreRef}
+                            sx={{
+                              display: "flex",
+                              justifyContent: "center",
+                              py: 4
+                            }}>
+                            <CircularProgress size={24} />
+                          </Box>
+                        )}
+                    </>
+                  )}
+                </Box>
+              </Fade>
+
+              <ItemDialog
+                item={dialogItem}
+                open={Boolean(dialogItem)}
+                readOnly={sidebarTab === "review"}
+                hasPrev={hasPrev}
+                hasNext={hasNext}
+                onClose={() => setDialogItem(null)}
+                onNavigate={handleNavigate}
+                onSave={async (updated) => {
+                  // Atomically save item update and optionally remove from review
+                  await tx(
+                    { items: "readwrite", reviews: "readwrite" },
+                    async (stores) => {
+                      stores.items.put({ ...updated, updatedAt: Date.now() })
+                      if (!updated.title) {
+                        const idx = stores.reviews.index("itemId")
+                        return new Promise<void>((resolve, reject) => {
+                          const req = idx.getKey(updated.id)
+                          req.onsuccess = () => {
+                            if (req.result)
+                              stores.reviews.delete(req.result as string)
+                            resolve()
+                          }
+                          req.onerror = () => reject(req.error)
+                        })
+                      }
+                    }
+                  )
+                  if (!updated.title) {
+                    setReviewItemIds((prev) => {
+                      const next = new Set(prev)
+                      next.delete(updated.id)
+                      return next
                     })
                   }
-                })
-                if (!updated.title) {
-                  setReviewItemIds((prev) => {
-                    const next = new Set(prev)
-                    next.delete(updated.id)
-                    return next
-                  })
-                }
-                setDialogItem(null)
-                onSearch()
-              }}
-            />
+                  setDialogItem(null)
+                  onSearch()
+                }}
+              />
 
-            <NewCardDialog
-              open={newCardOpen}
-              title={newCardTitle}
-              content={newCardContent}
-              images={newCardImages}
-              onTitleChange={setNewCardTitle}
-              onContentChange={setNewCardContent}
-              onImagesChange={setNewCardImages}
-              onClose={() => setNewCardOpen(false)}
-              onSave={handleSaveNewCard}
-            />
+              <NewCardDialog
+                open={newCardOpen}
+                title={newCardTitle}
+                content={newCardContent}
+                images={newCardImages}
+                onTitleChange={setNewCardTitle}
+                onContentChange={setNewCardContent}
+                onImagesChange={setNewCardImages}
+                onClose={() => setNewCardOpen(false)}
+                onSave={handleSaveNewCard}
+              />
 
-            <Dialog
-              open={Boolean(reviewTitlePending)}
-              onClose={() => setReviewTitlePending(null)}
-              maxWidth="xs"
-              fullWidth
-              slotProps={{ paper: { sx: { borderRadius: 2 } } }}>
-              <DialogTitle sx={{ fontSize: "1rem" }}>加入复习</DialogTitle>
-              <DialogContent>
-                <Typography variant="body2" sx={{ mb: 2, color: "text.secondary" }}>
-                  请先为卡片设置摘要
-                </Typography>
-                <TextField
-                  fullWidth
-                  size="small"
-                  autoFocus
-                  placeholder="输入卡片摘要…"
-                  value={reviewTitleDraft}
-                  onChange={(e) => setReviewTitleDraft(e.target.value)}
-                  sx={{ mb: 2, "& .MuiOutlinedInput-root": { borderRadius: 1 } }}
-                />
-                <Stack direction="row" spacing={1} justifyContent="flex-end">
-                  <Button size="small" onClick={() => setReviewTitlePending(null)} sx={{ borderRadius: 1 }}>
-                    取消
-                  </Button>
-                  <Button
-                    size="small"
-                    variant="contained"
-                    disabled={!reviewTitleDraft.trim()}
-                    sx={{ borderRadius: 1 }}
-                    onClick={async () => {
-                      const card = allItemsUnfiltered.find((i) => i.id === reviewTitlePending)
-                      if (!card || !reviewTitleDraft.trim()) return
-                      // Update card title
-                      await updateItem({ ...card, title: reviewTitleDraft.trim() })
-                      // Add to review
-                      await addReview({
-                        id: crypto.randomUUID(),
-                        itemId: card.id,
-                        projectId: card.projectId ?? "",
-                        srs: { dueDate: Date.now(), interval: 0, easeFactor: 2.5, reviewCount: 0, lastReviewDate: 0 },
-                        dueDate: Date.now(),
-                        status: "active",
-                        addedAt: Date.now()
-                      })
-                      setReviewTitlePending(null)
-                      setReviewTitleDraft("")
-                      const reviews = await getAllReviews()
-                      setReviewItemIds(new Set(reviews.map((r) => r.itemId)))
-                      setSnackbarMsg("已加入复习")
-                    }}>
-                    加入复习
-                  </Button>
-                </Stack>
-              </DialogContent>
-            </Dialog>
-
-            <DeleteConfirmDialog
-              open={Boolean(confirmDeleteId) || confirmBatchDelete}
-              batch={confirmBatchDelete}
-              count={selectedIds.length}
-              onCancel={() => {
-                setConfirmDeleteId(null)
-                setConfirmBatchDelete(false)
-              }}
-              onConfirm={confirmBatchDelete ? handleConfirmBatchDelete : handleConfirmDelete}
-            />
-
-            <DialogShell
-              open={Boolean(pendingSectionDelete)}
-              onClose={() => setPendingSectionDelete(null)}
-              title="删除章节"
-              confirmLabel="删除"
-              confirmColor="error"
-              onConfirm={confirmDeleteSection}>
-              <>
-                {pendingSectionDelete && (
-                  <Typography variant="body2" color="text.secondary">
-                    确定要删除此章节
-                    {pendingSectionDelete.subSectionCount > 0 && ` 及 ${pendingSectionDelete.subSectionCount} 个子章节`}
-                    ？其中 {pendingSectionDelete.cardCount} 张卡片将移至未分类。
+              <Dialog
+                open={Boolean(reviewTitlePending)}
+                onClose={() => setReviewTitlePending(null)}
+                maxWidth="xs"
+                fullWidth
+                slotProps={{ paper: { sx: { borderRadius: 2 } } }}>
+                <DialogTitle sx={{ fontSize: "1rem" }}>加入复习</DialogTitle>
+                <DialogContent>
+                  <Typography
+                    variant="body2"
+                    sx={{ mb: 2, color: "text.secondary" }}>
+                    请先为卡片设置摘要
                   </Typography>
-                )}
-              </>
-            </DialogShell>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    autoFocus
+                    placeholder="输入卡片摘要…"
+                    value={reviewTitleDraft}
+                    onChange={(e) => setReviewTitleDraft(e.target.value)}
+                    sx={{
+                      mb: 2,
+                      "& .MuiOutlinedInput-root": { borderRadius: 1 }
+                    }}
+                  />
+                  <Stack direction="row" spacing={1} justifyContent="flex-end">
+                    <Button
+                      size="small"
+                      onClick={() => setReviewTitlePending(null)}
+                      sx={{ borderRadius: 1 }}>
+                      取消
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      disabled={!reviewTitleDraft.trim()}
+                      sx={{ borderRadius: 1 }}
+                      onClick={async () => {
+                        const card = allItemsUnfiltered.find(
+                          (i) => i.id === reviewTitlePending
+                        )
+                        if (!card || !reviewTitleDraft.trim()) return
+                        // Update card title
+                        await updateItem({
+                          ...card,
+                          title: reviewTitleDraft.trim()
+                        })
+                        // Add to review
+                        await addReview({
+                          id: crypto.randomUUID(),
+                          itemId: card.id,
+                          projectId: card.projectId ?? "",
+                          srs: {
+                            dueDate: Date.now(),
+                            interval: 0,
+                            easeFactor: 2.5,
+                            reviewCount: 0,
+                            lastReviewDate: 0
+                          },
+                          dueDate: Date.now(),
+                          status: "active",
+                          addedAt: Date.now()
+                        })
+                        setReviewTitlePending(null)
+                        setReviewTitleDraft("")
+                        const reviews = await getAllReviews()
+                        setReviewItemIds(new Set(reviews.map((r) => r.itemId)))
+                        setSnackbarMsg("已加入复习")
+                      }}>
+                      加入复习
+                    </Button>
+                  </Stack>
+                </DialogContent>
+              </Dialog>
 
-            <MoveToSectionDialog
-              open={Boolean(moveToSectionState)}
-              sections={activeProject?.sections ?? []}
-              multi={moveToSectionState?.multi}
-              count={moveToSectionState?.multi ? selectedIds.length : 1}
-              onClose={() => setMoveToSectionState(null)}
-              onConfirm={confirmMoveToSection}
-            />
+              <DeleteConfirmDialog
+                open={Boolean(confirmDeleteId) || confirmBatchDelete}
+                batch={confirmBatchDelete}
+                count={selectedIds.length}
+                onCancel={() => {
+                  setConfirmDeleteId(null)
+                  setConfirmBatchDelete(false)
+                }}
+                onConfirm={
+                  confirmBatchDelete
+                    ? handleConfirmBatchDelete
+                    : handleConfirmDelete
+                }
+              />
 
-            <MergeConfirmDialog
-              open={Boolean(mergeState)}
-              items={mergeState ?? []}
-              onClose={() => setMergeState(null)}
-              onConfirm={handleConfirmMerge}
-            />
+              <DialogShell
+                open={Boolean(pendingSectionDelete)}
+                onClose={() => setPendingSectionDelete(null)}
+                title="删除章节"
+                confirmLabel="删除"
+                confirmColor="error"
+                onConfirm={confirmDeleteSection}>
+                <>
+                  {pendingSectionDelete && (
+                    <Typography variant="body2" color="text.secondary">
+                      确定要删除此章节
+                      {pendingSectionDelete.subSectionCount > 0 &&
+                        ` 及 ${pendingSectionDelete.subSectionCount} 个子章节`}
+                      ？其中 {pendingSectionDelete.cardCount}{" "}
+                      张卡片将移至未分类。
+                    </Typography>
+                  )}
+                </>
+              </DialogShell>
 
-            <NewProjectDialog
-              open={createDialogOpen}
-              name={newProjectName}
-              error={projectError}
-              onNameChange={(v) => { setNewProjectName(v); setProjectError(null) }}
-              onClose={() => { setCreateDialogOpen(false); setProjectError(null) }}
-              onCreate={() => { handleCreateProject(); setCreateDialogOpen(false) }}
-            />
+              <MoveToSectionDialog
+                open={Boolean(moveToSectionState)}
+                sections={activeProject?.sections ?? []}
+                multi={moveToSectionState?.multi}
+                count={moveToSectionState?.multi ? selectedIds.length : 1}
+                onClose={() => setMoveToSectionState(null)}
+                onConfirm={confirmMoveToSection}
+              />
 
-            <SettingsDialog
-              open={settingsOpen}
-              onClose={() => setSettingsOpen(false)}
-              preset={preset}
-              onPresetChange={(name) => setPreset(name)}
-            />
+              <MergeConfirmDialog
+                open={Boolean(mergeState)}
+                items={mergeState ?? []}
+                onClose={() => setMergeState(null)}
+                onConfirm={handleConfirmMerge}
+              />
 
-            <Snackbar
-              open={Boolean(snackbarMsg)}
-              autoHideDuration={2000}
-              onClose={() => setSnackbarMsg("")}
-              anchorOrigin={{ vertical: "top", horizontal: "center" }}>
-              <Alert
-                severity={snackbarMsg.includes("失败") ? "error" : "success"}
-                variant="filled"
-                sx={{ borderRadius: 1 }}>
-                {snackbarMsg}
-              </Alert>
-            </Snackbar>
+              <NewProjectDialog
+                open={createDialogOpen}
+                name={newProjectName}
+                error={projectError}
+                onNameChange={(v) => {
+                  setNewProjectName(v)
+                  setProjectError(null)
+                }}
+                onClose={() => {
+                  setCreateDialogOpen(false)
+                  setProjectError(null)
+                }}
+                onCreate={() => {
+                  handleCreateProject()
+                  setCreateDialogOpen(false)
+                }}
+              />
 
-            <MoveCopyCards
-              open={Boolean(moveCardId)}
-              title="移动到…"
-              projects={otherProjects}
-              onSelect={handleMoveCard}
-              onClose={() => setMoveCardId(null)}
-            />
+              <SettingsDialog
+                open={settingsOpen}
+                onClose={() => setSettingsOpen(false)}
+                preset={preset}
+                onPresetChange={(name) => setPreset(name)}
+              />
 
-            <MoveCopyCards
-              open={Boolean(copyCardId)}
-              title="复制到…"
-              projects={otherProjects}
-              onSelect={handleCopyCard}
-              onClose={() => setCopyCardId(null)}
-            />
+              <Snackbar
+                open={Boolean(snackbarMsg)}
+                autoHideDuration={2000}
+                onClose={() => setSnackbarMsg("")}
+                anchorOrigin={{ vertical: "top", horizontal: "center" }}>
+                <Alert
+                  severity={snackbarMsg.includes("失败") ? "error" : "success"}
+                  variant="filled"
+                  sx={{ borderRadius: 1 }}>
+                  {snackbarMsg}
+                </Alert>
+              </Snackbar>
 
-            <MoveCopyCards
-              open={Boolean(batchAction)}
-              title={batchAction === "move" ? "批量移动到…" : "批量复制到…"}
-              projects={otherProjects}
-              onSelect={handleBatchMoveCopy}
-              onClose={() => setBatchAction(null)}
-            />
-            <input
-              ref={backupFileInputRef}
-              type="file"
-              hidden
-              accept=".zip"
-              onChange={handleImportBackupFile}
-            />
-          </Container>
+              <MoveCopyCards
+                open={Boolean(moveCardId)}
+                title="移动到…"
+                projects={otherProjects}
+                onSelect={handleMoveCard}
+                onClose={() => setMoveCardId(null)}
+              />
+
+              <MoveCopyCards
+                open={Boolean(copyCardId)}
+                title="复制到…"
+                projects={otherProjects}
+                onSelect={handleCopyCard}
+                onClose={() => setCopyCardId(null)}
+              />
+
+              <MoveCopyCards
+                open={Boolean(batchAction)}
+                title={batchAction === "move" ? "批量移动到…" : "批量复制到…"}
+                projects={otherProjects}
+                onSelect={handleBatchMoveCopy}
+                onClose={() => setBatchAction(null)}
+              />
+              <input
+                ref={backupFileInputRef}
+                type="file"
+                hidden
+                accept=".zip"
+                onChange={handleImportBackupFile}
+              />
+            </Container>
           </Box>
           <FooterBar
             totalItems={allItemsUnfiltered.length}
@@ -1423,7 +1697,10 @@ export default function OptionsPage() {
             dueCount={dueCount}
             syncStatus={syncStatus}
             activeProjectName={activeProject?.name ?? null}
-            activeProjectItemCount={allItemsUnfiltered.filter((i) => i.projectId === activeProjectId).length}
+            activeProjectItemCount={
+              allItemsUnfiltered.filter((i) => i.projectId === activeProjectId)
+                .length
+            }
           />
         </Box>
       </Box>

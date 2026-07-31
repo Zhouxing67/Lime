@@ -1,6 +1,7 @@
 # lime — Agent Guide
 
 ## Stack
+
 - Chrome MV3 extension via **Plasmo v0.90.5** (TypeScript, React 18, MUI v7)
 - State: React hooks + IndexedDB (`fake-indexeddb` in tests)
 - No state manager, no router, no CSS modules (MUI Emotion)
@@ -8,26 +9,26 @@
 
 ## Commands
 
-| Command | Purpose |
-|---|---|
-| `pnpm run dev` | Start Plasmo dev server with HMR |
-| `pnpm run build` | Production build |
-| `pnpm run package` | Package for Chrome Web Store |
-| `pnpm test` | Jest (ts-jest, jsdom) |
-| `pnpm run test:coverage` | Jest with coverage |
-| `pnpm run format` | Prettier (no-semi, double-quotes, trailing-comma none) |
-| `pnpm run format:check` | Prettier check (CI-friendly) |
-| `pnpm run test:watch` | Jest watch mode |
+| Command                  | Purpose                                                |
+| ------------------------ | ------------------------------------------------------ |
+| `pnpm run dev`           | Start Plasmo dev server with HMR                       |
+| `pnpm run build`         | Production build                                       |
+| `pnpm run package`       | Package for Chrome Web Store                           |
+| `pnpm test`              | Jest (ts-jest, jsdom)                                  |
+| `pnpm run test:coverage` | Jest with coverage                                     |
+| `pnpm run format`        | Prettier (no-semi, double-quotes, trailing-comma none) |
+| `pnpm run format:check`  | Prettier check (CI-friendly)                           |
+| `pnpm run test:watch`    | Jest watch mode                                        |
 
 ## Entrypoints
 
-| File | Bundle | URL |
-|---|---|---|
-| `src/options.tsx` | Options page (main UI) | `options.html` |
-| `src/background.ts` | Service Worker | background |
-| `src/contents/capture.ts` | Content script | all `https?://*/*` |
-| `src/contents/floating-panel.tsx` | Content script UI | all `https?://*/*` |
-| `src/tabs/new-project.tsx` | Popup page | `tabs/new-project.html` |
+| File                              | Bundle                 | URL                     |
+| --------------------------------- | ---------------------- | ----------------------- |
+| `src/options.tsx`                 | Options page (main UI) | `options.html`          |
+| `src/background.ts`               | Service Worker         | background              |
+| `src/contents/capture.ts`         | Content script         | all `https?://*/*`      |
+| `src/contents/floating-panel.tsx` | Content script UI      | all `https?://*/*`      |
+| `src/tabs/new-project.tsx`        | Popup page             | `tabs/new-project.html` |
 
 Plasmo v0.90+: custom popup pages go in `src/tabs/`, not `src/`.
 
@@ -61,6 +62,7 @@ src/
 ## Messaging
 
 Typed discriminated union `ExtensionMessage` (`src/types/messages.ts`):
+
 ```ts
 sendMessage({ kind: "capture", payload: {...} })  // → background SW
 sendMessage({ kind: "webdav", ... })               // proxied through SW (avoids Chrome auth dialog)
@@ -69,6 +71,7 @@ sendMessage({ kind: "add-project", name })         // → SW creates project
 sendMessage({ kind: "capture-visible-tab" })       // → SW returns tab screenshot dataURL
 sendMessage({ kind: "set-recent-project", ... })   // update lastOpened
 ```
+
 Kinds: `capture`, `toast` (SW→tab), `webdav`, `save-feedback` (SW→tab), `set-recent-project`, `list-projects`, `add-project`, `capture-visible-tab`. Always use `sendMessage()` — never raw `chrome.runtime.sendMessage`.
 
 ## Sections (v1.10.0)

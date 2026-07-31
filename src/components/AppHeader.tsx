@@ -1,6 +1,6 @@
 import FilterListRoundedIcon from "@mui/icons-material/FilterListRounded"
 import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded"
-import { Box, IconButton, Stack, Tooltip, Typography, alpha } from "@mui/material"
+import { Box, IconButton, Stack, Tooltip, Typography } from "@mui/material"
 import type { ReactNode } from "react"
 
 import type { ReviewStats } from "../hooks/useSrs"
@@ -27,21 +27,20 @@ export default function AppHeader({
   children
 }: AppHeaderProps) {
   return (
-      <Box
-      sx={(theme) => ({
-        bgcolor: alpha(theme.palette.primary.main, 0.07),
-        borderBottom: "2px solid",
-        borderColor: "primary.main",
-        boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+    <Box
+      sx={{
+        bgcolor: "background.paper",
+        borderBottom: "1px solid",
+        borderColor: "divider",
         height: headerHeight,
         display: "flex",
         alignItems: "center"
-      })}>
+      }}>
       <Stack
         direction="row"
         spacing={1.5}
         alignItems="center"
-        sx={{ width: "100%" }}>
+        sx={{ width: "100%", px: 2 }}>
         <Tooltip title={drawerOpen ? "关闭项目面板" : "打开项目面板"}>
           <IconButton
             size="small"
@@ -54,24 +53,43 @@ export default function AppHeader({
             <FilterListRoundedIcon />
           </IconButton>
         </Tooltip>
-        <Typography
-          sx={{
-            fontSize: "1.5rem",
-            fontWeight: 700,
-            letterSpacing: "0.04em",
-            lineHeight: 1
-          }}>
-          {reviewProgress ? (
-            <>复习</>
-          ) : activeProjectName ? (
-            <>lime · <Box component="span" sx={{ fontSize: "1rem", fontWeight: 400, opacity: 0.8 }}>{activeProjectName}</Box></>
-          ) : "lime"}
-        </Typography>
+        <Stack
+          direction="row"
+          alignItems="baseline"
+          spacing={1}
+          sx={{ minWidth: 0 }}>
+          <Typography
+            sx={{
+              fontSize: "1.05rem",
+              fontWeight: 600,
+              letterSpacing: "0.1em",
+              lineHeight: 1,
+              flexShrink: 0
+            }}>
+            lime
+          </Typography>
+          {!reviewProgress && activeProjectName && (
+            <Typography
+              variant="body2"
+              noWrap
+              sx={{
+                color: "text.secondary",
+                fontSize: "0.85rem",
+                minWidth: 0
+              }}>
+              {activeProjectName}
+            </Typography>
+          )}
+        </Stack>
         <Tooltip title="设置">
           <IconButton
             size="small"
             onClick={onSettingsClick}
-            sx={{ color: "text.secondary", "&:hover": { color: "primary.main" }, "&.Mui-focusVisible": { outline: "none" } }}>
+            sx={{
+              color: "text.secondary",
+              "&:hover": { color: "primary.main" },
+              "&.Mui-focusVisible": { outline: "none" }
+            }}>
             <SettingsRoundedIcon sx={{ fontSize: 20 }} />
           </IconButton>
         </Tooltip>
@@ -86,7 +104,8 @@ export default function AppHeader({
           <Typography
             variant="caption"
             sx={{ color: "text.disabled", fontSize: "0.72rem" }}>
-            · 已掌握 {reviewProgress.sessionMastered ?? 0} · 待复习 {reviewStats?.dueCount ?? 0}
+            · 已掌握 {reviewProgress.sessionMastered ?? 0} · 待复习{" "}
+            {reviewStats?.dueCount ?? 0}
           </Typography>
         )}
         <Box sx={{ flexGrow: 1 }} />

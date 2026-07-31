@@ -1,6 +1,13 @@
 import ChevronLeftRoundedIcon from "@mui/icons-material/ChevronLeftRounded"
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded"
-import { Box, Button, IconButton, Stack, Tooltip, Typography } from "@mui/material"
+import {
+  Box,
+  Button,
+  IconButton,
+  Stack,
+  Tooltip,
+  Typography
+} from "@mui/material"
 import { useCallback, useEffect } from "react"
 
 import type { Item } from "../types"
@@ -90,20 +97,24 @@ export default function ReviewSession({
         <Typography sx={{ fontSize: "4rem", mb: 2, lineHeight: 1 }}>
           {accuracy >= 0.8 ? "🎉" : accuracy >= 0.5 ? "👍" : "💪"}
         </Typography>
-        <Typography variant="h5" sx={{ mb: 4, fontWeight: 500, letterSpacing: "0.04em" }}>
+        <Typography
+          variant="h5"
+          sx={{ mb: 4, fontWeight: 500, letterSpacing: "0.04em" }}>
           复习完成
         </Typography>
-          <Box
-            sx={{
-              width: "100%",
-              bgcolor: "action.hover",
-              borderRadius: 1,
-              p: 3,
+        <Box
+          sx={{
+            width: "100%",
+            bgcolor: "action.hover",
+            borderRadius: 1,
+            p: 3,
             mb: 3
           }}>
           <Stack direction="row" justifyContent="space-around">
             <Box sx={{ textAlign: "center" }}>
-              <Typography variant="h4" sx={{ fontWeight: 600, color: "success.main" }}>
+              <Typography
+                variant="h4"
+                sx={{ fontWeight: 600, color: "success.main" }}>
                 {Math.round(accuracy * 100)}%
               </Typography>
               <Typography variant="caption" sx={{ color: "text.secondary" }}>
@@ -111,7 +122,9 @@ export default function ReviewSession({
               </Typography>
             </Box>
             <Box sx={{ textAlign: "center" }}>
-              <Typography variant="h4" sx={{ fontWeight: 600, color: "primary.main" }}>
+              <Typography
+                variant="h4"
+                sx={{ fontWeight: 600, color: "primary.main" }}>
                 {total}
               </Typography>
               <Typography variant="caption" sx={{ color: "text.secondary" }}>
@@ -119,7 +132,9 @@ export default function ReviewSession({
               </Typography>
             </Box>
             <Box sx={{ textAlign: "center" }}>
-              <Typography variant="h4" sx={{ fontWeight: 600, color: "secondary.main" }}>
+              <Typography
+                variant="h4"
+                sx={{ fontWeight: 600, color: "secondary.main" }}>
                 {goodCount}
               </Typography>
               <Typography variant="caption" sx={{ color: "text.secondary" }}>
@@ -133,12 +148,17 @@ export default function ReviewSession({
             熟悉率 {goodCount}/{total} · 平均评分 {avgRating.toFixed(1)}
           </Typography>
           {masteredCount > 0 && (
-            <Typography variant="body2" sx={{ color: "success.main", fontWeight: 500 }}>
+            <Typography
+              variant="body2"
+              sx={{ color: "success.main", fontWeight: 500 }}>
               累计已掌握 {masteredCount} 张卡片
             </Typography>
           )}
         </Stack>
-        <Button variant="outlined" onClick={onExit} sx={{ borderRadius: 1, px: 4 }}>
+        <Button
+          variant="outlined"
+          onClick={onExit}
+          sx={{ borderRadius: 1, px: 4 }}>
           退出复习
         </Button>
       </Box>
@@ -235,7 +255,8 @@ export default function ReviewSession({
               opacity: flipped ? 0 : 1,
               pointerEvents: flipped ? "none" : "auto",
               transition: "opacity 0.3s ease",
-              bgcolor: (theme) => theme.palette.mode === "light" ? "#fcfcf9" : "#2a2a2a",
+              bgcolor: (theme) =>
+                theme.palette.mode === "light" ? "#fcfcf9" : "#2a2a2a",
               border: "1px solid",
               borderColor: "divider",
               borderRadius: 1,
@@ -256,7 +277,8 @@ export default function ReviewSession({
               opacity: flipped ? 1 : 0,
               pointerEvents: flipped ? "auto" : "none",
               transition: "opacity 0.3s ease",
-              bgcolor: (theme) => theme.palette.mode === "light" ? "#fcfcf9" : "#2a2a2a",
+              bgcolor: (theme) =>
+                theme.palette.mode === "light" ? "#fcfcf9" : "#2a2a2a",
               border: "1px solid",
               borderColor: "divider",
               borderRadius: 1,
@@ -265,7 +287,10 @@ export default function ReviewSession({
               display: "flex",
               flexDirection: "column",
               "&::-webkit-scrollbar": { width: 4 },
-              "&::-webkit-scrollbar-thumb": { bgcolor: "divider", borderRadius: 1 },
+              "&::-webkit-scrollbar-thumb": {
+                bgcolor: "divider",
+                borderRadius: 1
+              },
               "&::-webkit-scrollbar-track": { bgcolor: "transparent" }
             }}>
             <CardRenderer item={item} mode="back" />
@@ -307,7 +332,9 @@ export default function ReviewSession({
                     borderColor: COLORS[i]
                   }
                 }}>
-                <Box component="span" sx={{ mr: 0.5, opacity: 0.5, fontSize: "0.7rem" }}>
+                <Box
+                  component="span"
+                  sx={{ mr: 0.5, opacity: 0.5, fontSize: "0.7rem" }}>
                   {i + 1}
                 </Box>
                 {label}

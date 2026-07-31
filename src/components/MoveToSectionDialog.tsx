@@ -28,10 +28,17 @@ export default function MoveToSectionDialog({
   onClose,
   onConfirm
 }: MoveToSectionDialogProps) {
-  const l1 = sections.filter((s) => s.level === 1).sort((a, b) => a.order - b.order)
+  const l1 = sections
+    .filter((s) => s.level === 1)
+    .sort((a, b) => a.order - b.order)
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth slotProps={{ paper: { sx: { borderRadius: 1 } } }}>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="xs"
+      fullWidth
+      slotProps={{ paper: { sx: { borderRadius: 1 } } }}>
       <DialogTitle sx={{ py: 2.5, px: 3, fontSize: "1rem" }}>
         移到章节{multi ? `（${count} 张卡片）` : ""}
       </DialogTitle>
@@ -40,14 +47,24 @@ export default function MoveToSectionDialog({
           <ListItemButton
             onClick={() => onConfirm(null)}
             sx={{ borderRadius: 1, mx: 1, width: "auto" }}>
-            <ListItemText primary="未分类" slotProps={{ primary: { sx: { fontSize: "0.82rem", color: "text.disabled" } } }} />
+            <ListItemText
+              primary="未分类"
+              slotProps={{
+                primary: { sx: { fontSize: "0.82rem", color: "text.disabled" } }
+              }}
+            />
           </ListItemButton>
           {l1.map((s1) => (
             <div key={s1.id}>
               <ListItemButton
                 onClick={() => onConfirm(s1.id)}
                 sx={{ borderRadius: 1, mx: 1, width: "auto" }}>
-                <ListItemText primary={s1.title} slotProps={{ primary: { sx: { fontSize: "0.82rem", fontWeight: 600 } } }} />
+                <ListItemText
+                  primary={s1.title}
+                  slotProps={{
+                    primary: { sx: { fontSize: "0.82rem", fontWeight: 600 } }
+                  }}
+                />
               </ListItemButton>
               {sections
                 .filter((s) => s.level === 2 && s.parentId === s1.id)
@@ -57,7 +74,14 @@ export default function MoveToSectionDialog({
                     key={s2.id}
                     onClick={() => onConfirm(s2.id)}
                     sx={{ borderRadius: 1, mx: 1, ml: 4, width: "auto" }}>
-                    <ListItemText primary={s2.title} slotProps={{ primary: { sx: { fontSize: "0.8rem", color: "text.secondary" } } }} />
+                    <ListItemText
+                      primary={s2.title}
+                      slotProps={{
+                        primary: {
+                          sx: { fontSize: "0.8rem", color: "text.secondary" }
+                        }
+                      }}
+                    />
                   </ListItemButton>
                 ))}
             </div>

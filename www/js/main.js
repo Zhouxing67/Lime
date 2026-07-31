@@ -3,7 +3,7 @@
  * Handles auto theme switching, smooth scrolling, and interactive features
  */
 
-; (function () {
+;(function () {
   "use strict"
 
   // ===== Theme Management =====
@@ -123,7 +123,7 @@
     init() {
       const buttons = document.querySelectorAll(".btn, .nav-link, .github-btn")
 
-      buttons.forEach(btn => {
+      buttons.forEach((btn) => {
         btn.addEventListener("mousemove", (e) => {
           const rect = btn.getBoundingClientRect()
           const x = e.clientX - rect.left - rect.width / 2
@@ -154,8 +154,8 @@
     init() {
       // Wrap text in reveal containers
       const headings = document.querySelectorAll(".hero-title, .section-title")
-      headings.forEach(h => {
-        if (!h.querySelector('.reveal-inner')) {
+      headings.forEach((h) => {
+        if (!h.querySelector(".reveal-inner")) {
           const text = h.innerHTML
           h.innerHTML = `<span class="reveal-text"><span class="reveal-inner">${text}</span></span>`
         }
@@ -168,7 +168,7 @@
     init() {
       const cards = document.querySelectorAll(".feature-card, .floating-card")
 
-      cards.forEach(card => {
+      cards.forEach((card) => {
         card.addEventListener("mousemove", (e) => {
           const rect = card.getBoundingClientRect()
           const x = e.clientX - rect.left
@@ -276,7 +276,7 @@
       })
 
       // Section Titles Reveal
-      gsap.utils.toArray(".section-title .reveal-inner").forEach(title => {
+      gsap.utils.toArray(".section-title .reveal-inner").forEach((title) => {
         gsap.to(title, {
           scrollTrigger: {
             trigger: title.closest(".section-header"),

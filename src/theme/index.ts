@@ -2,11 +2,43 @@ import { createTheme, type PaletteMode } from "@mui/material/styles"
 
 import type { PresetName } from "../types"
 
-export const palettes: Record<PresetName, {
-  primary: { main: string; light: string; dark: string }
-  secondary: { main: string; light: string; dark: string }
-  error: { main: string; light: string }
-}> = {
+const SANS_FONT =
+  "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Helvetica Neue', Arial, sans-serif"
+
+const SERIF_FONT =
+  "'Times New Roman', 'LXGW WenKai', 'Noto Serif SC', 'Songti SC', 'STSong', Georgia, serif"
+
+declare module "@mui/material/styles" {
+  interface Theme {
+    custom: {
+      serif: string
+      sans: string
+      surface2: string
+      borderStrong: string
+      cardShadow: string
+      cardShadowHover: string
+    }
+  }
+  interface ThemeOptions {
+    custom?: {
+      serif?: string
+      sans?: string
+      surface2?: string
+      borderStrong?: string
+      cardShadow?: string
+      cardShadowHover?: string
+    }
+  }
+}
+
+export const palettes: Record<
+  PresetName,
+  {
+    primary: { main: string; light: string; dark: string }
+    secondary: { main: string; light: string; dark: string }
+    error: { main: string; light: string }
+  }
+> = {
   classic: {
     primary: { main: "#6b7785", light: "#8a96a3", dark: "#4a5563" },
     secondary: { main: "#9c8b7a", light: "#b5a598", dark: "#7d6f61" },
@@ -29,10 +61,28 @@ export const palettes: Record<PresetName, {
   }
 }
 
-export const createAppTheme = (mode: PaletteMode, preset: PresetName = "classic") => {
+export const createAppTheme = (
+  mode: PaletteMode,
+  preset: PresetName = "classic"
+) => {
   const p = palettes[preset]
+  const isLight = mode === "light"
 
   return createTheme({
+    custom: {
+      serif: SERIF_FONT,
+      sans: SANS_FONT,
+      surface2: isLight ? "#f7f5f1" : "#202020",
+      borderStrong: isLight
+        ? "rgba(45, 52, 54, 0.14)"
+        : "rgba(232, 230, 227, 0.2)",
+      cardShadow: isLight
+        ? "0 1px 2px rgba(45, 52, 54, 0.04), 0 2px 6px rgba(45, 52, 54, 0.05)"
+        : "0 1px 2px rgba(0, 0, 0, 0.4)",
+      cardShadowHover: isLight
+        ? "0 2px 4px rgba(45, 52, 54, 0.06), 0 8px 20px rgba(45, 52, 54, 0.1)"
+        : "0 2px 6px rgba(0, 0, 0, 0.45), 0 10px 24px rgba(0, 0, 0, 0.5)"
+    },
     palette: {
       mode,
       background:
@@ -61,15 +111,13 @@ export const createAppTheme = (mode: PaletteMode, preset: PresetName = "classic"
     },
     shape: { borderRadius: 8 },
     typography: {
-      fontFamily: [
-        "'Times New Roman'", "'LXGW WenKai'", "'Noto Serif SC'", "'Songti SC'", "'STSong'",
-        "Georgia", "serif", "-apple-system", "BlinkMacSystemFont"
-      ].join(","),
-      h5: { fontWeight: 400, letterSpacing: "0.02em" },
-      h6: { fontWeight: 400, letterSpacing: "0.02em" },
-      body1: { lineHeight: 1.8, letterSpacing: "0.02em" },
-      body2: { lineHeight: 1.7, letterSpacing: "0.02em" },
-      caption: { letterSpacing: "0.03em" }
+      fontFamily: SANS_FONT,
+      h4: { fontWeight: 600, letterSpacing: "0.01em", fontFamily: SERIF_FONT },
+      h5: { fontWeight: 600, letterSpacing: "0.01em", fontFamily: SERIF_FONT },
+      h6: { fontWeight: 600, letterSpacing: "0.01em", fontFamily: SERIF_FONT },
+      body1: { lineHeight: 1.7, letterSpacing: "0.005em" },
+      body2: { lineHeight: 1.6, letterSpacing: "0.005em" },
+      caption: { letterSpacing: "0.02em" }
     },
     shadows:
       mode === "light"
@@ -130,16 +178,26 @@ export const createAppTheme = (mode: PaletteMode, preset: PresetName = "classic"
     components: {
       MuiButton: {
         styleOverrides: {
-          root: { textTransform: "none", fontWeight: 400, letterSpacing: "0.03em" },
+          root: {
+            textTransform: "none",
+            fontWeight: 400,
+            letterSpacing: "0.03em"
+          },
           outlined:
             mode === "light"
               ? {
                   borderColor: "rgba(45, 52, 54, 0.15)",
-                  "&:hover": { borderColor: "rgba(45, 52, 54, 0.3)", backgroundColor: "rgba(45, 52, 54, 0.02)" }
+                  "&:hover": {
+                    borderColor: "rgba(45, 52, 54, 0.3)",
+                    backgroundColor: "rgba(45, 52, 54, 0.02)"
+                  }
                 }
               : {
                   borderColor: "rgba(232, 230, 227, 0.2)",
-                  "&:hover": { borderColor: "rgba(232, 230, 227, 0.4)", backgroundColor: "rgba(232, 230, 227, 0.08)" }
+                  "&:hover": {
+                    borderColor: "rgba(232, 230, 227, 0.4)",
+                    backgroundColor: "rgba(232, 230, 227, 0.08)"
+                  }
                 }
         }
       },
@@ -147,7 +205,10 @@ export const createAppTheme = (mode: PaletteMode, preset: PresetName = "classic"
         styleOverrides: {
           root: { backgroundImage: "none" },
           outlined: {
-            borderColor: mode === "light" ? "rgba(45, 52, 54, 0.08)" : "rgba(232, 230, 227, 0.12)"
+            borderColor:
+              mode === "light"
+                ? "rgba(45, 52, 54, 0.08)"
+                : "rgba(232, 230, 227, 0.12)"
           }
         }
       },
@@ -156,7 +217,10 @@ export const createAppTheme = (mode: PaletteMode, preset: PresetName = "classic"
           root: {
             transition: "all 0.2s",
             "&:hover": {
-              backgroundColor: mode === "light" ? "rgba(45, 52, 54, 0.04)" : "rgba(232, 230, 227, 0.08)"
+              backgroundColor:
+                mode === "light"
+                  ? "rgba(45, 52, 54, 0.04)"
+                  : "rgba(232, 230, 227, 0.08)"
             }
           }
         }

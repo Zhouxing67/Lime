@@ -1,5 +1,19 @@
-import { addItem, addProject, getDueReviews, getRecentProjects, listProjects, searchItems, touchProject, tx } from "./database"
-import { createMenus, ensureMenusReady, rebuildProjectMenus, rebuildRecentMenus } from "./background/menus"
+import {
+  createMenus,
+  ensureMenusReady,
+  rebuildProjectMenus,
+  rebuildRecentMenus
+} from "./background/menus"
+import {
+  addItem,
+  addProject,
+  getDueReviews,
+  getRecentProjects,
+  listProjects,
+  searchItems,
+  touchProject,
+  tx
+} from "./database"
 import type { Item, Project, SourceMeta } from "./types"
 import type { ExtensionMessage } from "./types/messages"
 
@@ -7,7 +21,9 @@ async function updateBadge() {
   try {
     const due = await getDueReviews()
     console.debug("[badge] updateBadge, due count:", due.length)
-    chrome.action.setBadgeText({ text: due.length > 0 ? String(due.length) : "" })
+    chrome.action.setBadgeText({
+      text: due.length > 0 ? String(due.length) : ""
+    })
     chrome.action.setBadgeBackgroundColor({ color: "#dc2626" })
   } catch {}
 }
@@ -21,7 +37,8 @@ function notifyTab(
   type?: string,
   projectName?: string
 ) {
-  const typeLabel = type === "text" ? "文本" : type === "image" ? "图片" : "链接"
+  const typeLabel =
+    type === "text" ? "文本" : type === "image" ? "图片" : "链接"
   const toastText = saved
     ? projectName
       ? `已保存${typeLabel}到 ${projectName}`
@@ -32,7 +49,10 @@ function notifyTab(
     chrome.tabs
       .sendMessage(tabId, { kind: "toast", text: toastText })
       .catch((e) => {
-        console.warn("[lime] toast to tab failed, falling back to system notification:", e)
+        console.warn(
+          "[lime] toast to tab failed, falling back to system notification:",
+          e
+        )
         notifySystem(toastText)
       })
     return
@@ -42,8 +62,12 @@ function notifyTab(
 
 function notifySystem(text: string) {
   try {
-    const icons = chrome.runtime.getManifest().icons as Record<string, string> | undefined
-    const iconUrl = icons ? chrome.runtime.getURL(icons["128"] || icons["48"] || "") : undefined
+    const icons = chrome.runtime.getManifest().icons as
+      | Record<string, string>
+      | undefined
+    const iconUrl = icons
+      ? chrome.runtime.getURL(icons["128"] || icons["48"] || "")
+      : undefined
     chrome.notifications.create({
       type: "basic",
       iconUrl,
@@ -55,7 +79,14 @@ function notifySystem(text: string) {
   }
 }
 
-function createItem(data: { type: Item["type"]; content: string; title?: string; source?: SourceMeta; projectId?: string; images?: string[] }): Item {
+function createItem(data: {
+  type: Item["type"]
+  content: string
+  title?: string
+  source?: SourceMeta
+  projectId?: string
+  images?: string[]
+}): Item {
   const item: Item = {
     id: crypto.randomUUID(),
     type: data.type,
@@ -69,7 +100,7 @@ function createItem(data: { type: Item["type"]; content: string; title?: string;
   return item
 }
 
-  // Listen for database changes broadcast via storage
+// Listen for database changes broadcast via storage
 chrome.storage.onChanged.addListener((changes) => {
   if (changes._dbp) {
     rebuildProjectMenus().catch(() => {})
@@ -87,7 +118,9 @@ chrome.runtime.onInstalled.addListener(() => {
   chrome.tabs.query({}, (tabs) => {
     for (const tab of tabs) {
       if (tab.id) {
-        chrome.tabs.sendMessage(tab.id, { kind: "reload-extension" as const }).catch(() => {})
+        chrome.tabs
+          .sendMessage(tab.id, { kind: "reload-extension" as const })
+          .catch(() => {})
       }
     }
   })
@@ -113,105 +146,113 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       createdAt: Date.now()
     }
 
-  const saveAndNotify = async (
-    type: Item["type"],
-    content: string,
-    projectId?: string,
-    projectName?: string
-  ) => {
-    console.debug("[lime:save]", { type, content: content.slice(0, 60), projectId, projectName })
-    const item = createItem({ type, content, source: base.source, projectId })
-    const saved = await addItem(item)
-    if (saved && projectId) {
-      touchProject(projectId).catch(() => {})
-    }
-    notifyTab(tab?.id, saved, type, projectName)
-  }
-
-  const captureAndSave = async (
-    projectId?: string,
-    projectName?: string
-  ): Promise<void> => {
-    if (info.selectionText) {
-      await saveAndNotify("text", info.selectionText, projectId, projectName)
-      return
-    }
-    if (info.srcUrl) {
-      await saveAndNotify("image", info.srcUrl, projectId, projectName)
-      return
-    }
-    if (info.linkUrl) {
-      await saveAndNotify("link", info.linkUrl, projectId, projectName)
-      return
-    }
-    if (tab?.url) {
-      await saveAndNotify("link", tab.url, projectId, projectName)
-    }
-  }
-
-  // ---- "新建项目并加入" ----
-  if (menuItemId === "pickquote-new-project") {
-    let captureType: Item["type"] = "text"
-    let captureContent = ""
-    if (info.selectionText) {
-      captureType = "text"
-      captureContent = info.selectionText
-    } else if (info.srcUrl) {
-      captureType = "image"
-      captureContent = info.srcUrl
-    } else if (info.linkUrl) {
-      captureType = "link"
-      captureContent = info.linkUrl
-    } else if (tab?.url) {
-      captureType = "link"
-      captureContent = tab.url
-    } else {
-      return
+    const saveAndNotify = async (
+      type: Item["type"],
+      content: string,
+      projectId?: string,
+      projectName?: string
+    ) => {
+      console.debug("[lime:save]", {
+        type,
+        content: content.slice(0, 60),
+        projectId,
+        projectName
+      })
+      const item = createItem({ type, content, source: base.source, projectId })
+      const saved = await addItem(item)
+      if (saved && projectId) {
+        touchProject(projectId).catch(() => {})
+      }
+      notifyTab(tab?.id, saved, type, projectName)
     }
 
-    await new Promise<void>((resolve) =>
-      chrome.storage.session.set(
-        {
-          pendingCapture: {
-            type: captureType,
-            content: captureContent,
-            source: base.source
+    const captureAndSave = async (
+      projectId?: string,
+      projectName?: string
+    ): Promise<void> => {
+      if (info.selectionText) {
+        await saveAndNotify("text", info.selectionText, projectId, projectName)
+        return
+      }
+      if (info.srcUrl) {
+        await saveAndNotify("image", info.srcUrl, projectId, projectName)
+        return
+      }
+      if (info.linkUrl) {
+        await saveAndNotify("link", info.linkUrl, projectId, projectName)
+        return
+      }
+      if (tab?.url) {
+        await saveAndNotify("link", tab.url, projectId, projectName)
+      }
+    }
+
+    // ---- "新建项目并加入" ----
+    if (menuItemId === "pickquote-new-project") {
+      let captureType: Item["type"] = "text"
+      let captureContent = ""
+      if (info.selectionText) {
+        captureType = "text"
+        captureContent = info.selectionText
+      } else if (info.srcUrl) {
+        captureType = "image"
+        captureContent = info.srcUrl
+      } else if (info.linkUrl) {
+        captureType = "link"
+        captureContent = info.linkUrl
+      } else if (tab?.url) {
+        captureType = "link"
+        captureContent = tab.url
+      } else {
+        return
+      }
+
+      await new Promise<void>((resolve) =>
+        chrome.storage.session.set(
+          {
+            pendingCapture: {
+              type: captureType,
+              content: captureContent,
+              source: base.source
+            },
+            pendingTabId: tab?.id
           },
-          pendingTabId: tab?.id
-        },
-        () => resolve()
+          () => resolve()
+        )
       )
-    )
-    chrome.windows.create({
-      url: chrome.runtime.getURL("tabs/new-project.html"),
-      type: "popup",
-      width: 480,
-      height: 460
-    })
-    return
-  }
+      chrome.windows.create({
+        url: chrome.runtime.getURL("tabs/new-project.html"),
+        type: "popup",
+        width: 480,
+        height: 460
+      })
+      return
+    }
 
-  // ---- "最近项目" ----
-  if (
-    typeof menuItemId === "string" &&
-    menuItemId.startsWith("pickquote-recent-")
-  ) {
-    const idx = parseInt(menuItemId.slice("pickquote-recent-".length), 10)
-    const recent = await getRecentProjects(3)
-    const project = recent[idx]
-    if (!project) return
-    await captureAndSave(project.id, project.name)
-    return
-  }
+    // ---- "最近项目" ----
+    if (
+      typeof menuItemId === "string" &&
+      menuItemId.startsWith("pickquote-recent-")
+    ) {
+      const idx = parseInt(menuItemId.slice("pickquote-recent-".length), 10)
+      const recent = await getRecentProjects(3)
+      const project = recent[idx]
+      if (!project) return
+      await captureAndSave(project.id, project.name)
+      return
+    }
 
-  // ---- "加入已有项目" ----
-  if (typeof menuItemId === "string" && menuItemId.startsWith("pickquote-proj-")) {
-    const projectId = menuItemId.slice("pickquote-proj-".length)
-    const projects = await listProjects()
-    const project = projects.find((p) => p.id === projectId)
-    await captureAndSave(projectId, project?.name ?? "未知项目")
-    return
-  }
+    // ---- "加入已有项目" ----
+    if (
+      typeof menuItemId === "string" &&
+      menuItemId.startsWith("pickquote-proj-")
+    ) {
+      const projectId = menuItemId.slice("pickquote-proj-".length)
+      const projects = await listProjects()
+      const project = projects.find((p) => p.id === projectId)
+      await captureAndSave(projectId, project?.name ?? "未知项目")
+      return
+    }
   } catch (e) {
     console.error("contextMenus.onClicked failed:", e)
   }
@@ -242,7 +283,11 @@ chrome.runtime.onMessage.addListener((raw: any, _sender, sendResponse) => {
         })
         .catch((e) => {
           clearTimeout(timer)
-          sendResponse({ ok: false, status: 0, body: e?.message ?? "Request failed" })
+          sendResponse({
+            ok: false,
+            status: 0,
+            body: e?.message ?? "Request failed"
+          })
         })
       return true
     }
@@ -270,7 +315,9 @@ chrome.runtime.onMessage.addListener((raw: any, _sender, sendResponse) => {
       }
       addProject(project)
         .then(() => sendResponse({ ok: true, id: project.id }))
-        .catch((e) => sendResponse({ ok: false, error: e?.message ?? "创建失败" }))
+        .catch((e) =>
+          sendResponse({ ok: false, error: e?.message ?? "创建失败" })
+        )
       return true
     }
     case "capture-visible-tab": {
@@ -295,7 +342,14 @@ async function handleCapture(
     : (await getRecentProjects(1))[0]
 
   if (targetProject) {
-    const item = createItem({ type: payload.type, content: payload.content, title: payload.title, source: payload.source, projectId: targetProject.id, images: payload.images })
+    const item = createItem({
+      type: payload.type,
+      content: payload.content,
+      title: payload.title,
+      source: payload.source,
+      projectId: targetProject.id,
+      images: payload.images
+    })
     const saved = await addItem(item)
     if (saved) touchProject(targetProject.id).catch(() => {})
     notifyTab(senderTab?.id, saved, item.type)

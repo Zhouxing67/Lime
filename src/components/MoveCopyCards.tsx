@@ -1,4 +1,11 @@
-import { Button, DialogActions, List, ListItemButton, ListItemText, Typography } from "@mui/material"
+import {
+  Button,
+  DialogActions,
+  List,
+  ListItemButton,
+  ListItemText,
+  Typography
+} from "@mui/material"
 
 import type { Project } from "../types"
 import DialogShell from "./DialogShell"

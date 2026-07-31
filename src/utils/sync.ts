@@ -1,6 +1,6 @@
-import { computeItemHash } from "./index"
 import type { Item, Project, ReviewEntry } from "../types"
 import { sendMessage } from "../types/messages"
+import { computeItemHash } from "./index"
 
 const SYNC_PATH = "/Apps/lime/lime-sync.json"
 const BASE_URL = "https://dav.jianguoyun.com/dav"
@@ -105,8 +105,13 @@ async function buildPayload(
   projects: Project[],
   reviews: ReviewEntry[]
 ): Promise<SyncPayload> {
-  const byId = <T extends { id: string }>(arr: T[]) => [...arr].sort((a, b) => a.id.localeCompare(b.id))
-  const raw = JSON.stringify({ items: byId(items), projects: byId(projects), reviews: byId(reviews) })
+  const byId = <T extends { id: string }>(arr: T[]) =>
+    [...arr].sort((a, b) => a.id.localeCompare(b.id))
+  const raw = JSON.stringify({
+    items: byId(items),
+    projects: byId(projects),
+    reviews: byId(reviews)
+  })
   const contentHash = await computeItemHash(raw, "")
   return {
     version: 3,

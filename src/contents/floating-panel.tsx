@@ -2,8 +2,8 @@ import type { PlasmoCSConfig } from "plasmo"
 import React, { useCallback, useEffect, useRef, useState } from "react"
 
 import FloatingPanel from "../components/FloatingPanel"
-import type { Project } from "../types"
 import type { PanelData, PanelPosition } from "../components/FloatingPanel"
+import type { Project } from "../types"
 
 export const config: PlasmoCSConfig = {
   matches: ["https://*/*", "http://*/*"],
@@ -21,22 +21,29 @@ export default function LimePanel() {
   const pinnedRef = useRef(pinned)
   const positionRef = useRef(position)
 
-  useEffect(() => { pinnedRef.current = pinned }, [pinned])
-  useEffect(() => { positionRef.current = position }, [position])
+  useEffect(() => {
+    pinnedRef.current = pinned
+  }, [pinned])
+  useEffect(() => {
+    positionRef.current = position
+  }, [position])
 
-  const show = useCallback((text: string, rect: DOMRect) => {
-    if (text === prevSelectionRef.current && open && pinnedRef.current) return
-    prevSelectionRef.current = text
-    setData({ text, rect })
-    setOpen(true)
-    console.log("[lime] showPanel", {
-      React: typeof React,
-      FloatingPanel: typeof FloatingPanel,
-      open: true,
-      pinned: pinnedRef.current,
-      position: positionRef.current
-    })
-  }, [open])
+  const show = useCallback(
+    (text: string, rect: DOMRect) => {
+      if (text === prevSelectionRef.current && open && pinnedRef.current) return
+      prevSelectionRef.current = text
+      setData({ text, rect })
+      setOpen(true)
+      console.log("[lime] showPanel", {
+        React: typeof React,
+        FloatingPanel: typeof FloatingPanel,
+        open: true,
+        pinned: pinnedRef.current,
+        position: positionRef.current
+      })
+    },
+    [open]
+  )
 
   const hide = useCallback(() => {
     setOpen(false)
@@ -86,10 +93,13 @@ export default function LimePanel() {
   // Reload content script on extension update
   useEffect(() => {
     const h = (msg: unknown) => {
-      if ((msg as { kind?: string })?.kind === "reload-extension") location.reload()
+      if ((msg as { kind?: string })?.kind === "reload-extension")
+        location.reload()
     }
     chrome.runtime.onMessage.addListener(h)
-    return () => { chrome.runtime.onMessage.removeListener(h) }
+    return () => {
+      chrome.runtime.onMessage.removeListener(h)
+    }
   }, [])
 
   // Plasmo's overlay host (`#__plasmo`) sets aria-hidden="true" by default.

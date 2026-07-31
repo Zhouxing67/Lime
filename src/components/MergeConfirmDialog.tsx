@@ -1,5 +1,15 @@
-import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField, Typography } from "@mui/material"
+import {
+  Box,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  TextField,
+  Typography
+} from "@mui/material"
 import { useState } from "react"
+
 import type { Item } from "../types"
 import { truncateText } from "../utils"
 
@@ -30,7 +40,10 @@ export default function MergeConfirmDialog({
     onClose()
   }
 
-  const totalImages = items.reduce((acc, item) => acc + (item.images?.length ?? 0), 0)
+  const totalImages = items.reduce(
+    (acc, item) => acc + (item.images?.length ?? 0),
+    0
+  )
 
   return (
     <Dialog
@@ -69,7 +82,10 @@ export default function MergeConfirmDialog({
             bgcolor: "background.default",
             mb: 2
           }}>
-          <Typography variant="caption" color="text.disabled" sx={{ display: "block", mb: 1 }}>
+          <Typography
+            variant="caption"
+            color="text.disabled"
+            sx={{ display: "block", mb: 1 }}>
             预览（将按以下顺序合并正文和图片）
           </Typography>
           {items.map((item, idx) => (
@@ -114,7 +130,9 @@ export default function MergeConfirmDialog({
           ))}
         </Box>
         <Typography variant="caption" color="text.secondary">
-          将合并 {items.length} 张卡片 → 1 张{totalImages > 0 ? `，合并 ${totalImages} 张图片` : ""}。原卡片将被删除。
+          将合并 {items.length} 张卡片 → 1 张
+          {totalImages > 0 ? `，合并 ${totalImages} 张图片` : ""}
+          。原卡片将被删除。
         </Typography>
       </DialogContent>
       <DialogActions sx={{ px: 3, py: 2.5 }}>

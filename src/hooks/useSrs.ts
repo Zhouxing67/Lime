@@ -1,5 +1,5 @@
-import type { Item, ReviewEntry, SrsData } from "../types"
 import { getAllReviews } from "../database"
+import type { Item, ReviewEntry, SrsData } from "../types"
 
 function defaultSrs(): SrsData {
   return {
@@ -30,7 +30,10 @@ export function rateSrs(srs: SrsData, rating: 1 | 2 | 3 | 4): SrsData {
   easeFactor = Math.max(1.3, Math.round(easeFactor * 100) / 100)
 
   const now = Date.now()
-  const reviewHistory = [...(srs.reviewHistory ?? []), { date: now, rating }].slice(-200)
+  const reviewHistory = [
+    ...(srs.reviewHistory ?? []),
+    { date: now, rating }
+  ].slice(-200)
 
   return {
     interval,
@@ -55,7 +58,10 @@ export function dayKey(ts: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
 }
 
-export async function getRecentItems(allItems: Item[], days = 3): Promise<{ date: string; items: Item[] }[]> {
+export async function getRecentItems(
+  allItems: Item[],
+  days = 3
+): Promise<{ date: string; items: Item[] }[]> {
   const cutoff = Date.now() - days * DAY_MS
   const reviews = await getAllReviews()
   // Filter for recently reviewed entries

@@ -65,7 +65,17 @@ export default function ItemCard({
         }
       }}
       onClick={onClick}>
-      <Box sx={{ position: "absolute", top: 0, left: 0, width: 48, height: 3, bgcolor: "secondary.main", borderTopLeftRadius: 16 }} />
+      <Box
+        sx={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          width: 48,
+          height: 3,
+          bgcolor: "secondary.main",
+          borderTopLeftRadius: 16
+        }}
+      />
       <Stack
         direction="row"
         alignItems="center"
@@ -73,17 +83,23 @@ export default function ItemCard({
         sx={{ mb: 2 }}>
         <Stack direction="row" spacing={1} alignItems="center">
           {!selectMode && (
-          <Chip
-            label={item.type === "text" ? "文本" : item.type === "image" ? "图片" : "链接"}
-            size="small"
-            variant="outlined"
-            sx={{
-              height: 20,
-              fontSize: "0.65rem",
-              fontWeight: 500,
-              letterSpacing: "0.04em"
-            }}
-          />
+            <Chip
+              label={
+                item.type === "text"
+                  ? "文本"
+                  : item.type === "image"
+                    ? "图片"
+                    : "链接"
+              }
+              size="small"
+              variant="outlined"
+              sx={{
+                height: 20,
+                fontSize: "0.65rem",
+                fontWeight: 500,
+                letterSpacing: "0.04em"
+              }}
+            />
           )}
           {!item.title && (
             <Chip
@@ -101,7 +117,16 @@ export default function ItemCard({
             />
           )}
           {firstRating && (
-            <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: ["#ef4444", "#f97316", "#22c55e", "#3b82f6"][firstRating - 1] }} />
+            <Box
+              sx={{
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                bgcolor: ["#ef4444", "#f97316", "#22c55e", "#3b82f6"][
+                  firstRating - 1
+                ]
+              }}
+            />
           )}
         </Stack>
         <ItemCardOperations
@@ -131,7 +156,14 @@ export default function ItemCard({
           justifyContent: "space-between",
           gap: 1
         }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0, flex: 1 }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 0.5,
+            minWidth: 0,
+            flex: 1
+          }}>
           {item.source ? (
             <Link
               href={item.source.url}

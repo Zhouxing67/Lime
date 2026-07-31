@@ -124,18 +124,22 @@ body::before {
   width: 100%;
   height: 100%;
   z-index: -2;
-  background: radial-gradient(ellipse at top,
-      var(--bg-primary) 0%,
-      rgba(156, 139, 122, 0.03) 50%,
-      var(--bg-primary) 100%);
+  background: radial-gradient(
+    ellipse at top,
+    var(--bg-primary) 0%,
+    rgba(156, 139, 122, 0.03) 50%,
+    var(--bg-primary) 100%
+  );
   pointer-events: none;
 }
 
 [data-theme="dark"] body::before {
-  background: radial-gradient(ellipse at top,
-      var(--bg-primary) 0%,
-      rgba(107, 119, 133, 0.05) 50%,
-      var(--bg-primary) 100%);
+  background: radial-gradient(
+    ellipse at top,
+    var(--bg-primary) 0%,
+    rgba(107, 119, 133, 0.05) 50%,
+    var(--bg-primary) 100%
+  );
 }
 
 /* Ensure all content is above the canvas */
@@ -300,9 +304,11 @@ footer {
   right: -10%;
   width: 800px;
   height: 800px;
-  background: radial-gradient(circle,
-      var(--primary-light) 0%,
-      var(--secondary-color) 100%);
+  background: radial-gradient(
+    circle,
+    var(--primary-light) 0%,
+    var(--secondary-color) 100%
+  );
   opacity: 0.05;
   border-radius: 50%;
   z-index: -1;
@@ -310,7 +316,6 @@ footer {
 }
 
 @keyframes float {
-
   0%,
   100% {
     transform: translate(0, 0) rotate(0deg);
@@ -469,7 +474,6 @@ footer {
 }
 
 @keyframes floatCard {
-
   0%,
   100% {
     transform: translateY(0);
@@ -1124,7 +1128,6 @@ kbd {
 
 /* ===== Animations ===== */
 @media (prefers-reduced-motion: no-preference) {
-
   .floating-card,
   .hero-bg {
     animation-play-state: running;
@@ -1138,7 +1141,6 @@ kbd {
 
 /* ===== Print Styles ===== */
 @media print {
-
   .navbar,
   .hero-actions,
   .download-actions {

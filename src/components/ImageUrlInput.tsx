@@ -1,6 +1,13 @@
 import AddRoundedIcon from "@mui/icons-material/AddRounded"
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded"
-import { Box, IconButton, InputAdornment, Stack, TextField, Typography } from "@mui/material"
+import {
+  Box,
+  IconButton,
+  InputAdornment,
+  Stack,
+  TextField,
+  Typography
+} from "@mui/material"
 import { useState } from "react"
 
 interface ImageUrlInputProps {
@@ -10,7 +17,11 @@ interface ImageUrlInputProps {
   compact?: boolean
 }
 
-export default function ImageUrlInput({ images, onChange, compact = false }: ImageUrlInputProps) {
+export default function ImageUrlInput({
+  images,
+  onChange,
+  compact = false
+}: ImageUrlInputProps) {
   const [draft, setDraft] = useState("")
 
   const add = () => {
@@ -52,11 +63,18 @@ export default function ImageUrlInput({ images, onChange, compact = false }: Ima
           }}
           sx={{
             gridArea: "1 / 1",
-            "& .MuiOutlinedInput-root": { borderRadius: 1, fontSize: compact ? "0.85rem" : "0.9rem" }
+            "& .MuiOutlinedInput-root": {
+              borderRadius: 1,
+              fontSize: compact ? "0.85rem" : "0.9rem"
+            }
           }}
         />
         {compact && (
-          <IconButton size="small" onClick={add} disabled={!draft.trim()} color="primary">
+          <IconButton
+            size="small"
+            onClick={add}
+            disabled={!draft.trim()}
+            color="primary">
             <AddRoundedIcon fontSize="small" />
           </IconButton>
         )}

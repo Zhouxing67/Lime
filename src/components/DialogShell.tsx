@@ -58,9 +58,7 @@ export default function DialogShell({
       <DialogTitle sx={{ py: 2.5, px: 3, fontSize: "1rem" }}>
         {title}
       </DialogTitle>
-      <DialogContent sx={{ px: 3, py: 1 }}>
-        {children}
-      </DialogContent>
+      <DialogContent sx={{ px: 3, py: 1 }}>{children}</DialogContent>
       {actions === undefined ? defaultActions : actions}
     </Dialog>
   )

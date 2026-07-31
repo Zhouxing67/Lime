@@ -1,9 +1,9 @@
 import { useRef } from "react"
 
 import { bulkReplace, getAllReviews } from "../database"
+import type { Item, Project } from "../types"
 import { downloadRemote, runSync, type SyncCredentials } from "../utils/sync"
 import { toJsonZip } from "../utils/zip"
-import type { Item, Project } from "../types"
 
 export function useBackupSync(options: {
   projects: Project[]
@@ -38,7 +38,9 @@ export function useBackupSync(options: {
     const items = allItemsUnfiltered.filter(
       (i) => i.projectId && backupSelectedIds.includes(i.projectId)
     )
-    const selectedProjects = projects.filter((p) => backupSelectedIds.includes(p.id))
+    const selectedProjects = projects.filter((p) =>
+      backupSelectedIds.includes(p.id)
+    )
     const blob = await toJsonZip(items, selectedProjects)
     const url = URL.createObjectURL(blob)
     await chrome.downloads.download({ url, filename: "lime-backup.zip" })
@@ -48,9 +50,18 @@ export function useBackupSync(options: {
   const handleUploadSync = async () => {
     try {
       const cred = await getSyncCredentials()
-      if (!cred) { setSyncStatus("请先在设置中配置坚果云"); return }
+      if (!cred) {
+        setSyncStatus("请先在设置中配置坚果云")
+        return
+      }
       const reviews = await getAllReviews()
-      const result = await runSync(cred, allItemsUnfiltered, projects, reviews, setSyncStatus)
+      const result = await runSync(
+        cred,
+        allItemsUnfiltered,
+        projects,
+        reviews,
+        setSyncStatus
+      )
       if (result.success) chrome.storage.local.set({ lastSyncTime: Date.now() })
       setSyncStatus(result.message)
       console.debug("[lime:sync]", result.message)
@@ -64,10 +75,19 @@ export function useBackupSync(options: {
   const handleDownloadSync = async () => {
     try {
       const cred = await getSyncCredentials()
-      if (!cred) { setSyncStatus("请先在设置中配置坚果云"); return }
+      if (!cred) {
+        setSyncStatus("请先在设置中配置坚果云")
+        return
+      }
 
       const reviews = await getAllReviews()
-      const remote = await downloadRemote(cred, allItemsUnfiltered, projects, reviews, setSyncStatus)
+      const remote = await downloadRemote(
+        cred,
+        allItemsUnfiltered,
+        projects,
+        reviews,
+        setSyncStatus
+      )
       if (!remote.success) {
         setSyncStatus(remote.message || "下载失败")
         console.debug("[lime:sync]", remote.message || "下载失败")

@@ -41,12 +41,12 @@ Chrome 扩展有三个隔离上下文：**Service Worker（背景页）**、**Op
 
 各上下文监听的 key 及响应：
 
-| 上下文 | 监听 key | 响应 |
-|---|---|---|
-| background SW | `_dbi` | `updateBadge()` — 刷新 badge 数字 |
-| | `_dbp` | 重建右键菜单 |
-| options page | `_dbi` 或 `_dbp` | `refreshAllData()` — 重查 DB 刷新全部 React state |
-| floating panel | `_dbp` | 刷新项目列表 |
+| 上下文         | 监听 key         | 响应                                              |
+| -------------- | ---------------- | ------------------------------------------------- |
+| background SW  | `_dbi`           | `updateBadge()` — 刷新 badge 数字                 |
+|                | `_dbp`           | 重建右键菜单                                      |
+| options page   | `_dbi` 或 `_dbp` | `refreshAllData()` — 重查 DB 刷新全部 React state |
+| floating panel | `_dbp`           | 刷新项目列表                                      |
 
 这种模式可以称作 **Storage-based Cross-Context Broadcast**。它不是某种标准库或框架，而是 Chrome 扩展生态中利用 `chrome.storage.onChanged` 自然形成的跨上下文同步模式。后端通常不会这样实现（后端用消息队列或数据库 LISTEN/NOTIFY），但在 Chrome 扩展中这是最简洁的方案。
 
@@ -133,11 +133,11 @@ B 在 DB 中仍然是"待复习"状态（badge 仍然显示），但 React state
 ```typescript
 // 前: allItemsUnfiltered 在 deps 中
 useEffect(() => {
-    if (sidebarTab !== "review" || reviewDateFilter || previewCount) return
-    getDueReviews().then((due) => {
-        const items = pairWithItems(due, allItemsUnfiltered)
-        setReviewItems(items)
-    })
+  if (sidebarTab !== "review" || reviewDateFilter || previewCount) return
+  getDueReviews().then((due) => {
+    const items = pairWithItems(due, allItemsUnfiltered)
+    setReviewItems(items)
+  })
 }, [sidebarTab, reviewDateFilter, previewCount, allItemsUnfiltered])
 
 // 后: 改用 useRef
@@ -145,11 +145,11 @@ const allItemsRef = useRef(allItemsUnfiltered)
 allItemsRef.current = allItemsUnfiltered
 
 useEffect(() => {
-    if (sidebarTab !== "review" || reviewDateFilter || previewCount) return
-    getDueReviews().then((due) => {
-        const items = pairWithItems(due, allItemsRef.current)
-        setReviewItems(items)
-    })
+  if (sidebarTab !== "review" || reviewDateFilter || previewCount) return
+  getDueReviews().then((due) => {
+    const items = pairWithItems(due, allItemsRef.current)
+    setReviewItems(items)
+  })
 }, [sidebarTab, reviewDateFilter, previewCount])
 ```
 
@@ -162,19 +162,20 @@ useEffect(() => {
 ```typescript
 // 后: 重新从 DB 读取
 setTimeout(async () => {
-    const due = await getDueReviews()
-    const itemMap = new Map(allItemsUnfiltered.map((i) => [i.id, i]))
-    const items = due.map((r) => itemMap.get(r.itemId))
-        .filter((i): i is Item => i !== undefined)
-    setReviewFlipped(false)
-    if (items.length === 0) {
-        setReviewCompleted(true)
-        setReviewItems([])
-    } else {
-        setReviewItems(items)
-        setReviewIndex(0)
-    }
-    setAnimating(false)
+  const due = await getDueReviews()
+  const itemMap = new Map(allItemsUnfiltered.map((i) => [i.id, i]))
+  const items = due
+    .map((r) => itemMap.get(r.itemId))
+    .filter((i): i is Item => i !== undefined)
+  setReviewFlipped(false)
+  if (items.length === 0) {
+    setReviewCompleted(true)
+    setReviewItems([])
+  } else {
+    setReviewItems(items)
+    setReviewIndex(0)
+  }
+  setAnimating(false)
 }, 350)
 ```
 

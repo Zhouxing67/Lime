@@ -13,7 +13,9 @@ type TableNames = "items" | "projects" | "reviews"
 async function broadcastDbChange(name: TableNames): Promise<void> {
   try {
     if (typeof chrome?.storage?.local?.set === "function") {
-      await chrome.storage.local.set({ [name === "projects" ? "_dbp" : "_dbi"]: Date.now() })
+      await chrome.storage.local.set({
+        [name === "projects" ? "_dbp" : "_dbi"]: Date.now()
+      })
     }
   } catch {}
 }
@@ -77,7 +79,7 @@ function openDb(version?: number): Promise<IDBDatabase> {
                   dueDate: item.srs.dueDate,
                   status: item.srs.interval >= 365 ? "mastered" : "active",
                   addedAt: item.createdAt
-}
+                }
                 rs.put(review)
               }
               cursor.continue()
@@ -114,11 +116,7 @@ async function withStore<T>(
     return result
   } catch (err) {
     // If the store doesn't exist, force a version upgrade to create it
-    if (
-      _retry &&
-      err instanceof DOMException &&
-      err.name === "NotFoundError"
-    ) {
+    if (_retry && err instanceof DOMException && err.name === "NotFoundError") {
       const upDb = await openDb(DB_VERSION + 1)
       upDb.close()
       return withStore(name, mode, fn, false)
@@ -145,7 +143,9 @@ export async function tx<T>(
   fn: (stores: Record<string, IDBObjectStore>) => Promise<T>
 ): Promise<T> {
   const names = Object.keys(storeMap) as TableNames[]
-  const mode = names.some((n) => storeMap[n] === "readwrite") ? "readwrite" : "readonly"
+  const mode = names.some((n) => storeMap[n] === "readwrite")
+    ? "readwrite"
+    : "readonly"
   let db: IDBDatabase | null = null
   try {
     db = await openDb()
@@ -187,10 +187,7 @@ export async function isDuplicate(
           return
         }
         const val = cursor.value as Item
-        if (
-          val.projectId === projectId &&
-          val.source?.url === sourceUrl
-        ) {
+        if (val.projectId === projectId && val.source?.url === sourceUrl) {
           resolve(true)
           return
         }
@@ -253,12 +250,14 @@ export async function searchItems(q: SearchQuery): Promise<Item[]> {
   return withStore("items", "readonly", async (store) => {
     const results: Item[] = []
     return new Promise<Item[]>((resolve, reject) => {
-      const source =
-        q.projectId
-          ? store.index("projectId")
-          : store.index("createdAt")
+      const source = q.projectId
+        ? store.index("projectId")
+        : store.index("createdAt")
       const range = q.projectId ? IDBKeyRange.only(q.projectId) : null
-      const cursorReq = source.openCursor(range, q.projectId ? undefined : "prev")
+      const cursorReq = source.openCursor(
+        range,
+        q.projectId ? undefined : "prev"
+      )
       cursorReq.onsuccess = () => {
         const cursor = cursorReq.result
         if (!cursor) {
@@ -398,41 +397,45 @@ export async function updateProject(project: Project): Promise<void> {
 
 export async function deleteProject(id: string): Promise<void> {
   // Atomic cascade: delete project, its items, and associated reviews in one transaction
-  await tx({ items: "readwrite", reviews: "readwrite", projects: "readwrite" }, async (stores) => {
-    const itemIds: string[] = await new Promise((resolve, reject) => {
-      const ids: string[] = []
-      const idx = stores.items.index("projectId")
-      const req = idx.openCursor(IDBKeyRange.only(id))
-      req.onsuccess = () => {
-        const cursor = req.result
-        if (cursor) {
-          ids.push(cursor.primaryKey as string)
-          cursor.continue()
-        } else {
-          resolve(ids)
+  await tx(
+    { items: "readwrite", reviews: "readwrite", projects: "readwrite" },
+    async (stores) => {
+      const itemIds: string[] = await new Promise((resolve, reject) => {
+        const ids: string[] = []
+        const idx = stores.items.index("projectId")
+        const req = idx.openCursor(IDBKeyRange.only(id))
+        req.onsuccess = () => {
+          const cursor = req.result
+          if (cursor) {
+            ids.push(cursor.primaryKey as string)
+            cursor.continue()
+          } else {
+            resolve(ids)
+          }
         }
-      }
-      req.onerror = () => reject(req.error)
-    })
+        req.onerror = () => reject(req.error)
+      })
 
-    const reviewIdx = stores.reviews.index("itemId")
-    const reviewKeys = await Promise.all(
-      itemIds.map((itemId) =>
-        new Promise<IDBValidKey | null>((resolve) => {
-          const req = reviewIdx.getKey(itemId)
-          req.onsuccess = () => resolve(req.result ?? null)
-          req.onerror = () => resolve(null)
-        })
+      const reviewIdx = stores.reviews.index("itemId")
+      const reviewKeys = await Promise.all(
+        itemIds.map(
+          (itemId) =>
+            new Promise<IDBValidKey | null>((resolve) => {
+              const req = reviewIdx.getKey(itemId)
+              req.onsuccess = () => resolve(req.result ?? null)
+              req.onerror = () => resolve(null)
+            })
+        )
       )
-    )
-    for (const key of reviewKeys) {
-      if (key) stores.reviews.delete(key)
+      for (const key of reviewKeys) {
+        if (key) stores.reviews.delete(key)
+      }
+      for (const itemId of itemIds) {
+        stores.items.delete(itemId)
+      }
+      stores.projects.delete(id)
     }
-    for (const itemId of itemIds) {
-      stores.items.delete(itemId)
-    }
-    stores.projects.delete(id)
-  })
+  )
 }
 
 export async function touchProject(id: string): Promise<void> {
@@ -453,7 +456,10 @@ export async function touchProject(id: string): Promise<void> {
  *  3. Clears `sectionId` on all items that were attached to any deleted section.
  *  Single transaction across projects + items for atomicity.
  */
-export async function deleteSection(projectId: string, sectionId: string): Promise<void> {
+export async function deleteSection(
+  projectId: string,
+  sectionId: string
+): Promise<void> {
   await tx({ projects: "readwrite", items: "readwrite" }, async (stores) => {
     const project = await new Promise<Project | undefined>((resolve) => {
       const req = stores.projects.get(projectId)
@@ -500,13 +506,19 @@ export async function deleteSection(projectId: string, sectionId: string): Promi
  * Update a single item's sectionId.
  * Pass undefined to move the card to "未分类".
  */
-export async function updateItemSection(itemId: string, sectionId: string | undefined): Promise<void> {
+export async function updateItemSection(
+  itemId: string,
+  sectionId: string | undefined
+): Promise<void> {
   await withStore("items", "readwrite", async (store) => {
     return new Promise<void>((resolve, reject) => {
       const req = store.get(itemId)
       req.onsuccess = () => {
         const item = req.result as Item | undefined
-        if (!item) { resolve(); return }
+        if (!item) {
+          resolve()
+          return
+        }
         store.put({ ...item, sectionId, updatedAt: Date.now() })
         resolve()
       }
@@ -529,7 +541,8 @@ export async function batchUpdateItems(
         (u) =>
           new Promise<{ id: string; item?: Item }>((resolve) => {
             const req = store.get(u.id)
-            req.onsuccess = () => resolve({ id: u.id, item: req.result as Item | undefined })
+            req.onsuccess = () =>
+              resolve({ id: u.id, item: req.result as Item | undefined })
             req.onerror = () => resolve({ id: u.id })
           })
       )
@@ -550,7 +563,9 @@ export async function batchUpdateItems(
 
 export async function getRecentProjects(limit = 3): Promise<Project[]> {
   const projects = await listProjects()
-  return projects.sort((a, b) => (b.lastOpened ?? 0) - (a.lastOpened ?? 0)).slice(0, limit)
+  return projects
+    .sort((a, b) => (b.lastOpened ?? 0) - (a.lastOpened ?? 0))
+    .slice(0, limit)
 }
 
 /**
@@ -581,7 +596,8 @@ export async function bulkReplace(
       // projects
       for (const project of remoteProjects) stores.projects.put(project)
       for (const project of localProjects) {
-        if (!remoteProjectIds.has(project.id)) stores.projects.delete(project.id)
+        if (!remoteProjectIds.has(project.id))
+          stores.projects.delete(project.id)
       }
       // reviews: upsert remote, delete local-not-in-remote
       const idx = stores.reviews.index("itemId")
@@ -600,7 +616,13 @@ export async function bulkReplace(
       for (const review of localReviews) {
         if (!remoteReviewItemIds.has(review.itemId)) {
           const req = idx.getKey(review.itemId)
-          await new Promise<void>((resolve) => { req.onsuccess = () => { if (req.result) stores.reviews.delete(req.result); resolve() }; req.onerror = () => resolve() })
+          await new Promise<void>((resolve) => {
+            req.onsuccess = () => {
+              if (req.result) stores.reviews.delete(req.result)
+              resolve()
+            }
+            req.onerror = () => resolve()
+          })
         }
       }
     }
@@ -628,7 +650,9 @@ export async function removeReview(itemId: string): Promise<void> {
   })
 }
 
-export async function getReviewByItemId(itemId: string): Promise<ReviewEntry | undefined> {
+export async function getReviewByItemId(
+  itemId: string
+): Promise<ReviewEntry | undefined> {
   return withStore("reviews", "readonly", (store) => {
     const idx = store.index("itemId")
     return new Promise<ReviewEntry | undefined>((resolve, reject) => {
@@ -711,7 +735,10 @@ export async function getReviewStatsByStore(): Promise<{
   })
 }
 
-export async function updateReviewSrs(itemId: string, srs: SrsData): Promise<void> {
+export async function updateReviewSrs(
+  itemId: string,
+  srs: SrsData
+): Promise<void> {
   await withStore("reviews", "readwrite", (store) => {
     const idx = store.index("itemId")
     return new Promise<void>((resolve, reject) => {

@@ -1,5 +1,4 @@
 import AddRoundedIcon from "@mui/icons-material/AddRounded"
-import { useEffect, useState } from "react"
 import {
   Box,
   Button,
@@ -9,8 +8,15 @@ import {
   TextField,
   Typography
 } from "@mui/material"
-import { ThemeProvider, createTheme } from "@mui/material/styles"
-import { addItem, addProject, listProjects, getProjectByName } from "../database"
+import { createTheme, ThemeProvider } from "@mui/material/styles"
+import { useEffect, useState } from "react"
+
+import {
+  addItem,
+  addProject,
+  getProjectByName,
+  listProjects
+} from "../database"
 import type { Item, Project } from "../types"
 import { sendMessage } from "../types/messages"
 
@@ -84,12 +90,11 @@ export default function NewProjectPage() {
       return
     }
     const existing = await getProjectByName(trimmed)
-    const project =
-      existing ?? {
-        id: crypto.randomUUID(),
-        name: trimmed,
-        createdAt: Date.now()
-      }
+    const project = existing ?? {
+      id: crypto.randomUUID(),
+      name: trimmed,
+      createdAt: Date.now()
+    }
     if (!existing) await addProject(project)
     await saveAndClose(project.id, project.name)
   }
@@ -98,7 +103,13 @@ export default function NewProjectPage() {
 
   return (
     <ThemeProvider theme={theme}>
-      <Box sx={{ p: 3, width: 460, minHeight: 380, bgcolor: "background.default" }}>
+      <Box
+        sx={{
+          p: 3,
+          width: 460,
+          minHeight: 380,
+          bgcolor: "background.default"
+        }}>
         <Typography variant="h6" sx={{ fontWeight: 400, mb: 0.5 }}>
           新建项目并加入
         </Typography>

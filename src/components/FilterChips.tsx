@@ -1,6 +1,6 @@
-import type { ReactNode } from "react"
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded"
-import { alpha, Box, Chip, Stack, TextField } from "@mui/material"
+import { Box, Chip, Stack, TextField } from "@mui/material"
+import type { ReactNode } from "react"
 
 interface FilterChipsProps {
   keyword: string
@@ -15,14 +15,19 @@ export default function FilterChips({
 }: FilterChipsProps) {
   return (
     <Box
-      sx={(theme) => ({
+      sx={{
         py: 1,
         px: 2,
-        bgcolor: alpha(theme.palette.primary.main, 0.03),
+        bgcolor: "background.paper",
         borderBottom: "1px solid",
         borderColor: "divider"
-      })}>
-      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+      }}>
+      <Stack
+        direction="row"
+        spacing={1}
+        alignItems="center"
+        flexWrap="wrap"
+        useFlexGap>
         <TextField
           size="small"
           placeholder="搜索当前项目中的卡片…"
@@ -38,7 +43,9 @@ export default function FilterChips({
           }}
           InputProps={{
             startAdornment: (
-              <SearchRoundedIcon sx={{ fontSize: 16, mr: 0.5, color: "text.disabled" }} />
+              <SearchRoundedIcon
+                sx={{ fontSize: 16, mr: 0.5, color: "text.disabled" }}
+              />
             )
           }}
         />

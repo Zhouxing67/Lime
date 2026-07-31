@@ -1,20 +1,12 @@
 {
   "extends": "plasmo/templates/tsconfig.base",
-  "exclude": [
-    "node_modules"
-  ],
-  "include": [
-    ".plasmo/index.d.ts",
-    "./**/*.ts",
-    "./**/*.tsx"
-  ],
+  "exclude": ["node_modules"],
+  "include": [".plasmo/index.d.ts", "./**/*.ts", "./**/*.tsx"],
   "compilerOptions": {
     // 👇 加上这一行，告诉 TS 5.3.3 忽略那些旧配置的警告
     "ignoreDeprecations": "5.0",
     "paths": {
-      "~*": [
-        "./*"
-      ]
+      "~*": ["./*"]
     },
     "baseUrl": "."
   }

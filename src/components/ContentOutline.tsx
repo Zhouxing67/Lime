@@ -2,7 +2,16 @@ import AddRoundedIcon from "@mui/icons-material/AddRounded"
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded"
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded"
-import { Box, Collapse, IconButton, Stack, TextField, Tooltip, Typography, alpha } from "@mui/material"
+import {
+  alpha,
+  Box,
+  Collapse,
+  IconButton,
+  Stack,
+  TextField,
+  Tooltip,
+  Typography
+} from "@mui/material"
 import { useCallback, useState } from "react"
 
 import type { Item, Section } from "../types"
@@ -20,10 +29,26 @@ export interface ContentOutlineProps {
   reviewItemIds?: Set<string>
   onToggleCollapse: (sectionId: string) => void
   onAddSection: (parentId: string | null) => void
-  onRenameSection: (parentId: string | null, sectionId: string, title: string) => void
-  onDeleteSection: (sectionId: string, cardCount: number, subSectionCount: number) => void
-  onMoveSection: (sectionId: string, newParentId: string | null, newOrder: number) => void
-  onMoveCard: (itemId: string, targetSectionId: string | null, targetOrder: number) => void
+  onRenameSection: (
+    parentId: string | null,
+    sectionId: string,
+    title: string
+  ) => void
+  onDeleteSection: (
+    sectionId: string,
+    cardCount: number,
+    subSectionCount: number
+  ) => void
+  onMoveSection: (
+    sectionId: string,
+    newParentId: string | null,
+    newOrder: number
+  ) => void
+  onMoveCard: (
+    itemId: string,
+    targetSectionId: string | null,
+    targetOrder: number
+  ) => void
   onBatchMoveCards: (itemIds: string[], targetSectionId: string | null) => void
   onMoveCardToSection: (itemId: string) => void
   onSelectItem: (id: string) => void
@@ -61,24 +86,39 @@ export default function ContentOutline({
 }: ContentOutlineProps) {
   const [draggedSection, setDraggedSection] = useState<string | null>(null)
   const [draggedItem, setDraggedItem] = useState<Item | null>(null)
-  const [dropTarget, setDropTarget] = useState<{ id: string; pos: DropPos; type: "section" | "card" | "uncategorized" } | null>(null)
+  const [dropTarget, setDropTarget] = useState<{
+    id: string
+    pos: DropPos
+    type: "section" | "card" | "uncategorized"
+  } | null>(null)
 
   const l1Sections = sections
     .filter((s) => s.level === 1)
     .sort((a, b) => a.order - b.order)
   const l2ByParent = (parentId: string) =>
-    sections.filter((s) => s.level === 2 && s.parentId === parentId).sort((a, b) => a.order - b.order)
-  const unclassified = items.filter((i) => !i.sectionId || !sections.some((s) => s.id === i.sectionId))
+    sections
+      .filter((s) => s.level === 2 && s.parentId === parentId)
+      .sort((a, b) => a.order - b.order)
+  const unclassified = items.filter(
+    (i) => !i.sectionId || !sections.some((s) => s.id === i.sectionId)
+  )
   const itemsForSection = (sectionId: string) =>
-    items.filter((i) => i.sectionId === sectionId).sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.createdAt - b.createdAt)
+    items
+      .filter((i) => i.sectionId === sectionId)
+      .sort(
+        (a, b) => (a.order ?? 0) - (b.order ?? 0) || a.createdAt - b.createdAt
+      )
 
   // ---- Section drag handlers ----
 
-  const handleSectionDragStart = useCallback((e: React.DragEvent, sectionId: string) => {
-    e.dataTransfer.effectAllowed = "move"
-    e.dataTransfer.setData("text/section", sectionId)
-    setDraggedSection(sectionId)
-  }, [])
+  const handleSectionDragStart = useCallback(
+    (e: React.DragEvent, sectionId: string) => {
+      e.dataTransfer.effectAllowed = "move"
+      e.dataTransfer.setData("text/section", sectionId)
+      setDraggedSection(sectionId)
+    },
+    []
+  )
 
   const handleSectionDragEnd = useCallback(() => {
     setDraggedSection(null)
@@ -143,7 +183,9 @@ export default function ContentOutline({
       } else {
         const parentId = targetSection.parentId
         const siblings = sections
-          .filter((s) => s.parentId === parentId && s.level === targetSection.level)
+          .filter(
+            (s) => s.parentId === parentId && s.level === targetSection.level
+          )
           .sort((a, b) => a.order - b.order)
         const targetIdx = siblings.findIndex((s) => s.id === targetSection.id)
         const newIdx = dropTarget.pos === "before" ? targetIdx : targetIdx + 1
@@ -213,7 +255,8 @@ export default function ContentOutline({
         (c) => c.id !== draggedItem.id
       )
       const targetIndex = cards.findIndex((c) => c.id === targetItemId)
-      const insertIndex = dropTarget?.pos === "after" ? targetIndex + 1 : targetIndex
+      const insertIndex =
+        dropTarget?.pos === "after" ? targetIndex + 1 : targetIndex
       // New order = insertIndex (others shift)
       onMoveCard(draggedItem.id, targetSection, insertIndex)
       setDraggedItem(null)
@@ -228,7 +271,7 @@ export default function ContentOutline({
     (e: React.DragEvent, sectionId: string) => {
       if (!draggedItem) return
       const sectionCards = itemsForSection(sectionId)
-      if (sectionCards.length > 0) return  // Only empty sections accept card drops on header
+      if (sectionCards.length > 0) return // Only empty sections accept card drops on header
       e.preventDefault()
       setDropTarget({ id: sectionId, pos: "inside", type: "section" })
     },
@@ -255,7 +298,11 @@ export default function ContentOutline({
       if (!draggedItem) return
       if (!draggedItem.sectionId) return // already in unclassified
       e.preventDefault()
-      setDropTarget({ id: "__unclassified__", pos: "inside", type: "uncategorized" })
+      setDropTarget({
+        id: "__unclassified__",
+        pos: "inside",
+        type: "uncategorized"
+      })
     },
     [draggedItem]
   )
@@ -296,33 +343,62 @@ export default function ContentOutline({
           onCardDragOver={handleCardDragOver}
           onCardDrop={handleCardDrop}
         />
-{draggedItem && sectionId !== null && (
+        {draggedItem && sectionId !== null && (
           <SectionDropZone
             sectionId={sectionId}
-            isDropTarget={dropTarget?.id === sectionId && dropTarget?.type === "section" && dropTarget?.pos === "inside"}
+            isDropTarget={
+              dropTarget?.id === sectionId &&
+              dropTarget?.type === "section" &&
+              dropTarget?.pos === "inside"
+            }
             onDragOver={(e) => {
               e.preventDefault()
               e.dataTransfer.dropEffect = "move"
-              if (dropTarget?.id !== sectionId || dropTarget?.type !== "section" || dropTarget?.pos !== "inside") {
+              if (
+                dropTarget?.id !== sectionId ||
+                dropTarget?.type !== "section" ||
+                dropTarget?.pos !== "inside"
+              ) {
                 setDropTarget({ id: sectionId, pos: "inside", type: "section" })
               }
             }}
-            onDrop={(e) => { e.preventDefault(); e.stopPropagation(); if (!draggedItem) return; onMoveCard(draggedItem.id, sectionId, list.length); setDraggedItem(null); setDropTarget(null) }}
+            onDrop={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              if (!draggedItem) return
+              onMoveCard(draggedItem.id, sectionId, list.length)
+              setDraggedItem(null)
+              setDropTarget(null)
+            }}
           />
         )}
       </>
     ) : (
       <Box
-        onDragOver={sectionId !== null ? (e) => handleSectionHeaderCardDragOver(e, sectionId) : undefined}
-        onDrop={sectionId !== null ? (e) => handleSectionHeaderCardDrop(e, sectionId) : undefined}
-        sx={{
+        onDragOver={
+          sectionId !== null
+            ? (e) => handleSectionHeaderCardDragOver(e, sectionId)
+            : undefined
+        }
+        onDrop={
+          sectionId !== null
+            ? (e) => handleSectionHeaderCardDrop(e, sectionId)
+            : undefined
+        }
+        sx={(theme) => ({
           minHeight: 8,
           borderRadius: 1,
           transition: "background 0.15s",
-          ...(dropTarget?.id === sectionId && dropTarget?.type === "section" && dropTarget?.pos === "inside"
-            ? { bgcolor: alpha("#6366f1", 0.1), outline: "2px dashed", outlineColor: "primary.main" }
+          ...(dropTarget?.id === sectionId &&
+          dropTarget?.type === "section" &&
+          dropTarget?.pos === "inside"
+            ? {
+                bgcolor: alpha(theme.palette.primary.main, 0.1),
+                outline: "2px dashed",
+                outlineColor: "primary.main"
+              }
             : {})
-        }}
+        })}
       />
     )
 
@@ -338,7 +414,11 @@ export default function ContentOutline({
               section={s1}
               collapsed={collapse1}
               isDragging={draggedSection === s1.id}
-              dropTarget={dropTarget?.id === s1.id && dropTarget?.type === "section" ? dropTarget.pos : null}
+              dropTarget={
+                dropTarget?.id === s1.id && dropTarget?.type === "section"
+                  ? dropTarget.pos
+                  : null
+              }
               draggedItem={draggedItem}
               onToggle={() => onToggleCollapse(s1.id)}
               onAddChild={() => onAddSection(s1.id)}
@@ -346,7 +426,11 @@ export default function ContentOutline({
               onDelete={() =>
                 onDeleteSection(
                   s1.id,
-                  s1Items.length + subs.reduce((acc, sub) => acc + itemsForSection(sub.id).length, 0),
+                  s1Items.length +
+                    subs.reduce(
+                      (acc, sub) => acc + itemsForSection(sub.id).length,
+                      0
+                    ),
                   subs.length
                 )
               }
@@ -354,8 +438,16 @@ export default function ContentOutline({
               onDragEnd={handleSectionDragEnd}
               onDragOver={(e) => handleSectionDragOver(e, s1.id)}
               onDrop={(e) => handleSectionDrop(e, s1)}
-              onCardDragOver={draggedItem ? (e) => handleSectionHeaderCardDragOver(e, s1.id) : undefined}
-              onCardDrop={draggedItem ? (e) => handleSectionHeaderCardDrop(e, s1.id) : undefined}
+              onCardDragOver={
+                draggedItem
+                  ? (e) => handleSectionHeaderCardDragOver(e, s1.id)
+                  : undefined
+              }
+              onCardDrop={
+                draggedItem
+                  ? (e) => handleSectionHeaderCardDrop(e, s1.id)
+                  : undefined
+              }
             />
             <Collapse in={!collapse1} sx={{ pl: 2 }}>
               <Stack spacing={0.5} sx={{ mt: 1 }}>
@@ -370,17 +462,34 @@ export default function ContentOutline({
                         collapsed={collapse2}
                         isChild
                         isDragging={draggedSection === s2.id}
-                        dropTarget={dropTarget?.id === s2.id && dropTarget?.type === "section" ? dropTarget.pos : null}
+                        dropTarget={
+                          dropTarget?.id === s2.id &&
+                          dropTarget?.type === "section"
+                            ? dropTarget.pos
+                            : null
+                        }
                         draggedItem={draggedItem}
                         onToggle={() => onToggleCollapse(s2.id)}
-                        onRename={(title) => onRenameSection(s1.id, s2.id, title)}
-                        onDelete={() => onDeleteSection(s2.id, s2Items.length, 0)}
+                        onRename={(title) =>
+                          onRenameSection(s1.id, s2.id, title)
+                        }
+                        onDelete={() =>
+                          onDeleteSection(s2.id, s2Items.length, 0)
+                        }
                         onDragStart={(e) => handleSectionDragStart(e, s2.id)}
                         onDragEnd={handleSectionDragEnd}
                         onDragOver={(e) => handleSectionDragOver(e, s2.id)}
                         onDrop={(e) => handleSectionDrop(e, s2)}
-                        onCardDragOver={draggedItem ? (e) => handleSectionHeaderCardDragOver(e, s2.id) : undefined}
-                        onCardDrop={draggedItem ? (e) => handleSectionHeaderCardDrop(e, s2.id) : undefined}
+                        onCardDragOver={
+                          draggedItem
+                            ? (e) => handleSectionHeaderCardDragOver(e, s2.id)
+                            : undefined
+                        }
+                        onCardDrop={
+                          draggedItem
+                            ? (e) => handleSectionHeaderCardDrop(e, s2.id)
+                            : undefined
+                        }
                       />
                       <Collapse in={!collapse2} sx={{ pl: 2, mt: 1 }}>
                         {cardGrid(s2Items, s2.id)}
@@ -399,7 +508,10 @@ export default function ContentOutline({
           items={unclassified}
           collapsed={collapsedSections.has("__unclassified__")}
           onToggle={() => onToggleCollapse("__unclassified__")}
-          isDropTarget={dropTarget?.id === "__unclassified__" && dropTarget?.type === "uncategorized"}
+          isDropTarget={
+            dropTarget?.id === "__unclassified__" &&
+            dropTarget?.type === "uncategorized"
+          }
           onUncategorizedDragOver={handleUncategorizedDragOver}
           onUncategorizedDrop={handleUncategorizedDrop}
           draggedItem={draggedItem}
@@ -460,8 +572,18 @@ function SectionHeader({
 
   if (editing) {
     return (
-      <Stack direction="row" spacing={0.5} alignItems="center" sx={{ py: 0.25, pl: isChild ? 1 : 0 }}>
-        <ChevronRightRoundedIcon sx={{ fontSize: 18, color: "text.disabled", transform: "rotate(90deg)" }} />
+      <Stack
+        direction="row"
+        spacing={0.5}
+        alignItems="center"
+        sx={{ py: 0.25, pl: isChild ? 1 : 0 }}>
+        <ChevronRightRoundedIcon
+          sx={{
+            fontSize: 18,
+            color: "text.disabled",
+            transform: "rotate(90deg)"
+          }}
+        />
         <TextField
           autoFocus
           size="small"
@@ -469,10 +591,19 @@ function SectionHeader({
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") commit()
-            if (e.key === "Escape") { setDraft(section.title); setEditing(false) }
+            if (e.key === "Escape") {
+              setDraft(section.title)
+              setEditing(false)
+            }
           }}
           onBlur={commit}
-          sx={{ "& .MuiOutlinedInput-root": { borderRadius: 1, fontSize: "0.85rem", py: 0.25 } }}
+          sx={{
+            "& .MuiOutlinedInput-root": {
+              borderRadius: 1,
+              fontSize: "0.85rem",
+              py: 0.25
+            }
+          }}
         />
       </Stack>
     )
@@ -491,7 +622,15 @@ function SectionHeader({
       onDragOver={onCardDragOver}
       sx={{ position: "relative" }}>
       {showInsertBefore && (
-        <Box sx={{ height: 2, bgcolor: "primary.main", mb: 0.25, mx: 0.5, borderRadius: 1 }} />
+        <Box
+          sx={{
+            height: 2,
+            bgcolor: "primary.main",
+            mb: 0.25,
+            mx: 0.5,
+            borderRadius: 1
+          }}
+        />
       )}
       <Stack
         direction="row"
@@ -499,42 +638,60 @@ function SectionHeader({
         spacing={0.5}
         onDragOver={onDragOver}
         onDrop={onDrop}
-        sx={{
+        sx={(theme) => ({
           py: 0.5,
           px: 1,
           borderRadius: 1,
           opacity: isDragging ? 0.4 : 1,
           bgcolor: showCardDrop
-            ? alpha("#6366f1", 0.12)
-            : alpha("#6366f1", 0.08),
-          border: "1px solid",
-          borderColor: isChild ? "divider" : "primary.main",
-          borderLeft: isChild ? undefined : "3px solid",
-          borderLeftColor: isChild ? undefined : "primary.main",
+            ? alpha(theme.palette.primary.main, 0.14)
+            : alpha(theme.palette.primary.main, 0.06),
+          border: isChild ? "1px solid" : undefined,
+          borderColor: isChild ? "divider" : undefined,
+          borderLeft: `${isChild ? 2 : 3}px solid`,
+          borderLeftColor: "primary.main",
           transition: "background 0.15s, opacity 0.15s",
           "&:hover .section-actions": { opacity: 1 }
-        }}>
+        })}>
         <IconButton size="small" onClick={onToggle} sx={{ p: 0.5 }}>
           {collapsed ? (
-            <ChevronRightRoundedIcon sx={{ fontSize: 18, color: "text.secondary", transform: "rotate(0deg)" }} />
+            <ChevronRightRoundedIcon
+              sx={{
+                fontSize: 18,
+                color: "text.secondary",
+                transform: "rotate(0deg)"
+              }}
+            />
           ) : (
-            <ExpandMoreRoundedIcon sx={{ fontSize: 18, color: "text.secondary" }} />
+            <ExpandMoreRoundedIcon
+              sx={{ fontSize: 18, color: "text.secondary" }}
+            />
           )}
         </IconButton>
         <Typography
           sx={{
-fontSize: isChild ? "0.9rem" : "0.95rem",
-          fontWeight: isChild ? 500 : 600,
+            fontSize: isChild ? "0.9rem" : "0.95rem",
+            fontWeight: isChild ? 500 : 600,
             color: isChild ? "text.secondary" : "text.primary",
             cursor: "pointer",
             flex: 1,
             "&:hover": { color: "primary.main" }
           }}
           onClick={onToggle}
-          onDoubleClick={() => { setDraft(section.title); setEditing(true) }}>
+          onDoubleClick={() => {
+            setDraft(section.title)
+            setEditing(true)
+          }}>
           {section.title}
         </Typography>
-        <Box className="section-actions" sx={{ display: "flex", gap: 0.5, opacity: 0, transition: "opacity 0.15s" }}>
+        <Box
+          className="section-actions"
+          sx={{
+            display: "flex",
+            gap: 0.5,
+            opacity: 0,
+            transition: "opacity 0.15s"
+          }}>
           {onAddChild && (
             <Tooltip title="添加子章节">
               <IconButton size="small" onClick={onAddChild} sx={{ p: 0.5 }}>
@@ -543,14 +700,25 @@ fontSize: isChild ? "0.9rem" : "0.95rem",
             </Tooltip>
           )}
           <Tooltip title="删除章节">
-            <IconButton size="small" onClick={onDelete} sx={{ p: 0.5, "&:hover": { color: "error.main" } }}>
+            <IconButton
+              size="small"
+              onClick={onDelete}
+              sx={{ p: 0.5, "&:hover": { color: "error.main" } }}>
               <DeleteOutlineRoundedIcon sx={{ fontSize: 18 }} />
             </IconButton>
           </Tooltip>
         </Box>
       </Stack>
       {showInsertAfter && (
-        <Box sx={{ height: 2, bgcolor: "primary.main", mt: 0.25, mx: 0.5, borderRadius: 1 }} />
+        <Box
+          sx={{
+            height: 2,
+            bgcolor: "primary.main",
+            mt: 0.25,
+            mx: 0.5,
+            borderRadius: 1
+          }}
+        />
       )}
     </Box>
   )
@@ -573,15 +741,20 @@ function SectionDropZone({
     <Box
       onDragOver={onDragOver}
       onDrop={onDrop}
-      sx={{
+      sx={(theme) => ({
         height: 6,
         borderRadius: 1,
         mt: 0.5,
         transition: "all 0.15s",
         ...(isDropTarget
-          ? { height: 28, bgcolor: alpha("#6366f1", 0.1), outline: "2px dashed", outlineColor: "primary.main" }
-          : { bgcolor: alpha("#6366f1", 0.03) })
-      }}
+          ? {
+              height: 28,
+              bgcolor: alpha(theme.palette.primary.main, 0.1),
+              outline: "2px dashed",
+              outlineColor: "primary.main"
+            }
+          : { bgcolor: alpha(theme.palette.primary.main, 0.03) })
+      })}
     />
   )
 }
@@ -608,28 +781,42 @@ function UnclassifiedGroup({
   cardGrid: (list: Item[], sectionId: string | null) => React.ReactNode
 }) {
   return (
-    <Box
-      onDragOver={onUncategorizedDragOver}
-      onDrop={onUncategorizedDrop}>
+    <Box onDragOver={onUncategorizedDragOver} onDrop={onUncategorizedDrop}>
       <Stack
         direction="row"
         alignItems="center"
         spacing={0.5}
-        sx={{
+        sx={(theme) => ({
           py: 0.5,
           px: 1,
           borderRadius: 1,
-          bgcolor: isDropTarget ? alpha("#6366f1", 0.08) : alpha("#000", 0.02),
+          bgcolor: isDropTarget
+            ? alpha(theme.palette.primary.main, 0.08)
+            : alpha(theme.palette.text.primary, 0.03),
           transition: "background 0.15s"
-        }}>
+        })}>
         <IconButton size="small" onClick={onToggle} sx={{ p: 0.25 }}>
           {collapsed ? (
-            <ChevronRightRoundedIcon sx={{ fontSize: 14, color: "text.disabled", transform: "rotate(0deg)" }} />
+            <ChevronRightRoundedIcon
+              sx={{
+                fontSize: 14,
+                color: "text.disabled",
+                transform: "rotate(0deg)"
+              }}
+            />
           ) : (
-            <ExpandMoreRoundedIcon sx={{ fontSize: 16, color: "text.disabled" }} />
+            <ExpandMoreRoundedIcon
+              sx={{ fontSize: 16, color: "text.disabled" }}
+            />
           )}
         </IconButton>
-        <Typography sx={{ fontSize: "0.8rem", fontWeight: 600, color: "text.disabled", flex: 1 }}>
+        <Typography
+          sx={{
+            fontSize: "0.8rem",
+            fontWeight: 600,
+            color: "text.disabled",
+            flex: 1
+          }}>
           未分类 · {unclassifiedItems.length} 张
         </Typography>
       </Stack>

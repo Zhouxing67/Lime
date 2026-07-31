@@ -3,8 +3,14 @@ import DoneAllRoundedIcon from "@mui/icons-material/DoneAllRounded"
 import DriveFileMoveOutlinedIcon from "@mui/icons-material/DriveFileMoveOutlined"
 import FileCopyOutlinedIcon from "@mui/icons-material/FileCopyOutlined"
 import MergeTypeRoundedIcon from "@mui/icons-material/MergeTypeRounded"
-import { Button, Divider, type ButtonOwnProps, Stack, Typography } from "@mui/material"
-import { Fragment, type ReactElement, useMemo } from "react"
+import {
+  Button,
+  Divider,
+  Stack,
+  Typography,
+  type ButtonOwnProps
+} from "@mui/material"
+import { Fragment, useMemo, type ReactElement } from "react"
 
 interface BatchToolbarProps {
   selectedIds: string[]
@@ -49,13 +55,19 @@ export default function BatchToolbar({
         icon: <DoneAllRoundedIcon sx={{ fontSize: 16, mr: 0.5 }} />,
         onClick: onSelectAll
       },
-      ...(hasSections ? [{
-        label: "移动到章节",
-        icon: <DriveFileMoveOutlinedIcon sx={{ fontSize: 16, mr: 0.5 }} />,
-        onClick: onBatchMoveToSection,
-        dividerBefore: true,
-        disabled: !hasSelection
-      } as ButtonConfig] : []),
+      ...(hasSections
+        ? [
+            {
+              label: "移动到章节",
+              icon: (
+                <DriveFileMoveOutlinedIcon sx={{ fontSize: 16, mr: 0.5 }} />
+              ),
+              onClick: onBatchMoveToSection,
+              dividerBefore: true,
+              disabled: !hasSelection
+            } as ButtonConfig
+          ]
+        : []),
       {
         label: "移动到",
         icon: <DriveFileMoveOutlinedIcon sx={{ fontSize: 16, mr: 0.5 }} />,
@@ -85,12 +97,26 @@ export default function BatchToolbar({
         color: "error"
       }
     ],
-    [onSelectAll, onBatchMove, onBatchCopy, onBatchDelete, onBatchMerge, hasSelection, hasMulti, allSelected, hasSections, onBatchMoveToSection]
+    [
+      onSelectAll,
+      onBatchMove,
+      onBatchCopy,
+      onBatchDelete,
+      onBatchMerge,
+      hasSelection,
+      hasMulti,
+      allSelected,
+      hasSections,
+      onBatchMoveToSection
+    ]
   )
 
   return (
     <Stack direction="row" spacing={1} alignItems="center" flexShrink={0}>
-      <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.82rem", whiteSpace: "nowrap" }}>
+      <Typography
+        variant="body2"
+        color="text.secondary"
+        sx={{ fontSize: "0.82rem", whiteSpace: "nowrap" }}>
         已选 {selectedIds.length} 条
       </Typography>
       {buttons.map((btn) => (

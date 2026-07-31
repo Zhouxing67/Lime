@@ -8,7 +8,7 @@
  * A smooth, premium shader-based background that resembles flowing ink or aurora.
  */
 
-; (function () {
+;(function () {
   "use strict"
 
   // ===== Shaders =====
@@ -141,19 +141,20 @@
     },
 
     getThemeColors() {
-      const isDark = document.documentElement.getAttribute("data-theme") === "dark"
+      const isDark =
+        document.documentElement.getAttribute("data-theme") === "dark"
 
       if (isDark) {
         return {
           color1: new THREE.Color(0x1a1a1a), // Dark bg
           color2: new THREE.Color(0x2d3436), // Dark gray
-          color3: new THREE.Color(0x4a5563)  // Blue gray accent
+          color3: new THREE.Color(0x4a5563) // Blue gray accent
         }
       } else {
         return {
           color1: new THREE.Color(0xfaf9f7), // Light bg
           color2: new THREE.Color(0xe8e6e3), // Warm gray
-          color3: new THREE.Color(0xd4af37)  // Gold accent (subtle)
+          color3: new THREE.Color(0xd4af37) // Gold accent (subtle)
         }
       }
     },
@@ -181,7 +182,7 @@
     setupEventListeners() {
       document.addEventListener("mousemove", (e) => {
         this.targetMouse.x = e.clientX / window.innerWidth
-        this.targetMouse.y = 1.0 - (e.clientY / window.innerHeight)
+        this.targetMouse.y = 1.0 - e.clientY / window.innerHeight
       })
 
       window.addEventListener("resize", () => {
@@ -211,13 +212,22 @@
       // Smoothly transition colors using GSAP if available, otherwise instant
       if (window.gsap) {
         gsap.to(this.material.uniforms.uColor1.value, {
-          r: colors.color1.r, g: colors.color1.g, b: colors.color1.b, duration: 1
+          r: colors.color1.r,
+          g: colors.color1.g,
+          b: colors.color1.b,
+          duration: 1
         })
         gsap.to(this.material.uniforms.uColor2.value, {
-          r: colors.color2.r, g: colors.color2.g, b: colors.color2.b, duration: 1
+          r: colors.color2.r,
+          g: colors.color2.g,
+          b: colors.color2.b,
+          duration: 1
         })
         gsap.to(this.material.uniforms.uColor3.value, {
-          r: colors.color3.r, g: colors.color3.g, b: colors.color3.b, duration: 1
+          r: colors.color3.r,
+          g: colors.color3.g,
+          b: colors.color3.b,
+          duration: 1
         })
       } else {
         this.material.uniforms.uColor1.value.copy(colors.color1)

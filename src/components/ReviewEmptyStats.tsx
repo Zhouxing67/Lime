@@ -28,10 +28,7 @@ export default function ReviewEmptyStats({
 
   return (
     <Box sx={{ maxWidth: 720, mx: "auto", mt: 8, px: 2 }}>
-      <Stack
-        direction={isWide ? "row" : "column"}
-        spacing={2}
-        sx={{ mb: 2 }}>
+      <Stack direction={isWide ? "row" : "column"} spacing={2} sx={{ mb: 2 }}>
         {/* Ring card */}
         <Box
           sx={{
@@ -79,13 +76,17 @@ export default function ReviewEmptyStats({
                 alignItems: "center",
                 justifyContent: "center"
               }}>
-              <SchoolRoundedIcon sx={{ fontSize: 20, color: "primary.main", mb: 0.5 }} />
+              <SchoolRoundedIcon
+                sx={{ fontSize: 20, color: "primary.main", mb: 0.5 }}
+              />
               <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1 }}>
                 {masteredCount}
               </Typography>
             </Box>
           </Box>
-          <Typography variant="body2" sx={{ mt: 1.5, color: "text.secondary", textAlign: "center" }}>
+          <Typography
+            variant="body2"
+            sx={{ mt: 1.5, color: "text.secondary", textAlign: "center" }}>
             已掌握 {masteredCount} 张 · 学习中 {activeCount} 张
           </Typography>
         </Box>
@@ -101,9 +102,17 @@ export default function ReviewEmptyStats({
             py: 3,
             px: 3
           }}>
-          <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mb: 2 }}>
-            <AutoGraphRoundedIcon sx={{ fontSize: 18, color: "text.secondary" }} />
-            <Typography variant="body2" sx={{ color: "text.secondary", fontWeight: 500 }}>
+          <Stack
+            direction="row"
+            alignItems="center"
+            spacing={0.5}
+            sx={{ mb: 2 }}>
+            <AutoGraphRoundedIcon
+              sx={{ fontSize: 18, color: "text.secondary" }}
+            />
+            <Typography
+              variant="body2"
+              sx={{ color: "text.secondary", fontWeight: 500 }}>
               今日评分分布
             </Typography>
           </Stack>
@@ -114,8 +123,14 @@ export default function ReviewEmptyStats({
               const max = Math.max(...todayRatings, 1)
               const width = (count / max) * 100
               return (
-                <Stack key={label} direction="row" alignItems="center" spacing={1}>
-                  <Typography variant="caption" sx={{ width: 28, color: RATING_COLORS[i], flexShrink: 0 }}>
+                <Stack
+                  key={label}
+                  direction="row"
+                  alignItems="center"
+                  spacing={1}>
+                  <Typography
+                    variant="caption"
+                    sx={{ width: 28, color: RATING_COLORS[i], flexShrink: 0 }}>
                     {label}
                   </Typography>
                   <Box
@@ -136,7 +151,14 @@ export default function ReviewEmptyStats({
                       }}
                     />
                   </Box>
-                  <Typography variant="body2" sx={{ width: 24, textAlign: "right", color: "text.secondary", flexShrink: 0 }}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      width: 24,
+                      textAlign: "right",
+                      color: "text.secondary",
+                      flexShrink: 0
+                    }}>
                     {count}
                   </Typography>
                 </Stack>
@@ -152,7 +174,11 @@ export default function ReviewEmptyStats({
         </Box>
       </Stack>
 
-      <Button variant="outlined" fullWidth onClick={onExit} sx={{ borderRadius: 1, py: 1 }}>
+      <Button
+        variant="outlined"
+        fullWidth
+        onClick={onExit}
+        sx={{ borderRadius: 1, py: 1 }}>
         退出复习
       </Button>
     </Box>

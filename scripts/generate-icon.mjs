@@ -1,3 +1,4 @@
+import { writeFileSync } from "fs"
 import { resolve } from "path"
 import { fileURLToPath } from "url"
 
@@ -24,7 +25,6 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${S
 
 const png = await sharp(Buffer.from(svg)).png().toBuffer()
 
-import { writeFileSync } from "fs"
 writeFileSync(resolve(root, "assets/icon.png"), png)
 writeFileSync(resolve(root, "www/assets/icon.png"), png)
 console.log("Icon generated:", png.length, "bytes")

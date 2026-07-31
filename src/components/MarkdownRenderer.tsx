@@ -1,12 +1,7 @@
-import {
-  Box,
-  Divider,
-  Link,
-  Typography
-} from "@mui/material"
-import type { ReactNode } from "react"
+import { Box, Divider, Link, Typography } from "@mui/material"
 import Markdown from "marked-react"
 import type { ReactRenderer } from "marked-react"
+import type { ReactNode } from "react"
 
 type CustomRenderer = Partial<ReactRenderer>
 
@@ -18,11 +13,16 @@ interface MarkdownRendererProps {
 const renderer: CustomRenderer = {
   heading(children: ReactNode, level: number) {
     const variant =
-      level === 1 ? "h5" as const
-        : level === 2 ? "h6" as const
-          : "subtitle1" as const
+      level === 1
+        ? ("h5" as const)
+        : level === 2
+          ? ("h6" as const)
+          : ("subtitle1" as const)
     return (
-      <Typography key={this.elementId} variant={variant} sx={{ my: 1.5, fontWeight: 600 }}>
+      <Typography
+        key={this.elementId}
+        variant={variant}
+        sx={{ my: 1.5, fontWeight: 600 }}>
         {children}
       </Typography>
     )
@@ -114,7 +114,10 @@ const renderer: CustomRenderer = {
   },
   list(children: ReactNode, ordered: boolean) {
     return (
-      <Box key={this.elementId} component={ordered ? "ol" : "ul"} sx={{ pl: 2.5, my: 1 }}>
+      <Box
+        key={this.elementId}
+        component={ordered ? "ol" : "ul"}
+        sx={{ pl: 2.5, my: 1 }}>
         {children}
       </Box>
     )
@@ -158,12 +161,16 @@ const renderer: CustomRenderer = {
   }
 }
 
-export default function MarkdownRenderer({ content, maxLines }: MarkdownRendererProps) {
+export default function MarkdownRenderer({
+  content,
+  maxLines
+}: MarkdownRendererProps) {
   return (
     <Box
       sx={
         maxLines
           ? {
+              fontFamily: (theme) => theme.custom.serif,
               maxHeight: `${maxLines * 1.8}rem`,
               overflow: "hidden",
               position: "relative",
@@ -179,7 +186,7 @@ export default function MarkdownRenderer({ content, maxLines }: MarkdownRenderer
                 pointerEvents: "none"
               }
             }
-          : undefined
+          : { fontFamily: (theme) => theme.custom.serif }
       }>
       <Markdown value={content} renderer={renderer} gfm />
     </Box>
