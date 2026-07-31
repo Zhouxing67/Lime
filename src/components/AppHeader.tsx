@@ -1,4 +1,3 @@
-import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded"
 import ViewSidebarOutlinedIcon from "@mui/icons-material/ViewSidebarOutlined"
 import ViewSidebarRoundedIcon from "@mui/icons-material/ViewSidebarRounded"
 import { Box, IconButton, Stack, Tooltip, Typography } from "@mui/material"
@@ -10,7 +9,6 @@ interface AppHeaderProps {
   drawerOpen: boolean
   headerHeight: number
   onToggleDrawer: () => void
-  onSettingsClick: () => void
   reviewProgress?: { current: number; total: number; sessionMastered: number }
   reviewStats?: ReviewStats
   activeProjectName?: string
@@ -21,7 +19,6 @@ export default function AppHeader({
   drawerOpen,
   headerHeight,
   onToggleDrawer,
-  onSettingsClick,
   reviewProgress,
   reviewStats,
   activeProjectName,
@@ -86,18 +83,6 @@ export default function AppHeader({
             </Typography>
           )}
         </Stack>
-        <Tooltip title="设置">
-          <IconButton
-            size="small"
-            onClick={onSettingsClick}
-            sx={{
-              color: "text.secondary",
-              "&:hover": { color: "primary.main" },
-              "&.Mui-focusVisible": { outline: "none" }
-            }}>
-            <SettingsRoundedIcon sx={{ fontSize: 20 }} />
-          </IconButton>
-        </Tooltip>
         {reviewProgress && reviewProgress.total > 0 && (
           <Typography
             variant="body2"

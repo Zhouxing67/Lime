@@ -1,6 +1,7 @@
 import BackupRoundedIcon from "@mui/icons-material/BackupRounded"
 import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded"
 import SchoolRoundedIcon from "@mui/icons-material/SchoolRounded"
+import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded"
 import { Badge, Box, IconButton, Tooltip } from "@mui/material"
 import { alpha } from "@mui/material/styles"
 
@@ -10,6 +11,7 @@ interface NavRailProps {
   sidebarTab: SidebarTab
   dueCount: number
   onSetSidebarTab: (tab: SidebarTab) => void
+  onSettingsClick: () => void
 }
 
 const BUTTONS: {
@@ -38,7 +40,8 @@ const BUTTONS: {
 export default function NavRail({
   sidebarTab,
   dueCount,
-  onSetSidebarTab
+  onSetSidebarTab,
+  onSettingsClick
 }: NavRailProps) {
   return (
     <Box
@@ -98,6 +101,23 @@ export default function NavRail({
           </Tooltip>
         )
       })}
+      <Box sx={{ flex: 1 }} />
+      <Tooltip title="设置" placement="right">
+        <IconButton
+          size="small"
+          onClick={onSettingsClick}
+          sx={(theme) => ({
+            color: "text.secondary",
+            borderRadius: 1,
+            p: 0.75,
+            "&:hover": {
+              color: "primary.main",
+              bgcolor: alpha(theme.palette.primary.main, 0.08)
+            }
+          })}>
+          <SettingsRoundedIcon sx={{ fontSize: 22 }} />
+        </IconButton>
+      </Tooltip>
     </Box>
   )
 }

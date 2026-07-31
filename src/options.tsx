@@ -1175,6 +1175,7 @@ export default function OptionsPage() {
           sidebarTab={sidebarTab}
           dueCount={dueCount}
           onSetSidebarTab={handleSetSidebarTab}
+          onSettingsClick={() => setSettingsOpen(true)}
         />
         <SidebarFilters
           open={drawerOpen}
@@ -1259,7 +1260,6 @@ export default function OptionsPage() {
               drawerOpen={drawerOpen}
               headerHeight={headerHeight}
               onToggleDrawer={handleToggleDrawer}
-              onSettingsClick={() => setSettingsOpen(true)}
               reviewProgress={
                 sidebarTab === "review" ? reviewProgress : undefined
               }
