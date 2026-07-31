@@ -1,5 +1,5 @@
 import type { PlasmoCSConfig } from "plasmo"
-import React, { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 
 import FloatingPanel from "../components/FloatingPanel"
 import type { PanelData, PanelPosition } from "../components/FloatingPanel"
@@ -20,6 +20,7 @@ export default function LimePanel() {
   const prevSelectionRef = useRef("")
   const pinnedRef = useRef(pinned)
   const positionRef = useRef(position)
+  const dirtyRef = useRef(false)
 
   useEffect(() => {
     pinnedRef.current = pinned
@@ -28,19 +29,20 @@ export default function LimePanel() {
     positionRef.current = position
   }, [position])
 
+  // The panel reports whether it holds a draft; while it does, new Alt+L
+  // selections are ignored so they can't overwrite the in-progress capture.
+  const onDirtyChange = useCallback((isDirty: boolean) => {
+    dirtyRef.current = isDirty
+  }, [])
+
   const show = useCallback(
     (text: string, rect: DOMRect) => {
       if (text === prevSelectionRef.current && open && pinnedRef.current) return
+      // Panel already holds a draft (open + non-empty) — keep its content.
+      if (open && dirtyRef.current) return
       prevSelectionRef.current = text
       setData({ text, rect })
       setOpen(true)
-      console.log("[lime] showPanel", {
-        React: typeof React,
-        FloatingPanel: typeof FloatingPanel,
-        open: true,
-        pinned: pinnedRef.current,
-        position: positionRef.current
-      })
     },
     [open]
   )
@@ -127,6 +129,7 @@ export default function LimePanel() {
       onPositionChange={setPosition}
       onProjectsChange={setProjects}
       onSelectedProjectChange={setSelectedProjectId}
+      onDirtyChange={onDirtyChange}
     />
   )
 }

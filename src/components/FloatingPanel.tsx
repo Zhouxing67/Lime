@@ -1,20 +1,58 @@
-import React, { useCallback, useEffect, useRef, useState } from "react"
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react"
 
+import { palettes } from "../theme/palettes"
+import type { PresetName } from "../types"
 import type { Project } from "../types"
 import { sendMessage } from "../types/messages"
 
-// Hardcoded palette — matches the options-page MUI theme. Kept out of MUI
-// to avoid bundler/undefined-component issues in the content-script bundle.
-const COLORS = {
-  primary: "#6366f1",
-  primaryDark: "#4f46e5",
-  error: "#ef4444",
-  success: "#22c55e",
-  bgPaper: "#fff",
-  bgDefault: "#f8fafc",
-  textPrimary: "#1e293b",
-  textSecondary: "#64748b"
+const SANS_FONT =
+  "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Helvetica Neue', Arial, sans-serif"
+
+interface PanelColors {
+  primary: string
+  primaryHover: string
+  error: string
+  success: string
+  bgDefault: string
+  bgPaper: string
+  bgHover: string
+  textPrimary: string
+  textSecondary: string
+  textDisabled: string
+  divider: string
+  borderStrong: string
+  shadow: string
 }
+
+function buildColors(preset: PresetName, dark: boolean): PanelColors {
+  const p = palettes[preset]
+  return {
+    primary: p.primary.main,
+    primaryHover: dark ? p.primary.light : p.primary.dark,
+    error: dark ? "#ef5350" : "#dc2626",
+    success: "#22c55e",
+    bgDefault: dark ? "#1a1a1a" : "#faf9f7",
+    bgPaper: dark ? "#252525" : "#ffffff",
+    bgHover: dark ? "rgba(232,230,227,0.06)" : "rgba(45,52,54,0.04)",
+    textPrimary: dark ? "#e8e6e3" : "#2d3436",
+    textSecondary: dark ? "rgba(232,230,227,0.65)" : "rgba(45,52,54,0.65)",
+    textDisabled: dark ? "rgba(232,230,227,0.38)" : "rgba(45,52,54,0.38)",
+    divider: dark ? "rgba(232,230,227,0.12)" : "rgba(45,52,54,0.08)",
+    borderStrong: dark ? "rgba(232,230,227,0.2)" : "rgba(45,52,54,0.14)",
+    shadow: dark
+      ? "0 8px 24px rgba(0,0,0,0.5)"
+      : "0 8px 24px rgba(45,52,54,0.1)"
+  }
+}
+
+// Cache last-seen preset so repeat opens don't flash the classic palette.
+let cachedPreset: PresetName | null = null
 
 export interface PanelPosition {
   left: number
@@ -51,6 +89,14 @@ class PanelErrorBoundary extends React.Component<
 }
 
 // ---- Inline SVG icons ----
+const IconGrip = () => (
+  <svg
+    viewBox="0 0 24 24"
+    style={{ display: "block", width: 14, height: 14, fill: "currentColor" }}>
+    <path d="M7 5h2v2H7zm0 6h2v2H7zm0 6h2v2H7zm4-12h2v2h-2zm0 6h2v2h-2zm0 6h2v2h-2z" />
+  </svg>
+)
+
 const IconPushPin = ({ rotated }: { rotated: boolean }) => (
   <svg
     viewBox="0 0 24 24"
@@ -74,21 +120,51 @@ const IconClose = () => (
   </svg>
 )
 
-// ---- Button style factory ----
-function iconBtnStyle() {
+const IconPlus = () => (
+  <svg
+    viewBox="0 0 24 24"
+    style={{ display: "block", width: 14, height: 14, fill: "currentColor" }}>
+    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6z" />
+  </svg>
+)
+
+const PANEL_CSS = `
+@keyframes limePanelIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+[data-lime-panel] { animation: limePanelIn 0.18s ease-out; }
+[data-lime-panel] .lime-icon-btn:hover { background: var(--lime-bg-hover); color: var(--lime-primary); }
+[data-lime-panel] .lime-input:focus { border-color: var(--lime-primary) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--lime-primary) 16%, transparent); }
+[data-lime-panel] .lime-input::placeholder { color: var(--lime-text-secondary); }
+`
+
+function iconBtnStyle(colors: PanelColors): React.CSSProperties {
   return {
-    border: "none" as const,
-    background: "none" as const,
-    cursor: "pointer" as const,
+    border: "none",
+    background: "none",
+    cursor: "pointer",
     fontSize: 15,
     borderRadius: 8,
     padding: "4px 6px",
-    lineHeight: 1 as const,
-    display: "flex" as const,
-    alignItems: "center" as const,
-    justifyContent: "center" as const,
-    color: "#475569",
+    lineHeight: 1,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    color: colors.textSecondary,
     transition: "all 0.15s"
+  }
+}
+
+function inputStyle(colors: PanelColors): React.CSSProperties {
+  return {
+    width: "100%",
+    boxSizing: "border-box",
+    border: `1px solid ${colors.borderStrong}`,
+    borderRadius: 8,
+    padding: "8px 10px",
+    fontSize: 13,
+    color: colors.textPrimary,
+    background: colors.bgPaper,
+    outline: "none",
+    fontFamily: "inherit"
   }
 }
 
@@ -103,7 +179,8 @@ export function FloatingPanel({
   onPinChange,
   onPositionChange,
   onProjectsChange,
-  onSelectedProjectChange
+  onSelectedProjectChange,
+  onDirtyChange
 }: {
   data: PanelData
   pinned: boolean
@@ -116,6 +193,7 @@ export function FloatingPanel({
   onPositionChange: (pos: PanelPosition) => void
   onProjectsChange: (projects: Project[]) => void
   onSelectedProjectChange: (id: string) => void
+  onDirtyChange?: (isDirty: boolean) => void
 }) {
   return (
     <PanelErrorBoundary>
@@ -131,6 +209,7 @@ export function FloatingPanel({
         onPositionChange={onPositionChange}
         onProjectsChange={onProjectsChange}
         onSelectedProjectChange={onSelectedProjectChange}
+        onDirtyChange={onDirtyChange}
       />
     </PanelErrorBoundary>
   )
@@ -147,7 +226,8 @@ function FloatingPanelContent({
   onPinChange,
   onPositionChange,
   onProjectsChange,
-  onSelectedProjectChange
+  onSelectedProjectChange,
+  onDirtyChange
 }: {
   data: PanelData
   pinned: boolean
@@ -160,6 +240,7 @@ function FloatingPanelContent({
   onPositionChange: (pos: PanelPosition) => void
   onProjectsChange: (projects: Project[]) => void
   onSelectedProjectChange: (id: string) => void
+  onDirtyChange?: (isDirty: boolean) => void
 }) {
   const [title, setTitle] = useState("")
   const [content, setContent] = useState(data.text)
@@ -172,13 +253,44 @@ function FloatingPanelContent({
   const [error, setError] = useState("")
   const ref = useRef<HTMLDivElement>(null)
 
-  const primary = COLORS.primary
-  const errColor = COLORS.error
-  const success = COLORS.success
-  const bgPaper = COLORS.bgPaper
-  const bgDefault = COLORS.bgDefault
-  const txtPrimary = COLORS.textPrimary
-  const txtSecondary = COLORS.textSecondary
+  // ---- Theme: preset from storage + dark mode from prefers-color-scheme ----
+  const [preset, setPreset] = useState<PresetName>(cachedPreset ?? "classic")
+  const [dark, setDark] = useState<boolean>(
+    () => window.matchMedia("(prefers-color-scheme: dark)").matches
+  )
+
+  useEffect(() => {
+    chrome.storage.sync.get("preset", (data) => {
+      if (data.preset) {
+        cachedPreset = data.preset as PresetName
+        setPreset(data.preset as PresetName)
+      }
+    })
+    const onChange = (changes: {
+      [key: string]: chrome.storage.StorageChange
+    }) => {
+      if (changes.preset) {
+        cachedPreset = changes.preset.newValue as PresetName
+        setPreset(changes.preset.newValue as PresetName)
+      }
+    }
+    chrome.storage.onChanged.addListener(onChange)
+    return () => chrome.storage.onChanged.removeListener(onChange)
+  }, [])
+
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)")
+    const apply = () => setDark(mq.matches)
+    mq.addEventListener("change", apply)
+    return () => mq.removeEventListener("change", apply)
+  }, [])
+
+  const colors = useMemo(() => buildColors(preset, dark), [preset, dark])
+
+  // ---- Report whether the panel holds a draft (blocks auto-fill) ----
+  useEffect(() => {
+    onDirtyChange?.(Boolean(content.trim()) || images.length > 0)
+  }, [content, images, onDirtyChange])
 
   // Sync content from new selection
   useEffect(() => {
@@ -372,7 +484,7 @@ function FloatingPanelContent({
     onPinChange(!pinned)
   }, [onPinChange, pinned])
 
-  const iconBtn = iconBtnStyle()
+  const iconBtn = iconBtnStyle(colors)
 
   return (
     <div
@@ -384,24 +496,28 @@ function FloatingPanelContent({
         width: 320,
         overflow: "hidden",
         display: "block",
-        background: bgPaper,
-        borderRadius: 8,
-        boxShadow:
-          "0 8px 32px rgba(99,102,241,0.12),0 1px 3px rgba(0,0,0,0.06)",
-        fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+        background: colors.bgPaper,
+        borderRadius: 10,
+        boxShadow: colors.shadow,
+        fontFamily: SANS_FONT,
         fontSize: 13,
-        color: txtPrimary,
-        boxSizing: "border-box"
-      }}>
-      {/* Header */}
+        color: colors.textPrimary,
+        boxSizing: "border-box",
+        "--lime-primary": colors.primary,
+        "--lime-bg-hover": colors.bgHover,
+        "--lime-text-secondary": colors.textSecondary
+      } as React.CSSProperties}>
+      <style>{PANEL_CSS}</style>
+
+      {/* Header: panel description + operations only */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
-          padding: "8px 12px",
-          background: primary,
           gap: 8,
-          minHeight: 38
+          padding: "8px 10px",
+          minHeight: 40,
+          borderBottom: `1px solid ${colors.divider}`
         }}>
         <span
           ref={handleRef}
@@ -413,58 +529,82 @@ function FloatingPanelContent({
             cursor: "grab",
             padding: "0 4px",
             marginLeft: -4,
-            opacity: 1
+            color: colors.textSecondary
           }}>
-          <svg
-            viewBox="0 0 24 24"
-            style={{
-              display: "block",
-              width: 14,
-              height: 14,
-              fill: "rgba(255,255,255,0.9)"
-            }}>
-            <path d="M7 5h2v2H7zm0 6h2v2H7zm0 6h2v2H7zm4-12h2v2h-2zm0 6h2v2h-2zm0 6h2v2h-2z" />
-          </svg>
+          <IconGrip />
         </span>
         <span
           style={{
             fontWeight: 600,
             fontSize: 12,
-            color: "#fff",
-            letterSpacing: "0.04em",
+            letterSpacing: "0.08em",
+            color: colors.textPrimary,
             flexShrink: 0,
             textTransform: "uppercase"
           }}>
           lime · 摘录
         </span>
+        <span style={{ flex: 1 }} />
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
+          <button
+            type="button"
+            className="lime-icon-btn"
+            style={iconBtn}
+            onClick={togglePin}
+            title={pinned ? "取消固定" : "固定面板"}>
+            <IconPushPin rotated={pinned} />
+          </button>
+          <button
+            type="button"
+            className="lime-icon-btn"
+            style={iconBtn}
+            onClick={onClose}
+            title="关闭">
+            <IconClose />
+          </button>
+        </span>
+      </div>
+
+      {/* Business row: project selection + create */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          padding: "8px 12px",
+          borderBottom: `1px solid ${colors.divider}`
+        }}>
+        <span
+          style={{
+            fontSize: 11,
+            color: colors.textSecondary,
+            flexShrink: 0,
+            letterSpacing: "0.03em"
+          }}>
+          保存到
+        </span>
         <span
           style={{
             position: "relative",
+            flex: 1,
+            minWidth: 0,
             display: "inline-flex",
-            alignItems: "center",
-            flex: "1 1 auto",
-            minWidth: 0
+            alignItems: "center"
           }}>
           <select
+            className="lime-input"
             value={selectedProjectId}
             onChange={(e) => onSelectedProjectChange(e.target.value)}
             style={{
-              fontSize: 12,
-              border: "none",
-              borderRadius: 8,
-              padding: "4px 24px 4px 8px",
-              background: "rgba(255,255,255,0.9)",
-              color: txtPrimary,
-              width: "100%",
-              maxWidth: "100%",
+              ...inputStyle(colors),
+              padding: "5px 24px 5px 8px",
               cursor: "pointer",
               fontWeight: 500,
               appearance: "none",
               WebkitAppearance: "none",
               textOverflow: "ellipsis",
               overflow: "hidden",
-              whiteSpace: "nowrap",
-              outline: "none"
+              whiteSpace: "nowrap"
             }}>
             {projects.length === 0 && (
               <option value="" disabled>
@@ -480,72 +620,39 @@ function FloatingPanelContent({
           <span
             style={{
               position: "absolute",
-              right: 6,
+              right: 8,
               top: "50%",
               transform: "translateY(-50%)",
               width: 0,
               height: 0,
               borderLeft: "4px solid transparent",
               borderRight: "4px solid transparent",
-              borderTop: "5px solid #64748b",
+              borderTop: `5px solid ${colors.textSecondary}`,
               pointerEvents: "none"
             }}
           />
         </span>
-        <span
-          style={{
-            flexShrink: 0,
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 2,
-            background: "rgba(255,255,255,0.92)",
-            borderRadius: 8,
-            padding: 2
-          }}>
-          <button
-            type="button"
-            style={iconBtn}
-            onClick={() => setCreating(!creating)}
-            title="新建项目">
-            ＋
-          </button>
-          <button
-            type="button"
-            style={iconBtn}
-            onClick={togglePin}
-            title={pinned ? "取消固定" : "固定面板"}>
-            <IconPushPin rotated={pinned} />
-          </button>
-          <button type="button" style={iconBtn} onClick={onClose} title="关闭">
-            <IconClose />
-          </button>
-        </span>
+        <button
+          type="button"
+          className="lime-icon-btn"
+          style={iconBtn}
+          onClick={() => setCreating(!creating)}
+          title="新建项目">
+          <IconPlus />
+        </button>
       </div>
 
       {/* Create project */}
       {creating && (
-        <div
-          style={{
-            display: "flex",
-            gap: 4,
-            padding: "0 12px 6px",
-            flexWrap: "wrap"
-          }}>
+        <div style={{ display: "flex", gap: 4, padding: "8px 12px 0" }}>
           <input
+            className="lime-input"
             placeholder="项目名称…"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && createProject()}
             autoFocus
-            style={{
-              flex: "1 1 auto",
-              minWidth: 0,
-              border: "1.5px solid #e2e8f0",
-              borderRadius: 8,
-              padding: "4px 8px",
-              fontSize: 12,
-              outline: "none"
-            }}
+            style={inputStyle(colors)}
           />
           <button
             type="button"
@@ -553,7 +660,7 @@ function FloatingPanelContent({
             onClick={createProject}
             style={{
               border: "none",
-              background: primary,
+              background: colors.primary,
               color: "#fff",
               borderRadius: 8,
               padding: "4px 10px",
@@ -567,53 +674,28 @@ function FloatingPanelContent({
         </div>
       )}
 
-      {/* Error */}
-      {error && (
-        <div style={{ padding: "0 12px 4px", fontSize: 11, color: errColor }}>
-          {error}
-        </div>
-      )}
-
       {/* Inputs */}
-      <div style={{ padding: "8px 12px" }}>
+      <div style={{ padding: "8px 12px 4px" }}>
         <input
+          className="lime-input"
           placeholder="摘要（可选）"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          style={{
-            width: "100%",
-            boxSizing: "border-box",
-            border: "1.5px solid #e2e8f0",
-            borderRadius: 8,
-            padding: "8px 10px",
-            fontSize: 13,
-            fontWeight: 500,
-            outline: "none",
-            marginBottom: 8
-          }}
+          style={{ ...inputStyle(colors), fontWeight: 500, marginBottom: 8 }}
         />
         <textarea
+          className="lime-input"
           placeholder="输入内容…"
           value={content}
           onChange={(e) => setContent(e.target.value)}
           rows={4}
-          style={{
-            width: "100%",
-            boxSizing: "border-box",
-            border: "1.5px solid #e2e8f0",
-            borderRadius: 8,
-            padding: "8px 10px",
-            fontSize: 13,
-            lineHeight: 1.7,
-            resize: "vertical",
-            outline: "none",
-            fontFamily: "inherit"
-          }}
+          style={{ ...inputStyle(colors), lineHeight: 1.7, resize: "vertical" }}
         />
 
         {/* Image URL input — plain DOM, no MUI (content-script bundle) */}
         <div style={{ display: "flex", gap: 4, marginTop: 8 }}>
           <input
+            className="lime-input"
             placeholder="图片 URL（可选，回车添加）"
             value={imageDraft}
             onChange={(e) => setImageDraft(e.target.value)}
@@ -625,16 +707,7 @@ function FloatingPanelContent({
                 setImageDraft("")
               }
             }}
-            style={{
-              flex: "1 1 auto",
-              minWidth: 0,
-              boxSizing: "border-box",
-              border: "1.5px solid #e2e8f0",
-              borderRadius: 8,
-              padding: "6px 10px",
-              fontSize: 12,
-              outline: "none"
-            }}
+            style={{ ...inputStyle(colors), padding: "6px 10px", fontSize: 12 }}
           />
           <button
             type="button"
@@ -651,8 +724,8 @@ function FloatingPanelContent({
               fontSize: 13,
               fontWeight: 600,
               cursor: "pointer",
-              background: imageDraft.trim() ? primary : "#cbd5e1",
-              color: "#fff",
+              background: imageDraft.trim() ? colors.primary : colors.bgHover,
+              color: imageDraft.trim() ? "#fff" : colors.textDisabled,
               flexShrink: 0
             }}>
             ＋
@@ -674,7 +747,7 @@ function FloatingPanelContent({
                   borderRadius: 6,
                   overflow: "hidden",
                   aspectRatio: "1 / 1",
-                  background: "#f1f5f9"
+                  background: colors.bgHover
                 }}>
                 <img
                   src={url}
@@ -720,18 +793,19 @@ function FloatingPanelContent({
       <div
         style={{
           display: "flex",
-          justifyContent: "flex-end",
+          alignItems: "center",
           gap: 6,
           padding: "8px 12px 10px",
-          alignItems: "center",
-          background: bgDefault,
-          borderTop: "1px solid #f1f5f9"
+          background: colors.bgDefault,
+          borderTop: `1px solid ${colors.divider}`
         }}>
         {error && (
-          <span style={{ fontSize: 11, color: errColor, marginRight: "auto" }}>
+          <span
+            style={{ fontSize: 11, color: colors.error, marginRight: "auto" }}>
             {error}
           </span>
         )}
+        {!error && <span style={{ flex: 1 }} />}
         <button
           type="button"
           onClick={onClose}
@@ -741,9 +815,9 @@ function FloatingPanelContent({
             fontSize: 12,
             cursor: "pointer",
             fontWeight: 600,
-            background: bgPaper,
-            color: txtSecondary,
-            border: "1px solid #e2e8f0"
+            background: colors.bgPaper,
+            color: colors.textSecondary,
+            border: `1px solid ${colors.borderStrong}`
           }}>
           取消
         </button>
@@ -759,7 +833,7 @@ function FloatingPanelContent({
             fontWeight: 600,
             border: "none",
             color: "#fff",
-            background: saved ? success : primary,
+            background: saved ? colors.success : colors.primary,
             opacity: saving || !content.trim() ? 0.5 : 1
           }}>
           {saving ? "保存中…" : saved ? "✓ 已保存" : "保存"}
