@@ -10,12 +10,14 @@
 
 | Command | Purpose |
 |---|---|
-| `npm run dev` | Start Plasmo dev server with HMR |
-| `npm run build` | Production build |
-| `npm run package` | Package for Chrome Web Store |
-| `npm test` | Jest (ts-jest, jsdom) |
-| `npm run test:coverage` | Jest with coverage |
-| `npm run format` | Prettier (no-semi, double-quotes, trailing-comma none) |
+| `pnpm run dev` | Start Plasmo dev server with HMR |
+| `pnpm run build` | Production build |
+| `pnpm run package` | Package for Chrome Web Store |
+| `pnpm test` | Jest (ts-jest, jsdom) |
+| `pnpm run test:coverage` | Jest with coverage |
+| `pnpm run format` | Prettier (no-semi, double-quotes, trailing-comma none) |
+| `pnpm run format:check` | Prettier check (CI-friendly) |
+| `pnpm run test:watch` | Jest watch mode |
 
 ## Entrypoints
 
@@ -62,10 +64,20 @@ Typed discriminated union `ExtensionMessage` (`src/types/messages.ts`):
 ```ts
 sendMessage({ kind: "capture", payload: {...} })  // → background SW
 sendMessage({ kind: "webdav", ... })               // proxied through SW (avoids Chrome auth dialog)
-sendMessage({ kind: "save-feedback", ... })         // toast on content page
-sendMessage({ kind: "set-recent-project", ... })    // update lastOpened
+sendMessage({ kind: "list-projects" })             // → SW reads projects store
+sendMessage({ kind: "add-project", name })         // → SW creates project
+sendMessage({ kind: "capture-visible-tab" })       // → SW returns tab screenshot dataURL
+sendMessage({ kind: "set-recent-project", ... })   // update lastOpened
 ```
-Always use `sendMessage()` — never raw `chrome.runtime.sendMessage`.
+Kinds: `capture`, `toast` (SW→tab), `webdav`, `save-feedback` (SW→tab), `set-recent-project`, `list-projects`, `add-project`, `capture-visible-tab`. Always use `sendMessage()` — never raw `chrome.runtime.sendMessage`.
+
+## Sections (v1.10.0)
+
+- `Section` type: `id/parentId/title/order/level` (level 1|2) — embedded in `Project.sections` (no separate store, DB still v8)
+- `Item.sectionId` points into `project.sections`; `undefined` = 未分类
+- CRUD: `deleteSection` (atomic cascade: sub-sections + cards→unclassified), `batchUpdateItems` (atomic batch sectionId/order), `updateItemSection` (single card move)
+- UI: `ContentOutline` replaces `CardGrid` in project view (unfiltered); `MoveToSectionDialog` for batch moves; AppHeader `+Section` button
+- Drag-drop: section reorder/reparent (level constraints), card move between sections + manual ordering
 
 ## CRITICAL Constraints
 
@@ -74,6 +86,7 @@ Always use `sendMessage()` — never raw `chrome.runtime.sendMessage`.
 3. **Project names must be unique** — enforced by `projects` store unique index.
 4. **No `window.confirm`** — use MUI `DeleteConfirmDialog` instead.
 5. **WebDAV Basic auth** must proxy through background SW (`kind: "webdav"`) to avoid Chrome's native auth dialog.
+6. **MV3 extension_pages CSP defaults to `'self'`** — external resources (images, fonts, styles) need explicit `*-src` declarations in `package.json` `manifest.csp` (already configured: `img-src` https/data/blob, fonts+styles via cdn.jsdelivr). New external assets won't load until CSP is extended.
 
 ## Key Conventions
 
@@ -81,9 +94,10 @@ Always use `sendMessage()` — never raw `chrome.runtime.sendMessage`.
 - State mgmt stays in `options.tsx` (composition root); child components get data + callbacks via props
 - New MUI Dialogs → extend `DialogShell` template (consistent borderRadius, title fontSize, cancel/confirm layout)
 - Empty states → `EmptyState` component (not inline Box/Typography)
-- Card content rendering → `CardRenderer` with `mode` prop (`preview`|`front`|`back`|`full`|`export`)
-- Export image → `ExportButton` component (encapsulates useExportImage + menu + IconButton)
+- Card content rendering → `CardRenderer` with `mode` prop (`preview`|`front`|`back`|`full`)
+- Backup export → `useBackupSync.handleExportBackup` (ZIP via `utils/zip.ts`, `export.json` inside), triggered from SidebarFilters
 - Item creation → `createItem()` factory in `background.ts` (not inline `id: crypto.randomUUID()` in 3 places)
+- Mixed cards (text+images) → `Item.images: string[]` on any type; `computeItemHash` takes images as optional 3rd param (different images = different card); UI entry is `NewCardDialog` (URL paste) + `ItemDialog`→`DialogEditMode`; shared `ImageUrlInput` component
 - `refreshAllData()` wraps `loadProjects()` + `onSearch()` — call for import/sync-download operations
 - `~` path alias maps to root (used in imports as `~/src/...`)
 
@@ -106,11 +120,11 @@ Always use `sendMessage()` — never raw `chrome.runtime.sendMessage`.
 - Conflict: SHA-256 hash comparison → user chooses upload/download (no auto-tiebreaker)
 - SyncPayload v3 includes items, projects, and reviews (with stable id-sort for hash)
 - `buildPayload(items, projects, reviews)` sorts all arrays by id before hashing
-- Context menu project list refreshes via `sendMessage({ kind: "rebuild-menus" })`
+- Context menu project/recent lists rebuild automatically when background SW sees `chrome.storage.onChanged` on `_dbp` (no message kind for this)
 
 ## Testing
 
 - `fake-indexeddb` auto-polyfilled in test setup
 - Chrome API mocked (`chrome.runtime`, `chrome.storage.local`)
-- Tests in `src/database/index.test.ts` and `src/utils/index.test.ts`
-- Run: `npm test` (or focused: `npx jest --no-coverage src/path/to/test`)
+- Tests in `src/database/index.test.ts`, `src/utils/index.test.ts`, and `src/import/jsonImport.test.ts`
+- Run: `pnpm test` (or focused: `pnpm exec jest --no-coverage src/path/to/test`)
