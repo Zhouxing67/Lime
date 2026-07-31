@@ -128,14 +128,28 @@ export default function ItemDialog({
               size="small"
               onClick={() => handleNavigate("prev")}
               disabled={!hasPrev}
-              sx={{ "&.Mui-disabled": { opacity: 0.3 } }}>
+              sx={{
+                color: "text.secondary",
+                bgcolor: "action.hover",
+                borderRadius: 1,
+                p: 0.5,
+                "&:hover": { bgcolor: "action.selected", color: "primary.main" },
+                "&.Mui-disabled": { opacity: 0.5 }
+              }}>
               <ChevronLeftRoundedIcon fontSize="small" />
             </IconButton>
             <IconButton
               size="small"
               onClick={() => handleNavigate("next")}
               disabled={!hasNext}
-              sx={{ "&.Mui-disabled": { opacity: 0.3 } }}>
+              sx={{
+                color: "text.secondary",
+                bgcolor: "action.hover",
+                borderRadius: 1,
+                p: 0.5,
+                "&:hover": { bgcolor: "action.selected", color: "primary.main" },
+                "&.Mui-disabled": { opacity: 0.5 }
+              }}>
               <ChevronRightRoundedIcon fontSize="small" />
             </IconButton>
           </>
