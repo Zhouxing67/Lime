@@ -18,7 +18,6 @@ export default function LimePanel() {
   const [selectedProjectId, setSelectedProjectId] = useState("")
   const [position, setPosition] = useState<PanelPosition>({ left: 0, top: 0 })
   const prevSelectionRef = useRef("")
-  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pinnedRef = useRef(pinned)
   const positionRef = useRef(position)
 
@@ -54,28 +53,25 @@ export default function LimePanel() {
         return el.closest?.("[data-lime-panel]") != null
       })
       if (insidePanel) return
-      if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
-      hideTimerRef.current = setTimeout(() => {
-        const sel = window.getSelection()
-        const text = sel?.toString().trim()
-        if (!text || text.length < 5 || text.length > 2000) {
-          if (!pinnedRef.current) hide()
-          return
-        }
-        const range = sel!.getRangeAt(0)
-        const rect = range.getBoundingClientRect()
-        if (rect.width === 0 || rect.height === 0) {
-          if (!pinnedRef.current) hide()
-          return
-        }
-        show(text, rect)
-      }, 300)
+      // 面板只在按下 Alt+L 时出现，点击面板外关闭（钉住时保持）
+      if (!pinnedRef.current) hide()
     }
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         if (pinnedRef.current) setPinned(false)
         hide()
+        return
+      }
+      if (e.altKey && e.key.toLowerCase() === "l") {
+        e.preventDefault()
+        const sel = window.getSelection()
+        const text = sel?.toString().trim()
+        if (!text || text.length < 5 || text.length > 2000) return
+        const range = sel!.getRangeAt(0)
+        const rect = range.getBoundingClientRect()
+        if (rect.width === 0 || rect.height === 0) return
+        show(text, rect)
       }
     }
 
@@ -84,7 +80,6 @@ export default function LimePanel() {
     return () => {
       document.removeEventListener("mouseup", handleMouseUp)
       document.removeEventListener("keydown", handleKeyDown)
-      if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
     }
   }, [show, hide])
 
