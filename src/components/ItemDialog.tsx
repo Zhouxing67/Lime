@@ -14,7 +14,7 @@ import {
   Tooltip,
   Typography
 } from "@mui/material"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 
 import type { Item } from "../types"
 import { prettyUrl } from "../utils"
@@ -75,14 +75,42 @@ export default function ItemDialog({
     setEditing(false)
   }
 
-  const handleNavigate = (dir: "prev" | "next") => {
-    if (animDir || !onNavigate) return
-    setAnimDir(dir)
-    setTimeout(() => {
-      onNavigate(dir)
-      setAnimDir(null)
-    }, 250)
-  }
+  const handleNavigate = useCallback(
+    (dir: "prev" | "next") => {
+      if (animDir || !onNavigate) return
+      setAnimDir(dir)
+      setTimeout(() => {
+        onNavigate(dir)
+        setAnimDir(null)
+      }, 250)
+    },
+    [animDir, onNavigate]
+  )
+
+  // Left/right arrow keys drive prev/next navigation. The listener is scoped
+  // to the open dialog, skips text inputs (so cursor movement in edit mode
+  // isn't hijacked), and the animDir guard throttles rapid key presses.
+  useEffect(() => {
+    if (!open || !onNavigate) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return
+      const t = e.target as HTMLElement | null
+      if (
+        t &&
+        (t.tagName === "INPUT" ||
+          t.tagName === "TEXTAREA" ||
+          t.tagName === "SELECT" ||
+          t.isContentEditable)
+      )
+        return
+      const dir = e.key === "ArrowLeft" ? "prev" : "next"
+      if (dir === "prev" ? !hasPrev : !hasNext) return
+      e.preventDefault()
+      handleNavigate(dir)
+    }
+    document.addEventListener("keydown", onKeyDown)
+    return () => document.removeEventListener("keydown", onKeyDown)
+  }, [open, onNavigate, hasPrev, hasNext, handleNavigate])
 
   return (
     <Dialog
