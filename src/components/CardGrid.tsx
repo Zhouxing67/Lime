@@ -211,54 +211,59 @@ export default function CardGrid({
               </Box>
             )
           })}
-          {ci === items.length % cols && onNewCard && items.length > 0 && (
-            <Paper
-              elevation={0}
-              onClick={onNewCard}
-              sx={(theme) => ({
-                borderRadius: 1,
-                border: "1px dashed",
-                borderColor: "divider",
-                minHeight: 110,
-                p: 2,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 1,
-                cursor: "pointer",
-                color: "text.secondary",
-                bgcolor: "background.paper",
-                boxShadow: theme.custom.cardShadow,
-                transition: "all 0.2s",
-                "&:hover": {
-                  borderColor: "primary.main",
-                  color: "primary.main",
-                  boxShadow: theme.custom.cardShadowHover,
-                  transform: "translateY(-1px)"
-                }
-              })}>
-              <Box
-                sx={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: "50%",
-                  border: "1px dashed",
-                  borderColor: "divider",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center"
-                }}>
-                <AddRoundedIcon sx={{ fontSize: 20 }} />
-              </Box>
-              <Typography variant="body2" sx={{ fontSize: "0.8rem" }}>
-                新建卡片
-              </Typography>
-            </Paper>
-          )}
         </Box>
       ))}
       </Box>
+      {onNewCard && items.length > 0 && (
+        <Paper
+          elevation={0}
+          onClick={onNewCard}
+          sx={(theme) => ({
+            mt: 2,
+            // Spans two masonry columns in multi-column layouts;
+            // full width on a single-column layout.
+            width:
+              cols > 1 ? "calc((100% - 32px) * 2 / 3 + 16px)" : "100%",
+            borderRadius: 1,
+            border: "1px dashed",
+            borderColor: "divider",
+            minHeight: 110,
+            p: 2,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 1,
+            cursor: "pointer",
+            color: "text.secondary",
+            bgcolor: "background.paper",
+            boxShadow: theme.custom.cardShadow,
+            transition: "all 0.2s",
+            "&:hover": {
+              borderColor: "primary.main",
+              color: "primary.main",
+              boxShadow: theme.custom.cardShadowHover,
+              transform: "translateY(-1px)"
+            }
+          })}>
+          <Box
+            sx={{
+              width: 36,
+              height: 36,
+              borderRadius: "50%",
+              border: "1px dashed",
+              borderColor: "divider",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center"
+            }}>
+            <AddRoundedIcon sx={{ fontSize: 20 }} />
+          </Box>
+          <Typography variant="body2" sx={{ fontSize: "0.8rem" }}>
+            新建卡片
+          </Typography>
+        </Paper>
+      )}
       {draggable && draggedId && (
         <Box
           data-card-drop-end="true"
