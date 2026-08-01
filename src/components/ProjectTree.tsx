@@ -1,6 +1,5 @@
 import AddRoundedIcon from "@mui/icons-material/AddRounded"
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded"
-import CloseRoundedIcon from "@mui/icons-material/CloseRounded"
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded"
 import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded"
 import MoreHorizRoundedIcon from "@mui/icons-material/MoreHorizRounded"
@@ -313,7 +312,9 @@ export default function ProjectTree({
             0
           ) +
           (unclassifiedByProject[project.id] ?? 0)
-        const isExpanded = expanded.has(project.id)
+        // Expand = open: the project's tree is expanded iff it is the active
+        // (open) project, so only one project tree can be open at a time.
+        const isExpanded = activeProjectId === project.id
 
         return (
           <Box
@@ -329,11 +330,10 @@ export default function ProjectTree({
               active={activeProjectId === project.id}
               total={projectTotal}
               expanded={isExpanded}
-              onToggle={() => onToggleExpanded(project.id)}
               onOpen={() => onSelectProject(project.id)}
               onClose={onCloseProject}
               onAdd={() => {
-                if (!isExpanded) onToggleExpanded(project.id)
+                if (!isExpanded) onSelectProject(project.id)
                 startAdd({ type: "project", id: project.id })
               }}
               onRename={(name) => onRenameProject(project.id, name)}
@@ -544,7 +544,6 @@ function ProjectNode({
   active,
   total,
   expanded,
-  onToggle,
   onOpen,
   onClose,
   onAdd,
@@ -556,7 +555,6 @@ function ProjectNode({
   active: boolean
   total: number
   expanded: boolean
-  onToggle: () => void
   onOpen: () => void
   onClose: () => void
   onAdd: () => void
@@ -672,7 +670,9 @@ function ProjectNode({
         size="small"
         onClick={(e) => {
           e.stopPropagation()
-          onToggle()
+          // Expand = open, collapse = close (accordion: one open project).
+          if (active) onClose()
+          else onOpen()
         }}
         sx={{ p: 0.25 }}>
         {expanded ? (
@@ -731,20 +731,12 @@ function ProjectNode({
             <AddRoundedIcon sx={{ fontSize: 16 }} />
           </IconButton>
         </Tooltip>
-        {active ? (
-          <Tooltip title="关闭项目">
-            <IconButton size="small" onClick={onClose}>
-              <CloseRoundedIcon sx={{ fontSize: 16 }} />
-            </IconButton>
-          </Tooltip>
-        ) : (
-          <>
-            <IconButton
-              size="small"
-              onClick={(e) => setMenuAnchor(e.currentTarget)}>
-              <MoreHorizRoundedIcon sx={{ fontSize: 16 }} />
-            </IconButton>
-            <Menu
+        <IconButton
+          size="small"
+          onClick={(e) => setMenuAnchor(e.currentTarget)}>
+          <MoreHorizRoundedIcon sx={{ fontSize: 16 }} />
+        </IconButton>
+        <Menu
               anchorEl={menuAnchor}
               open={Boolean(menuAnchor)}
               onClose={() => setMenuAnchor(null)}
@@ -769,8 +761,6 @@ function ProjectNode({
                 删除项目
               </MenuItem>
             </Menu>
-          </>
-        )}
       </Box>
     </TreeRow>
   )

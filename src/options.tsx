@@ -226,7 +226,6 @@ export default function OptionsPage() {
       setSelectedIds([])
       setSelectMode(false)
       setActiveProjectId(id)
-      setExpandedNav((prev) => new Set(prev).add(id))
       onSearch(id)
       sendMessage({ kind: "set-recent-project", projectId: id }).catch(() => {})
     },
@@ -351,7 +350,6 @@ export default function OptionsPage() {
     setSelectedIds([])
     setSelectMode(false)
     setActiveProjectId(id)
-    setExpandedNav((prev) => new Set(prev).add(id))
     onSearch(id)
     sendMessage({ kind: "set-recent-project", projectId: id }).catch(() => {})
   }
