@@ -79,6 +79,57 @@ export function appendMarkdownImage(
   return `${content.trimEnd()}\n\n${token}\n`
 }
 
+// ---- Markdown task lists (todo cards) ----
+
+const TASK_RE = /^(\s*(?:[-*]|\d+\.)\s+)\[([ xX])\](.*)$/
+
+export interface MarkdownTask {
+  lineIndex: number
+  checked: boolean
+}
+
+/** Parses task-list lines (`- [ ]` / `- [x]` / `1. [ ]`) in document order. */
+export function markdownTasks(content: string): MarkdownTask[] {
+  const tasks: MarkdownTask[] = []
+  const lines = content.split("\n")
+  for (let i = 0; i < lines.length; i++) {
+    const m = TASK_RE.exec(lines[i])
+    if (m) tasks.push({ lineIndex: i, checked: m[2].toLowerCase() === "x" })
+  }
+  return tasks
+}
+
+/** Toggles the index-th task's checkbox, returning the new content. */
+export function toggleMarkdownTask(content: string, index: number): string {
+  const lines = content.split("\n")
+  let count = 0
+  for (let i = 0; i < lines.length; i++) {
+    const m = TASK_RE.exec(lines[i])
+    if (!m) continue
+    if (count === index) {
+      const checked = m[2].toLowerCase() === "x"
+      lines[i] = `${m[1]}[${checked ? " " : "x"}]${m[3]}`
+      return lines.join("\n")
+    }
+    count++
+  }
+  return content
+}
+
+export function markdownTaskCount(content: string): number {
+  return markdownTasks(content).length
+}
+
+export function markdownCompletedCount(content: string): number {
+  return markdownTasks(content).filter((t) => t.checked).length
+}
+
+/** A todo is complete when it has at least one task and all are checked. */
+export function isTodoComplete(content: string): boolean {
+  const tasks = markdownTasks(content)
+  return tasks.length > 0 && tasks.every((t) => t.checked)
+}
+
 export type DropPos = "before" | "after"
 
 /**

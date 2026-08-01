@@ -9,7 +9,7 @@ export interface ImportResult {
   errors: { index: number; reason: string }[]
 }
 
-const VALID_TYPES: ItemType[] = ["text", "image", "link"]
+const VALID_TYPES: ItemType[] = ["text", "image", "link", "todo"]
 
 function validateItem(
   raw: unknown,

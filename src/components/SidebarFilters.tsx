@@ -17,17 +17,20 @@ import { useEffect, useRef } from "react"
 import type { ReactNode } from "react"
 
 import type { Project } from "../types"
+import type { SidebarTab } from "./NavRail"
 
 interface SidebarFiltersProps {
   open: boolean
   width: number
-  sidebarTab: "projects" | "review" | "backup"
+  sidebarTab: SidebarTab
   projects: Project[]
   readingFilter: boolean
   backupSelectedIds: string[]
   syncStatus: string
   recentDates: { key: string; label: string; count: number }[]
   reviewDateFilter: string | null
+  todoIncomplete: number
+  todoTotal: number
   children?: ReactNode
   onReviewDateClick: (dateKey: string | null) => void
   onWidthChange: (w: number) => void
@@ -41,10 +44,11 @@ interface SidebarFiltersProps {
   onDownloadSync: () => void
 }
 
-const TAB_TITLES: Record<"projects" | "review" | "backup", string> = {
+const TAB_TITLES: Record<SidebarTab, string> = {
   projects: "项目",
   review: "复习",
-  backup: "备份与同步"
+  backup: "备份与同步",
+  todo: "待办"
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -76,6 +80,8 @@ export default function SidebarFilters({
   syncStatus,
   recentDates,
   reviewDateFilter,
+  todoIncomplete,
+  todoTotal,
   children,
   onReviewDateClick,
   onWidthChange,
@@ -290,6 +296,22 @@ export default function SidebarFilters({
                   下载
                 </Button>
               </Stack>
+            </Box>
+          ) : sidebarTab === "todo" ? (
+            /* Todo tab content: minimal summary */
+            <Box>
+              <SectionLabel>待办</SectionLabel>
+              <Typography
+                variant="caption"
+                sx={{
+                  px: 1,
+                  display: "block",
+                  color: "text.secondary",
+                  fontSize: "0.75rem",
+                  mt: 0.5
+                }}>
+                未完成 {todoIncomplete} · 共 {todoTotal}
+              </Typography>
             </Box>
           ) : (
             /* Project tab content: tree + actions */

@@ -1,3 +1,4 @@
+import CheckRoundedIcon from "@mui/icons-material/CheckRounded"
 import { Box, Divider, Link, Typography } from "@mui/material"
 import Markdown from "marked-react"
 import type { ReactRenderer } from "marked-react"
@@ -10,12 +11,55 @@ interface MarkdownRendererProps {
   maxLines?: number
   /** Hide inline images (e.g. review-front prompt shows a gallery separately). */
   hideImages?: boolean
+  /** Enable interactive task checkboxes; called with the task index in content. */
+  onToggleTask?: (index: number) => void
 }
 
-const renderer = createRenderer(false)
-
-function createRenderer(preview: boolean): CustomRenderer {
+function createRenderer(
+  preview: boolean,
+  onToggleTask?: (index: number) => void
+): CustomRenderer {
+  let taskIndex = 0
   return {
+    checkbox(checked: ReactNode) {
+      const idx = taskIndex++
+      const done = Boolean(checked)
+      return (
+        <Box
+          key={`task-${idx}`}
+          component="span"
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggleTask?.(idx)
+          }}
+          sx={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 16,
+            height: 16,
+            borderRadius: 0.5,
+            mr: 0.75,
+            flexShrink: 0,
+            verticalAlign: "middle",
+            mt: -0.35,
+            border: "1.5px solid",
+            borderColor: done ? "primary.main" : "text.disabled",
+            bgcolor: done ? "primary.main" : "transparent",
+            cursor: onToggleTask ? "pointer" : "default",
+            transition: "all 0.15s",
+            "&:hover": onToggleTask
+              ? { borderColor: "primary.main" }
+              : undefined
+          }}>
+          {done && (
+            <CheckRoundedIcon
+              sx={{ fontSize: 12, color: "common.white", display: "block" }}
+            />
+          )}
+        </Box>
+      )
+    },
     image(src: string, alt: string, title?: string | null) {
       // In preview (clamped) mode inline images are hidden — the card cover
       // is derived separately from the content's image URLs.
@@ -191,11 +235,15 @@ function createRenderer(preview: boolean): CustomRenderer {
 export default function MarkdownRenderer({
   content,
   maxLines,
-  hideImages
+  hideImages,
+  onToggleTask
 }: MarkdownRendererProps) {
   // Build the renderer per render: preview (clamped) or hideImages mode hides
   // inline images; otherwise they render constrained to the container width.
-  const renderer = createRenderer(Boolean(maxLines) || Boolean(hideImages))
+  const renderer = createRenderer(
+    Boolean(maxLines) || Boolean(hideImages),
+    onToggleTask
+  )
   return (
     <Box
       sx={

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
+import type { SidebarTab } from "../components/NavRail"
 import {
   searchItems as dbSearch,
   getAllReviews,
@@ -24,8 +25,8 @@ interface UseReviewOptions {
   allItemsUnfiltered: Item[]
   searchItems: typeof dbSearch
   onSearch: () => Promise<void>
-  sidebarTab: "projects" | "review" | "backup"
-  setSidebarTab: (tab: "projects" | "review" | "backup") => void
+  sidebarTab: SidebarTab
+  setSidebarTab: (tab: SidebarTab) => void
   reviewItems: Item[]
   setReviewItems: (items: Item[]) => void
   reviewDateFilter: string | null

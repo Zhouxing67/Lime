@@ -206,7 +206,10 @@ function safeHostname(url: string): string | undefined {
   }
 }
 
-export async function addItem(item: Item): Promise<boolean> {
+export async function addItem(
+  item: Item,
+  opts?: { skipDedup?: boolean }
+): Promise<boolean> {
   const normalized: Item = {
     ...item,
     updatedAt: item.updatedAt ?? Date.now(),
@@ -221,6 +224,15 @@ export async function addItem(item: Item): Promise<boolean> {
   }
 
   return withStore("items", "readwrite", async (store) => {
+    // Todos are intentionally unique even with identical/empty content.
+    if (opts?.skipDedup) {
+      await new Promise<void>((resolve, reject) => {
+        const req = store.put(normalized)
+        req.onsuccess = () => resolve()
+        req.onerror = () => reject(req.error)
+      })
+      return true
+    }
     const idx = store.index("hash")
     return new Promise<boolean>((resolve, reject) => {
       const req = idx.openCursor(IDBKeyRange.only(normalized.hash))

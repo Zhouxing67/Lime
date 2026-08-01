@@ -1,4 +1,5 @@
 import ArticleRoundedIcon from "@mui/icons-material/ArticleRounded"
+import ChecklistRoundedIcon from "@mui/icons-material/ChecklistRounded"
 import FormatQuoteRoundedIcon from "@mui/icons-material/FormatQuoteRounded"
 import ImageRoundedIcon from "@mui/icons-material/ImageRounded"
 import LinkRoundedIcon from "@mui/icons-material/LinkRounded"
@@ -18,7 +19,8 @@ interface CardRendererProps {
 const TYPE_LABEL: Record<string, string> = {
   text: "文本",
   image: "图片",
-  link: "链接"
+  link: "链接",
+  todo: "待办"
 }
 
 export const typeIcon = (type: string) => {
@@ -29,6 +31,8 @@ export const typeIcon = (type: string) => {
       return <ImageRoundedIcon fontSize="small" />
     case "link":
       return <LinkRoundedIcon fontSize="small" />
+    case "todo":
+      return <ChecklistRoundedIcon fontSize="small" />
     default:
       return <ArticleRoundedIcon fontSize="small" />
   }

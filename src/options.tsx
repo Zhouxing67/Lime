@@ -46,6 +46,7 @@ import ItemDialog from "./components/ItemDialog"
 import CopyCardsDialog from "./components/CopyCardsDialog"
 import MergeConfirmDialog from "./components/MergeConfirmDialog"
 import NavRail from "./components/NavRail"
+import type { SidebarTab } from "./components/NavRail"
 import NewCardDialog from "./components/NewCardDialog"
 import NewProjectDialog from "./components/NewProjectDialog"
 import ProjectHub from "./components/ProjectHub"
@@ -53,6 +54,7 @@ import ProjectTree from "./components/ProjectTree"
 import ReviewSession from "./components/ReviewSession"
 import SettingsDialog from "./components/SettingsDialog"
 import SidebarFilters from "./components/SidebarFilters"
+import TodoView from "./components/TodoView"
 import {
   addItem,
   addReview,
@@ -77,6 +79,7 @@ import { importFromZip } from "./import"
 import { createAppTheme } from "./theme"
 import type { Item, PresetName, SearchQuery, SrsData } from "./types"
 import { sendMessage } from "./types/messages"
+import { isTodoComplete, toggleMarkdownTask } from "./utils"
 
 const MIN_DRAWER_WIDTH = 200
 const MAX_DRAWER_WIDTH = 500
@@ -98,13 +101,13 @@ export default function OptionsPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [preset, setPreset] = useState<PresetName>("classic")
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [sidebarTab, setSidebarTab] = useState<
-    "projects" | "review" | "backup"
-  >("projects")
+  const [sidebarTab, setSidebarTab] = useState<SidebarTab>("projects")
   const [reviewItems, setReviewItems] = useState<Item[]>([])
   const [reviewDateFilter, setReviewDateFilter] = useState<string | null>(null)
   const [ratingFilter, setRatingFilter] = useState<1 | 2 | 3 | 4 | null>(null)
   const [allItemsUnfiltered, setAllItemsUnfiltered] = useState<Item[]>([])
+  const [todoItems, setTodoItems] = useState<Item[]>([])
+  const [todoEditingId, setTodoEditingId] = useState<string | null>(null)
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
   const [readingFilter, setReadingFilter] = useState(false)
   const [dateRange, setDateRange] = useState<{
@@ -196,12 +199,14 @@ export default function OptionsPage() {
         to: dateRange?.to
       }
       const list = await searchItems(q)
-      list.sort(
+      // Todos are a global view of their own; never mix into project/search.
+      const filtered = list.filter((i) => i.type !== "todo")
+      filtered.sort(
         (a, b) => (a.order ?? 0) - (b.order ?? 0) || a.createdAt - b.createdAt
       )
-      setAllItems(list)
-      setDisplayedItems(list.slice(0, ITEMS_PER_PAGE))
-      setHasMore(list.length > ITEMS_PER_PAGE)
+      setAllItems(filtered)
+      setDisplayedItems(filtered.slice(0, ITEMS_PER_PAGE))
+      setHasMore(filtered.length > ITEMS_PER_PAGE)
     },
     [keyword, activeProjectId, dateRange, ITEMS_PER_PAGE]
   )
@@ -521,13 +526,19 @@ export default function OptionsPage() {
     onSearch()
   }
 
+  const loadTodos = useCallback(async () => {
+    const todos = await searchItems({ type: "todo" })
+    setTodoItems(todos)
+  }, [])
+
   const refreshAllData = useCallback(async () => {
     await loadProjects()
     await onSearch()
+    await loadTodos()
     const all = await searchItems({})
     setAllItemsUnfiltered(all)
     // reviewItemIds + reviewSrsMap updated by the effect on allItemsUnfiltered change
-  }, [loadProjects, onSearch])
+  }, [loadProjects, onSearch, loadTodos])
 
   const handleToggleReview = useCallback(
     async (itemId: string) => {
@@ -964,13 +975,10 @@ export default function OptionsPage() {
   const hasPrev = navIndex > 0
   const hasNext = navIndex >= 0 && navIndex < navList.length - 1
 
-  const handleSetSidebarTab = useCallback(
-    (tab: "projects" | "review" | "backup") => {
-      setSidebarTab(tab)
-      setDrawerOpen(true)
-    },
-    []
-  )
+  const handleSetSidebarTab = useCallback((tab: SidebarTab) => {
+    setSidebarTab(tab)
+    setDrawerOpen(true)
+  }, [])
 
   // Persist tree/nav state across sessions
   useEffect(() => {
@@ -1060,6 +1068,62 @@ export default function OptionsPage() {
     (i) => i.type === "link" && !i.read
   )
 
+  // ---- Todo state & handlers (global view, newest first, not draggable) ----
+  const sortedTodos = useMemo(
+    () => [...todoItems].sort((a, b) => b.createdAt - a.createdAt),
+    [todoItems]
+  )
+  const todoIncomplete = todoItems.filter((t) => !isTodoComplete(t.content))
+    .length
+  const todoTotal = todoItems.length
+  // Todo badge = incomplete todos + due reviews (single attention number).
+  const todoCount = todoIncomplete + dueCount
+
+  const handleNewTodo = useCallback(async () => {
+    const item: Item = {
+      id: crypto.randomUUID(),
+      type: "todo",
+      content: "",
+      createdAt: Date.now()
+    }
+    await addItem(item, { skipDedup: true })
+    await loadTodos()
+    setTodoEditingId(item.id)
+    setSidebarTab("todo")
+  }, [loadTodos])
+
+  const handleToggleTodoTask = useCallback(
+    async (item: Item, index: number) => {
+      const next = toggleMarkdownTask(item.content, index)
+      if (next === item.content) return
+      await updateItem({ ...item, content: next })
+      await loadTodos()
+    },
+    [loadTodos]
+  )
+
+  const handleSaveTodo = useCallback(
+    async (item: Item, title: string, content: string) => {
+      await updateItem({
+        ...item,
+        title: title.trim() || undefined,
+        content
+      })
+      setTodoEditingId(null)
+      await loadTodos()
+    },
+    [loadTodos]
+  )
+
+  const handleDeleteTodo = useCallback(
+    async (item: Item) => {
+      await deleteItem(item.id)
+      setTodoEditingId(null)
+      await loadTodos()
+    },
+    [loadTodos]
+  )
+
   // Full card set the current view renders. 全选 must target this scope, not
   // the paginated displayedItems slice (which only holds the first page) —
   // otherwise select-all in the section/outline view only picks 20 cards.
@@ -1099,6 +1163,7 @@ export default function OptionsPage() {
         <NavRail
           sidebarTab={sidebarTab}
           dueCount={dueCount}
+          todoCount={todoCount}
           onSetSidebarTab={handleSetSidebarTab}
           onSettingsClick={() => setSettingsOpen(true)}
         />
@@ -1110,6 +1175,8 @@ export default function OptionsPage() {
           readingFilter={readingFilter}
           backupSelectedIds={backupSelectedIds}
           syncStatus={syncStatus}
+          todoIncomplete={todoIncomplete}
+          todoTotal={todoTotal}
           onToggleReadingFilter={handleToggleReadingFilter}
           onWidthChange={(w) => setDrawerWidth(w)}
           onNewProjectClick={() => setCreateDialogOpen(true)}
@@ -1241,7 +1308,7 @@ export default function OptionsPage() {
               )}
             </AppHeader>
 
-            {sidebarTab !== "review" && (
+            {sidebarTab !== "review" && sidebarTab !== "todo" && (
               <FilterChips
                 keyword={keyword}
                 onKeywordChange={setKeyword}
@@ -1345,7 +1412,18 @@ export default function OptionsPage() {
             <Container sx={{ py: 4 }} maxWidth="xl">
               <Fade in key={sidebarTab} timeout={250}>
                 <Box>
-                  {sidebarTab === "review" && reviewDateFilter ? (
+                  {sidebarTab === "todo" ? (
+                    <TodoView
+                      items={sortedTodos}
+                      editingId={todoEditingId}
+                      onToggleTask={handleToggleTodoTask}
+                      onStartEdit={setTodoEditingId}
+                      onCancelEdit={() => setTodoEditingId(null)}
+                      onSave={handleSaveTodo}
+                      onDelete={handleDeleteTodo}
+                      onNewTodo={handleNewTodo}
+                    />
+                  ) : sidebarTab === "review" && reviewDateFilter ? (
                     <Box>
                       {ratingFilter && filteredDateItems.length === 0 ? (
                         <Typography

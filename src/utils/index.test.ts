@@ -3,9 +3,14 @@ import {
   computeDropIndex,
   computeItemHash,
   extractMarkdownImages,
+  isTodoComplete,
+  markdownCompletedCount,
+  markdownTaskCount,
+  markdownTasks,
   prettyUrl,
   removeMarkdownImage,
-  sha256
+  sha256,
+  toggleMarkdownTask
 } from "./index"
 
 describe("utils", () => {
@@ -245,6 +250,43 @@ describe("utils", () => {
         "https://x/1.png"
       )
       expect(extractMarkdownImages(twice)).toEqual(["https://x/1.png"])
+    })
+  })
+
+  describe("markdown task lists", () => {
+    const content = "- [ ] 任务A\n- [x] 任务B\n* [ ] 任务C\n普通行"
+
+    it("parses task lines in document order", () => {
+      expect(markdownTasks(content).map((t) => t.checked)).toEqual([
+        false,
+        true,
+        false
+      ])
+      expect(markdownTaskCount(content)).toBe(3)
+      expect(markdownCompletedCount(content)).toBe(1)
+    })
+
+    it("toggles a task by index", () => {
+      const toggled = toggleMarkdownTask(content, 0)
+      expect(toggled).toContain("- [x] 任务A")
+      expect(toggled).toContain("- [x] 任务B")
+      const reverted = toggleMarkdownTask(toggled, 0)
+      expect(reverted).toContain("- [ ] 任务A")
+    })
+
+    it("ignores non-task lines when indexing", () => {
+      expect(toggleMarkdownTask(content, 2)).toContain("* [x] 任务C")
+    })
+
+    it("is complete only when at least one task and all checked", () => {
+      expect(isTodoComplete("- [x] a\n- [x] b")).toBe(true)
+      expect(isTodoComplete("- [x] a\n- [ ] b")).toBe(false)
+      expect(isTodoComplete("")).toBe(false)
+      expect(isTodoComplete("纯文本")).toBe(false)
+    })
+
+    it("returns unchanged content for an out-of-range index", () => {
+      expect(toggleMarkdownTask(content, 99)).toBe(content)
     })
   })
 })

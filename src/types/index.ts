@@ -1,4 +1,4 @@
-export type ItemType = "text" | "image" | "link"
+export type ItemType = "text" | "image" | "link" | "todo"
 
 export interface Section {
   id: string

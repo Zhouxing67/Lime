@@ -1,15 +1,18 @@
 import BackupRoundedIcon from "@mui/icons-material/BackupRounded"
+import ChecklistRoundedIcon from "@mui/icons-material/ChecklistRounded"
 import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded"
 import SchoolRoundedIcon from "@mui/icons-material/SchoolRounded"
 import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded"
 import { Badge, Box, IconButton, Tooltip } from "@mui/material"
 import { alpha } from "@mui/material/styles"
 
-export type SidebarTab = "projects" | "review" | "backup"
+export type SidebarTab = "projects" | "review" | "backup" | "todo"
 
 interface NavRailProps {
   sidebarTab: SidebarTab
   dueCount: number
+  /** Todo button badge: incomplete todos + due reviews. */
+  todoCount: number
   onSetSidebarTab: (tab: SidebarTab) => void
   onSettingsClick: () => void
 }
@@ -18,28 +21,38 @@ const BUTTONS: {
   tab: SidebarTab
   label: string
   icon: React.ReactNode
-  badge?: number
+  badgeFor: "review" | "todo" | null
 }[] = [
   {
     tab: "projects",
     label: "项目管理",
-    icon: <FolderOpenRoundedIcon sx={{ fontSize: 22 }} />
+    icon: <FolderOpenRoundedIcon sx={{ fontSize: 22 }} />,
+    badgeFor: null
   },
   {
     tab: "review",
     label: "间隔复习",
-    icon: <SchoolRoundedIcon sx={{ fontSize: 22 }} />
+    icon: <SchoolRoundedIcon sx={{ fontSize: 22 }} />,
+    badgeFor: "review"
   },
   {
     tab: "backup",
     label: "备份与同步",
-    icon: <BackupRoundedIcon sx={{ fontSize: 22 }} />
+    icon: <BackupRoundedIcon sx={{ fontSize: 22 }} />,
+    badgeFor: null
+  },
+  {
+    tab: "todo",
+    label: "待办",
+    icon: <ChecklistRoundedIcon sx={{ fontSize: 22 }} />,
+    badgeFor: "todo"
   }
 ]
 
 export default function NavRail({
   sidebarTab,
   dueCount,
+  todoCount,
   onSetSidebarTab,
   onSettingsClick
 }: NavRailProps) {
@@ -59,12 +72,14 @@ export default function NavRail({
       }}>
       {BUTTONS.map((b) => {
         const active = sidebarTab === b.tab
+        const badgeValue =
+          b.badgeFor === "review" ? dueCount : b.badgeFor === "todo" ? todoCount : 0
         const icon =
-          b.tab === "review" ? (
+          badgeValue > 0 ? (
             <Badge
-              badgeContent={dueCount}
+              badgeContent={badgeValue}
               color="error"
-              invisible={dueCount === 0}
+              invisible={badgeValue === 0}
               sx={{
                 "& .MuiBadge-badge": {
                   fontSize: "0.6rem",
