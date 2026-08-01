@@ -2,7 +2,22 @@
 
 ## Unreleased
 
-## 2.0.0 — Workspace rework (NavRail + tree + hub + pointer drag)
+## 2.1.0 — Markdown-embedded images + project tree interactions
+
+### 图文混排（Markdown 内嵌图片）
+- MarkdownRenderer 新增图片渲染器：`![url](url)` 渲染为宽度受约束（`max-width: 100%`）的圆角图，不再撑爆弹窗
+- 卡片详情改为**单一连续流**：文本与图片在段落间交替，移除"文本/图片"标签盒与图片区内部滚动条
+- 卡片预览封面从 content 提取图片；复习正面与预览隐藏内嵌图片，避免封面/画廊重复
+- 图片输入改为**插入 content**（ImageUrlInput / DialogEditMode / NewCardDialog / 浮动面板），新卡片不再写入 `item.images`
+- 旧数据迁移：text/link 卡的 `item.images` 逐张追加为 Markdown token 并清空；`item.images` 保留为只读 legacy（image 卡不受影响）
+
+### 项目树
+- **手风琴**：一次只展开一个项目树；展开=打开、折叠=关闭回 hub
+- 项目行移除展开箭头，**行单击切换**开/关；章节展开按钮保留（项目内可多开）
+
+### 清理
+- 移除 capture 消息与 background 的失效 `images` 字段（迁移后无写入方）
+
 
 ### Layout
 - Three-column workspace: **NavRail | Sidebar | Main**. The three view buttons (项目/复习/备份) moved from inside the sidebar to a leftmost ~52px vertical rail; the settings gear is pinned to the rail's bottom. The sidebar's own nav icons and close button were removed — the AppHeader toggle is the single sidebar open/close control.
