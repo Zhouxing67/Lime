@@ -24,7 +24,6 @@ async function updateBadge() {
     const todos = await searchItems({ type: "todo" })
     const incompleteTodos = todos.filter((t) => !isTodoComplete(t.content)).length
     const total = due.length + incompleteTodos
-    console.debug("[badge] updateBadge, total:", total)
     chrome.action.setBadgeText({
       text: total > 0 ? String(total) : ""
     })

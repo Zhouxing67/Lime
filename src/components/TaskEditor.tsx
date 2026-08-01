@@ -3,6 +3,8 @@ import { Box, Checkbox, InputBase } from "@mui/material"
 import { useEffect, useRef, useState } from "react"
 import type { KeyboardEvent } from "react"
 
+import { TASK_RE } from "../utils"
+
 interface TaskRow {
   kind: "task" | "heading"
   checked: boolean
@@ -10,7 +12,6 @@ interface TaskRow {
   text: string
 }
 
-const TASK_RE = /^(\s*(?:[-*]|\d+\.)\s+)\[([ xX])\](.*)$/
 const HEADING_RE = /^(#{1,6})\s+(.*)$/
 
 function parseRows(value: string): TaskRow[] {
@@ -54,34 +55,44 @@ interface TaskEditorProps {
 
 export default function TaskEditor({ value, onChange, autoFocus }: TaskEditorProps) {
   const [rows, setRows] = useState<TaskRow[]>(() => parseRows(value))
+  const rowsRef = useRef(rows)
+  const lastEmitted = useRef(value)
   const refs = useRef<(HTMLInputElement | null)[]>([])
 
   const commit = (next: TaskRow[]) => {
+    rowsRef.current = next
+    lastEmitted.current = serializeRows(next)
     setRows(next)
-    onChange(serializeRows(next))
+    onChange(lastEmitted.current)
   }
 
+  // Re-sync when `value` changes externally (differs from what we emitted).
+  useEffect(() => {
+    if (value === lastEmitted.current) return
+    lastEmitted.current = value
+    setRows(parseRows(value))
+  }, [value])
+
   const updateRow = (i: number, patch: Partial<TaskRow>) => {
-    commit(rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)))
+    commit(rowsRef.current.map((r, idx) => (idx === i ? { ...r, ...patch } : r)))
   }
 
   const toggleRow = (i: number) => {
-    updateRow(i, { checked: !rows[i].checked })
+    updateRow(i, { checked: !rowsRef.current[i].checked })
   }
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>, i: number) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
-      const next = [...rows]
+      const next = [...rowsRef.current]
       next.splice(i + 1, 0, { kind: "task", checked: false, prefix: "", text: "" })
       commit(next)
       requestAnimationFrame(() => refs.current[i + 1]?.focus())
     } else if (e.key === "Backspace") {
-      const row = rows[i]
-      if (row.kind === "task" && !row.text.trim() && rows.length > 1) {
+      const row = rowsRef.current[i]
+      if (row.kind === "task" && !row.text.trim() && rowsRef.current.length > 1) {
         e.preventDefault()
-        const next = rows.filter((_, idx) => idx !== i)
-        commit(next)
+        commit(rowsRef.current.filter((_, idx) => idx !== i))
         requestAnimationFrame(() => refs.current[Math.max(0, i - 1)]?.focus())
       }
     }

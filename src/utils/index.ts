@@ -81,7 +81,7 @@ export function appendMarkdownImage(
 
 // ---- Markdown task lists (todo cards) ----
 
-const TASK_RE = /^(\s*(?:[-*]|\d+\.)\s+)\[([ xX])\](.*)$/
+export const TASK_RE = /^(\s*(?:[-*]|\d+\.)\s+)\[([ xX])\](.*)$/
 
 export interface MarkdownTask {
   lineIndex: number

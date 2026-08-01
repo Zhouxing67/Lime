@@ -1094,9 +1094,8 @@ export default function OptionsPage() {
       const next = toggleMarkdownTask(item.content, index)
       if (next === item.content) return
       await updateItem({ ...item, content: next })
-      await loadTodos()
     },
-    [loadTodos]
+    []
   )
 
   const handleSaveTodo = useCallback(
@@ -1122,18 +1121,16 @@ export default function OptionsPage() {
         })
       }
       setTodoEditingId(null)
-      await loadTodos()
     },
-    [loadTodos]
+    []
   )
 
   const handleDeleteTodo = useCallback(
     async (item: Item) => {
       await deleteItem(item.id)
       setTodoEditingId(null)
-      await loadTodos()
     },
-    [loadTodos]
+    []
   )
 
   // Full card set the current view renders. 全选 must target this scope, not
