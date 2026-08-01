@@ -108,6 +108,7 @@ export default function OptionsPage() {
   const [allItemsUnfiltered, setAllItemsUnfiltered] = useState<Item[]>([])
   const [todoItems, setTodoItems] = useState<Item[]>([])
   const [todoEditingId, setTodoEditingId] = useState<string | null>(null)
+  const [todoDeleteTarget, setTodoDeleteTarget] = useState<Item | null>(null)
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
   const [readingFilter, setReadingFilter] = useState(false)
   const [dateRange, setDateRange] = useState<{
@@ -1425,7 +1426,7 @@ export default function OptionsPage() {
                       onStartEdit={setTodoEditingId}
                       onCancelEdit={() => setTodoEditingId(null)}
                       onSave={handleSaveTodo}
-                      onDelete={handleDeleteTodo}
+                      onDelete={setTodoDeleteTarget}
                       onNewTodo={handleNewTodo}
                     />
                   ) : sidebarTab === "review" && reviewDateFilter ? (
@@ -1850,6 +1851,18 @@ export default function OptionsPage() {
                   </Stack>
                 </DialogContent>
               </Dialog>
+
+              <DeleteConfirmDialog
+                open={Boolean(todoDeleteTarget)}
+                batch={false}
+                count={1}
+                itemLabel="这条待办"
+                onCancel={() => setTodoDeleteTarget(null)}
+                onConfirm={() => {
+                  if (todoDeleteTarget) handleDeleteTodo(todoDeleteTarget)
+                  setTodoDeleteTarget(null)
+                }}
+              />
 
               <DeleteConfirmDialog
                 open={Boolean(confirmDeleteId) || confirmBatchDelete}

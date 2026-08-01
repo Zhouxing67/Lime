@@ -6,6 +6,7 @@ interface DeleteConfirmDialogProps {
   open: boolean
   batch: boolean
   count: number
+  itemLabel?: string
   onCancel: () => void
   onConfirm: () => void
 }
@@ -14,6 +15,7 @@ export default function DeleteConfirmDialog({
   open,
   batch,
   count,
+  itemLabel = "这条收藏",
   onCancel,
   onConfirm
 }: DeleteConfirmDialogProps) {
@@ -28,7 +30,7 @@ export default function DeleteConfirmDialog({
       <DialogContentText>
         {batch
           ? `确定要删除选中的 ${count} 条收藏吗？此操作不可撤销。`
-          : "确定要删除这条收藏吗？此操作不可撤销。"}
+          : `确定要删除${itemLabel}吗？此操作不可撤销。`}
       </DialogContentText>
     </DialogShell>
   )

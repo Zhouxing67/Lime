@@ -42,12 +42,9 @@ export default function TodoCard({
 }: TodoCardProps) {
   const [draftTitle, setDraftTitle] = useState(item.title ?? "")
   const [draftContent, setDraftContent] = useState(item.content)
-  const [confirming, setConfirming] = useState(false)
-
   useEffect(() => {
     setDraftTitle(item.title ?? "")
     setDraftContent(item.content)
-    setConfirming(false)
   }, [item.id])
 
   const done = isTodoComplete(item.content)
@@ -179,13 +176,7 @@ export default function TodoCard({
           <IconButton size="small" onClick={onStartEdit}>
             <EditRoundedIcon sx={{ fontSize: 14 }} />
           </IconButton>
-          <IconButton
-            size="small"
-            onClick={() => {
-              if (confirming) onDelete()
-              else setConfirming(true)
-            }}
-            sx={{ color: confirming ? "error.main" : undefined }}>
+          <IconButton size="small" onClick={onDelete}>
             <DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />
           </IconButton>
         </Box>
