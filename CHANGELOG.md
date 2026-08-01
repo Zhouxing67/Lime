@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+## 2.2.0 — Todo 卡片
+
+### Todo 视图（新能力）
+- NavRail 新增"待办"按钮（位于 备份 之后），构成独立视图；badge = 未完成待办 + 复习待办之和，扩展工具栏 badge 同步
+- 新增 todo 卡片类型（全局、无项目归属），按创建时间倒序排列、不可拖拽；"新增待办"虚线瓦片恒为第一位
+- **结构化任务编辑器**（TaskEditor）：`- [ ]` 语法被彻底封装——编辑界面只见"复选框 + 输入框"，Enter 新增任务行、退格删空行、保存自动重组 Markdown 语法；纯文本行自动转任务，空任务行自动丢弃
+- Markdown 复选框渲染修复：MarkdownRenderer 新增样式化 `checkbox` 渲染器，并精确过滤 marked-react 对 checkbox token 的无害警告；项目卡片中的任务列表同步受益
+- 删除待办走确认弹窗（与卡片/项目口径一致）；空保存自动丢弃
+
+### 项目
+- ProjectHub 瓦片新增删除按钮（hover 浮现），弹窗提示将级联删除项目下 N 张卡片
+
+### 修复
+- 首进/刷新后 todo 卡片与计数不显示（挂载时未加载）
+- 新增待办点击取消仍残留空卡（改为幻影编辑，保存才落库）
+- 导入备份时内容相同的 todo 被误去重（导入走 skipDedup）
+- todo 变更后双重数据加载；background 调试日志残留
+
+### 重构
+- 代码审查收尾：TaskEditor 外部 value 同步与闭包新鲜度（rowsRef/lastEmitted）、`TASK_RE` 单一来源、精简 todo 刷新路径
+
 ## 2.1.0 — Markdown-embedded images + project tree interactions
 
 ### 图文混排（Markdown 内嵌图片）
