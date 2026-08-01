@@ -2,6 +2,8 @@ import {
   appendMarkdownImage,
   computeDropIndex,
   computeItemHash,
+  dueLabel,
+  dueStatus,
   extractMarkdownImages,
   isTodoComplete,
   markdownCompletedCount,
@@ -287,6 +289,49 @@ describe("utils", () => {
 
     it("returns unchanged content for an out-of-range index", () => {
       expect(toggleMarkdownTask(content, 99)).toBe(content)
+    })
+  })
+
+  describe("dueStatus", () => {
+    const today = "2026-08-02"
+
+    it("returns none for missing due date", () => {
+      expect(dueStatus(undefined, today)).toBe("none")
+    })
+
+    it("flags a past day as overdue", () => {
+      expect(dueStatus("2026-08-01", today)).toBe("overdue")
+    })
+
+    it("flags the same day as today", () => {
+      expect(dueStatus("2026-08-02", today)).toBe("today")
+    })
+
+    it("flags the next day as tomorrow", () => {
+      expect(dueStatus("2026-08-03", today)).toBe("tomorrow")
+    })
+
+    it("flags later days as future", () => {
+      expect(dueStatus("2026-08-10", today)).toBe("future")
+    })
+
+    it("handles month/year boundaries", () => {
+      expect(dueStatus("2026-08-03", "2026-08-31")).toBe("overdue")
+      expect(dueStatus("2026-09-01", "2026-08-31")).toBe("tomorrow")
+      expect(dueStatus("2027-01-01", "2026-12-31")).toBe("tomorrow")
+    })
+  })
+
+  describe("dueLabel", () => {
+    const today = "2026-08-02"
+
+    it("renders human labels", () => {
+      expect(dueLabel("2026-08-02", today)).toBe("今天")
+      expect(dueLabel("2026-08-03", today)).toBe("明天")
+      expect(dueLabel("2026-08-01", today)).toBe("已过期 1 天")
+      expect(dueLabel("2026-07-30", today)).toBe("已过期 3 天")
+      expect(dueLabel("2026-08-10", today)).toBe("8月10日")
+      expect(dueLabel(undefined, today)).toBe("")
     })
   })
 })

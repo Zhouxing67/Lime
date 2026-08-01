@@ -16,7 +16,7 @@ import {
 import { useEffect, useRef } from "react"
 import type { ReactNode } from "react"
 
-import type { Project } from "../types"
+import type { Project, TodoFilter, TodoStats } from "../types"
 import type { SidebarTab } from "./NavRail"
 
 interface SidebarFiltersProps {
@@ -29,8 +29,9 @@ interface SidebarFiltersProps {
   syncStatus: string
   recentDates: { key: string; label: string; count: number }[]
   reviewDateFilter: string | null
-  todoIncomplete: number
-  todoTotal: number
+  todoStats: TodoStats
+  todoFilter: TodoFilter
+  onTodoFilterChange: (filter: TodoFilter) => void
   children?: ReactNode
   onReviewDateClick: (dateKey: string | null) => void
   onWidthChange: (w: number) => void
@@ -80,8 +81,9 @@ export default function SidebarFilters({
   syncStatus,
   recentDates,
   reviewDateFilter,
-  todoIncomplete,
-  todoTotal,
+  todoStats,
+  todoFilter,
+  onTodoFilterChange,
   children,
   onReviewDateClick,
   onWidthChange,
@@ -298,20 +300,55 @@ export default function SidebarFilters({
               </Stack>
             </Box>
           ) : sidebarTab === "todo" ? (
-            /* Todo tab content: minimal summary */
+            /* Todo tab: filter groups with counts */
             <Box>
               <SectionLabel>待办</SectionLabel>
-              <Typography
-                variant="caption"
-                sx={{
-                  px: 1,
-                  display: "block",
-                  color: "text.secondary",
-                  fontSize: "0.75rem",
-                  mt: 0.5
-                }}>
-                未完成 {todoIncomplete} · 共 {todoTotal}
-              </Typography>
+              <Box sx={{ mt: 0.5 }}>
+                {(
+                  [
+                    ["all", "全部", todoStats.total],
+                    ["incomplete", "未完成", todoStats.incomplete],
+                    ["completed", "已完成", todoStats.completed],
+                    ["overdue", "已过期", todoStats.overdue],
+                    ["today", "今天到期", todoStats.today]
+                  ] as [TodoFilter, string, number][]
+                ).map(([key, label, count]) => (
+                  <Box
+                    key={key}
+                    onClick={() => onTodoFilterChange(key)}
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      px: 1.5,
+                      py: 0.5,
+                      borderRadius: 1,
+                      cursor: "pointer",
+                      bgcolor:
+                        todoFilter === key ? "action.selected" : "transparent",
+                      color:
+                        todoFilter === key
+                          ? "text.primary"
+                          : "text.secondary",
+                      "&:hover": { bgcolor: "action.hover" }
+                    }}>
+                    <Typography variant="body2" sx={{ fontSize: "0.8rem" }}>
+                      {label}
+                    </Typography>
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        fontSize: "0.7rem",
+                        color:
+                          todoFilter === key
+                            ? "primary.main"
+                            : "text.disabled"
+                      }}>
+                      {count}
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
             </Box>
           ) : (
             /* Project tab content: tree + actions */

@@ -130,6 +130,60 @@ export function isTodoComplete(content: string): boolean {
   return tasks.length > 0 && tasks.every((t) => t.checked)
 }
 
+/** Local date as "YYYY-MM-DD" (machine-local, not UTC). */
+export function todayLocalDate(): string {
+  const d = new Date()
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${d.getFullYear()}-${m}-${day}`
+}
+
+function dateDaysAgo(dateStr: string, n: number): string {
+  const [y, m, d] = dateStr.split("-").map(Number)
+  const dt = new Date(y, m - 1, d + n)
+  const mm = String(dt.getMonth() + 1).padStart(2, "0")
+  const dd = String(dt.getDate()).padStart(2, "0")
+  return `${dt.getFullYear()}-${mm}-${dd}`
+}
+
+function diffDays(a: string, b: string): number {
+  const [ya, ma, da] = a.split("-").map(Number)
+  const [yb, mb, db] = b.split("-").map(Number)
+  return Math.round(
+    (new Date(yb, mb - 1, db).getTime() - new Date(ya, ma - 1, da).getTime()) /
+      86400000
+  )
+}
+
+export type DueStatus = "none" | "overdue" | "today" | "tomorrow" | "future"
+
+/** Due semantics: a day-based task expires at 00:00 of the NEXT day. */
+export function dueStatus(dueDate: string | undefined, today: string): DueStatus {
+  if (!dueDate) return "none"
+  if (dueDate < today) return "overdue"
+  if (dueDate === today) return "today"
+  if (dueDate === dateDaysAgo(today, 1)) return "tomorrow"
+  return "future"
+}
+
+/** Short human label for a due date, e.g. "今天" / "已过期 2 天". */
+export function dueLabel(dueDate: string | undefined, today: string): string {
+  switch (dueStatus(dueDate, today)) {
+    case "none":
+      return ""
+    case "overdue":
+      return `已过期 ${diffDays(dueDate!, today)} 天`
+    case "today":
+      return "今天"
+    case "tomorrow":
+      return "明天"
+    default: {
+      const [, m, d] = dueDate!.split("-")
+      return `${+m}月${+d}日`
+    }
+  }
+}
+
 export type DropPos = "before" | "after"
 
 /**

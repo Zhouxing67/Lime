@@ -29,13 +29,16 @@ function validateItem(
     return { error: "content 缺失或为空" }
   }
 
-  if (!obj.source || typeof obj.source !== "object") {
-    return { error: "source 缺失或不是对象" }
-  }
+  const source: Record<string, unknown> | undefined =
+    obj.source && typeof obj.source === "object"
+      ? (obj.source as Record<string, unknown>)
+      : undefined
 
-  const source = obj.source as Record<string, unknown>
-  if (typeof source.url !== "string" || source.url.length === 0) {
-    return { error: "source.url 缺失或为空" }
+  if (
+    obj.type !== "todo" &&
+    (!source || typeof source.url !== "string" || source.url.length === 0)
+  ) {
+    return { error: "source 缺失或不是对象" }
   }
 
   const id =
@@ -52,11 +55,13 @@ function validateItem(
     id,
     type: obj.type as ItemType,
     content: obj.content,
-    source: {
-      title: typeof source.title === "string" ? source.title : "",
-      url: source.url,
-      site: typeof source.site === "string" ? source.site : undefined
-    },
+    source: source
+      ? {
+          title: typeof source.title === "string" ? source.title : "",
+          url: source.url as string,
+          site: typeof source.site === "string" ? source.site : undefined
+        }
+      : undefined,
     createdAt,
     context:
       obj.context && typeof obj.context === "object"
@@ -97,6 +102,13 @@ function validateItem(
 
   if (typeof obj.sectionId === "string" && obj.sectionId.length > 0) {
     item.sectionId = obj.sectionId
+  }
+
+  if (
+    typeof obj.dueDate === "string" &&
+    /^\d{4}-\d{2}-\d{2}$/.test(obj.dueDate)
+  ) {
+    item.dueDate = obj.dueDate
   }
 
   return { item }

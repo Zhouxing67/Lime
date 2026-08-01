@@ -47,6 +47,8 @@ export interface Item {
   updatedAt?: number
   /** Optional attached image URLs (mixed cards: text + images) */
   images?: string[]
+  /** Todo due date as local "YYYY-MM-DD" (day-based expiry) */
+  dueDate?: string
 }
 
 export interface SearchQuery {
@@ -81,6 +83,21 @@ export interface Project {
 }
 
 export type PresetName = "classic" | "indigo-crimson" | "forest" | "terracotta"
+
+export type TodoFilter =
+  | "all"
+  | "incomplete"
+  | "completed"
+  | "overdue"
+  | "today"
+
+export interface TodoStats {
+  total: number
+  incomplete: number
+  completed: number
+  overdue: number
+  today: number
+}
 
 export const PRESET_LABELS: Record<PresetName, string> = {
   classic: "经典蓝灰",

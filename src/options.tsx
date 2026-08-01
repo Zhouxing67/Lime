@@ -77,9 +77,9 @@ import { useReview } from "./hooks/useReview"
 import { dayKey, rateSrs } from "./hooks/useSrs"
 import { importFromZip } from "./import"
 import { createAppTheme } from "./theme"
-import type { Item, PresetName, Project, SearchQuery, SrsData } from "./types"
+import type { Item, PresetName, Project, SearchQuery, SrsData, TodoFilter } from "./types"
 import { sendMessage } from "./types/messages"
-import { isTodoComplete, toggleMarkdownTask } from "./utils"
+import { dueStatus, isTodoComplete, toggleMarkdownTask, todayLocalDate } from "./utils"
 
 const MIN_DRAWER_WIDTH = 200
 const MAX_DRAWER_WIDTH = 500
@@ -108,6 +108,8 @@ export default function OptionsPage() {
   const [allItemsUnfiltered, setAllItemsUnfiltered] = useState<Item[]>([])
   const [todoItems, setTodoItems] = useState<Item[]>([])
   const [todoEditingId, setTodoEditingId] = useState<string | null>(null)
+  const [focusNewTaskId, setFocusNewTaskId] = useState<string | null>(null)
+  const [todoFilter, setTodoFilter] = useState<TodoFilter>("incomplete")
   const [todoDeleteTarget, setTodoDeleteTarget] = useState<Item | null>(null)
   const [projectDeleteTarget, setProjectDeleteTarget] = useState<Project | null>(
     null
@@ -1074,19 +1076,69 @@ export default function OptionsPage() {
   )
 
   // ---- Todo state & handlers (global view, newest first, not draggable) ----
-  const sortedTodos = useMemo(
-    () => [...todoItems].sort((a, b) => b.createdAt - a.createdAt),
-    [todoItems]
-  )
-  const todoIncomplete = todoItems.filter((t) => !isTodoComplete(t.content))
-    .length
-  const todoTotal = todoItems.length
-  // Todo badge = incomplete todos + due reviews (single attention number).
-  const todoCount = todoIncomplete + dueCount
+  const todoStats = useMemo(() => {
+    const today = todayLocalDate()
+    let incomplete = 0
+    let completed = 0
+    let overdue = 0
+    let todayCount = 0
+    for (const t of todoItems) {
+      if (isTodoComplete(t.content)) {
+        completed++
+      } else {
+        incomplete++
+      }
+      const s = dueStatus(t.dueDate, today)
+      if (s === "overdue") overdue++
+      if (s === "today") todayCount++
+    }
+    return { total: todoItems.length, incomplete, completed, overdue, today: todayCount }
+  }, [todoItems])
 
-  const handleNewTodo = useCallback(async () => {
+  const filteredTodos = useMemo(() => {
+    const today = todayLocalDate()
+    const list = todoItems.filter((t) => {
+      switch (todoFilter) {
+        case "all":
+          return true
+        case "incomplete":
+          return !isTodoComplete(t.content)
+        case "completed":
+          return isTodoComplete(t.content)
+        case "overdue":
+          return dueStatus(t.dueDate, today) === "overdue"
+        case "today":
+          return dueStatus(t.dueDate, today) === "today"
+      }
+    })
+    return list.sort((a, b) => {
+      const ad = a.dueDate
+      const bd = b.dueDate
+      if (ad && bd) return ad.localeCompare(bd)
+      if (ad) return -1
+      if (bd) return 1
+      return b.createdAt - a.createdAt
+    })
+  }, [todoItems, todoFilter])
+
+  // Todo badge = incomplete todos + due reviews (single attention number).
+  const todoCount = todoStats.incomplete + dueCount
+
+  const handleNewTodo = useCallback(() => {
+    setFocusNewTaskId(null)
+    setTodoFilter("incomplete")
     setTodoEditingId("__new__")
     setSidebarTab("todo")
+  }, [])
+
+  const handleStartEditTodo = useCallback((id: string) => {
+    setFocusNewTaskId(null)
+    setTodoEditingId(id)
+  }, [])
+
+  const handleQuickAdd = useCallback((item: Item) => {
+    setTodoEditingId(item.id)
+    setFocusNewTaskId(item.id)
   }, [])
 
   const handleToggleTodoTask = useCallback(
@@ -1099,39 +1151,48 @@ export default function OptionsPage() {
   )
 
   const handleSaveTodo = useCallback(
-    async (item: Item, title: string, content: string) => {
+    async (
+      item: Item,
+      title: string,
+      content: string,
+      dueDate?: string
+    ) => {
       if (!title.trim() && !content.trim()) {
         setTodoEditingId(null)
+        setFocusNewTaskId(null)
         return
       }
+      const cleanDue =
+        dueDate && /^\d{4}-\d{2}-\d{2}$/.test(dueDate) ? dueDate : undefined
       if (item.id === "__new__") {
         const created: Item = {
           id: crypto.randomUUID(),
           type: "todo",
           title: title.trim() || undefined,
           content,
-          createdAt: Date.now()
+          createdAt: Date.now(),
+          ...(cleanDue && { dueDate: cleanDue })
         }
         await addItem(created, { skipDedup: true })
       } else {
         await updateItem({
           ...item,
           title: title.trim() || undefined,
-          content
+          content,
+          dueDate: cleanDue
         })
       }
       setTodoEditingId(null)
+      setFocusNewTaskId(null)
     },
     []
   )
 
-  const handleDeleteTodo = useCallback(
-    async (item: Item) => {
-      await deleteItem(item.id)
-      setTodoEditingId(null)
-    },
-    []
-  )
+  const handleDeleteTodo = useCallback(async (item: Item) => {
+    await deleteItem(item.id)
+    setTodoEditingId(null)
+    setFocusNewTaskId(null)
+  }, [])
 
   // Full card set the current view renders. 全选 must target this scope, not
   // the paginated displayedItems slice (which only holds the first page) —
@@ -1184,8 +1245,9 @@ export default function OptionsPage() {
           readingFilter={readingFilter}
           backupSelectedIds={backupSelectedIds}
           syncStatus={syncStatus}
-          todoIncomplete={todoIncomplete}
-          todoTotal={todoTotal}
+          todoStats={todoStats}
+          todoFilter={todoFilter}
+          onTodoFilterChange={setTodoFilter}
           onToggleReadingFilter={handleToggleReadingFilter}
           onWidthChange={(w) => setDrawerWidth(w)}
           onNewProjectClick={() => setCreateDialogOpen(true)}
@@ -1423,13 +1485,18 @@ export default function OptionsPage() {
                 <Box>
                   {sidebarTab === "todo" ? (
                     <TodoView
-                      items={sortedTodos}
+                      items={filteredTodos}
                       editingId={todoEditingId}
+                      focusNewTaskId={focusNewTaskId}
                       onToggleTask={handleToggleTodoTask}
-                      onStartEdit={setTodoEditingId}
-                      onCancelEdit={() => setTodoEditingId(null)}
+                      onStartEdit={handleStartEditTodo}
+                      onCancelEdit={() => {
+                        setTodoEditingId(null)
+                        setFocusNewTaskId(null)
+                      }}
                       onSave={handleSaveTodo}
                       onDelete={setTodoDeleteTarget}
+                      onQuickAdd={handleQuickAdd}
                       onNewTodo={handleNewTodo}
                     />
                   ) : sidebarTab === "review" && reviewDateFilter ? (
@@ -1993,10 +2060,13 @@ export default function OptionsPage() {
             </Container>
           </Box>
           <FooterBar
+            sidebarTab={sidebarTab}
             totalItems={allItemsUnfiltered.length}
             totalProjects={projects.length}
             dueCount={dueCount}
             syncStatus={syncStatus}
+            version={chrome.runtime.getManifest().version}
+            todoStats={todoStats}
             activeProjectName={activeProject?.name ?? null}
             activeProjectItemCount={
               allItemsUnfiltered.filter((i) => i.projectId === activeProjectId)

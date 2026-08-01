@@ -7,22 +7,33 @@ import TodoCard from "./TodoCard"
 interface TodoViewProps {
   items: Item[]
   editingId: string | null
+  focusNewTaskId: string | null
   onToggleTask: (item: Item, index: number) => void
   onStartEdit: (id: string) => void
   onCancelEdit: () => void
-  onSave: (item: Item, title: string, content: string) => void
+  onSave: (item: Item, title: string, content: string, dueDate?: string) => void
   onDelete: (item: Item) => void
+  onQuickAdd: (item: Item) => void
   onNewTodo: () => void
+}
+
+const NEW_TODO: Item = {
+  id: "__new__",
+  type: "todo",
+  content: "",
+  createdAt: Date.now()
 }
 
 export default function TodoView({
   items,
   editingId,
+  focusNewTaskId,
   onToggleTask,
   onStartEdit,
   onCancelEdit,
   onSave,
   onDelete,
+  onQuickAdd,
   onNewTodo
 }: TodoViewProps) {
   return (
@@ -33,7 +44,6 @@ export default function TodoView({
         gap: 1.5,
         alignItems: "start"
       }}>
-      {/* New todo tile — always the first cell */}
       <Paper
         elevation={0}
         onClick={onNewTodo}
@@ -80,20 +90,16 @@ export default function TodoView({
 
       {editingId === "__new__" && (
         <TodoCard
-          key="__new__"
-          item={{ id: "__new__", type: "todo", content: "", createdAt: Date.now() }}
+          key={NEW_TODO.id}
+          item={NEW_TODO}
           editing
+          focusNewTask={false}
           onToggleTask={() => {}}
           onStartEdit={() => {}}
           onCancelEdit={onCancelEdit}
-          onSave={(t, c) =>
-            onSave(
-              { id: "__new__", type: "todo", content: "", createdAt: Date.now() },
-              t,
-              c
-            )
-          }
+          onSave={(t, c, d) => onSave(NEW_TODO, t, c, d)}
           onDelete={() => {}}
+          onQuickAdd={() => {}}
         />
       )}
 
@@ -102,11 +108,13 @@ export default function TodoView({
           key={it.id}
           item={it}
           editing={editingId === it.id}
+          focusNewTask={focusNewTaskId === it.id}
           onToggleTask={(i) => onToggleTask(it, i)}
           onStartEdit={() => onStartEdit(it.id)}
           onCancelEdit={onCancelEdit}
-          onSave={(t, c) => onSave(it, t, c)}
+          onSave={(t, c, d) => onSave(it, t, c, d)}
           onDelete={() => onDelete(it)}
+          onQuickAdd={() => onQuickAdd(it)}
         />
       ))}
     </Box>

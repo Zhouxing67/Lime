@@ -51,9 +51,16 @@ interface TaskEditorProps {
   value: string
   onChange: (next: string) => void
   autoFocus?: boolean
+  /** Enter edit focused on a fresh empty task row at the end (quick-add). */
+  autoFocusNewRow?: boolean
 }
 
-export default function TaskEditor({ value, onChange, autoFocus }: TaskEditorProps) {
+export default function TaskEditor({
+  value,
+  onChange,
+  autoFocus,
+  autoFocusNewRow
+}: TaskEditorProps) {
   const [rows, setRows] = useState<TaskRow[]>(() => parseRows(value))
   const rowsRef = useRef(rows)
   const lastEmitted = useRef(value)
@@ -101,6 +108,14 @@ export default function TaskEditor({ value, onChange, autoFocus }: TaskEditorPro
   useEffect(() => {
     if (autoFocus) requestAnimationFrame(() => refs.current[0]?.focus())
   }, [autoFocus])
+
+  useEffect(() => {
+    if (!autoFocusNewRow) return
+    const next = [...rowsRef.current]
+    next.push({ kind: "task", checked: false, prefix: "", text: "" })
+    commit(next)
+    requestAnimationFrame(() => refs.current[next.length - 1]?.focus())
+  }, [autoFocusNewRow])
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
