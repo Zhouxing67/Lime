@@ -25,6 +25,7 @@ interface ProjectTreeProps {
   projects: Project[]
   activeProjectId: string | null
   activeSectionId: string | null
+  isOpen: boolean
   expanded: Set<string>
   countBySection: Map<string, number>
   unclassifiedByProject: Record<string, number>
@@ -56,6 +57,7 @@ export default function ProjectTree({
   projects,
   activeProjectId,
   activeSectionId,
+  isOpen,
   expanded,
   countBySection,
   unclassifiedByProject,
@@ -312,9 +314,10 @@ export default function ProjectTree({
             0
           ) +
           (unclassifiedByProject[project.id] ?? 0)
-        // Expand = open: the project's tree is expanded iff it is the active
-        // (open) project, so only one project tree can be open at a time.
-        const isExpanded = activeProjectId === project.id
+        // The project tree is expanded when it is the open project AND the
+        // row has been clicked open (isOpen toggles on row click). Only one
+        // project can be open at a time, so this is an accordion.
+        const isExpanded = activeProjectId === project.id && isOpen
 
         return (
           <Box
@@ -329,7 +332,6 @@ export default function ProjectTree({
               project={project}
               active={activeProjectId === project.id}
               total={projectTotal}
-              expanded={isExpanded}
               onOpen={() => onSelectProject(project.id)}
               onClose={onCloseProject}
               onAdd={() => {
@@ -543,7 +545,6 @@ function ProjectNode({
   project,
   active,
   total,
-  expanded,
   onOpen,
   onClose,
   onAdd,
@@ -554,7 +555,6 @@ function ProjectNode({
   project: Project
   active: boolean
   total: number
-  expanded: boolean
   onOpen: () => void
   onClose: () => void
   onAdd: () => void
@@ -664,27 +664,8 @@ function ProjectNode({
   return (
     <TreeRow
       active={active}
-      onClick={active ? undefined : onOpen}
+      onClick={() => (active ? onClose() : onOpen())}
       indent={1.5}>
-      <IconButton
-        size="small"
-        onClick={(e) => {
-          e.stopPropagation()
-          // Expand = open, collapse = close (accordion: one open project).
-          if (active) onClose()
-          else onOpen()
-        }}
-        sx={{ p: 0.25 }}>
-        {expanded ? (
-          <ExpandMoreRoundedIcon
-            sx={{ fontSize: 16, color: "text.secondary" }}
-          />
-        ) : (
-          <ChevronRightRoundedIcon
-            sx={{ fontSize: 16, color: "text.secondary" }}
-          />
-        )}
-      </IconButton>
       <FolderOpenRoundedIcon
         sx={{
           fontSize: 16,

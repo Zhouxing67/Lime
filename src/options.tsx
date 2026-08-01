@@ -135,6 +135,7 @@ export default function OptionsPage() {
   const [animating, setAnimating] = useState(false)
   const [sessionTotal, setSessionTotal] = useState(0)
   const [expandedNav, setExpandedNav] = useState<Set<string>>(new Set())
+  const [navOpen, setNavOpen] = useState(false)
   const [activeSectionByProject, setActiveSectionByProject] = useState<
     Record<string, string | null>
   >({})
@@ -226,6 +227,7 @@ export default function OptionsPage() {
       setSelectedIds([])
       setSelectMode(false)
       setActiveProjectId(id)
+      setNavOpen(true)
       onSearch(id)
       sendMessage({ kind: "set-recent-project", projectId: id }).catch(() => {})
     },
@@ -233,6 +235,7 @@ export default function OptionsPage() {
       setSelectedIds([])
       setSelectMode(false)
       setActiveProjectId(null)
+      setNavOpen(false)
       setDialogItem(null)
       setKeyword("")
       setDateRange(null)
@@ -350,6 +353,7 @@ export default function OptionsPage() {
     setSelectedIds([])
     setSelectMode(false)
     setActiveProjectId(id)
+    setNavOpen(true)
     onSearch(id)
     sendMessage({ kind: "set-recent-project", projectId: id }).catch(() => {})
   }
@@ -1130,6 +1134,7 @@ export default function OptionsPage() {
             projects={projects}
             activeProjectId={activeProjectId}
             activeSectionId={activeSectionId}
+            isOpen={navOpen}
             expanded={expandedNav}
             countBySection={countBySection}
             unclassifiedByProject={unclassifiedByProject}
@@ -1138,6 +1143,7 @@ export default function OptionsPage() {
               setSelectedIds([])
               setSelectMode(false)
               setActiveProjectId(null)
+              setNavOpen(false)
               setDialogItem(null)
               setKeyword("")
               setDateRange(null)
