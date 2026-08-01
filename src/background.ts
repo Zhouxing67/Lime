@@ -85,7 +85,6 @@ function createItem(data: {
   title?: string
   source?: SourceMeta
   projectId?: string
-  images?: string[]
 }): Item {
   const item: Item = {
     id: crypto.randomUUID(),
@@ -96,7 +95,6 @@ function createItem(data: {
     createdAt: Date.now(),
     projectId: data.projectId
   }
-  if (data.images && data.images.length > 0) item.images = data.images
   return item
 }
 
@@ -347,8 +345,7 @@ async function handleCapture(
       content: payload.content,
       title: payload.title,
       source: payload.source,
-      projectId: targetProject.id,
-      images: payload.images
+      projectId: targetProject.id
     })
     const saved = await addItem(item)
     if (saved) touchProject(targetProject.id).catch(() => {})
