@@ -79,7 +79,7 @@ import { importFromZip } from "./import"
 import { createAppTheme } from "./theme"
 import type { Item, PresetName, SearchQuery, SrsData } from "./types"
 import { sendMessage } from "./types/messages"
-import { isTodoComplete, normalizeTodoContent, toggleMarkdownTask } from "./utils"
+import { isTodoComplete, toggleMarkdownTask } from "./utils"
 
 const MIN_DRAWER_WIDTH = 200
 const MAX_DRAWER_WIDTH = 500
@@ -1098,13 +1098,16 @@ export default function OptionsPage() {
 
   const handleSaveTodo = useCallback(
     async (item: Item, title: string, content: string) => {
-      const normalized = normalizeTodoContent(content)
+      if (!title.trim() && !content.trim()) {
+        setTodoEditingId(null)
+        return
+      }
       if (item.id === "__new__") {
         const created: Item = {
           id: crypto.randomUUID(),
           type: "todo",
           title: title.trim() || undefined,
-          content: normalized,
+          content,
           createdAt: Date.now()
         }
         await addItem(created, { skipDedup: true })
@@ -1112,7 +1115,7 @@ export default function OptionsPage() {
         await updateItem({
           ...item,
           title: title.trim() || undefined,
-          content: normalized
+          content
         })
       }
       setTodoEditingId(null)

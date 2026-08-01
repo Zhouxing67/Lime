@@ -7,7 +7,6 @@ import {
   markdownCompletedCount,
   markdownTaskCount,
   markdownTasks,
-  normalizeTodoContent,
   prettyUrl,
   removeMarkdownImage,
   sha256,
@@ -284,17 +283,6 @@ describe("utils", () => {
       expect(isTodoComplete("- [x] a\n- [ ] b")).toBe(false)
       expect(isTodoComplete("")).toBe(false)
       expect(isTodoComplete("纯文本")).toBe(false)
-    })
-
-    it("normalizeTodoContent converts plain text lines into tasks", () => {
-      expect(normalizeTodoContent("买牛奶")).toBe("- [ ] 买牛奶")
-      expect(normalizeTodoContent("买牛奶\n洗衣服")).toBe("- [ ] 买牛奶\n- [ ] 洗衣服")
-      expect(normalizeTodoContent("- [x] 已做\n新任务")).toBe("- [x] 已做\n- [ ] 新任务")
-      expect(normalizeTodoContent("# 购物\n买牛奶\n\n- [x] 已做")).toBe(
-        "# 购物\n- [ ] 买牛奶\n\n- [x] 已做"
-      )
-      expect(normalizeTodoContent("- 普通列表项")).toBe("- [ ] 普通列表项")
-      expect(normalizeTodoContent("1. 编号项")).toBe("- [ ] 编号项")
     })
 
     it("returns unchanged content for an out-of-range index", () => {

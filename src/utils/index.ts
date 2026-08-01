@@ -130,27 +130,6 @@ export function isTodoComplete(content: string): boolean {
   return tasks.length > 0 && tasks.every((t) => t.checked)
 }
 
-const HEADING_RE = /^#{1,6}\s+/
-const LIST_MARKER_RE = /^\s*(?:[-*]|\d+\.)\s+/
-
-/**
- * Normalize a todo card's raw text into a Markdown task list: every non-blank,
- * non-heading line becomes a `- [ ]` task (any existing list marker is
- * stripped first). This means the user never has to type `- [ ]` manually and
- * completion is always derivable from the checkboxes.
- */
-export function normalizeTodoContent(content: string): string {
-  return content
-    .split("\n")
-    .map((line) => {
-      if (!line.trim()) return line
-      if (TASK_RE.test(line)) return line
-      if (HEADING_RE.test(line)) return line
-      return `- [ ] ${line.replace(LIST_MARKER_RE, "")}`
-    })
-    .join("\n")
-}
-
 export type DropPos = "before" | "after"
 
 /**

@@ -11,7 +11,6 @@ import {
   Typography
 } from "@mui/material"
 import { useEffect, useState } from "react"
-import type { KeyboardEvent } from "react"
 
 import type { Item } from "../types"
 import {
@@ -20,6 +19,7 @@ import {
   markdownTaskCount
 } from "../utils"
 import MarkdownRenderer from "./MarkdownRenderer"
+import TaskEditor from "./TaskEditor"
 
 interface TodoCardProps {
   item: Item
@@ -45,29 +45,11 @@ export default function TodoCard({
   useEffect(() => {
     setDraftTitle(item.title ?? "")
     setDraftContent(item.content)
-  }, [item.id])
+  }, [item.id, editing])
 
   const done = isTodoComplete(item.content)
   const total = markdownTaskCount(item.content)
   const doneCount = markdownCompletedCount(item.content)
-
-  const handleContentKeyDown = (
-    e: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
-    if (e.key !== "Enter" || e.shiftKey) return
-    e.preventDefault()
-    const input = e.currentTarget
-    const start = input.selectionStart ?? draftContent.length
-    const end = input.selectionEnd ?? start
-    const before = draftContent.slice(0, start)
-    const currentLine = before.slice(before.lastIndexOf("\n") + 1)
-    const prefix = !currentLine.trim() || /^#{1,6}\s+/.test(currentLine) ? "" : "- [ ] "
-    const insert = `\n${prefix}`
-    setDraftContent(before + insert + draftContent.slice(end))
-    requestAnimationFrame(() => {
-      input.selectionStart = input.selectionEnd = start + insert.length
-    })
-  }
 
   if (editing) {
     return (
@@ -90,16 +72,11 @@ export default function TodoCard({
           onChange={(e) => setDraftTitle(e.target.value)}
           fullWidth
         />
-        <TextField
-          size="small"
-          multiline
-          minRows={3}
-          placeholder="每行一个任务（无需手动输入 - [ ]）"
+        <TaskEditor
+          key={item.id}
           value={draftContent}
-          onChange={(e) => setDraftContent(e.target.value)}
-          slotProps={{ input: { onKeyDown: handleContentKeyDown } }}
-          fullWidth
-          sx={{ "& textarea": { fontFamily: (t) => t.custom.serif } }}
+          onChange={setDraftContent}
+          autoFocus
         />
         <Stack direction="row" spacing={1} justifyContent="flex-end">
           <Button size="small" onClick={onCancelEdit}>
