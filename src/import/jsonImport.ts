@@ -261,7 +261,7 @@ export async function importFromZip(
       continue
     }
     try {
-      if (await addItem(item)) {
+      if (await addItem(item, item.type === "todo" ? { skipDedup: true } : undefined)) {
         result.imported++
       } else {
         result.skipped++
