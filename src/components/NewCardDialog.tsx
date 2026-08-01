@@ -7,10 +7,8 @@ interface NewCardDialogProps {
   open: boolean
   title: string
   content: string
-  images: string[]
   onTitleChange: (v: string) => void
   onContentChange: (v: string) => void
-  onImagesChange: (v: string[]) => void
   onClose: () => void
   onSave: () => void
 }
@@ -19,10 +17,8 @@ export default function NewCardDialog({
   open,
   title,
   content,
-  images,
   onTitleChange,
   onContentChange,
-  onImagesChange,
   onClose,
   onSave
 }: NewCardDialogProps) {
@@ -66,9 +62,9 @@ export default function NewCardDialog({
       <Typography
         variant="caption"
         sx={{ color: "text.secondary", mt: 2, mb: 0.5, display: "block" }}>
-        图片（选填）
+        图片（选填，插入到内容）
       </Typography>
-      <ImageUrlInput images={images} onChange={onImagesChange} />
+      <ImageUrlInput content={content} onContentChange={onContentChange} />
 
       <Typography
         variant="caption"

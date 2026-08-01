@@ -1,92 +1,71 @@
-import AddRoundedIcon from "@mui/icons-material/AddRounded"
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded"
-import {
-  Box,
-  IconButton,
-  InputAdornment,
-  Stack,
-  TextField,
-  Typography
-} from "@mui/material"
+import { Box, IconButton, TextField } from "@mui/material"
 import { useState } from "react"
 
+import {
+  appendMarkdownImage,
+  extractMarkdownImages,
+  removeMarkdownImage
+} from "../utils"
+
 interface ImageUrlInputProps {
-  images: string[]
-  onChange: (next: string[]) => void
-  /** Visual density: floating content panel needs a compact mode. */
-  compact?: boolean
+  /** The Markdown content text; images live inside it as `![alt](url)` tokens. */
+  content: string
+  onContentChange: (next: string) => void
 }
 
+/**
+ * Image input bound to the card's Markdown content. Pasting a URL appends an
+ * image token to the content; the thumbnail grid is derived live from the
+ * content, and removing an image strips its token.
+ */
 export default function ImageUrlInput({
-  images,
-  onChange,
-  compact = false
+  content,
+  onContentChange
 }: ImageUrlInputProps) {
   const [draft, setDraft] = useState("")
+  const images = extractMarkdownImages(content)
 
   const add = () => {
     const url = draft.trim()
-    if (!url || images.includes(url)) {
-      setDraft("")
-      return
-    }
-    onChange([...images, url])
     setDraft("")
+    if (!url || images.includes(url)) return
+    onContentChange(appendMarkdownImage(content, url))
   }
 
   const remove = (url: string) => {
-    onChange(images.filter((u) => u !== url))
+    onContentChange(removeMarkdownImage(content, url))
   }
-
-  const thumbSize = compact ? 56 : 84
-  const cols = compact ? "60px 1fr" : "1fr auto"
 
   return (
     <Box sx={{ width: "100%" }}>
-      <Box
+      <TextField
+        fullWidth
+        size="small"
+        placeholder="粘贴图片 URL，回车插入到内容"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault()
+            add()
+          }
+        }}
         sx={{
-          display: "grid",
-          gridTemplateColumns: compact ? "1fr auto" : "1fr",
-          gap: 0.5
-        }}>
-        <TextField
-          fullWidth
-          size={compact ? "small" : "small"}
-          placeholder="粘贴图片 URL，回车添加"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault()
-              add()
-            }
-          }}
-          sx={{
-            gridArea: "1 / 1",
-            "& .MuiOutlinedInput-root": {
-              borderRadius: 1,
-              fontSize: compact ? "0.85rem" : "0.9rem"
-            }
-          }}
-        />
-        {compact && (
-          <IconButton
-            size="small"
-            onClick={add}
-            disabled={!draft.trim()}
-            color="primary">
-            <AddRoundedIcon fontSize="small" />
-          </IconButton>
-        )}
-      </Box>
+          "& .MuiOutlinedInput-root": {
+            borderRadius: 1,
+            fontSize: "0.9rem"
+          }
+        }}
+      />
 
       {images.length > 0 && (
         <Box
           sx={{
             mt: 1,
             display: "grid",
-            gridTemplateColumns: `repeat(auto-fill, minmax(${thumbSize}px, 1fr))`,
-            gap: compact ? 0.5 : 1
+            gridTemplateColumns: "repeat(auto-fill, minmax(84px, 1fr))",
+            gap: 1
           }}>
           {images.map((url) => (
             <Box

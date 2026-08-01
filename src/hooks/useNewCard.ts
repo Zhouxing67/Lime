@@ -15,20 +15,17 @@ export function useNewCard({
   const [newCardOpen, setNewCardOpen] = useState(false)
   const [newCardTitle, setNewCardTitle] = useState("")
   const [newCardContent, setNewCardContent] = useState("")
-  const [newCardImages, setNewCardImages] = useState<string[]>([])
 
   const handleNewCard = useCallback(() => {
     if (!activeProjectId) return
     setNewCardTitle("")
     setNewCardContent("")
-    setNewCardImages([])
     setNewCardOpen(true)
   }, [activeProjectId])
 
   const handleSaveNewCard = useCallback(async () => {
     const title = newCardTitle.trim()
     const content = newCardContent.trim()
-    const images = newCardImages.map((u) => u.trim()).filter(Boolean)
     if (!title || !activeProjectId) return
     // Default into the active section so the new card stays visible in the
     // current single-section view ("__unclassified__" / null = unclassified).
@@ -43,19 +40,16 @@ export function useNewCard({
       content,
       createdAt: Date.now(),
       projectId: activeProjectId,
-      ...(sectionId ? { sectionId } : {}),
-      images: images.length > 0 ? images : undefined
+      ...(sectionId ? { sectionId } : {})
     }
     await addItem(item)
     setNewCardOpen(false)
     setNewCardTitle("")
     setNewCardContent("")
-    setNewCardImages([])
     onSearch(activeProjectId)
   }, [
     newCardTitle,
     newCardContent,
-    newCardImages,
     activeProjectId,
     activeSectionId,
     onSearch
@@ -65,10 +59,8 @@ export function useNewCard({
     newCardOpen,
     newCardTitle,
     newCardContent,
-    newCardImages,
     setNewCardTitle,
     setNewCardContent,
-    setNewCardImages,
     setNewCardOpen,
     handleNewCard,
     handleSaveNewCard

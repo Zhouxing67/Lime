@@ -8,10 +8,36 @@ type CustomRenderer = Partial<ReactRenderer>
 interface MarkdownRendererProps {
   content: string
   maxLines?: number
+  /** Hide inline images (e.g. review-front prompt shows a gallery separately). */
+  hideImages?: boolean
 }
 
-const renderer: CustomRenderer = {
-  heading(children: ReactNode, level: number) {
+const renderer = createRenderer(false)
+
+function createRenderer(preview: boolean): CustomRenderer {
+  return {
+    image(src: string, alt: string, title?: string | null) {
+      // In preview (clamped) mode inline images are hidden — the card cover
+      // is derived separately from the content's image URLs.
+      if (preview) return null
+      return (
+        <Box
+          key={this.elementId}
+          component="img"
+          src={src}
+          alt={alt || title || ""}
+          loading="lazy"
+          sx={{
+            maxWidth: "100%",
+            height: "auto",
+            borderRadius: 1,
+            my: 1,
+            display: "block"
+          }}
+        />
+      )
+    },
+    heading(children: ReactNode, level: number) {
     const variant =
       level === 1
         ? ("h5" as const)
@@ -159,12 +185,17 @@ const renderer: CustomRenderer = {
   hr() {
     return <Divider key={this.elementId} sx={{ my: 2 }} />
   }
+  }
 }
 
 export default function MarkdownRenderer({
   content,
-  maxLines
+  maxLines,
+  hideImages
 }: MarkdownRendererProps) {
+  // Build the renderer per render: preview (clamped) or hideImages mode hides
+  // inline images; otherwise they render constrained to the container width.
+  const renderer = createRenderer(Boolean(maxLines) || Boolean(hideImages))
   return (
     <Box
       sx={

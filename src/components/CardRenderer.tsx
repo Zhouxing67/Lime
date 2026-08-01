@@ -5,7 +5,7 @@ import LinkRoundedIcon from "@mui/icons-material/LinkRounded"
 import { Box, Chip, Typography } from "@mui/material"
 
 import type { Item } from "../types"
-import { prettyUrl, truncateText } from "../utils"
+import { extractMarkdownImages, prettyUrl, truncateText } from "../utils"
 import MarkdownRenderer from "./MarkdownRenderer"
 
 interface CardRendererProps {
@@ -32,6 +32,23 @@ export const typeIcon = (type: string) => {
     default:
       return <ArticleRoundedIcon fontSize="small" />
   }
+}
+
+/** All displayable images for a card: content-embedded Markdown images plus
+ *  legacy `item.images` (image-type cards exclude their own content URL). */
+function allImages(item: Item): string[] {
+  return [...extractMarkdownImages(item.content), ...(item.images ?? [])].filter(
+    (u, i, arr) =>
+      arr.indexOf(u) === i && (item.type !== "image" || u !== item.content)
+  )
+}
+
+/** Legacy-only images (pre-Markdown cards). Used where the Markdown body
+ *  already renders content-embedded images inline, to avoid duplication. */
+function legacyImages(item: Item): string[] {
+  return (item.images ?? []).filter(
+    (u) => item.type !== "image" || u !== item.content
+  )
 }
 
 function ImageGallery({
@@ -124,27 +141,15 @@ function ImageGallery({
   }
 
   // Full variant: vertical flow, each image full-width preserving
-  // its natural aspect ratio. Container scrolls when overflowing —
-  // matches the long-text reading UX with a right-side scrollbar.
+  // its natural aspect ratio. No internal scrollbar — the dialog
+  // scrolls as a whole so text and images read as one continuous flow.
   return (
     <Box
       sx={{
         display: "flex",
         flexDirection: "column",
         gap: 1,
-        width: "100%",
-        maxHeight: "calc(85vh - 280px)",
-        overflowY: "auto",
-        pr: 0.5,
-        "&::-webkit-scrollbar": { width: 6 },
-        "&::-webkit-scrollbar-thumb": {
-          bgcolor: "divider",
-          borderRadius: 3
-        },
-        "&::-webkit-scrollbar-thumb:hover": {
-          bgcolor: "action.selected"
-        },
-        "&::-webkit-scrollbar-track": { bgcolor: "transparent" }
+        width: "100%"
       }}>
       {images.map((url, i) => (
         <Box
@@ -254,6 +259,9 @@ export default function CardRenderer({
   contentAlign
 }: CardRendererProps) {
   if (mode === "preview") {
+    // Cover thumbnails: images embedded in content as Markdown, plus legacy
+    // `item.images`.
+    const previewGallery = allImages(item)
     return (
       <Box>
         {item.type === "image" && (
@@ -337,15 +345,8 @@ export default function CardRenderer({
             )}
           </>
         )}
-        {item.images && item.images.length > 0 && (
-          <ImageGallery
-            images={
-              item.type === "image"
-                ? item.images.filter((u) => u !== item.content)
-                : item.images
-            }
-            variant="preview"
-          />
+        {previewGallery.length > 0 && (
+          <ImageGallery images={previewGallery} variant="preview" />
         )}
       </Box>
     )
@@ -401,11 +402,21 @@ export default function CardRenderer({
                 }}>
                 {item.title}
               </Typography>
+            ) : item.type === "text" ? (
+              <Box
+                sx={{
+                  pl: 2,
+                  borderLeft: "4px solid",
+                  borderLeftColor: "primary.main",
+                  textAlign: "left"
+                }}>
+                <MarkdownRenderer content={item.content} hideImages />
+              </Box>
             ) : (
               <ContentBlock item={item} />
             )}
-            {item.images && item.images.length > 0 && (
-              <ImageGallery images={item.images} />
+            {allImages(item).length > 0 && (
+              <ImageGallery images={allImages(item)} />
             )}
           </Box>
         </Box>
@@ -478,8 +489,8 @@ export default function CardRenderer({
             <ContentBlock item={item} />
           )}
         </Box>
-        {item.images && item.images.length > 0 && (
-          <ImageGallery images={item.images} />
+        {legacyImages(item).length > 0 && (
+          <ImageGallery images={legacyImages(item)} />
         )}
         {item.source?.url && (
           <Typography
@@ -552,49 +563,21 @@ export default function CardRenderer({
         </Typography>
         <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
           {(item.type === "text" && item.content) || item.type !== "text" ? (
-            <Box>
-              <Typography
-                variant="caption"
+            item.type === "text" ? (
+              <Box
                 sx={{
-                  color: "text.disabled",
-                  fontSize: "0.7rem",
-                  letterSpacing: "0.03em",
-                  mb: 0.5,
-                  display: "block"
+                  pl: 2,
+                  borderLeft: "4px solid",
+                  borderLeftColor: "primary.main"
                 }}>
-                {item.type === "text"
-                  ? "文本"
-                  : TYPE_LABEL[item.type] ?? "内容"}
-              </Typography>
-              {item.type === "text" ? (
-                <Box
-                  sx={{
-                    pl: 2,
-                    borderLeft: "4px solid",
-                    borderLeftColor: "primary.main"
-                  }}>
-                  <MarkdownRenderer content={item.content} />
-                </Box>
-              ) : (
-                <ContentBlock item={item} />
-              )}
-            </Box>
+                <MarkdownRenderer content={item.content} />
+              </Box>
+            ) : (
+              <ContentBlock item={item} />
+            )
           ) : null}
-          {item.images && item.images.length > 0 && (
-            <Box>
-              <Typography
-                variant="caption"
-                sx={{
-                  color: "text.disabled",
-                  fontSize: "0.7rem",
-                  letterSpacing: "0.03em",
-                  mb: 0.5,
-                  display: "block"
-                }}>
-                图片
-              </Typography>
-              <ImageGallery images={item.images} />
-            </Box>
+          {legacyImages(item).length > 0 && (
+            <ImageGallery images={legacyImages(item)} />
           )}
         </Box>
       </Box>

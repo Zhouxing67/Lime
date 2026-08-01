@@ -10,6 +10,11 @@ import { palettes } from "../theme/palettes"
 import type { PresetName } from "../types"
 import type { Project } from "../types"
 import { sendMessage } from "../types/messages"
+import {
+  appendMarkdownImage,
+  extractMarkdownImages,
+  removeMarkdownImage
+} from "../utils"
 
 const SANS_FONT =
   "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Helvetica Neue', Arial, sans-serif"
@@ -244,7 +249,6 @@ function FloatingPanelContent({
 }) {
   const [title, setTitle] = useState("")
   const [content, setContent] = useState(data.text)
-  const [images, setImages] = useState<string[]>([])
   const [imageDraft, setImageDraft] = useState("")
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -289,8 +293,8 @@ function FloatingPanelContent({
 
   // ---- Report whether the panel holds a draft (blocks auto-fill) ----
   useEffect(() => {
-    onDirtyChange?.(Boolean(content.trim()) || images.length > 0)
-  }, [content, images, onDirtyChange])
+    onDirtyChange?.(Boolean(content.trim()))
+  }, [content, onDirtyChange])
 
   // Sync content from new selection
   useEffect(() => {
@@ -298,7 +302,6 @@ function FloatingPanelContent({
     setSaving(false)
     setSaved(false)
     setError("")
-    setImages([])
     setImageDraft("")
   }, [data.text])
 
@@ -432,8 +435,7 @@ function FloatingPanelContent({
             url: window.location.href,
             site: window.location.hostname
           },
-          projectId: selectedProjectId || undefined,
-          ...(images.length > 0 ? { images } : {})
+          projectId: selectedProjectId || undefined
         }
       })
       if (res?.saved === false) {
@@ -448,7 +450,6 @@ function FloatingPanelContent({
         setSaving(false)
         setContent("")
         setTitle("")
-        setImages([])
         setImageDraft("")
       }, 1200)
     } catch (err) {
@@ -456,7 +457,7 @@ function FloatingPanelContent({
       setError("保存失败")
       setSaving(false)
     }
-  }, [content, title, images, selectedProjectId, onSaved])
+  }, [content, title, selectedProjectId, onSaved])
 
   const createProject = useCallback(async () => {
     if (!newName.trim()) return
@@ -485,6 +486,20 @@ function FloatingPanelContent({
   }, [onPinChange, pinned])
 
   const iconBtn = iconBtnStyle(colors)
+
+  // Images live inside the content as Markdown tokens.
+  const panelImages = extractMarkdownImages(content)
+  const addImage = useCallback(
+    (url: string) => {
+      const trimmed = url.trim()
+      if (!trimmed || panelImages.includes(trimmed)) return
+      setContent((prev) => appendMarkdownImage(prev, trimmed))
+    },
+    [panelImages]
+  )
+  const removeImage = useCallback((url: string) => {
+    setContent((prev) => removeMarkdownImage(prev, url))
+  }, [])
 
   return (
     <div
@@ -696,14 +711,13 @@ function FloatingPanelContent({
         <div style={{ display: "flex", gap: 4, marginTop: 8 }}>
           <input
             className="lime-input"
-            placeholder="图片 URL（可选，回车添加）"
+            placeholder="图片 URL（可选，回车插入）"
             value={imageDraft}
             onChange={(e) => setImageDraft(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault()
-                const url = imageDraft.trim()
-                if (url && !images.includes(url)) setImages([...images, url])
+                addImage(imageDraft)
                 setImageDraft("")
               }
             }}
@@ -713,8 +727,7 @@ function FloatingPanelContent({
             type="button"
             disabled={!imageDraft.trim()}
             onClick={() => {
-              const url = imageDraft.trim()
-              if (url && !images.includes(url)) setImages([...images, url])
+              addImage(imageDraft)
               setImageDraft("")
             }}
             style={{
@@ -731,7 +744,7 @@ function FloatingPanelContent({
             ＋
           </button>
         </div>
-        {images.length > 0 && (
+        {panelImages.length > 0 && (
           <div
             style={{
               display: "grid",
@@ -739,7 +752,7 @@ function FloatingPanelContent({
               gap: 4,
               marginTop: 6
             }}>
-            {images.map((url) => (
+            {panelImages.map((url) => (
               <div
                 key={url}
                 style={{
@@ -762,7 +775,7 @@ function FloatingPanelContent({
                 />
                 <button
                   type="button"
-                  onClick={() => setImages(images.filter((u) => u !== url))}
+                  onClick={() => removeImage(url)}
                   style={{
                     position: "absolute",
                     top: 2,

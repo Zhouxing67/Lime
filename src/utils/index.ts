@@ -41,6 +41,44 @@ export function truncateText(text: string, max: number): string {
   return text.slice(0, max) + "..."
 }
 
+/**
+ * Extracts image URLs from Markdown content (`![alt](url)`), deduplicated,
+ * preserving order. Used to derive cover thumbnails and inline-image inputs
+ * from the content itself (images are embedded as Markdown, not stored in a
+ * separate array).
+ */
+export function extractMarkdownImages(content: string): string[] {
+  const urls: string[] = []
+  const re = /!\[[^\]]*\]\(([^)\s]+)\)/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(content)) !== null) {
+    const url = m[1]
+    if (url && !urls.includes(url)) urls.push(url)
+  }
+  return urls
+}
+
+/**
+ * Removes a single image's Markdown token (`![...](url)`) from content.
+ */
+export function removeMarkdownImage(content: string, url: string): string {
+  const escaped = url.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  return content.replace(new RegExp(`!\\[[^\\]]*\\]\\(${escaped}\\)`, "g"), "")
+}
+
+/**
+ * Appends an image as a Markdown token to the end of content.
+ */
+export function appendMarkdownImage(
+  content: string,
+  url: string,
+  alt = "图片"
+): string {
+  const token = `![${alt}](${url})`
+  if (content.includes(token)) return content
+  return `${content.trimEnd()}\n\n${token}\n`
+}
+
 export type DropPos = "before" | "after"
 
 /**

@@ -1,7 +1,10 @@
 import {
+  appendMarkdownImage,
   computeDropIndex,
   computeItemHash,
+  extractMarkdownImages,
   prettyUrl,
+  removeMarkdownImage,
   sha256
 } from "./index"
 
@@ -198,6 +201,50 @@ describe("utils", () => {
       ]
       // sorted: y(1), z(3), x(5); drag x before z -> index 1
       expect(computeDropIndex(unordered, "x", "z", "before")).toBe(1)
+    })
+  })
+
+  describe("markdown images", () => {
+    it("extracts image URLs from content", () => {
+      const content =
+        "第一段\n\n![封面](https://a.com/1.png)\n\n第二段 ![b](https://a.com/2.png)"
+      expect(extractMarkdownImages(content)).toEqual([
+        "https://a.com/1.png",
+        "https://a.com/2.png"
+      ])
+    })
+
+    it("deduplicates repeated URLs", () => {
+      expect(
+        extractMarkdownImages("![a](https://x/1.png) ![b](https://x/1.png)")
+      ).toEqual(["https://x/1.png"])
+    })
+
+    it("returns an empty list when there are no images", () => {
+      expect(extractMarkdownImages("纯文本没有图片")).toEqual([])
+    })
+
+    it("skips malformed tokens", () => {
+      expect(extractMarkdownImages("![no close] (https://x/1.png)")).toEqual([])
+    })
+
+    it("removes a specific image token", () => {
+      const content = "文 ![a](https://x/1.png) ![b](https://x/2.png) 尾"
+      expect(removeMarkdownImage(content, "https://x/1.png")).toBe(
+        "文  ![b](https://x/2.png) 尾"
+      )
+    })
+
+    it("appends an image token without duplicating", () => {
+      const content = "正文"
+      expect(appendMarkdownImage(content, "https://x/1.png")).toBe(
+        "正文\n\n![图片](https://x/1.png)\n"
+      )
+      const twice = appendMarkdownImage(
+        appendMarkdownImage(content, "https://x/1.png"),
+        "https://x/1.png"
+      )
+      expect(extractMarkdownImages(twice)).toEqual(["https://x/1.png"])
     })
   })
 })
