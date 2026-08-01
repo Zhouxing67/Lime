@@ -77,7 +77,7 @@ import { useReview } from "./hooks/useReview"
 import { dayKey, rateSrs } from "./hooks/useSrs"
 import { importFromZip } from "./import"
 import { createAppTheme } from "./theme"
-import type { Item, PresetName, SearchQuery, SrsData } from "./types"
+import type { Item, PresetName, Project, SearchQuery, SrsData } from "./types"
 import { sendMessage } from "./types/messages"
 import { isTodoComplete, toggleMarkdownTask } from "./utils"
 
@@ -109,6 +109,9 @@ export default function OptionsPage() {
   const [todoItems, setTodoItems] = useState<Item[]>([])
   const [todoEditingId, setTodoEditingId] = useState<string | null>(null)
   const [todoDeleteTarget, setTodoDeleteTarget] = useState<Item | null>(null)
+  const [projectDeleteTarget, setProjectDeleteTarget] = useState<Project | null>(
+    null
+  )
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
   const [readingFilter, setReadingFilter] = useState(false)
   const [dateRange, setDateRange] = useState<{
@@ -1495,6 +1498,10 @@ export default function OptionsPage() {
                             handleOpenProject(id)
                           }}
                           onNewProject={() => setCreateDialogOpen(true)}
+                          onDeleteProject={(id) => {
+                            const proj = projects.find((p) => p.id === id)
+                            if (proj) setProjectDeleteTarget(proj)
+                          }}
                         />
                       )}
 
@@ -1854,6 +1861,23 @@ export default function OptionsPage() {
                   </Stack>
                 </DialogContent>
               </Dialog>
+
+              <DeleteConfirmDialog
+                open={Boolean(projectDeleteTarget)}
+                batch={false}
+                count={1}
+                message={
+                  projectDeleteTarget
+                    ? `确定要删除项目「${projectDeleteTarget.name}」吗？该项目下的 ${countByProject[projectDeleteTarget.id] ?? 0} 张卡片将一并删除，此操作不可撤销。`
+                    : undefined
+                }
+                onCancel={() => setProjectDeleteTarget(null)}
+                onConfirm={() => {
+                  if (projectDeleteTarget)
+                    handleDeleteProject(projectDeleteTarget.id)
+                  setProjectDeleteTarget(null)
+                }}
+              />
 
               <DeleteConfirmDialog
                 open={Boolean(todoDeleteTarget)}

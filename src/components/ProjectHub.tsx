@@ -1,7 +1,8 @@
 import AddRoundedIcon from "@mui/icons-material/AddRounded"
+import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
 import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded"
 import SearchOffRoundedIcon from "@mui/icons-material/SearchOffRounded"
-import { Box, Button, Paper, Stack, Typography } from "@mui/material"
+import { Box, Button, IconButton, Paper, Stack, Typography } from "@mui/material"
 
 import type { Project } from "../types"
 import EmptyState from "./EmptyState"
@@ -12,6 +13,7 @@ interface ProjectHubProps {
   keyword: string
   onOpenProject: (id: string) => void
   onNewProject: () => void
+  onDeleteProject: (id: string) => void
 }
 
 // Deterministic soft hue per project name (works on light + dark surfaces).
@@ -46,7 +48,8 @@ export default function ProjectHub({
   countByProject,
   keyword,
   onOpenProject,
-  onNewProject
+  onNewProject,
+  onDeleteProject
 }: ProjectHubProps) {
   const filtered = projects
     .filter((p) => {
@@ -104,13 +107,37 @@ export default function ProjectHub({
             border: "1px solid",
             borderColor: "divider",
             cursor: "pointer",
+            position: "relative",
             transition: "all 0.2s",
             "&:hover": {
               boxShadow: theme.custom.cardShadowHover,
               transform: "translateY(-1px)",
-              borderColor: theme.custom.borderStrong
+              borderColor: theme.custom.borderStrong,
+              ".hub-delete": { opacity: 1 }
             }
           })}>
+          <IconButton
+            className="hub-delete"
+            size="small"
+            onClick={(e) => {
+              e.stopPropagation()
+              onDeleteProject(p.id)
+            }}
+            sx={{
+              position: "absolute",
+              top: 4,
+              right: 4,
+              p: 0.5,
+              opacity: 0,
+              color: "text.disabled",
+              transition: "opacity 0.15s",
+              "&:hover": {
+                color: "error.main",
+                bgcolor: "transparent"
+              }
+            }}>
+            <DeleteOutlineRoundedIcon sx={{ fontSize: 16 }} />
+          </IconButton>
           <Stack direction="row" spacing={1.5} alignItems="center">
             <Box
               sx={{
