@@ -78,6 +78,25 @@ export default function TodoView({
         </Typography>
       </Paper>
 
+      {editingId === "__new__" && (
+        <TodoCard
+          key="__new__"
+          item={{ id: "__new__", type: "todo", content: "", createdAt: Date.now() }}
+          editing
+          onToggleTask={() => {}}
+          onStartEdit={() => {}}
+          onCancelEdit={onCancelEdit}
+          onSave={(t, c) =>
+            onSave(
+              { id: "__new__", type: "todo", content: "", createdAt: Date.now() },
+              t,
+              c
+            )
+          }
+          onDelete={() => {}}
+        />
+      )}
+
       {items.map((it) => (
         <TodoCard
           key={it.id}

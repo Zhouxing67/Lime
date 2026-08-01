@@ -11,6 +11,7 @@ import {
   Typography
 } from "@mui/material"
 import { useEffect, useState } from "react"
+import type { KeyboardEvent } from "react"
 
 import type { Item } from "../types"
 import {
@@ -53,6 +54,24 @@ export default function TodoCard({
   const total = markdownTaskCount(item.content)
   const doneCount = markdownCompletedCount(item.content)
 
+  const handleContentKeyDown = (
+    e: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    if (e.key !== "Enter" || e.shiftKey) return
+    e.preventDefault()
+    const input = e.currentTarget
+    const start = input.selectionStart ?? draftContent.length
+    const end = input.selectionEnd ?? start
+    const before = draftContent.slice(0, start)
+    const currentLine = before.slice(before.lastIndexOf("\n") + 1)
+    const prefix = !currentLine.trim() || /^#{1,6}\s+/.test(currentLine) ? "" : "- [ ] "
+    const insert = `\n${prefix}`
+    setDraftContent(before + insert + draftContent.slice(end))
+    requestAnimationFrame(() => {
+      input.selectionStart = input.selectionEnd = start + insert.length
+    })
+  }
+
   if (editing) {
     return (
       <Paper
@@ -78,9 +97,10 @@ export default function TodoCard({
           size="small"
           multiline
           minRows={3}
-          placeholder="任务列表，如：- [ ] 买牛奶"
+          placeholder="每行一个任务（无需手动输入 - [ ]）"
           value={draftContent}
           onChange={(e) => setDraftContent(e.target.value)}
+          slotProps={{ input: { onKeyDown: handleContentKeyDown } }}
           fullWidth
           sx={{ "& textarea": { fontFamily: (t) => t.custom.serif } }}
         />

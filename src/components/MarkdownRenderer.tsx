@@ -4,6 +4,17 @@ import Markdown from "marked-react"
 import type { ReactRenderer } from "marked-react"
 import type { ReactNode } from "react"
 
+// marked 16 emits a `checkbox` token for GFM task lists; marked-react 4's
+// parser has no case for it and logs `Token with "checkbox" type was not found`
+// (then renders nothing). The checkbox itself is rendered correctly via the
+// renderer below, so this known-harmless warning is filtered at module load.
+const ORIGINAL_WARN = console.warn.bind(console)
+const IGNORED_MARKED_WARN = /Token with "checkbox" type was not found/
+console.warn = (...args: unknown[]) => {
+  if (typeof args[0] === "string" && IGNORED_MARKED_WARN.test(args[0])) return
+  ORIGINAL_WARN(...args)
+}
+
 type CustomRenderer = Partial<ReactRenderer>
 
 interface MarkdownRendererProps {

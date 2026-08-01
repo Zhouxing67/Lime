@@ -16,13 +16,17 @@ import {
 } from "./database"
 import type { Item, Project, SourceMeta } from "./types"
 import type { ExtensionMessage } from "./types/messages"
+import { isTodoComplete } from "./utils"
 
 async function updateBadge() {
   try {
     const due = await getDueReviews()
-    console.debug("[badge] updateBadge, due count:", due.length)
+    const todos = await searchItems({ type: "todo" })
+    const incompleteTodos = todos.filter((t) => !isTodoComplete(t.content)).length
+    const total = due.length + incompleteTodos
+    console.debug("[badge] updateBadge, total:", total)
     chrome.action.setBadgeText({
-      text: due.length > 0 ? String(due.length) : ""
+      text: total > 0 ? String(total) : ""
     })
     chrome.action.setBadgeBackgroundColor({ color: "#dc2626" })
   } catch {}

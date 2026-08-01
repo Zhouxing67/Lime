@@ -79,7 +79,7 @@ import { importFromZip } from "./import"
 import { createAppTheme } from "./theme"
 import type { Item, PresetName, SearchQuery, SrsData } from "./types"
 import { sendMessage } from "./types/messages"
-import { isTodoComplete, toggleMarkdownTask } from "./utils"
+import { isTodoComplete, normalizeTodoContent, toggleMarkdownTask } from "./utils"
 
 const MIN_DRAWER_WIDTH = 200
 const MAX_DRAWER_WIDTH = 500
@@ -300,6 +300,7 @@ export default function OptionsPage() {
   // Mount: initial load
   useEffect(() => {
     onSearch()
+    loadTodos()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -1080,17 +1081,9 @@ export default function OptionsPage() {
   const todoCount = todoIncomplete + dueCount
 
   const handleNewTodo = useCallback(async () => {
-    const item: Item = {
-      id: crypto.randomUUID(),
-      type: "todo",
-      content: "",
-      createdAt: Date.now()
-    }
-    await addItem(item, { skipDedup: true })
-    await loadTodos()
-    setTodoEditingId(item.id)
+    setTodoEditingId("__new__")
     setSidebarTab("todo")
-  }, [loadTodos])
+  }, [])
 
   const handleToggleTodoTask = useCallback(
     async (item: Item, index: number) => {
@@ -1104,11 +1097,23 @@ export default function OptionsPage() {
 
   const handleSaveTodo = useCallback(
     async (item: Item, title: string, content: string) => {
-      await updateItem({
-        ...item,
-        title: title.trim() || undefined,
-        content
-      })
+      const normalized = normalizeTodoContent(content)
+      if (item.id === "__new__") {
+        const created: Item = {
+          id: crypto.randomUUID(),
+          type: "todo",
+          title: title.trim() || undefined,
+          content: normalized,
+          createdAt: Date.now()
+        }
+        await addItem(created, { skipDedup: true })
+      } else {
+        await updateItem({
+          ...item,
+          title: title.trim() || undefined,
+          content: normalized
+        })
+      }
       setTodoEditingId(null)
       await loadTodos()
     },
