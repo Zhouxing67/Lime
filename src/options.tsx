@@ -417,6 +417,15 @@ export default function OptionsPage() {
   loadMoreRefCallback.current = loadMore
 
   useEffect(() => {
+    // The load-more sentinel only exists when these all hold; the observer
+    // must be (re)created whenever its presence changes — otherwise the
+    // spinner renders but nothing triggers loadMore (was: only [hasMore]).
+    const sentinelVisible =
+      hasMore &&
+      !!activeProjectId &&
+      !readingFilter &&
+      Boolean(keyword || dateRange)
+    if (!sentinelVisible) return
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting && hasMore) {
@@ -434,7 +443,7 @@ export default function OptionsPage() {
         observer.unobserve(currentRef)
       }
     }
-  }, [hasMore])
+  }, [hasMore, activeProjectId, readingFilter, keyword, dateRange])
 
   const handleBatchDelete = () => {
     if (selectedIds.length === 0) return
