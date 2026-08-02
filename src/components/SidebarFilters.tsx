@@ -15,6 +15,7 @@ import {
 } from "@mui/material"
 import { useEffect, useRef } from "react"
 import type { ReactNode } from "react"
+import type { SxProps, Theme } from "@mui/material"
 
 import type { Project, TodoFilter, TodoStats } from "../types"
 import type { SidebarTab } from "./NavRail"
@@ -68,6 +69,28 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
         {children}
       </Typography>
     </Stack>
+  )
+}
+
+function Well({
+  children,
+  sx
+}: {
+  children: React.ReactNode
+  sx?: SxProps<Theme>
+}) {
+  return (
+    <Box
+      sx={{
+        bgcolor: "background.default",
+        borderRadius: 1,
+        border: "1px solid",
+        borderColor: "divider",
+        p: 0.75,
+        ...sx
+      }}>
+      {children}
+    </Box>
   )
 }
 
@@ -164,9 +187,9 @@ export default function SidebarFilters({
             /* Review tab content */
             <Stack spacing={1.5}>
               {recentDates.length > 0 && (
-                <Box>
+                <Well>
                   <SectionLabel>近期回顾</SectionLabel>
-                  <Stack spacing={0.5}>
+                  <Stack spacing={0.5} sx={{ mt: 1 }}>
                     {recentDates.map((item) => (
                       <Button
                         key={item.key}
@@ -191,119 +214,124 @@ export default function SidebarFilters({
                       </Button>
                     ))}
                   </Stack>
-                </Box>
+                </Well>
               )}
             </Stack>
           ) : sidebarTab === "backup" ? (
             /* Backup & Sync tab content */
             <Box sx={{ py: 1 }}>
-              <Box sx={{ px: 1, mb: 1 }}>
-                <SectionLabel>本地备份</SectionLabel>
-              </Box>
-              <FormControlLabel
-                control={
-                  <Checkbox
+              <Well>
+                <Box sx={{ mb: 1 }}>
+                  <SectionLabel>本地备份</SectionLabel>
+                </Box>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      size="small"
+                      checked={
+                        backupSelectedIds.length === projects.length &&
+                        projects.length > 0
+                      }
+                      indeterminate={
+                        backupSelectedIds.length > 0 &&
+                        backupSelectedIds.length < projects.length
+                      }
+                      onChange={onToggleBackupAll}
+                    />
+                  }
+                  label={
+                    <Typography variant="body2" sx={{ fontSize: "0.8rem" }}>
+                      全选（{projects.length} 个项目）
+                    </Typography>
+                  }
+                  sx={{ mx: 0, width: "100%", px: 1 }}
+                />
+                <Box sx={{ maxHeight: 180, overflowY: "auto", mb: 1.5 }}>
+                  {projects.map((p) => (
+                    <FormControlLabel
+                      key={p.id}
+                      control={
+                        <Checkbox
+                          size="small"
+                          checked={backupSelectedIds.includes(p.id)}
+                          onChange={() => onToggleBackup(p.id)}
+                        />
+                      }
+                      label={
+                        <Typography
+                          variant="body2"
+                          noWrap
+                          sx={{ fontSize: "0.8rem" }}>
+                          {p.name}
+                        </Typography>
+                      }
+                      sx={{ mx: 0, width: "100%" }}
+                    />
+                  ))}
+                </Box>
+                <Stack direction="row" spacing={1} sx={{ mb: 0.5 }}>
+                  <Button
                     size="small"
-                    checked={
-                      backupSelectedIds.length === projects.length &&
-                      projects.length > 0
-                    }
-                    indeterminate={
-                      backupSelectedIds.length > 0 &&
-                      backupSelectedIds.length < projects.length
-                    }
-                    onChange={onToggleBackupAll}
-                  />
-                }
-                label={
-                  <Typography variant="body2" sx={{ fontSize: "0.8rem" }}>
-                    全选（{projects.length} 个项目）
-                  </Typography>
-                }
-                sx={{ mx: 0, width: "100%", px: 1 }}
-              />
-              <Box sx={{ maxHeight: 180, overflowY: "auto", px: 1, mb: 1.5 }}>
-                {projects.map((p) => (
-                  <FormControlLabel
-                    key={p.id}
-                    control={
-                      <Checkbox
-                        size="small"
-                        checked={backupSelectedIds.includes(p.id)}
-                        onChange={() => onToggleBackup(p.id)}
-                      />
-                    }
-                    label={
-                      <Typography
-                        variant="body2"
-                        noWrap
-                        sx={{ fontSize: "0.8rem" }}>
-                        {p.name}
-                      </Typography>
-                    }
-                    sx={{ mx: 0, width: "100%" }}
-                  />
-                ))}
-              </Box>
-              <Stack direction="row" spacing={1} sx={{ px: 1, mb: 2 }}>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<FileDownloadRoundedIcon />}
-                  disabled={backupSelectedIds.length === 0}
-                  onClick={onExportBackup}
-                  fullWidth>
-                  导出备份
-                </Button>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<FileUploadRoundedIcon />}
-                  onClick={onImportBackup}
-                  fullWidth>
-                  导入备份
-                </Button>
-              </Stack>
+                    variant="outlined"
+                    startIcon={<FileDownloadRoundedIcon />}
+                    disabled={backupSelectedIds.length === 0}
+                    onClick={onExportBackup}
+                    fullWidth>
+                    导出备份
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<FileUploadRoundedIcon />}
+                    onClick={onImportBackup}
+                    fullWidth>
+                    导入备份
+                  </Button>
+                </Stack>
+              </Well>
 
-              <Divider sx={{ mx: 1 }} />
+              <Box sx={{ height: 1.5 }} />
 
-              <Box sx={{ px: 1, my: 1.5 }}>
-                <SectionLabel>坚果云同步</SectionLabel>
-              </Box>
-              <Typography
-                variant="caption"
-                sx={{
-                  px: 1,
-                  display: "block",
-                  color: "text.secondary",
-                  mb: 1
-                }}>
-                {syncStatus || "未同步"}
-              </Typography>
-              <Stack direction="row" spacing={1} sx={{ px: 1 }}>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<CloudUploadRoundedIcon />}
-                  onClick={onUploadSync}
-                  fullWidth>
-                  上传
-                </Button>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<CloudDownloadRoundedIcon />}
-                  onClick={onDownloadSync}
-                  fullWidth>
-                  下载
-                </Button>
-              </Stack>
+              <Well>
+                <Box sx={{ mb: 1 }}>
+                  <SectionLabel>坚果云同步</SectionLabel>
+                </Box>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    display: "block",
+                    color: "text.secondary",
+                    mb: 1
+                  }}>
+                  {syncStatus || "未同步"}
+                </Typography>
+                <Stack direction="row" spacing={1}>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<CloudUploadRoundedIcon />}
+                    onClick={onUploadSync}
+                    fullWidth>
+                    上传
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<CloudDownloadRoundedIcon />}
+                    onClick={onDownloadSync}
+                    fullWidth>
+                    下载
+                  </Button>
+                </Stack>
+              </Well>
             </Box>
           ) : sidebarTab === "todo" ? (
             /* Todo tab: filter groups with counts */
-            <Box>
-              <SectionLabel>待办</SectionLabel>
-              <Box sx={{ mt: 0.5 }}>
+            <Box sx={{ py: 1 }}>
+              <Well>
+                <Box sx={{ mb: 0.5 }}>
+                  <SectionLabel>待办</SectionLabel>
+                </Box>
                 {(
                   [
                     ["all", "全部", todoStats.total],
@@ -320,7 +348,7 @@ export default function SidebarFilters({
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "space-between",
-                      px: 1.5,
+                      px: 1,
                       py: 0.5,
                       borderRadius: 1,
                       cursor: "pointer",
@@ -348,79 +376,81 @@ export default function SidebarFilters({
                     </Typography>
                   </Box>
                 ))}
-              </Box>
+              </Well>
             </Box>
           ) : (
             /* Project tab content: tree + actions */
             <>
               {children}
 
-              <Stack
-                direction="row"
-                alignItems="center"
-                spacing={1}
-                onClick={onNewProjectClick}
-                sx={{
-                  px: 1.5,
-                  py: 0.5,
-                  cursor: "pointer",
-                  "&:hover": {
-                    bgcolor: "action.hover",
-                    "& .new-project-icon": { color: "primary.main" }
-                  }
-                }}>
-                <AddRoundedIcon
-                  className="new-project-icon"
+              <Well sx={{ p: 0, mt: 0.5, overflow: "hidden" }}>
+                <Stack
+                  direction="row"
+                  alignItems="center"
+                  spacing={1}
+                  onClick={onNewProjectClick}
                   sx={{
-                    fontSize: 16,
-                    color: "text.secondary",
-                    transition: "color 0.15s"
-                  }}
-                />
-                <Typography
-                  variant="body2"
-                  sx={{
-                    fontSize: "0.8rem",
-                    color: "text.secondary",
-                    flex: 1
+                    px: 1.5,
+                    py: 0.75,
+                    cursor: "pointer",
+                    "&:hover": {
+                      bgcolor: "action.hover",
+                      "& .new-project-icon": { color: "primary.main" }
+                    }
                   }}>
-                  新建项目
-                </Typography>
-              </Stack>
+                  <AddRoundedIcon
+                    className="new-project-icon"
+                    sx={{
+                      fontSize: 16,
+                      color: "text.secondary",
+                      transition: "color 0.15s"
+                    }}
+                  />
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      fontSize: "0.8rem",
+                      color: "text.secondary",
+                      flex: 1
+                    }}>
+                    新建项目
+                  </Typography>
+                </Stack>
 
-              <Stack
-                direction="row"
-                alignItems="center"
-                spacing={1}
-                sx={{
-                  px: 1.5,
-                  py: 0.75,
-                  borderTop: "1px solid",
-                  borderColor: "divider",
-                  cursor: "pointer",
-                  bgcolor: readingFilter ? "action.selected" : "transparent",
-                  "&:hover": { bgcolor: "action.hover" }
-                }}
-                onClick={onToggleReadingFilter}>
-                <Box
+                <Stack
+                  direction="row"
+                  alignItems="center"
+                  spacing={1}
                   sx={{
-                    width: 3,
-                    height: 14,
-                    borderRadius: 1,
-                    bgcolor: readingFilter ? "primary.main" : "text.disabled",
-                    flexShrink: 0
+                    px: 1.5,
+                    py: 0.75,
+                    borderTop: "1px solid",
+                    borderColor: "divider",
+                    cursor: "pointer",
+                    bgcolor: readingFilter ? "action.selected" : "transparent",
+                    "&:hover": { bgcolor: "action.hover" }
                   }}
-                />
-                <Typography
-                  variant="body2"
-                  sx={{
-                    fontSize: "0.8rem",
-                    fontWeight: 600,
-                    color: readingFilter ? "primary.main" : "text.secondary"
-                  }}>
-                  稍后阅读
-                </Typography>
-              </Stack>
+                  onClick={onToggleReadingFilter}>
+                  <Box
+                    sx={{
+                      width: 3,
+                      height: 14,
+                      borderRadius: 1,
+                      bgcolor: readingFilter ? "primary.main" : "text.disabled",
+                      flexShrink: 0
+                    }}
+                  />
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      fontSize: "0.8rem",
+                      fontWeight: 600,
+                      color: readingFilter ? "primary.main" : "text.secondary"
+                    }}>
+                    稍后阅读
+                  </Typography>
+                </Stack>
+              </Well>
             </>
           )}
         </Stack>
