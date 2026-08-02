@@ -1122,8 +1122,9 @@ export default function OptionsPage() {
     })
   }, [todoItems, todoFilter, today])
 
-  // Todo badge = incomplete todos + due reviews (single attention number).
-  const todoCount = todoStats.incomplete + dueCount
+  // Todo badge = incomplete todos only. Review cards must not inflate the
+  // todo icon's number (review has its own due-count badge on the 复习 button).
+  const todoCount = todoStats.incomplete
 
   const handleNewTodo = useCallback(() => {
     setFocusNewTaskId(null)
