@@ -3,14 +3,16 @@ import {
   Box,
   Button,
   Chip,
+  Divider,
   IconButton,
   Popover,
   Stack,
-  TextField,
   Tooltip,
   Typography
 } from "@mui/material"
 import { useCallback, useMemo, useRef, useState } from "react"
+
+import DateField from "./DateField"
 
 interface DateRangeFilterProps {
   value: { from?: number; to?: number } | null
@@ -123,43 +125,72 @@ export default function DateRangeFilter({
         onClose={handleClose}
         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
         transformOrigin={{ vertical: "top", horizontal: "right" }}>
-        <Stack spacing={1.5} sx={{ p: 2, minWidth: 220 }}>
+        <Stack spacing={1.5} sx={{ p: 2, minWidth: 240 }}>
           <Typography
             variant="caption"
-            sx={{ fontWeight: 600, color: "text.secondary" }}>
+            sx={{
+              fontWeight: 600,
+              color: "text.secondary",
+              letterSpacing: "0.02em"
+            }}>
             日期筛选
           </Typography>
-          <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-            {PRESETS.map((p) => (
-              <Chip
-                key={p.label}
-                label={p.label}
-                size="small"
-                onClick={() => handlePreset(p.days)}
-                sx={{ borderRadius: 1, fontSize: "0.75rem" }}
+
+          <Box>
+            <Typography
+              variant="caption"
+              sx={{
+                display: "block",
+                color: "text.disabled",
+                fontSize: "0.65rem",
+                mb: 0.5
+              }}>
+              快捷范围
+            </Typography>
+            <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+              {PRESETS.map((p) => (
+                <Chip
+                  key={p.label}
+                  label={p.label}
+                  size="small"
+                  onClick={() => handlePreset(p.days)}
+                  sx={{ borderRadius: 1, fontSize: "0.75rem" }}
+                />
+              ))}
+            </Stack>
+          </Box>
+
+          <Divider />
+
+          <Box>
+            <Typography
+              variant="caption"
+              sx={{
+                display: "block",
+                color: "text.disabled",
+                fontSize: "0.65rem",
+                mb: 0.5
+              }}>
+              自定义区间
+            </Typography>
+            <Stack spacing={0.75}>
+              <DateField
+                label="开始日期"
+                value={startDraft}
+                onChange={setStartDraft}
+                min={minDate}
+                max={endDraft || today}
               />
-            ))}
-          </Stack>
-          <TextField
-            label="开始日期"
-            type="date"
-            size="small"
-            value={startDraft}
-            onChange={(e) => setStartDraft(e.target.value)}
-            inputProps={{ max: endDraft || today, min: minDate }}
-            InputLabelProps={{ shrink: true }}
-            sx={{ "& .MuiOutlinedInput-root": { borderRadius: 1 } }}
-          />
-          <TextField
-            label="结束日期"
-            type="date"
-            size="small"
-            value={endDraft}
-            onChange={(e) => setEndDraft(e.target.value)}
-            inputProps={{ max: today, min: startDraft || minDate }}
-            InputLabelProps={{ shrink: true }}
-            sx={{ "& .MuiOutlinedInput-root": { borderRadius: 1 } }}
-          />
+              <DateField
+                label="结束日期"
+                value={endDraft}
+                onChange={setEndDraft}
+                min={startDraft || minDate}
+                max={today}
+              />
+            </Stack>
+          </Box>
+
           <Stack direction="row" spacing={1} justifyContent="flex-end">
             <Button size="small" onClick={handleClear} sx={{ borderRadius: 1 }}>
               清除
