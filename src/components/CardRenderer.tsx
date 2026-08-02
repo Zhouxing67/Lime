@@ -55,94 +55,10 @@ function legacyImages(item: Item): string[] {
   )
 }
 
-function ImageGallery({
-  images,
-  variant = "full"
-}: {
-  images: string[]
-  variant?: "preview" | "full"
-}) {
+function ImageGallery({ images }: { images: string[] }) {
   if (!images || images.length === 0) return null
 
   const count = images.length
-  const isSingle = count === 1
-
-  // Preview variant: compact thumbnails grid, cap at 4. A single image
-  // renders as a full-width 16:9 cover block.
-  if (variant === "preview") {
-    if (count === 1) {
-      return (
-        <Box
-          sx={{
-            mt: 1,
-            borderRadius: 1,
-            overflow: "hidden",
-            aspectRatio: "16 / 9",
-            bgcolor: "action.hover"
-          }}>
-          <img
-            src={images[0]}
-            alt=""
-            loading="lazy"
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-              display: "block"
-            }}
-          />
-        </Box>
-      )
-    }
-    return (
-      <Box
-        sx={{
-          mt: 1,
-          display: "grid",
-          gridTemplateColumns: isSingle ? "1fr" : "repeat(2, 1fr)",
-          gap: 0.5
-        }}>
-        {images.slice(0, 2).map((url, i) => (
-          <Box
-            key={url + i}
-            sx={{
-              borderRadius: 1,
-              overflow: "hidden",
-              aspectRatio: "4 / 3",
-              position: "relative"
-            }}>
-            <img
-              src={url}
-              alt=""
-              loading="lazy"
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit: "cover",
-                display: "block"
-              }}
-            />
-            {i === 1 && count > 2 && (
-              <Box
-                sx={{
-                  position: "absolute",
-                  inset: 0,
-                  bgcolor: "rgba(0,0,0,0.55)",
-                  color: "common.white",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "1rem",
-                  fontWeight: 600
-                }}>
-                +{count - 2}
-              </Box>
-            )}
-          </Box>
-        ))}
-      </Box>
-    )
-  }
 
   // Full variant: vertical flow, each image full-width preserving
   // its natural aspect ratio. No internal scrollbar — the dialog
@@ -350,7 +266,21 @@ export default function CardRenderer({
           </>
         )}
         {previewGallery.length > 0 && (
-          <ImageGallery images={previewGallery} variant="preview" />
+          <Box
+            sx={{
+              mt: 0.75,
+              display: "flex",
+              alignItems: "center",
+              gap: 0.5,
+              color: "text.disabled"
+            }}>
+            <ImageRoundedIcon sx={{ fontSize: 13 }} />
+            <Typography
+              variant="caption"
+              sx={{ fontSize: "0.7rem", lineHeight: 1.4 }}>
+              {previewGallery.length} 张图片
+            </Typography>
+          </Box>
         )}
       </Box>
     )

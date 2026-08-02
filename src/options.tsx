@@ -482,6 +482,16 @@ export default function OptionsPage() {
     const sameSection = selectedItems.every(
       (i) => i.sectionId === firstSectionId
     )
+    const mergedSectionId =
+      sameSection && firstSectionId ? firstSectionId : undefined
+
+    // Place the merged card last in its scope (same rule as new cards).
+    const mergedMaxOrder = allItems.reduce((acc, i) => {
+      const inScope = mergedSectionId
+        ? i.sectionId === mergedSectionId
+        : !i.sectionId
+      return inScope ? Math.max(acc, i.order ?? -1) : acc
+    }, -1)
 
     const newItem: Item = {
       id: crypto.randomUUID(),
@@ -490,8 +500,9 @@ export default function OptionsPage() {
       content: mergedContent,
       createdAt: Date.now(),
       projectId: activeProjectId,
+      order: mergedMaxOrder + 1,
       ...(allImages.length > 0 ? { images: allImages } : {}),
-      ...(sameSection && firstSectionId ? { sectionId: firstSectionId } : {})
+      ...(mergedSectionId ? { sectionId: mergedSectionId } : {})
     }
 
     // Atomic transaction: insert new + delete originals + cleanup reviews

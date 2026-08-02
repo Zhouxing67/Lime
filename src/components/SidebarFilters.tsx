@@ -9,7 +9,6 @@ import {
   Checkbox,
   Divider,
   Drawer,
-  FormControlLabel,
   Stack,
   Typography
 } from "@mui/material"
@@ -224,49 +223,63 @@ export default function SidebarFilters({
                 <Box sx={{ mb: 1 }}>
                   <SectionLabel>本地备份</SectionLabel>
                 </Box>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      size="small"
-                      checked={
-                        backupSelectedIds.length === projects.length &&
-                        projects.length > 0
-                      }
-                      indeterminate={
-                        backupSelectedIds.length > 0 &&
-                        backupSelectedIds.length < projects.length
-                      }
-                      onChange={onToggleBackupAll}
-                    />
-                  }
-                  label={
-                    <Typography variant="body2" noWrap sx={{ fontSize: "0.8rem" }}>
-                      全选（{projects.length} 个项目）
-                    </Typography>
-                  }
-                  sx={{ mx: 0, width: "100%", px: 1 }}
-                />
+                <Box
+                  onClick={onToggleBackupAll}
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 0.75,
+                    px: 1,
+                    py: 0.25,
+                    cursor: "pointer",
+                    borderRadius: 0.5,
+                    "&:hover": { bgcolor: "action.hover" }
+                  }}>
+                  <Checkbox
+                    size="small"
+                    sx={{ p: 0.5 }}
+                    checked={
+                      backupSelectedIds.length === projects.length &&
+                      projects.length > 0
+                    }
+                    indeterminate={
+                      backupSelectedIds.length > 0 &&
+                      backupSelectedIds.length < projects.length
+                    }
+                    onChange={onToggleBackupAll}
+                  />
+                  <Typography variant="body2" noWrap sx={{ fontSize: "0.8rem" }}>
+                    全选（{projects.length} 个项目）
+                  </Typography>
+                </Box>
                 <Box sx={{ maxHeight: 180, overflowY: "auto", mb: 1.5 }}>
                   {projects.map((p) => (
-                    <FormControlLabel
+                    <Box
                       key={p.id}
-                      control={
-                        <Checkbox
-                          size="small"
-                          checked={backupSelectedIds.includes(p.id)}
-                          onChange={() => onToggleBackup(p.id)}
-                        />
-                      }
-                      label={
-                        <Typography
-                          variant="body2"
-                          noWrap
-                          sx={{ fontSize: "0.8rem" }}>
-                          {p.name}
-                        </Typography>
-                      }
-                      sx={{ mx: 0, width: "100%" }}
-                    />
+                      onClick={() => onToggleBackup(p.id)}
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 0.75,
+                        px: 1,
+                        py: 0.25,
+                        cursor: "pointer",
+                        borderRadius: 0.5,
+                        "&:hover": { bgcolor: "action.hover" }
+                      }}>
+                      <Checkbox
+                        size="small"
+                        sx={{ p: 0.5 }}
+                        checked={backupSelectedIds.includes(p.id)}
+                        onChange={() => onToggleBackup(p.id)}
+                      />
+                      <Typography
+                        variant="body2"
+                        noWrap
+                        sx={{ fontSize: "0.8rem" }}>
+                        {p.name}
+                      </Typography>
+                    </Box>
                   ))}
                 </Box>
                 <Stack direction="row" spacing={1} sx={{ mb: 0.5 }}>
