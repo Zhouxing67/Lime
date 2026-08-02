@@ -17,6 +17,22 @@ console.warn = (...args: unknown[]) => {
 
 type CustomRenderer = Partial<ReactRenderer>
 
+/** True if the node subtree contains a task-list checkbox (data-task-checkbox). */
+function containsTaskCheckbox(node: ReactNode): boolean {
+  if (node == null || typeof node === "string" || typeof node === "number") {
+    return false
+  }
+  if (Array.isArray(node)) {
+    return node.some(containsTaskCheckbox)
+  }
+  if (typeof node === "object" && "props" in node) {
+    const el = node as { props?: Record<string, unknown> }
+    if (el.props?.["data-task-checkbox"]) return true
+    return containsTaskCheckbox(el.props?.children as ReactNode)
+  }
+  return false
+}
+
 interface MarkdownRendererProps {
   content: string
   maxLines?: number
@@ -39,6 +55,7 @@ function createRenderer(
         <Box
           key={`task-${idx}`}
           component="span"
+          data-task-checkbox
           onClick={(e) => {
             e.stopPropagation()
             onToggleTask?.(idx)
@@ -194,11 +211,16 @@ function createRenderer(
     )
   },
   list(children: ReactNode, ordered: boolean) {
+    const isTaskList = containsTaskCheckbox(children)
     return (
       <Box
         key={this.elementId}
         component={ordered ? "ol" : "ul"}
-        sx={{ pl: 2.5, my: 1 }}>
+        sx={{
+          pl: isTaskList ? 0 : 2.5,
+          my: 1,
+          ...(isTaskList ? { listStyle: "none" } : {})
+        }}>
         {children}
       </Box>
     )

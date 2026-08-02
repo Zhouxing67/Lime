@@ -141,9 +141,12 @@ export default function TaskEditor({
             fullWidth
             placeholder={row.kind === "task" ? "新任务…" : "章节…"}
             sx={{
+              flex: 1,
+              minWidth: 0,
+              minHeight: 30,
               fontSize: "0.9rem",
               fontFamily: (t) => t.custom.serif,
-              "& input": { py: 0.75 }
+              "& input": { py: 0.4 }
             }}
           />
         </Box>

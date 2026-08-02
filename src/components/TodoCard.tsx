@@ -3,6 +3,7 @@ import CheckRoundedIcon from "@mui/icons-material/CheckRounded"
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded"
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
 import EditRoundedIcon from "@mui/icons-material/EditRounded"
+import EventRoundedIcon from "@mui/icons-material/EventRounded"
 import { alpha, Box, Button, IconButton, Paper, Stack, TextField, Typography } from "@mui/material"
 import { useEffect, useState } from "react"
 
@@ -17,6 +18,72 @@ import {
 } from "../utils"
 import MarkdownRenderer from "./MarkdownRenderer"
 import TaskEditor from "./TaskEditor"
+
+/** Compact date field with a fully-controlled label (native input is hidden). */
+function DueDateField({
+  value,
+  onChange
+}: {
+  value?: string
+  onChange: (value: string | undefined) => void
+}) {
+  const [y, m, d] = (value ?? "").split("-")
+  const label = value
+    ? `${y}年${+m}月${+d}日`
+    : "设置到期日"
+  return (
+    <Box
+      sx={{
+        position: "relative",
+        display: "flex",
+        alignItems: "center",
+        gap: 0.75,
+        border: "1px solid",
+        borderColor: "divider",
+        borderRadius: 1,
+        px: 1,
+        py: 0.5,
+        minWidth: 0,
+        flex: 1,
+        "&:hover, &:focus-within": { borderColor: "primary.main" }
+      }}>
+      <EventRoundedIcon sx={{ fontSize: 15, color: "text.disabled" }} />
+      <Typography
+        variant="body2"
+        noWrap
+        sx={{
+          fontSize: "0.78rem",
+          flex: 1,
+          minWidth: 0,
+          color: value ? "text.primary" : "text.secondary"
+        }}>
+        {label}
+      </Typography>
+      {value && (
+        <IconButton
+          size="small"
+          onClick={() => onChange(undefined)}
+          title="清除到期日"
+          sx={{ p: 0.25, position: "relative", zIndex: 1 }}>
+          <CloseRoundedIcon sx={{ fontSize: 14 }} />
+        </IconButton>
+      )}
+      <input
+        type="date"
+        value={value ?? ""}
+        onChange={(e) => onChange(e.target.value || undefined)}
+        style={{
+          position: "absolute",
+          opacity: 0,
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          cursor: "pointer"
+        }}
+      />
+    </Box>
+  )
+}
 
 interface TodoCardProps {
   item: Item
@@ -101,7 +168,8 @@ export default function TodoCard({
           boxShadow: theme.custom.cardShadow,
           display: "flex",
           flexDirection: "column",
-          gap: 1.5
+          gap: 1.5,
+          minWidth: 0
         })}>
         <TextField
           size="small"
@@ -117,44 +185,19 @@ export default function TodoCard({
           autoFocus={!focusNewTask}
           autoFocusNewRow={focusNewTask}
         />
-        <Stack
-          direction="row"
-          alignItems="center"
-          justifyContent="space-between">
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-            <TextField
-              type="date"
-              size="small"
-              value={draftDueDate ?? ""}
-              onChange={(e) =>
-                setDraftDueDate(e.target.value || undefined)
-              }
-              slotProps={{
-                inputLabel: { shrink: true }
-              }}
-              label="到期日"
-              sx={{ width: 150 }}
-            />
-            {draftDueDate && (
-              <IconButton
-                size="small"
-                onClick={() => setDraftDueDate(undefined)}
-                title="清除到期日">
-                <CloseRoundedIcon sx={{ fontSize: 16 }} />
-              </IconButton>
-            )}
-          </Box>
-          <Stack direction="row" spacing={1}>
-            <Button size="small" onClick={onCancelEdit}>
-              取消
-            </Button>
-            <Button
-              size="small"
-              variant="contained"
-              onClick={() => onSave(draftTitle.trim(), draftContent, draftDueDate)}>
-              保存
-            </Button>
-          </Stack>
+        <DueDateField value={draftDueDate} onChange={setDraftDueDate} />
+        <Stack direction="row" justifyContent="flex-end" spacing={1}>
+          <Button size="small" onClick={onCancelEdit}>
+            取消
+          </Button>
+          <Button
+            size="small"
+            variant="contained"
+            onClick={() =>
+              onSave(draftTitle.trim(), draftContent, draftDueDate)
+            }>
+            保存
+          </Button>
         </Stack>
       </Paper>
     )
