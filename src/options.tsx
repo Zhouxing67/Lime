@@ -79,7 +79,7 @@ import { importFromZip } from "./import"
 import { createAppTheme } from "./theme"
 import type { Item, MergeSeparator, PresetName, Project, SearchQuery, SrsData, TodoFilter } from "./types"
 import { sendMessage } from "./types/messages"
-import { buildMergedContent, dueStatus, isTodoComplete, toggleMarkdownTask, todayLocalDate } from "./utils"
+import { buildMergedContent, compareCards, dueStatus, isTodoComplete, maxScopeOrder, toggleMarkdownTask, todayLocalDate } from "./utils"
 
 const MIN_DRAWER_WIDTH = 200
 const MAX_DRAWER_WIDTH = 500
@@ -155,15 +155,6 @@ export default function OptionsPage() {
   } | null>(null)
   const [mergeState, setMergeState] = useState<Item[] | null>(null)
 
-  console.debug("[review:state]", {
-    reviewItems: reviewItems.length,
-    reviewCompleted,
-    reviewIndex,
-    reviewFlipped,
-    sidebarTab,
-    reviewDateFilter,
-    reviewItemIds: reviewItemIds.size
-  })
   const [slideDir, setSlideDir] = useState<1 | -1>(1)
 
   const reviewProgress = useMemo(
@@ -207,9 +198,7 @@ export default function OptionsPage() {
       const list = await searchItems(q)
       // Todos are a global view of their own; never mix into project/search.
       const filtered = list.filter((i) => i.type !== "todo")
-      filtered.sort(
-        (a, b) => (a.order ?? 0) - (b.order ?? 0) || a.createdAt - b.createdAt
-      )
+      filtered.sort(compareCards)
       setAllItems(filtered)
       setDisplayedItems(filtered.slice(0, ITEMS_PER_PAGE))
       setHasMore(filtered.length > ITEMS_PER_PAGE)
@@ -385,7 +374,12 @@ export default function OptionsPage() {
     setNewCardOpen,
     handleNewCard,
     handleSaveNewCard
-  } = useNewCard({ activeProjectId, activeSectionId, onSearch, allItems })
+  } = useNewCard({
+    activeProjectId,
+    activeSectionId,
+    onSearch,
+    allItemsUnfiltered
+  })
 
   const onDelete = (id: string) => {
     setConfirmDeleteId(id)
@@ -486,12 +480,9 @@ export default function OptionsPage() {
       sameSection && firstSectionId ? firstSectionId : undefined
 
     // Place the merged card last in its scope (same rule as new cards).
-    const mergedMaxOrder = allItems.reduce((acc, i) => {
-      const inScope = mergedSectionId
-        ? i.sectionId === mergedSectionId
-        : !i.sectionId
-      return inScope ? Math.max(acc, i.order ?? -1) : acc
-    }, -1)
+    // Use the unfiltered item set so active search/date filters don't hide
+    // same-scope cards with higher orders.
+    const mergedMaxOrder = maxScopeOrder(allItemsUnfiltered, mergedSectionId)
 
     const newItem: Item = {
       id: crypto.randomUUID(),
@@ -572,10 +563,7 @@ export default function OptionsPage() {
 
       // If already in review, remove it
       if (reviewItemIds.has(itemId)) {
-        console.debug("[review:toggle] removing", itemId)
         await removeReview(itemId)
-        const dueAfter = await getDueReviews()
-        console.debug("[review:toggle] removed, due count:", dueAfter.length)
         setReviewItemIds((prev) => {
           const next = new Set(prev)
           next.delete(itemId)
@@ -592,7 +580,6 @@ export default function OptionsPage() {
       }
 
       // Has title → add directly
-      console.debug("[review:toggle] adding", itemId)
       await addReview({
         id: crypto.randomUUID(),
         itemId: card.id,
@@ -608,8 +595,6 @@ export default function OptionsPage() {
         status: "active",
         addedAt: Date.now()
       })
-      const dueAfter = await getDueReviews()
-      console.debug("[review:toggle] added, due count:", dueAfter.length)
       setReviewItemIds((prev) => new Set(prev).add(itemId))
       setSnackbarMsg("已加入复习")
     },
@@ -827,9 +812,7 @@ export default function OptionsPage() {
       const sectionItems = allItems.filter((i) =>
         targetSectionId ? i.sectionId === targetSectionId : !i.sectionId
       )
-      const sorted = sectionItems.sort(
-        (a, b) => (a.order ?? 0) - (b.order ?? 0) || a.createdAt - b.createdAt
-      )
+      const sorted = sectionItems.sort(compareCards)
       const filtered = sorted.filter((i) => i.id !== itemId)
       filtered.splice(targetOrder, 0, {
         ...allItems.find((i) => i.id === itemId)!,
@@ -1094,8 +1077,9 @@ export default function OptionsPage() {
   )
 
   // ---- Todo state & handlers (global view, newest first, not draggable) ----
+  const today = todayLocalDate()
+
   const todoStats = useMemo(() => {
-    const today = todayLocalDate()
     let incomplete = 0
     let completed = 0
     let overdue = 0
@@ -1111,10 +1095,9 @@ export default function OptionsPage() {
       if (s === "today") todayCount++
     }
     return { total: todoItems.length, incomplete, completed, overdue, today: todayCount }
-  }, [todoItems])
+  }, [todoItems, today])
 
   const filteredTodos = useMemo(() => {
-    const today = todayLocalDate()
     const list = todoItems.filter((t) => {
       switch (todoFilter) {
         case "all":
@@ -1137,7 +1120,7 @@ export default function OptionsPage() {
       if (bd) return 1
       return b.createdAt - a.createdAt
     })
-  }, [todoItems, todoFilter])
+  }, [todoItems, todoFilter, today])
 
   // Todo badge = incomplete todos + due reviews (single attention number).
   const todoCount = todoStats.incomplete + dueCount

@@ -189,9 +189,12 @@ export function dueStatus(dueDate: string | undefined, today: string): DueStatus
   return "future"
 }
 
-/** Short human label for a due date, e.g. "今天" / "已过期 2 天". */
-export function dueLabel(dueDate: string | undefined, today: string): string {
-  switch (dueStatus(dueDate, today)) {
+function labelFromStatus(
+  dueDate: string | undefined,
+  status: DueStatus,
+  today: string
+): string {
+  switch (status) {
     case "none":
       return ""
     case "overdue":
@@ -207,13 +210,46 @@ export function dueLabel(dueDate: string | undefined, today: string): string {
   }
 }
 
+/** Short human label for a due date, e.g. "今天" / "已过期 2 天". */
+export function dueLabel(dueDate: string | undefined, today: string): string {
+  return labelFromStatus(dueDate, dueStatus(dueDate, today), today)
+}
+
+/** Status + label in one pass (avoids computing dueStatus twice). */
+export function dueInfo(
+  dueDate: string | undefined,
+  today: string
+): { status: DueStatus; label: string } {
+  const status = dueStatus(dueDate, today)
+  return { status, label: labelFromStatus(dueDate, status, today) }
+}
+
 export type DropPos = "before" | "after"
+
+/** Order-first card comparator (order asc, then createdAt asc). */
+export function compareCards<T extends { order?: number; createdAt?: number }>(
+  a: T,
+  b: T
+): number {
+  return (a.order ?? 0) - (b.order ?? 0) || (a.createdAt ?? 0) - (b.createdAt ?? 0)
+}
+
+/** Highest order currently in the given scope (sectionId or unclassified). */
+export function maxScopeOrder<T extends { order?: number; sectionId?: string }>(
+  items: T[],
+  sectionId: string | undefined
+): number {
+  return items.reduce((acc, i) => {
+    const inScope = sectionId ? i.sectionId === sectionId : !i.sectionId
+    return inScope ? Math.max(acc, i.order ?? -1) : acc
+  }, -1)
+}
 
 /**
  * Computes the insertion index for a dragged card relative to a target card
  * within the target section's ordered card list (dragged card excluded).
  */
-export function computeDropIndex<T extends { id: string; order?: number }>(
+export function computeDropIndex<T extends { id: string; order?: number; createdAt?: number }>(
   cards: T[],
   draggedId: string,
   targetId: string,
@@ -221,7 +257,7 @@ export function computeDropIndex<T extends { id: string; order?: number }>(
 ): number {
   const sorted = cards
     .filter((c) => c.id !== draggedId)
-    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .sort(compareCards)
   const targetIndex = sorted.findIndex((c) => c.id === targetId)
   if (targetIndex === -1) return sorted.length
   return pos === "after" ? targetIndex + 1 : targetIndex

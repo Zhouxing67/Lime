@@ -64,11 +64,9 @@ export function useBackupSync(options: {
       )
       if (result.success) chrome.storage.local.set({ lastSyncTime: Date.now() })
       setSyncStatus(result.message)
-      console.debug("[lime:sync]", result.message)
     } catch (e) {
       setSnackbarMsg(`同步失败：${e}`)
       setSyncStatus("同步失败")
-      console.debug("[lime:sync] 同步失败:", e)
     }
   }
 
@@ -90,12 +88,10 @@ export function useBackupSync(options: {
       )
       if (!remote.success) {
         setSyncStatus(remote.message || "下载失败")
-        console.debug("[lime:sync]", remote.message || "下载失败")
         return
       }
       if (remote.direction === "noop") {
         setSyncStatus(remote.message || "数据无变化")
-        console.debug("[lime:sync]", remote.message || "数据无变化")
         return
       }
       if (remote.payload) {
@@ -111,13 +107,11 @@ export function useBackupSync(options: {
         chrome.storage.local.set({ lastSyncTime: Date.now() })
         const msg = remote.message || "从云端同步"
         setSyncStatus(msg)
-        console.debug("[lime:sync]", msg)
         await refreshAllData()
       }
     } catch (e) {
       setSnackbarMsg(`下载失败：${e}`)
       setSyncStatus("下载失败")
-      console.debug("[lime:sync] 下载失败:", e)
     }
   }
 

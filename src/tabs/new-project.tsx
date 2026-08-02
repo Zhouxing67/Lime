@@ -62,13 +62,6 @@ export default function NewProjectPage() {
     const result = await chrome.storage.session.get("pendingTabId")
     const tabId = (result as { pendingTabId?: number }).pendingTabId
 
-    console.debug("[lime:save]", {
-      type: pending.type,
-      projectId,
-      content: pending.content.slice(0, 60),
-      dedup: !saved
-    })
-
     // Delegate toast to the background SW
     sendMessage({
       kind: "save-feedback",

@@ -7,7 +7,7 @@ import { useEffect, useState } from "react"
 
 import type { Item } from "../types"
 import {
-  dueLabel,
+  dueInfo,
   dueStatus,
   isTodoComplete,
   markdownCompletedCount,
@@ -30,8 +30,8 @@ interface TodoCardProps {
   onQuickAdd: () => void
 }
 
-function DueChip({ item }: { item: Item }) {
-  const status = dueStatus(item.dueDate, todayLocalDate())
+function DueChip({ item, today }: { item: Item; today: string }) {
+  const { status, label } = dueInfo(item.dueDate, today)
   if (status === "none") return null
   const tone = {
     overdue: { color: "error.main" },
@@ -56,7 +56,7 @@ function DueChip({ item }: { item: Item }) {
               ? alpha(t.palette.warning.main, 0.08)
               : alpha(t.palette.text.secondary, 0.08)
       })}>
-      {dueLabel(item.dueDate, todayLocalDate())}
+      {label}
     </Typography>
   )
 }
@@ -83,11 +83,12 @@ export default function TodoCard({
     setDraftDueDate(item.dueDate)
   }, [item.id, editing])
 
+  const today = todayLocalDate()
   const done = isTodoComplete(item.content)
   const total = markdownTaskCount(item.content)
   const doneCount = markdownCompletedCount(item.content)
   const pct = total > 0 ? Math.round((doneCount / total) * 100) : 0
-  const overdue = dueStatus(item.dueDate, todayLocalDate()) === "overdue"
+  const overdue = dueStatus(item.dueDate, today) === "overdue"
 
   if (editing) {
     return (
@@ -266,7 +267,7 @@ export default function TodoCard({
           sx={{ color: "text.disabled", fontSize: "0.7rem" }}>
           {new Date(item.createdAt).toLocaleDateString("zh-CN")}
         </Typography>
-        <DueChip item={item} />
+        <DueChip item={item} today={today} />
       </Stack>
     </Paper>
   )

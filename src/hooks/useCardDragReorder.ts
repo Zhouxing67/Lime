@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import type { Item } from "../types"
-import { computeDropIndex, type DropPos } from "../utils"
+import { compareCards, computeDropIndex, type DropPos } from "../utils"
 
 export interface CardDropState {
   id: string
@@ -150,9 +150,7 @@ export function useCardDragReorder({
     const sectionCards = itemsRef.current.filter(
       (i) => (i.sectionId ?? null) === targetSection
     )
-    const fullSorted = sectionCards
-      .slice()
-      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    const fullSorted = sectionCards.slice().sort(compareCards)
     const oldIndex = fullSorted.findIndex((c) => c.id === d.itemId)
 
     let index: number

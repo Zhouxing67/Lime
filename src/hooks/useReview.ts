@@ -106,21 +106,10 @@ export function useReview(options: UseReviewOptions) {
   // allItemsUnfiltered NOT in deps to prevent refreshAllData from racing with rating timeout
   useEffect(() => {
     if (sidebarTab !== "review" || reviewDateFilter) {
-      console.debug("[review:load] guard blocked", {
-        sidebarTab,
-        reviewDateFilter
-      })
       return
     }
-    console.debug("[review:load] guard passed, loading...", {
-      allItemsUnfiltered: allItemsRef.current.length
-    })
     getDueReviews().then((due) => {
       const items = pairWithItems(due, allItemsRef.current)
-      console.debug("[review:load] result", {
-        dueCount: due.length,
-        pairedCount: items.length
-      })
       setReviewItems(items)
     })
   }, [sidebarTab, reviewDateFilter]) // eslint-disable-line react-hooks/exhaustive-deps

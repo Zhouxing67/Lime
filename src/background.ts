@@ -134,7 +134,6 @@ chrome.runtime.onStartup.addListener(() => {
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   try {
-    console.debug("contextMenus.onClicked:", info.menuItemId)
     await ensureMenusReady()
     const { menuItemId } = info
 
@@ -153,12 +152,6 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       projectId?: string,
       projectName?: string
     ) => {
-      console.debug("[lime:save]", {
-        type,
-        content: content.slice(0, 60),
-        projectId,
-        projectName
-      })
       const item = createItem({ type, content, source: base.source, projectId })
       const saved = await addItem(item)
       if (saved && projectId) {

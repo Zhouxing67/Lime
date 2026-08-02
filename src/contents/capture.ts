@@ -40,7 +40,6 @@ document.addEventListener("keydown", (e) => {
     const sel = window.getSelection()
     const text = sel?.toString().trim()
     if (!text) return
-    console.debug("[lime:capture] Alt+S:", text.slice(0, 60))
 
     const payload = {
       type: "text" as const,
