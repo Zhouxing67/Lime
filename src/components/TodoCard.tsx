@@ -5,7 +5,7 @@ import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
 import EditRoundedIcon from "@mui/icons-material/EditRounded"
 import EventRoundedIcon from "@mui/icons-material/EventRounded"
 import { alpha, Box, Button, IconButton, Paper, Stack, TextField, Typography } from "@mui/material"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import type { Item } from "../types"
 import {
@@ -19,7 +19,8 @@ import {
 import MarkdownRenderer from "./MarkdownRenderer"
 import TaskEditor from "./TaskEditor"
 
-/** Compact date field with a fully-controlled label (native input is hidden). */
+/** Compact date field: visible click target opens the native date picker via
+ * showPicker() (a hidden 1px input keeps the calendar available). */
 function DueDateField({
   value,
   onChange
@@ -27,14 +28,32 @@ function DueDateField({
   value?: string
   onChange: (value: string | undefined) => void
 }) {
+  const inputRef = useRef<HTMLInputElement>(null)
   const [y, m, d] = (value ?? "").split("-")
-  const label = value
-    ? `${y}年${+m}月${+d}日`
-    : "设置到期日"
+  const label = value ? `${y}年${+m}月${+d}日` : "设置到期日"
+
+  const openPicker = () => {
+    const input = inputRef.current
+    if (!input) return
+    if (typeof input.showPicker === "function") {
+      input.showPicker()
+    } else {
+      input.click()
+    }
+  }
+
   return (
     <Box
+      role="button"
+      tabIndex={0}
+      onClick={openPicker}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault()
+          openPicker()
+        }
+      }}
       sx={{
-        position: "relative",
         display: "flex",
         alignItems: "center",
         gap: 0.75,
@@ -44,8 +63,9 @@ function DueDateField({
         px: 1,
         py: 0.5,
         minWidth: 0,
-        flex: 1,
-        "&:hover, &:focus-within": { borderColor: "primary.main" }
+        cursor: "pointer",
+        "&:hover, &:focus-visible": { borderColor: "primary.main" },
+        "&:focus-visible": { outline: "none" }
       }}>
       <EventRoundedIcon sx={{ fontSize: 15, color: "text.disabled" }} />
       <Typography
@@ -62,23 +82,27 @@ function DueDateField({
       {value && (
         <IconButton
           size="small"
-          onClick={() => onChange(undefined)}
+          onClick={(e) => {
+            e.stopPropagation()
+            onChange(undefined)
+          }}
           title="清除到期日"
-          sx={{ p: 0.25, position: "relative", zIndex: 1 }}>
+          sx={{ p: 0.25 }}>
           <CloseRoundedIcon sx={{ fontSize: 14 }} />
         </IconButton>
       )}
       <input
+        ref={inputRef}
         type="date"
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value || undefined)}
+        tabIndex={-1}
         style={{
           position: "absolute",
           opacity: 0,
-          inset: 0,
-          width: "100%",
-          height: "100%",
-          cursor: "pointer"
+          width: 1,
+          height: 1,
+          pointerEvents: "none"
         }}
       />
     </Box>
