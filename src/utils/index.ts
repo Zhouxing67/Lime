@@ -1,3 +1,26 @@
+export type MergeSeparator = "rule" | "ordered" | "unordered" | "none"
+
+/** Join several cards' content per the chosen separator. */
+export function buildMergedContent(
+  items: { title?: string; content: string }[],
+  separator: MergeSeparator
+): string {
+  if (separator === "ordered" || separator === "unordered") {
+    return items
+      .map((item, idx) => {
+        const marker = separator === "ordered" ? `${idx + 1}. ` : "- "
+        const label = item.title ? `**${item.title}**：` : ""
+        return `${marker}${label}${item.content}`
+      })
+      .join("\n")
+  }
+  const parts = items.map((item) => {
+    const header = item.title ? `## ${item.title}\n` : ""
+    return `${header}${item.content}`
+  })
+  return parts.join(separator === "rule" ? "\n\n---\n\n" : "\n\n")
+}
+
 export async function sha256(input: string): Promise<string> {
   const enc = new TextEncoder().encode(input)
   const hashBuffer = await crypto.subtle.digest("SHA-256", enc)

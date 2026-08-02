@@ -102,7 +102,7 @@ function ImageGallery({
           gridTemplateColumns: isSingle ? "1fr" : "repeat(2, 1fr)",
           gap: 0.5
         }}>
-        {images.slice(0, 4).map((url, i) => (
+        {images.slice(0, 2).map((url, i) => (
           <Box
             key={url + i}
             sx={{
@@ -122,7 +122,7 @@ function ImageGallery({
                 display: "block"
               }}
             />
-            {i === 3 && count > 4 && (
+            {i === 1 && count > 2 && (
               <Box
                 sx={{
                   position: "absolute",
@@ -135,7 +135,7 @@ function ImageGallery({
                   fontSize: "1rem",
                   fontWeight: 600
                 }}>
-                +{count - 4}
+                +{count - 2}
               </Box>
             )}
           </Box>

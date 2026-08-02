@@ -354,7 +354,10 @@ export default function ProjectTree({
                     <Box key={s1.id}>
                       {sectionRow(s1, false, {
                         collapsed,
-                        onToggle: () => onToggleExpanded(s1.id),
+                        onToggle:
+                          subs.length > 0
+                            ? () => onToggleExpanded(s1.id)
+                            : undefined,
                         onAddChild: () => {
                           if (collapsed) onToggleExpanded(s1.id)
                           startAdd({ type: "section", id: s1.id })
@@ -366,7 +369,10 @@ export default function ProjectTree({
                             subs.length
                           )
                       })}
-                      {!collapsed && (
+                      {!collapsed &&
+                        (subs.length > 0 ||
+                          (addingFor?.type === "section" &&
+                            addingFor.id === s1.id)) && (
                         <Box
                           sx={{
                             pl: 2,

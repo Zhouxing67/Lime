@@ -6,11 +6,13 @@ import type { Item } from "../types"
 export function useNewCard({
   activeProjectId,
   activeSectionId,
-  onSearch
+  onSearch,
+  allItems
 }: {
   activeProjectId: string | null
   activeSectionId: string | null
   onSearch: (projectId?: string | null) => void
+  allItems: Item[]
 }) {
   const [newCardOpen, setNewCardOpen] = useState(false)
   const [newCardTitle, setNewCardTitle] = useState("")
@@ -33,6 +35,14 @@ export function useNewCard({
       activeSectionId && activeSectionId !== "__unclassified__"
         ? activeSectionId
         : undefined
+    // Place the new card LAST in its section: order = max(existing) + 1.
+    // Cards sort by `order ?? 0` first, then createdAt — an explicit order is
+    // required so a fresh card (undefined order, ties at 0) doesn't jump to
+    // the front of a reordered section.
+    const maxOrder = allItems.reduce((acc, i) => {
+      const inScope = sectionId ? i.sectionId === sectionId : !i.sectionId
+      return inScope ? Math.max(acc, i.order ?? -1) : acc
+    }, -1)
     const item: Item = {
       id: crypto.randomUUID(),
       type: "text",
@@ -40,6 +50,7 @@ export function useNewCard({
       content,
       createdAt: Date.now(),
       projectId: activeProjectId,
+      order: maxOrder + 1,
       ...(sectionId ? { sectionId } : {})
     }
     await addItem(item)
@@ -52,7 +63,8 @@ export function useNewCard({
     newCardContent,
     activeProjectId,
     activeSectionId,
-    onSearch
+    onSearch,
+    allItems
   ])
 
   return {

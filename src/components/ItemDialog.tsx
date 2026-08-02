@@ -4,6 +4,7 @@ import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded"
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded"
 import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded"
 import EditRoundedIcon from "@mui/icons-material/EditRounded"
+import UndoRoundedIcon from "@mui/icons-material/UndoRounded"
 import {
   Box,
   Dialog,
@@ -212,7 +213,7 @@ export default function ItemDialog({
                 </Tooltip>
                 <Tooltip title="取消">
                   <IconButton size="small" onClick={handleCancel}>
-                    <CloseRoundedIcon fontSize="small" />
+                    <UndoRoundedIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
               </>

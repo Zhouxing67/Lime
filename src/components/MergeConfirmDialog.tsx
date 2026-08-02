@@ -2,20 +2,29 @@ import {
   Box,
   Button,
   DialogActions,
+  ToggleButton,
+  ToggleButtonGroup,
   TextField,
   Typography
 } from "@mui/material"
 import { useState } from "react"
 
-import type { Item } from "../types"
+import type { Item, MergeSeparator } from "../types"
 import { truncateText } from "../utils"
 import DialogShell from "./DialogShell"
+
+const SEPARATOR_OPTIONS: { value: MergeSeparator; label: string }[] = [
+  { value: "rule", label: "分隔线" },
+  { value: "ordered", label: "1. 有序" },
+  { value: "unordered", label: "- 无序" },
+  { value: "none", label: "无分隔" }
+]
 
 export interface MergeConfirmDialogProps {
   open: boolean
   items: Item[]
   onClose: () => void
-  onConfirm: (title: string) => void
+  onConfirm: (title: string, separator: MergeSeparator) => void
 }
 
 export default function MergeConfirmDialog({
@@ -25,16 +34,18 @@ export default function MergeConfirmDialog({
   onConfirm
 }: MergeConfirmDialogProps) {
   const [draftTitle, setDraftTitle] = useState("")
+  const [separator, setSeparator] = useState<MergeSeparator>("rule")
 
   const handleConfirm = () => {
     const title = draftTitle.trim()
     if (!title) return
-    onConfirm(title)
+    onConfirm(title, separator)
     setDraftTitle("")
   }
 
   const handleClose = () => {
     setDraftTitle("")
+    setSeparator("rule")
     onClose()
   }
 
@@ -74,6 +85,30 @@ export default function MergeConfirmDialog({
           "& .MuiOutlinedInput-root": { borderRadius: 1, fontSize: "0.95rem" }
         }}
       />
+      <Typography
+        variant="caption"
+        color="text.disabled"
+        sx={{ display: "block", mb: 0.5 }}>
+        内容分隔方式
+      </Typography>
+      <ToggleButtonGroup
+        exclusive
+        fullWidth
+        size="small"
+        value={separator}
+        onChange={(_, v: MergeSeparator | null) => {
+          if (v) setSeparator(v)
+        }}
+        sx={{ mb: 2 }}>
+        {SEPARATOR_OPTIONS.map((opt) => (
+          <ToggleButton
+            key={opt.value}
+            value={opt.value}
+            sx={{ borderRadius: 0.5, fontSize: "0.75rem" }}>
+            {opt.label}
+          </ToggleButton>
+        ))}
+      </ToggleButtonGroup>
       <Box
         sx={{
           maxHeight: "40vh",

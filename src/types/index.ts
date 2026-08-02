@@ -91,6 +91,9 @@ export type TodoFilter =
   | "overdue"
   | "today"
 
+/** How merged cards join their content. */
+export type MergeSeparator = "rule" | "ordered" | "unordered" | "none"
+
 export interface TodoStats {
   total: number
   incomplete: number

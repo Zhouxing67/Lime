@@ -1,5 +1,6 @@
 import {
   appendMarkdownImage,
+  buildMergedContent,
   computeDropIndex,
   computeItemHash,
   dueLabel,
@@ -332,6 +333,37 @@ describe("utils", () => {
       expect(dueLabel("2026-07-30", today)).toBe("已过期 3 天")
       expect(dueLabel("2026-08-10", today)).toBe("8月10日")
       expect(dueLabel(undefined, today)).toBe("")
+    })
+  })
+
+  describe("buildMergedContent", () => {
+    const items = [
+      { title: "标题A", content: "内容A" },
+      { title: undefined, content: "内容B" }
+    ]
+
+    it("joins with a rule separator and keeps titles as headings", () => {
+      expect(buildMergedContent(items, "rule")).toBe(
+        "## 标题A\n内容A\n\n---\n\n内容B"
+      )
+    })
+
+    it("joins with an ordered list", () => {
+      expect(buildMergedContent(items, "ordered")).toBe(
+        "1. **标题A**：内容A\n2. 内容B"
+      )
+    })
+
+    it("joins with an unordered list", () => {
+      expect(buildMergedContent(items, "unordered")).toBe(
+        "- **标题A**：内容A\n- 内容B"
+      )
+    })
+
+    it("joins with no separator", () => {
+      expect(buildMergedContent(items, "none")).toBe(
+        "## 标题A\n内容A\n\n内容B"
+      )
     })
   })
 })

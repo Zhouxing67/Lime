@@ -77,9 +77,9 @@ import { useReview } from "./hooks/useReview"
 import { dayKey, rateSrs } from "./hooks/useSrs"
 import { importFromZip } from "./import"
 import { createAppTheme } from "./theme"
-import type { Item, PresetName, Project, SearchQuery, SrsData, TodoFilter } from "./types"
+import type { Item, MergeSeparator, PresetName, Project, SearchQuery, SrsData, TodoFilter } from "./types"
 import { sendMessage } from "./types/messages"
-import { dueStatus, isTodoComplete, toggleMarkdownTask, todayLocalDate } from "./utils"
+import { buildMergedContent, dueStatus, isTodoComplete, toggleMarkdownTask, todayLocalDate } from "./utils"
 
 const MIN_DRAWER_WIDTH = 200
 const MAX_DRAWER_WIDTH = 500
@@ -385,7 +385,7 @@ export default function OptionsPage() {
     setNewCardOpen,
     handleNewCard,
     handleSaveNewCard
-  } = useNewCard({ activeProjectId, activeSectionId, onSearch })
+  } = useNewCard({ activeProjectId, activeSectionId, onSearch, allItems })
 
   const onDelete = (id: string) => {
     setConfirmDeleteId(id)
@@ -456,18 +456,16 @@ export default function OptionsPage() {
     setMergeState(items)
   }
 
-  const handleConfirmMerge = async (mergedTitle: string) => {
+  const handleConfirmMerge = async (
+    mergedTitle: string,
+    separator: MergeSeparator
+  ) => {
     if (!mergeState || !activeProjectId) return
 
     const selectedItems = mergeState
     const ids = selectedItems.map((i) => i.id)
 
-    // Build merged content
-    const contentParts = selectedItems.map((item) => {
-      const header = item.title ? `## ${item.title}\n` : ""
-      return `${header}${item.content}`
-    })
-    const mergedContent = contentParts.join("\n\n---\n\n")
+    const mergedContent = buildMergedContent(selectedItems, separator)
 
     // Merge images (dedup by URL)
     const allImages: string[] = []

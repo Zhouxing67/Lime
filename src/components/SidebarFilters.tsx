@@ -240,7 +240,7 @@ export default function SidebarFilters({
                     />
                   }
                   label={
-                    <Typography variant="body2" sx={{ fontSize: "0.8rem" }}>
+                    <Typography variant="body2" noWrap sx={{ fontSize: "0.8rem" }}>
                       全选（{projects.length} 个项目）
                     </Typography>
                   }
