@@ -990,10 +990,17 @@ export default function OptionsPage() {
   const hasPrev = navIndex > 0
   const hasNext = navIndex >= 0 && navIndex < navList.length - 1
 
-  const handleSetSidebarTab = useCallback((tab: SidebarTab) => {
-    setSidebarTab(tab)
-    setDrawerOpen(true)
-  }, [])
+  const handleSetSidebarTab = useCallback(
+    (tab: SidebarTab) => {
+      if (tab === sidebarTab) {
+        setDrawerOpen((prev) => !prev)
+      } else {
+        setSidebarTab(tab)
+        setDrawerOpen(true)
+      }
+    },
+    [sidebarTab]
+  )
 
   // Persist tree/nav state across sessions
   useEffect(() => {
