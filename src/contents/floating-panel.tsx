@@ -51,11 +51,33 @@ export default function LimePanel() {
     dirtyRef.current = isDirty
   }, [])
 
+  const appendToDraft = useCallback(
+    (text: string, type: "text" | "image") => {
+      const token = type === "image" ? `![图片](${text})` : text
+      if (captureType === "image") {
+        // An image-only draft appends a second capture → becomes a text card.
+        setCaptureType("text")
+        setContent((prev) => `![图片](${prev.trim()})\n\n${token}`)
+        return
+      }
+      setContent((prev) => {
+        const trimmed = prev.trim()
+        return trimmed ? `${trimmed}\n\n${token}` : token
+      })
+    },
+    [captureType]
+  )
+
   const show = useCallback(
     (text: string, rect: DOMRect, type: "text" | "image" = "text") => {
       if (text === prevSelectionRef.current && open && pinnedRef.current) return
-      // Panel already holds a draft (open + non-empty) — keep its content.
-      if (open && dirtyRef.current) return
+      // A draft is already open: APPEND the new capture instead of replacing.
+      // Text could be appended by copy-paste, but formulas/images can't be
+      // selected & copied — Alt+L is their only append path.
+      if (open && dirtyRef.current) {
+        appendToDraft(text, type)
+        return
+      }
       prevSelectionRef.current = text
       setData({ text, rect })
       setTitle("")
@@ -66,7 +88,7 @@ export default function LimePanel() {
       setSurface(lastClosedRef.current)
       setOpen(true)
     },
-    [open]
+    [open, appendToDraft]
   )
 
   const hide = useCallback(() => {

@@ -144,16 +144,21 @@ export function paragraphFromCursor(): { content: string; el: Element } | null {
   return { content, el: para }
 }
 
-/** `<img>` under the current cursor (for Alt+L image capture). */
+/** `<img>` under the current cursor (for Alt+L image capture). The src is
+ *  resolved to an absolute URL so it renders in lime regardless of the page. */
 export function imageFromCursor(): { src: string; el: Element } | null {
   const img =
     lastTarget?.closest?.("img") ??
     document.elementFromPoint(lastX, lastY)?.closest?.("img") ??
     null
   if (!img) return null
-  const src = img.getAttribute("src")
-  if (!src) return null
-  return { src, el: img }
+  const raw = img.getAttribute("src")
+  if (!raw) return null
+  try {
+    return { src: new URL(raw, window.location.href).href, el: img }
+  } catch {
+    return null
+  }
 }
 
 // ---- cursor tracking + hover highlight ----
