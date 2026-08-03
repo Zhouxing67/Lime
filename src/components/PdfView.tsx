@@ -181,6 +181,7 @@ export default function PdfView({
           gap: 1,
           borderLeft: "1px solid",
           borderColor: "divider",
+          bgcolor: "background.default",
           color: "text.disabled"
         }}>
         <PictureAsPdfRoundedIcon sx={{ fontSize: 48, opacity: 0.4 }} />

@@ -46,33 +46,38 @@ const TEXT_LAYER_CSS = `
 `
 
 /** Render one page lazily (IntersectionObserver) at DPR crispness + text layer.
- *  The holder's real size is set from the page dimensions upfront (cheap, no
- *  canvas render) so the scroll container has accurate positions + instant
- *  jumps land correctly. */
+ *  Each page fits the pane width INDEPENDENTLY (per-page zoom) so mixed-size
+ *  PDFs never overflow the pane ("cards pane covers PDF"). */
 function PageView({
   doc,
   pageNumber,
-  scale
+  paneW
 }: {
   doc: pdfjsLib.PDFDocumentProxy
   pageNumber: number
-  scale: number
+  paneW: number
 }) {
   const holderRef = useRef<HTMLDivElement>(null)
   const [wh, setWh] = useState<{ w: number; h: number } | null>(null)
+  const [scale, setScale] = useState(1)
 
-  // Set the holder size from the page dimensions (no rendering).
+  // Per-page fit-width scale + holder size (no canvas rendering).
   useEffect(() => {
+    if (paneW <= 0) return
     let cancelled = false
     doc.getPage(pageNumber).then((page) => {
       if (cancelled) return
-      const vp = page.getViewport({ scale })
+      const baseW = page.getViewport({ scale: 1 }).width
+      if (baseW <= 0) return
+      const s = Math.max(0.4, paneW / baseW)
+      const vp = page.getViewport({ scale: s })
+      setScale(s)
       setWh({ w: Math.floor(vp.width), h: Math.floor(vp.height) })
     })
     return () => {
       cancelled = true
     }
-  }, [doc, pageNumber, scale])
+  }, [doc, pageNumber, paneW])
 
   // Render canvas + text layer when the holder scrolls into view.
   useEffect(() => {
@@ -170,40 +175,22 @@ export default function PdfRenderer({
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [paneW, setPaneW] = useState(0)
-  const [scale, setScale] = useState<number | null>(null)
 
-  // Measure the pane width.
+  // Measure the pane width (with a tolerance to avoid a scrollbar-induced
+  // resize loop when the pages re-render and the vertical scrollbar toggles).
+  const paneWRef = useRef(0)
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
     const ro = new ResizeObserver((entries) => {
-      setPaneW(entries[0].contentRect.width)
+      const w = entries[0].contentRect.width
+      if (Math.abs(w - paneWRef.current) <= 2) return
+      paneWRef.current = w
+      setPaneW(w)
     })
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
-
-  // Derive a shared fit-width zoom from the first page's base width. Recompute
-  // whenever the pane width changes (cards-pane resize) so the pages always fit
-  // — otherwise stale pages overflow and get clipped ("cards pane covers PDF").
-  useEffect(() => {
-    if (paneW <= 0) return
-    let cancelled = false
-    const t = setTimeout(async () => {
-      try {
-        const page = await doc.getPage(1)
-        if (cancelled) return
-        const baseW = page.getViewport({ scale: 1 }).width
-        if (baseW > 0) {
-          setScale(Math.max(0.4, paneW / baseW))
-        }
-      } catch {}
-    }, 80)
-    return () => {
-      cancelled = true
-      clearTimeout(t)
-    }
-  }, [paneW, doc])
 
   // Scroll to a requested page (TOC navigation) — instant, positions are
   // accurate because every holder already carries its real page height.
@@ -226,9 +213,9 @@ export default function PdfRenderer({
         background: "#f0efec",
         padding: "16px 0"
       }}>
-      {scale !== null &&
+      {paneW > 0 &&
         Array.from({ length: pageCount }, (_, i) => i + 1).map((n) => (
-          <PageView key={n} doc={doc} pageNumber={n} scale={scale} />
+          <PageView key={n} doc={doc} pageNumber={n} paneW={paneW} />
         ))}
     </div>
   )
