@@ -1,4 +1,5 @@
-const MATH_SELECTOR = ".katex, mjx-container, .MathJax, math"
+const MATH_SELECTOR =
+  ".katex, mjx-container, .MathJax, math, .ztext-math, [data-tex]"
 const HIGHLIGHT_CLASS = "lime-math-hover"
 const FLASH_CLASS = "lime-math-flash"
 
@@ -20,18 +21,32 @@ function fallbackMathSource(el: Element): string | null {
   return rendered && rendered.length > 0 ? rendered : null
 }
 
+/** Source from a `data-tex` container (Zhihu's simplified MathJax keeps the
+ *  LaTeX in the `data-tex` attribute). */
+function dataTexSource(el: Element): string | null {
+  const src = el.getAttribute("data-tex")
+  return src && src.length > 0 ? src : null
+}
+
 /** LaTeX source (or best-effort text) of any math container. */
 export function mathSource(el: Element): string | null {
   if (el.classList.contains("katex")) return katexSource(el)
+  if (el.hasAttribute("data-tex")) return dataTexSource(el)
   return fallbackMathSource(el)
 }
 
 function isDisplayMath(el: Element): boolean {
-  return (
+  if (
     el.closest?.(".katex-display") != null ||
     el.closest?.(".MathJax_Display") != null ||
     el.matches?.('[display="block"], [display="true"]') === true
-  )
+  ) {
+    return true
+  }
+  // Zhihu block math uses `\begin{…}` environments.
+  const src = el.getAttribute?.("data-tex")
+  if (src && /\\begin\{/.test(src)) return true
+  return false
 }
 
 /** Wrap a source with inline/display delimiters. */
@@ -58,9 +73,11 @@ export function selectionWithMath(sel: Selection): string {
     el.replaceWith(document.createTextNode(wrapMath(el, src)))
   }
   for (const el of Array.from(
-    fragment.querySelectorAll("mjx-container, .MathJax, math")
+    fragment.querySelectorAll(
+      "mjx-container, .MathJax, math, .ztext-math, [data-tex]"
+    )
   )) {
-    const src = fallbackMathSource(el)
+    const src = mathSource(el)
     if (!src) continue
     el.replaceWith(document.createTextNode(wrapMath(el, src)))
   }

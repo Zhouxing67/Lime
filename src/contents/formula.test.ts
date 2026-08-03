@@ -1,4 +1,4 @@
-import { mathSource, selectionWithMath } from "./formula"
+import { mathSource, selectionWithMath, wrapMath } from "./formula"
 
 describe("formula", () => {
   it("extracts LaTeX from a KaTeX .katex element", () => {
@@ -12,6 +12,23 @@ describe("formula", () => {
     `
     const el = document.querySelector(".katex")!
     expect(mathSource(el)).toBe("\\frac{1}{x}")
+  })
+
+  it("extracts LaTeX from a Zhihu .ztext-math data-tex element", () => {
+    document.body.innerHTML = `
+      <span class="ztext-math" data-tex="E=mc^2"><span>E=mc²</span></span>
+    `
+    const el = document.querySelector(".ztext-math")!
+    expect(mathSource(el)).toBe("E=mc^2")
+    expect(wrapMath(el, mathSource(el)!)).toBe("$E=mc^2$")
+  })
+
+  it("treats Zhihu block math (\\begin) as display", () => {
+    document.body.innerHTML = `
+      <span class="ztext-math" data-tex="\\begin{cases}a\\\\b\\end{cases}"></span>
+    `
+    const el = document.querySelector(".ztext-math")!
+    expect(wrapMath(el, mathSource(el)!)).toBe("$$\\begin{cases}a\\\\b\\end{cases}$$")
   })
 
   it("replaces inline math with $…$ in a selection's text", () => {
