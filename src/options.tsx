@@ -77,6 +77,7 @@ import { useReview } from "./hooks/useReview"
 import { dayKey, defaultSrs, rateSrs } from "./hooks/useSrs"
 import { importFromZip } from "./import"
 import { createAppTheme } from "./theme"
+import { buildProjectMarkdown, buildScopeData } from "./utils/export"
 import type { Item, MergeSeparator, PresetName, Project, SearchQuery, SrsData, TodoFilter } from "./types"
 import { sendMessage } from "./types/messages"
 import { DAY_MS, RATING_META, buildMergedContent, compareCards, dueStatus, isTodoComplete, maxScopeOrder, toggleMarkdownTask, todayLocalDate } from "./utils"
@@ -1061,6 +1062,34 @@ export default function OptionsPage() {
     setReadingFilter((prev) => !prev)
   }
 
+  const handleExportMarkdown = useCallback(
+    async (projectId: string, sectionId?: string | null) => {
+      const project = projects.find((p) => p.id === projectId)
+      if (!project) return
+      const data = buildScopeData(
+        project,
+        allItemsUnfiltered,
+        sectionId ?? null
+      )
+      const { markdown, skippedImages } = buildProjectMarkdown(data)
+      const filename =
+        data.rootTitle.replace(/[\\/:*?"<>|]/g, "-").slice(0, 80) + ".md"
+      const blob = new Blob([markdown], { type: "text/markdown" })
+      const url = URL.createObjectURL(blob)
+      try {
+        await chrome.downloads.download({ url, filename })
+      } finally {
+        URL.revokeObjectURL(url)
+      }
+      setSnackbarMsg(
+        skippedImages > 0
+          ? `已导出 Markdown，跳过 ${skippedImages} 张内嵌图片`
+          : "已导出 Markdown"
+      )
+    },
+    [projects, allItemsUnfiltered]
+  )
+
   const handleCopyCard = async (targetProjectId: string) => {
     if (!copyCardId) return
     const card = allItems.find((i) => i.id === copyCardId)
@@ -1334,6 +1363,7 @@ export default function OptionsPage() {
             onRenameProject={handleRenameProject}
             onUpdateNote={handleUpdateNote}
             onDeleteProject={handleDeleteProject}
+            onExportMarkdown={handleExportMarkdown}
           />
         </SidebarFilters>
 

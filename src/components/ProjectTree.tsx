@@ -48,6 +48,7 @@ interface ProjectTreeProps {
   onRenameProject: (id: string, name: string) => void
   onUpdateNote: (id: string, note: string) => void
   onDeleteProject: (id: string) => void
+  onExportMarkdown: (projectId: string, sectionId?: string | null) => void
 }
 
 const sortByOrder = (list: Section[]) =>
@@ -71,7 +72,8 @@ export default function ProjectTree({
   onMoveSection,
   onRenameProject,
   onUpdateNote,
-  onDeleteProject
+  onDeleteProject,
+  onExportMarkdown
 }: ProjectTreeProps) {
   const [draggedSection, setDraggedSection] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<{
@@ -247,6 +249,7 @@ export default function ProjectTree({
       onToggle?: () => void
       onAddChild?: () => void
       onDelete?: () => void
+      onExportMarkdown?: () => void
     }
   ) =>
     renaming === section.id ? (
@@ -294,6 +297,7 @@ export default function ProjectTree({
               0
             ))
         }
+        onExportMarkdown={opts.onExportMarkdown}
         onDragStart={(e) => handleSectionDragStart(e, section.id)}
         onDragEnd={handleSectionDragEnd}
         onDragOver={(e) => handleSectionDragOver(e, section)}
@@ -341,6 +345,7 @@ export default function ProjectTree({
               onRename={(name) => onRenameProject(project.id, name)}
               onUpdateNote={(note) => onUpdateNote(project.id, note)}
               onDelete={() => onDeleteProject(project.id)}
+              onExportMarkdown={() => onExportMarkdown(project.id)}
             />
             {isExpanded && (
               <Box sx={{ pl: 1.5 }}>
@@ -367,7 +372,9 @@ export default function ProjectTree({
                             s1.id,
                             countBySection.get(s1.id) ?? 0,
                             subs.length
-                          )
+                          ),
+                        onExportMarkdown: () =>
+                          onExportMarkdown(project.id, s1.id)
                       })}
                       {!collapsed &&
                         (subs.length > 0 ||
@@ -384,7 +391,11 @@ export default function ProjectTree({
                             renderInlineAdd(0)}
                           {subs.map((s2) => (
                             <Box key={s2.id}>
-                              {sectionRow(s2, true, { collapsed: false })}
+                              {sectionRow(s2, true, {
+                                collapsed: false,
+                                onExportMarkdown: () =>
+                                  onExportMarkdown(project.id, s2.id)
+                              })}
                             </Box>
                           ))}
                         </Box>
@@ -556,7 +567,8 @@ function ProjectNode({
   onAdd,
   onRename,
   onUpdateNote,
-  onDelete
+  onDelete,
+  onExportMarkdown
 }: {
   project: Project
   active: boolean
@@ -567,6 +579,7 @@ function ProjectNode({
   onRename: (name: string) => void
   onUpdateNote: (note: string) => void
   onDelete: () => void
+  onExportMarkdown?: () => void
 }) {
   const [editing, setEditing] = useState(false)
   const [draftName, setDraftName] = useState(project.name)
@@ -739,6 +752,16 @@ function ProjectNode({
                 }}>
                 重命名 / 编辑备注
               </MenuItem>
+              {onExportMarkdown && (
+                <MenuItem
+                  sx={{ fontSize: "0.8rem" }}
+                  onClick={() => {
+                    setMenuAnchor(null)
+                    onExportMarkdown()
+                  }}>
+                  导出 Markdown
+                </MenuItem>
+              )}
               <MenuItem
                 sx={{ fontSize: "0.8rem" }}
                 onClick={() => {
@@ -767,6 +790,7 @@ function SectionNode({
   onAddChild,
   onRename,
   onDelete,
+  onExportMarkdown,
   onDragStart,
   onDragEnd,
   onDragOver,
@@ -783,6 +807,7 @@ function SectionNode({
   onAddChild?: () => void
   onRename: () => void
   onDelete: () => void
+  onExportMarkdown?: () => void
   onDragStart: (e: React.DragEvent) => void
   onDragEnd: () => void
   onDragOver: (e: React.DragEvent) => void
@@ -893,6 +918,16 @@ function SectionNode({
             }}>
             删除章节
           </MenuItem>
+          {onExportMarkdown && (
+            <MenuItem
+              sx={{ fontSize: "0.8rem" }}
+              onClick={() => {
+                setMenuAnchor(null)
+                onExportMarkdown()
+              }}>
+              导出章节 Markdown
+            </MenuItem>
+          )}
         </Menu>
       </Box>
     </TreeRow>
