@@ -4,12 +4,40 @@ import * as pdfjsLib from "pdfjs-dist"
 
 const TEXT_LAYER_CSS = `
 .pdf-textlayer {
-  position: absolute; inset: 0; overflow: hidden; opacity: 1;
-  line-height: 1; transform-origin: 0 0;
+  color-scheme: only light;
+  position: absolute;
+  text-align: initial;
+  inset: 0;
+  overflow: clip;
+  opacity: 1;
+  line-height: 1;
+  letter-spacing: normal;
+  word-spacing: normal;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  caret-color: CanvasText;
+  z-index: 0;
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
 }
 .pdf-textlayer :is(span, br) {
-  position: absolute; white-space: pre; cursor: text;
-  transform-origin: 0% 0%; color: transparent;
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+  user-select: text;
+}
+.pdf-textlayer > :not(.markedContent),
+.pdf-textlayer .markedContent span:not(.markedContent) {
+  z-index: 1;
+  --font-height: 0;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  --scale-x: 1;
+  --rotate: 0deg;
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
 }
 .pdf-textlayer ::selection {
   background: rgba(99,102,241,0.26);
@@ -74,15 +102,22 @@ function PageView({
       // Text layer (selection) aligned over the canvas at the logical viewport.
       const layerDiv = holder.querySelector<HTMLDivElement>(".pdf-textlayer")
       if (layerDiv) {
-        layerDiv.style.width = `${wh.w}px`
-        layerDiv.style.height = `${wh.h}px`
-        layerDiv.style.setProperty("--scale-factor", String(scale))
+        // pdf.js v6's TextLayer relies on these CSS vars + setLayerDimensions
+        // to size the container; without --total-scale-factor the width formula
+        // is invalid and the percentage-positioned spans collapse → selection
+        // is misaligned ("漏选" + over-selection).
+        layerDiv.style.setProperty("--total-scale-factor", String(scale))
+        layerDiv.style.setProperty("--scale-round-x", "1px")
+        layerDiv.style.setProperty("--scale-round-y", "1px")
         textLayer = new pdfjsLib.TextLayer({
           textContentSource: page.streamTextContent({ disableNormalization: true }),
           container: layerDiv,
           viewport: page.getViewport({ scale })
         })
         await textLayer.render()
+        // Enforce the exact page box (setLayerDimensions may round the width).
+        layerDiv.style.width = `${wh.w}px`
+        layerDiv.style.height = `${wh.h}px`
       }
     }
 

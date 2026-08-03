@@ -48,9 +48,12 @@ export default function PdfView({
   outlineDest?: PdfOutlineItem | null
 }) {
   const { loaded, error } = usePdfDocument(pdfId)
-  const [leftPct, setLeftPct] = useState(0.55)
+  // Cards pane is a narrow adaptive width (never 50/50 — the PDF must dominate).
+  const [cardsWidth, setCardsWidth] = useState(() =>
+    Math.max(240, Math.min(320, Math.floor(window.innerWidth * 0.2)))
+  )
   const [scrollPage, setScrollPage] = useState<number | null>(null)
-  const dragRef = useRef<{ startX: number; startPct: number } | null>(null)
+  const dragRef = useRef<{ startX: number; startW: number } | null>(null)
 
   // Report the outline up so the sidebar can render the TOC.
   useEffect(() => {
@@ -71,16 +74,15 @@ export default function PdfView({
 
   const startDrag = useCallback((e: React.PointerEvent) => {
     e.preventDefault()
-    const rect = e.currentTarget.parentElement!.getBoundingClientRect()
     dragRef.current = {
       startX: e.clientX,
-      startPct: leftPct
+      startW: cardsWidth
     }
     const mv = (ev: PointerEvent) => {
       const d = dragRef.current
       if (!d) return
-      const pct = d.startPct + (ev.clientX - d.startX) / rect.width
-      setLeftPct(Math.max(0.3, Math.min(0.75, pct)))
+      // Dragging the left pane's right edge right = wider cards pane.
+      setCardsWidth(Math.max(240, Math.min(400, d.startW + (ev.clientX - d.startX))))
     }
     const up = () => {
       dragRef.current = null
@@ -89,14 +91,14 @@ export default function PdfView({
     }
     document.addEventListener("pointermove", mv)
     document.addEventListener("pointerup", up)
-  }, [leftPct])
+  }, [cardsWidth])
 
   return (
     <Box sx={{ display: "flex", height: "100%", minHeight: 0 }}>
-      {/* Left: the PDF */}
+      {/* Left: the PDF (fills) */}
       <Box
         sx={{
-          flex: `0 0 ${leftPct * 100}%`,
+          flex: 1,
           minWidth: 0,
           display: "flex",
           flexDirection: "column"
@@ -167,13 +169,16 @@ export default function PdfView({
       {/* Right: this PDF's cards (P2) */}
       <Box
         sx={{
-          flex: 1,
+          width: cardsWidth,
+          flexShrink: 0,
           minWidth: 0,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           flexDirection: "column",
           gap: 1,
+          borderLeft: "1px solid",
+          borderColor: "divider",
           color: "text.disabled"
         }}>
         <PictureAsPdfRoundedIcon sx={{ fontSize: 48, opacity: 0.4 }} />

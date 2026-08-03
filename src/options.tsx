@@ -1411,6 +1411,19 @@ export default function OptionsPage() {
                     <CloseRoundedIcon sx={{ fontSize: 20 }} />
                   </IconButton>
                 </Tooltip>
+              ) : sidebarTab === "pdf" && activePdfId ? (
+                <Tooltip title="关闭当前 PDF">
+                  <IconButton
+                    size="small"
+                    onClick={handleClosePdf}
+                    sx={{
+                      color: "text.secondary",
+                      "&:hover": { color: "error.main" },
+                      "&.Mui-focusVisible": { outline: "none" }
+                    }}>
+                    <CloseRoundedIcon sx={{ fontSize: 20 }} />
+                  </IconButton>
+                </Tooltip>
               ) : (
                 activeProject && (
                   <>
@@ -1447,7 +1460,9 @@ export default function OptionsPage() {
               )}
             </AppHeader>
 
-            {sidebarTab !== "review" && sidebarTab !== "todo" && (
+            {sidebarTab !== "review" &&
+              sidebarTab !== "todo" &&
+              sidebarTab !== "pdf" && (
               <FilterChips
                 keyword={keyword}
                 onKeywordChange={setKeyword}
