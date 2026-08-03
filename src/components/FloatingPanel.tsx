@@ -32,6 +32,7 @@ interface PanelColors {
   textDisabled: string
   divider: string
   borderStrong: string
+  borderSidebar: string
   shadow: string
 }
 
@@ -50,6 +51,7 @@ function buildColors(preset: PresetName, dark: boolean): PanelColors {
     textDisabled: dark ? "rgba(232,230,227,0.38)" : "rgba(45,52,54,0.38)",
     divider: dark ? "rgba(232,230,227,0.12)" : "rgba(45,52,54,0.08)",
     borderStrong: dark ? "rgba(232,230,227,0.2)" : "rgba(45,52,54,0.14)",
+    borderSidebar: dark ? "rgba(232,230,227,0.4)" : "rgba(45,52,54,0.3)",
     shadow: dark
       ? "0 8px 24px rgba(0,0,0,0.5)"
       : "0 8px 24px rgba(45,52,54,0.1)"
@@ -645,7 +647,7 @@ export function FloatingPanelContent({
               height: "100vh",
               width,
               boxShadow: "-6px 0 20px rgba(0,0,0,0.06)",
-              borderLeft: `1px solid ${colors.divider}`
+              borderLeft: `2px solid ${colors.borderSidebar}`
             }),
         "--lime-primary": colors.primary,
         "--lime-bg-hover": colors.bgHover,
