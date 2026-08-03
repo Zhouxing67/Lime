@@ -180,6 +180,13 @@ function diffDays(a: string, b: string): number {
 
 export type DueStatus = "none" | "overdue" | "today" | "tomorrow" | "future"
 
+/** Three review levels: label + semantic color (不认识/模糊/认识). */
+export const RATING_META = [
+  { label: "不认识", color: "#ef4444" },
+  { label: "模糊", color: "#f97316" },
+  { label: "认识", color: "#22c55e" }
+] as const
+
 /** Due semantics: a day-based task expires at 00:00 of the NEXT day. */
 export function dueStatus(dueDate: string | undefined, today: string): DueStatus {
   if (!dueDate) return "none"

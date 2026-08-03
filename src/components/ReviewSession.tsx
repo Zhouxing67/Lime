@@ -1,6 +1,8 @@
+import CheckRoundedIcon from "@mui/icons-material/CheckRounded"
 import {
   Box,
   Button,
+  Divider,
   Stack,
   Tooltip,
   Typography
@@ -8,6 +10,7 @@ import {
 import { useCallback, useEffect } from "react"
 
 import type { Item } from "../types"
+import { RATING_META } from "../utils"
 import CardRenderer from "./CardRenderer"
 import ReviewEmptyStats from "./ReviewEmptyStats"
 
@@ -31,8 +34,41 @@ interface ReviewSessionProps {
   onExit: () => void
 }
 
-const LABELS = ["不认识", "模糊", "认识"]
-const COLORS = ["#ef4444", "#f97316", "#22c55e"]
+function StatBlock({
+  value,
+  label,
+  color,
+  faded
+}: {
+  value: number
+  label: string
+  color: string
+  faded?: boolean
+}) {
+  return (
+    <Box
+      sx={{
+        flex: 1,
+        py: 2,
+        px: 1,
+        textAlign: "center",
+        opacity: faded ? 0.45 : 1
+      }}>
+      <Typography
+        sx={{
+          fontSize: "1.5rem",
+          fontWeight: 600,
+          lineHeight: 1.2,
+          color
+        }}>
+        {value}
+      </Typography>
+      <Typography variant="caption" sx={{ color: "text.secondary" }}>
+        {label}
+      </Typography>
+    </Box>
+  )
+}
 
 export default function ReviewSession({
   item,
@@ -72,84 +108,91 @@ export default function ReviewSession({
   if (completed) {
     const retries = Math.max(0, ratedCount - passedCount)
     return (
-      <Box
-        sx={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          py: 10,
-          maxWidth: 400,
-          mx: "auto"
-        }}>
-        <Typography sx={{ fontSize: "4rem", mb: 2, lineHeight: 1 }}>
-          {retries === 0 ? "🎉" : "💪"}
-        </Typography>
-        <Typography
-          variant="h5"
-          sx={{ mb: 4, fontWeight: 500, letterSpacing: "0.04em" }}>
-          复习完成
-        </Typography>
+      <Box sx={{ maxWidth: 480, mx: "auto", mt: 10, px: 2 }}>
         <Box
-          sx={{
-            width: "100%",
-            bgcolor: "action.hover",
+          sx={(t) => ({
+            bgcolor: "background.paper",
+            border: "1px solid",
+            borderColor: "divider",
             borderRadius: 1,
-            p: 3,
-            mb: 3
-          }}>
-          <Stack direction="row" justifyContent="space-around">
-            <Box sx={{ textAlign: "center" }}>
-              <Typography
-                variant="h4"
-                sx={{ fontWeight: 600, color: "primary.main" }}>
-                {passedCount}
-              </Typography>
-              <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                通过（张）
-              </Typography>
-            </Box>
-            <Box sx={{ textAlign: "center" }}>
-              <Typography
-                variant="h4"
-                sx={{ fontWeight: 600, color: "text.secondary" }}>
-                {ratedCount}
-              </Typography>
-              <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                本次已评（次）
-              </Typography>
-            </Box>
-            <Box sx={{ textAlign: "center" }}>
-              <Typography
-                variant="h4"
-                sx={{ fontWeight: 600, color: "warning.main" }}>
-                {retries}
-              </Typography>
-              <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                重试（次）
-              </Typography>
-            </Box>
-          </Stack>
-        </Box>
-        <Stack spacing={0.5} sx={{ mb: 3, textAlign: "center" }}>
-          <Typography variant="body2" sx={{ color: "text.secondary" }}>
-            本次复习 {ratedCount} 次 · 通过 {passedCount} 张
-            {retries > 0 ? ` · 重试 ${retries} 次` : ""}
+            boxShadow: t.custom.cardShadow,
+            p: 4,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            textAlign: "center"
+          })}>
+          <Box
+            sx={(t) => ({
+              width: 44,
+              height: 44,
+              borderRadius: "50%",
+              bgcolor: `alpha(${t.palette.success.main}, 0.08)`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              mb: 2
+            })}>
+            <CheckRoundedIcon sx={{ fontSize: 24, color: "success.main" }} />
+          </Box>
+          <Typography
+            sx={{
+              fontFamily: (t) => t.custom.serif,
+              fontWeight: 600,
+              fontSize: "1.35rem",
+              mb: 0.5
+            }}>
+            复习完成
           </Typography>
+          <Typography variant="caption" sx={{ color: "text.secondary", mb: 3 }}>
+            今天完成了 {passedCount} 张卡片的复习
+          </Typography>
+
+          <Box
+            sx={{
+              width: "100%",
+              display: "flex",
+              borderTop: "1px solid",
+              borderBottom: "1px solid",
+              borderColor: "divider",
+              mb: 3
+            }}>
+            <StatBlock
+              value={passedCount}
+              label="通过（张）"
+              color="success.main"
+            />
+            <Divider orientation="vertical" flexItem />
+            <StatBlock
+              value={ratedCount}
+              label="本次已评（次）"
+              color="text.primary"
+            />
+            <Divider orientation="vertical" flexItem />
+            <StatBlock
+              value={retries}
+              label="重试（次）"
+              color={retries > 0 ? "warning.main" : "text.disabled"}
+              faded={retries === 0}
+            />
+          </Box>
+
           {masteredCount > 0 && (
             <Typography
               variant="body2"
-              sx={{ color: "success.main", fontWeight: 500 }}>
+              sx={{ color: "success.main", fontWeight: 500, mb: 3 }}>
               累计已掌握 {masteredCount} 张卡片
             </Typography>
           )}
-        </Stack>
-        <Button
-          variant="outlined"
-          onClick={onExit}
-          sx={{ borderRadius: 1, px: 4 }}>
-          退出复习
-        </Button>
+
+          <Button
+            variant="contained"
+            fullWidth
+            onClick={onExit}
+            sx={{ borderRadius: 1, py: 1 }}>
+            退出复习
+          </Button>
+        </Box>
       </Box>
     )
   }
@@ -259,10 +302,10 @@ export default function ReviewSession({
           transition: "all 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
           pointerEvents: flipped ? "auto" : "none"
         }}>
-        {LABELS.map((label, i) => {
+        {RATING_META.map((meta, i) => {
           const rating = (i + 1) as 1 | 2 | 3
           return (
-            <Tooltip key={label} title={`快捷键 ${i + 1}`}>
+            <Tooltip key={meta.label} title={`快捷键 ${i + 1}`}>
               <Button
                 variant="outlined"
                 fullWidth
@@ -272,14 +315,14 @@ export default function ReviewSession({
                 }}
                 sx={{
                   borderRadius: 1,
-                  borderColor: COLORS[i],
-                  color: COLORS[i],
+                  borderColor: meta.color,
+                  color: meta.color,
                   fontSize: "0.78rem",
                   py: 0.75,
                   minWidth: 0,
                   "&:hover": {
-                    bgcolor: `${COLORS[i]}14`,
-                    borderColor: COLORS[i]
+                    bgcolor: `${meta.color}14`,
+                    borderColor: meta.color
                   }
                 }}>
                 <Box
@@ -287,7 +330,7 @@ export default function ReviewSession({
                   sx={{ mr: 0.5, opacity: 0.5, fontSize: "0.7rem" }}>
                   {i + 1}
                 </Box>
-                {label}
+                {meta.label}
               </Button>
             </Tooltip>
           )

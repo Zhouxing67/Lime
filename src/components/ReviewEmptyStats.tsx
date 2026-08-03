@@ -3,8 +3,7 @@ import SchoolRoundedIcon from "@mui/icons-material/SchoolRounded"
 import { Box, Button, Stack, Typography, useMediaQuery } from "@mui/material"
 import { useTheme } from "@mui/material/styles"
 
-const RATING_LABELS = ["不认识", "模糊", "认识"]
-const RATING_COLORS = ["#ef4444", "#f97316", "#22c55e"]
+import { RATING_META } from "../utils"
 
 interface ReviewEmptyStatsProps {
   masteredCount: number
@@ -12,6 +11,29 @@ interface ReviewEmptyStatsProps {
   todayRatings: [number, number, number]
   streakDays: number
   onExit: () => void
+}
+
+function StatCard({
+  children,
+  sx
+}: {
+  children: React.ReactNode
+  sx?: object
+}) {
+  return (
+    <Box
+      sx={(t) => ({
+        bgcolor: "background.paper",
+        borderRadius: 1,
+        border: "1px solid",
+        borderColor: "divider",
+        boxShadow: t.custom.cardShadow,
+        p: 3,
+        ...sx
+      })}>
+      {children}
+    </Box>
+  )
 }
 
 export default function ReviewEmptyStats({
@@ -25,88 +47,73 @@ export default function ReviewEmptyStats({
   const isWide = useMediaQuery(theme.breakpoints.up("sm"))
   const total = masteredCount + activeCount
   const pct = total > 0 ? masteredCount / total : 0
+  const todayTotal = todayRatings.reduce((s, n) => s + n, 0)
 
   return (
     <Box sx={{ maxWidth: 720, mx: "auto", mt: 8, px: 2 }}>
       <Stack direction={isWide ? "row" : "column"} spacing={2} sx={{ mb: 2 }}>
-        {/* Ring card */}
-        <Box
-          sx={{
-            flex: isWide ? "0 0 240px" : "auto",
-            bgcolor: "background.paper",
-            borderRadius: 1,
-            border: "1px solid",
-            borderColor: "divider",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            py: 4,
-            px: 3
-          }}>
+        {/* Mastered ring card */}
+        <StatCard sx={{ flex: isWide ? "0 0 240px" : "auto" }}>
           <Box
             sx={{
-              position: "relative",
-              width: 120,
-              height: 120
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              py: 1
             }}>
-            <Box
-              sx={{
-                position: "absolute",
-                inset: 0,
-                borderRadius: "50%",
-                bgcolor: "action.hover"
-              }}
-            />
-            <Box
-              sx={{
-                position: "absolute",
-                inset: 0,
-                borderRadius: "50%",
-                background: `conic-gradient(${theme.palette.primary.main} 0% ${pct * 100}%, transparent ${pct * 100}% 100%)`
-              }}
-            />
-            <Box
-              sx={{
-                position: "absolute",
-                inset: 16,
-                borderRadius: "50%",
-                bgcolor: "background.paper",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center"
-              }}>
-              <SchoolRoundedIcon
-                sx={{ fontSize: 20, color: "primary.main", mb: 0.5 }}
+            <Box sx={{ position: "relative", width: 120, height: 120, mb: 2 }}>
+              <Box
+                sx={{
+                  position: "absolute",
+                  inset: 0,
+                  borderRadius: "50%",
+                  bgcolor: "action.hover"
+                }}
               />
-              <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1 }}>
-                {masteredCount}
-              </Typography>
+              <Box
+                sx={{
+                  position: "absolute",
+                  inset: 0,
+                  borderRadius: "50%",
+                  background: `conic-gradient(${theme.palette.primary.main} 0% ${pct * 100}%, transparent ${pct * 100}% 100%)`
+                }}
+              />
+              <Box
+                sx={{
+                  position: "absolute",
+                  inset: 16,
+                  borderRadius: "50%",
+                  bgcolor: "background.paper",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center"
+                }}>
+                <SchoolRoundedIcon
+                  sx={{ fontSize: 20, color: "primary.main", mb: 0.5 }}
+                />
+                <Typography
+                  sx={{
+                    fontFamily: (t) => t.custom.serif,
+                    fontWeight: 700,
+                    fontSize: "1.5rem",
+                    lineHeight: 1
+                  }}>
+                  {masteredCount}
+                </Typography>
+              </Box>
             </Box>
+            <Typography
+              variant="caption"
+              sx={{ color: "text.secondary", textAlign: "center" }}>
+              已掌握 {masteredCount} 张 · 学习中 {activeCount} 张
+            </Typography>
           </Box>
-          <Typography
-            variant="body2"
-            sx={{ mt: 1.5, color: "text.secondary", textAlign: "center" }}>
-            已掌握 {masteredCount} 张 · 学习中 {activeCount} 张
-          </Typography>
-        </Box>
+        </StatCard>
 
-        {/* Stats card */}
-        <Box
-          sx={{
-            flex: 1,
-            bgcolor: "background.paper",
-            borderRadius: 1,
-            border: "1px solid",
-            borderColor: "divider",
-            py: 3,
-            px: 3
-          }}>
-          <Stack
-            direction="row"
-            alignItems="center"
-            spacing={0.5}
-            sx={{ mb: 2 }}>
+        {/* Today's rating distribution card */}
+        <StatCard sx={{ flex: 1 }}>
+          <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mb: 2 }}>
             <AutoGraphRoundedIcon
               sx={{ fontSize: 18, color: "text.secondary" }}
             />
@@ -117,61 +124,77 @@ export default function ReviewEmptyStats({
             </Typography>
           </Stack>
 
-          <Stack spacing={1}>
-            {RATING_LABELS.map((label, i) => {
-              const count = todayRatings[i]
-              const max = Math.max(...todayRatings, 1)
-              const width = (count / max) * 100
-              return (
-                <Stack
-                  key={label}
-                  direction="row"
-                  alignItems="center"
-                  spacing={1}>
-                  <Typography
-                    variant="caption"
-                    sx={{ width: 28, color: RATING_COLORS[i], flexShrink: 0 }}>
-                    {label}
-                  </Typography>
+          <Box
+            sx={{
+              height: 8,
+              borderRadius: 4,
+              bgcolor: "action.hover",
+              overflow: "hidden",
+              display: "flex",
+              mb: 2
+            }}>
+            {todayTotal > 0 &&
+              RATING_META.map((meta, i) => {
+                const width = (todayRatings[i] / todayTotal) * 100
+                if (width <= 0) return null
+                return (
                   <Box
-                    sx={{
-                      flex: 1,
-                      height: 14,
-                      borderRadius: "7px",
-                      bgcolor: "action.hover",
-                      overflow: "hidden"
-                    }}>
-                    <Box
-                      sx={{
-                        width: `${width}%`,
-                        height: "100%",
-                        bgcolor: RATING_COLORS[i],
-                        borderRadius: "7px",
-                        transition: "width 0.5s ease"
-                      }}
-                    />
-                  </Box>
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      width: 24,
-                      textAlign: "right",
-                      color: "text.secondary",
-                      flexShrink: 0
-                    }}>
-                    {count}
-                  </Typography>
-                </Stack>
-              )
-            })}
+                    key={meta.label}
+                    sx={{ width: `${width}%`, bgcolor: meta.color }}
+                  />
+                )
+              })}
+          </Box>
+          {todayTotal === 0 && (
+            <Typography
+              variant="caption"
+              sx={{ color: "text.disabled", display: "block", mb: 2 }}>
+              今日暂无评分
+            </Typography>
+          )}
+
+          <Stack spacing={0.75}>
+            {RATING_META.map((meta, i) => (
+              <Stack
+                key={meta.label}
+                direction="row"
+                alignItems="center"
+                spacing={1}>
+                <Box
+                  sx={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: "50%",
+                    bgcolor: meta.color,
+                    flexShrink: 0
+                  }}
+                />
+                <Typography
+                  variant="body2"
+                  sx={{ fontSize: "0.78rem", color: "text.secondary", flex: 1 }}>
+                  {meta.label}
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    fontSize: "0.78rem",
+                    color: "text.primary",
+                    fontWeight: 500
+                  }}>
+                  {todayRatings[i]}
+                </Typography>
+              </Stack>
+            ))}
           </Stack>
 
           {streakDays > 0 && (
-            <Typography variant="body2" sx={{ mt: 2, color: "text.secondary" }}>
+            <Typography
+              variant="body2"
+              sx={{ mt: 2, color: "text.secondary" }}>
               🔥 连续打卡 {streakDays} 天
             </Typography>
           )}
-        </Box>
+        </StatCard>
       </Stack>
 
       <Button

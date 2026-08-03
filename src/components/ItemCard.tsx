@@ -3,11 +3,9 @@ import { Box, Link, Paper, Stack, Typography, alpha } from "@mui/material"
 import { useState } from "react"
 
 import type { Item } from "../types"
-import { hostnameOf } from "../utils"
+import { RATING_META, hostnameOf } from "../utils"
 import CardRenderer, { typeIcon } from "./CardRenderer"
 import ItemCardOperations from "./ItemCardOperations"
-
-const RATING_COLORS = ["#ef4444", "#f97316", "#22c55e"]
 
 export default function ItemCard({
   item,
@@ -105,7 +103,7 @@ export default function ItemCard({
                 height: 8,
                 borderRadius: "50%",
                 flexShrink: 0,
-                bgcolor: RATING_COLORS[firstRating - 1]
+                bgcolor: RATING_META[firstRating - 1].color
               }}
             />
           )}

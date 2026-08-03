@@ -4,7 +4,7 @@ import DoneAllRoundedIcon from "@mui/icons-material/DoneAllRounded"
 import NoteAddRoundedIcon from "@mui/icons-material/NoteAddRounded"
 import SearchOffRoundedIcon from "@mui/icons-material/SearchOffRounded"
 import {
-  Alert,
+  alpha,
   Box,
   Button,
   CircularProgress,
@@ -16,7 +16,6 @@ import {
   DialogTitle,
   Fade,
   IconButton,
-  Snackbar,
   Stack,
   TextField,
   Tooltip,
@@ -54,6 +53,7 @@ import ProjectTree from "./components/ProjectTree"
 import ReviewSession from "./components/ReviewSession"
 import SettingsDialog from "./components/SettingsDialog"
 import SidebarFilters from "./components/SidebarFilters"
+import Toast from "./components/Toast"
 import TodoView from "./components/TodoView"
 import {
   addItem,
@@ -79,7 +79,7 @@ import { importFromZip } from "./import"
 import { createAppTheme } from "./theme"
 import type { Item, MergeSeparator, PresetName, Project, SearchQuery, SrsData, TodoFilter } from "./types"
 import { sendMessage } from "./types/messages"
-import { buildMergedContent, compareCards, dueStatus, isTodoComplete, maxScopeOrder, toggleMarkdownTask, todayLocalDate } from "./utils"
+import { RATING_META, buildMergedContent, compareCards, dueStatus, isTodoComplete, maxScopeOrder, toggleMarkdownTask, todayLocalDate } from "./utils"
 
 const MIN_DRAWER_WIDTH = 200
 const MAX_DRAWER_WIDTH = 500
@@ -1438,35 +1438,60 @@ export default function OptionsPage() {
                   {recentDates.find((d) => d.key === reviewDateFilter)?.label ??
                     reviewDateFilter}
                 </Typography>
-                {([null, 1, 2, 3] as const).map((r) => {
-                  const active = ratingFilter === r
-                  const COLORS = ["#ef4444", "#f97316", "#22c55e"]
-                  const LABELS = ["全部", "不认识", "模糊", "认识"]
-                  const i = r === null ? 0 : r
-                  const color = r === null ? "#94a3b8" : COLORS[r - 1]
-                  return (
-                    <Tooltip key={LABELS[i]} title={LABELS[i]}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexWrap: "wrap" }}>
+                  <Box
+                    onClick={() => setRatingFilter(null)}
+                    sx={(t) => ({
+                      display: "flex",
+                      alignItems: "center",
+                      px: 0.75,
+                      py: 0.25,
+                      borderRadius: 1,
+                      cursor: "pointer",
+                      fontSize: "0.72rem",
+                      lineHeight: 1.5,
+                      color: ratingFilter === null ? t.palette.primary.main : "text.secondary",
+                      bgcolor: ratingFilter === null ? alpha(t.palette.primary.main, 0.08) : "transparent",
+                      "&:hover": { bgcolor: "action.hover" }
+                    })}>
+                    全部
+                  </Box>
+                  {RATING_META.map((meta, i) => {
+                    const value = (i + 1) as 1 | 2 | 3
+                    const active = ratingFilter === value
+                    return (
                       <Box
-                        onClick={() => setRatingFilter(active ? null : r)}
+                        key={meta.label}
+                        onClick={() => setRatingFilter(active ? null : value)}
                         sx={{
-                          width: 14,
-                          height: 14,
-                          borderRadius: "50%",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 0.5,
+                          px: 0.75,
+                          py: 0.25,
+                          borderRadius: 1,
                           cursor: "pointer",
-                          flexShrink: 0,
-                          bgcolor: active ? color : "transparent",
-                          border: "2px solid",
-                          borderColor: active ? color : "divider",
+                          fontSize: "0.72rem",
+                          lineHeight: 1.5,
+                          color: active ? meta.color : "text.secondary",
+                          bgcolor: active ? alpha(meta.color, 0.08) : "transparent",
                           transition: "all 0.15s",
-                          "&:hover": {
-                            borderColor: color,
-                            bgcolor: active ? color : `${color}22`
-                          }
-                        }}
-                      />
-                    </Tooltip>
-                  )
-                })}
+                          "&:hover": { bgcolor: "action.hover" }
+                        }}>
+                        <Box
+                          sx={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: "50%",
+                            bgcolor: active ? meta.color : "text.disabled",
+                            flexShrink: 0
+                          }}
+                        />
+                        {meta.label}
+                      </Box>
+                    )
+                  })}
+                </Box>
                 <Box sx={{ flex: 1 }} />
                 <Button
                   size="small"
@@ -2023,18 +2048,11 @@ export default function OptionsPage() {
                 onPresetChange={(name) => setPreset(name)}
               />
 
-              <Snackbar
+              <Toast
                 open={Boolean(snackbarMsg)}
-                autoHideDuration={2000}
+                message={snackbarMsg}
                 onClose={() => setSnackbarMsg("")}
-                anchorOrigin={{ vertical: "top", horizontal: "center" }}>
-                <Alert
-                  severity={snackbarMsg.includes("失败") ? "error" : "success"}
-                  variant="filled"
-                  sx={{ borderRadius: 1 }}>
-                  {snackbarMsg}
-                </Alert>
-              </Snackbar>
+              />
 
               <CopyCardsDialog
                 open={Boolean(copyCardId)}
