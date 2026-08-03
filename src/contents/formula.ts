@@ -67,9 +67,11 @@ export function selectionWithMath(sel: Selection): string {
   return (fragment.textContent ?? "").replace(/\s+/g, " ").trim()
 }
 
-/** Capture the formula under the current cursor, if any. */
+/** Capture the formula under the current cursor, if any. Prefers the last
+ *  mousemove target (robust against overlays) with elementFromPoint fallback. */
 export function mathFromCursor(): { content: string; el: Element } | null {
-  const el = mathAtPoint(lastX, lastY)
+  const el =
+    lastTarget?.closest?.(MATH_SELECTOR) ?? mathAtPoint(lastX, lastY)
   if (!el) return null
   const src = mathSource(el)
   if (!src) return null
@@ -80,6 +82,7 @@ export function mathFromCursor(): { content: string; el: Element } | null {
 
 let lastX = -1
 let lastY = -1
+let lastTarget: Element | null = null
 let hovered: Element | null = null
 let styleEl: HTMLStyleElement | null = null
 let enabled = true
@@ -105,8 +108,10 @@ export function flashMath(el: Element) {
   setTimeout(() => el.classList.remove(FLASH_CLASS), 900)
 }
 
-/** Start persistent mousemove → hover highlight + cursor tracking. Returns a
- *  cleanup that also removes the injected style. */
+/** Start persistent mousemove → hover highlight + cursor tracking. Uses the
+ *  event target (the topmost element under the cursor) rather than
+ *  elementFromPoint so overlays (panel, sticky headers, etc.) never block it.
+ *  Returns a cleanup that also removes the injected style. */
 export function initMathHover(): () => void {
   if (!styleEl) {
     styleEl = document.createElement("style")
@@ -120,11 +125,12 @@ export function initMathHover(): () => void {
   const onMove = (e: MouseEvent) => {
     lastX = e.clientX
     lastY = e.clientY
+    lastTarget = e.target instanceof Element ? e.target : null
     if (raf) return
     raf = requestAnimationFrame(() => {
       raf = 0
       if (!enabled) return
-      const el = mathAtPoint(lastX, lastY)
+      const el = lastTarget?.closest?.(MATH_SELECTOR) ?? null
       if (el === hovered) return
       clearHighlight()
       if (el) {

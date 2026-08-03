@@ -55,6 +55,8 @@ export default function LimePanel() {
   )
 
   const hide = useCallback(() => {
+    dirtyRef.current = false
+    prevSelectionRef.current = ""
     setOpen(false)
   }, [])
 
