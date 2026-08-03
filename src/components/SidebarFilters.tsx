@@ -230,7 +230,7 @@ export default function SidebarFilters({
             borderColor: "divider",
             overflowX: "hidden",
             overflowY: "auto",
-            height: "100%"
+            height: "100vh"
           }
         }}>
         <Box

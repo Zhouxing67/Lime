@@ -17,7 +17,10 @@ const TEXT_LAYER_CSS = `
 }
 `
 
-/** Render one page lazily (IntersectionObserver) at DPR crispness + text layer. */
+/** Render one page lazily (IntersectionObserver) at DPR crispness + text layer.
+ *  The holder's real size is set from the page dimensions upfront (cheap, no
+ *  canvas render) so the scroll container has accurate positions + instant
+ *  jumps land correctly. */
 function PageView({
   doc,
   pageNumber,
@@ -30,9 +33,23 @@ function PageView({
   const holderRef = useRef<HTMLDivElement>(null)
   const [wh, setWh] = useState<{ w: number; h: number } | null>(null)
 
+  // Set the holder size from the page dimensions (no rendering).
+  useEffect(() => {
+    let cancelled = false
+    doc.getPage(pageNumber).then((page) => {
+      if (cancelled) return
+      const vp = page.getViewport({ scale })
+      setWh({ w: Math.floor(vp.width), h: Math.floor(vp.height) })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [doc, pageNumber, scale])
+
+  // Render canvas + text layer when the holder scrolls into view.
   useEffect(() => {
     const holder = holderRef.current
-    if (!holder) return
+    if (!holder || !wh) return
     let cancelled = false
     let renderTask: pdfjsLib.RenderTask | null = null
     let textLayer: InstanceType<typeof pdfjsLib.TextLayer> | null = null
@@ -41,17 +58,13 @@ function PageView({
     const render = async () => {
       const page = await doc.getPage(pageNumber)
       if (cancelled) return
-      const vp = page.getViewport({ scale })
-      const w = Math.floor(vp.width)
-      const h = Math.floor(vp.height)
-      setWh({ w, h })
       const canvas = holder.querySelector("canvas")
       if (!canvas) return
       // DPR crispness: physical canvas = logical × dpr, CSS = logical.
-      canvas.width = Math.floor(vp.width * dpr)
-      canvas.height = Math.floor(vp.height * dpr)
-      canvas.style.width = `${w}px`
-      canvas.style.height = `${h}px`
+      canvas.width = Math.floor(wh.w * dpr)
+      canvas.height = Math.floor(wh.h * dpr)
+      canvas.style.width = `${wh.w}px`
+      canvas.style.height = `${wh.h}px`
       renderTask = page.render({
         canvas,
         viewport: page.getViewport({ scale: scale * dpr })
@@ -61,13 +74,13 @@ function PageView({
       // Text layer (selection) aligned over the canvas at the logical viewport.
       const layerDiv = holder.querySelector<HTMLDivElement>(".pdf-textlayer")
       if (layerDiv) {
-        layerDiv.style.width = `${w}px`
-        layerDiv.style.height = `${h}px`
+        layerDiv.style.width = `${wh.w}px`
+        layerDiv.style.height = `${wh.h}px`
         layerDiv.style.setProperty("--scale-factor", String(scale))
         textLayer = new pdfjsLib.TextLayer({
           textContentSource: page.streamTextContent({ disableNormalization: true }),
           container: layerDiv,
-          viewport: vp
+          viewport: page.getViewport({ scale })
         })
         await textLayer.render()
       }
@@ -80,7 +93,7 @@ function PageView({
           render().catch((e) => console.warn("[pdf] page render:", e))
         }
       },
-      { rootMargin: "600px 0px" }
+      { rootMargin: "400px 0px" }
     )
     obs.observe(holder)
     return () => {
@@ -89,7 +102,7 @@ function PageView({
       renderTask?.cancel()
       textLayer?.cancel()
     }
-  }, [doc, pageNumber, scale])
+  }, [doc, pageNumber, scale, wh])
 
   return (
     <div
@@ -101,7 +114,7 @@ function PageView({
         background: "#fff",
         boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
         width: wh?.w,
-        height: wh?.h ?? 800
+        height: wh?.h
       }}>
       <canvas style={{ display: "block" }} />
       <div className="pdf-textlayer" />
@@ -149,13 +162,14 @@ export default function PdfRenderer({
     }
   }, [paneW, scale, doc])
 
-  // Scroll to a requested page (TOC navigation).
+  // Scroll to a requested page (TOC navigation) — instant, positions are
+  // accurate because every holder already carries its real page height.
   useEffect(() => {
     if (!scrollTarget) return
     const el = containerRef.current?.querySelector(
       `[data-page="${scrollTarget}"]`
     )
-    el?.scrollIntoView({ behavior: "smooth", block: "start" })
+    el?.scrollIntoView({ behavior: "auto", block: "start" })
   }, [scrollTarget])
 
   return (
