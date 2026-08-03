@@ -2,6 +2,81 @@ import { useEffect, useRef, useState } from "react"
 
 import * as pdfjsLib from "pdfjs-dist"
 
+import type { PdfAnnotation, PdfMark } from "../types"
+import { registerTextLayer, unregisterTextLayer } from "./pdfRegistry"
+import { textLayerRects } from "./pdfText"
+import type { PdfRect } from "./pdfText"
+
+// Low-saturation annotation colors (align with the app's RATING_META family).
+const MARK_COLOR: Record<PdfMark, string> = {
+  highlight: "rgba(183,149,91,0.26)",
+  underline: "#6f9476",
+  wavy: "#b2705a",
+  strike: "rgba(45,52,54,0.45)",
+  frame: "rgba(99,102,241,0.35)"
+}
+
+function drawAnnotation(
+  overlay: HTMLElement,
+  type: PdfMark,
+  rect: PdfRect
+): void {
+  const el = document.createElement("div")
+  el.style.cssText = `position:absolute;left:${rect.x}px;top:${rect.y}px;width:${rect.w}px;height:${rect.h}px;pointer-events:none;`
+  if (type === "highlight") {
+    el.style.background = MARK_COLOR.highlight
+    el.style.borderRadius = "2px"
+  } else if (type === "underline") {
+    el.style.borderBottom = `1.5px solid ${MARK_COLOR.underline}`
+  } else if (type === "wavy") {
+    el.innerHTML = `<svg width="${rect.w}" height="${rect.h}" style="position:absolute;left:0;top:${rect.h - 3}px;overflow:visible"><path d="${wavyPath(rect.w)}" stroke="${MARK_COLOR.wavy}" stroke-width="1.5" fill="none"/></svg>`
+  } else if (type === "strike") {
+    el.innerHTML = `<div style="position:absolute;top:${rect.h / 2 - 1}px;left:0;right:0;height:1.5px;background:${MARK_COLOR.strike}"></div>`
+  } else if (type === "frame") {
+    el.style.border = `1.5px solid ${MARK_COLOR.frame}`
+    el.style.borderRadius = "2px"
+  }
+  overlay.appendChild(el)
+}
+
+function wavyPath(w: number): string {
+  const amp = 2
+  const period = 6
+  const half = period / 2
+  let d = `M0 0`
+  let x = 0
+  while (x < w) {
+    d += ` Q${x + half / 2} ${-amp} ${x + half} 0`
+    d += ` Q${x + (half + half / 2)} ${amp} ${x + period} 0`
+    x += period
+  }
+  return d
+}
+
+function drawPageAnnotations(
+  overlay: HTMLElement,
+  annotations: PdfAnnotation[],
+  textLayer: InstanceType<typeof pdfjsLib.TextLayer>,
+  holder: HTMLElement,
+  flashAnnId: string | null
+): void {
+  overlay.replaceChildren()
+  for (const ann of annotations) {
+    if (ann.kind !== "text" || ann.startOffset == null || ann.endOffset == null)
+      continue
+    const rects = textLayerRects(textLayer, holder, ann.startOffset, ann.endOffset)
+    for (const r of rects) {
+      if (ann.id === flashAnnId) {
+        const flash = document.createElement("div")
+        flash.className = "pdf-ann-flash"
+        flash.style.cssText = `position:absolute;left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;pointer-events:none;`
+        overlay.appendChild(flash)
+      }
+      drawAnnotation(overlay, ann.type, r)
+    }
+  }
+}
+
 const TEXT_LAYER_CSS = `
 .pdf-textlayer {
   color-scheme: only light;
@@ -43,6 +118,15 @@ const TEXT_LAYER_CSS = `
   background: rgba(99,102,241,0.26);
   border-radius: 2px;
 }
+.pdf-ann-flash {
+  background: rgba(99,102,241,0.4);
+  border-radius: 2px;
+  animation: pdfAnnFlash 1.4s ease-out forwards;
+}
+@keyframes pdfAnnFlash {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
 `
 
 /** Render one page lazily (IntersectionObserver) at DPR crispness + text layer.
@@ -51,11 +135,17 @@ const TEXT_LAYER_CSS = `
 function PageView({
   doc,
   pageNumber,
-  paneW
+  paneW,
+  annotations,
+  flashAnnId,
+  onFlashDone
 }: {
   doc: pdfjsLib.PDFDocumentProxy
   pageNumber: number
   paneW: number
+  annotations: PdfAnnotation[]
+  flashAnnId?: string | null
+  onFlashDone?: () => void
 }) {
   const holderRef = useRef<HTMLDivElement>(null)
   const [wh, setWh] = useState<{ w: number; h: number } | null>(null)
@@ -123,6 +213,16 @@ function PageView({
         // Enforce the exact page box (setLayerDimensions may round the width).
         layerDiv.style.width = `${wh.w}px`
         layerDiv.style.height = `${wh.h}px`
+        // Draw the page's annotations from the text spans.
+        const annDiv = holder.querySelector<HTMLElement>(".pdf-annotations")
+        if (annDiv) {
+          drawPageAnnotations(annDiv, annotations, textLayer, holder, flashAnnId)
+          if (flashAnnId) {
+            setTimeout(() => onFlashDone?.(), 1500)
+          }
+        }
+        // Expose for the toolbar's selection→offset mapping.
+        registerTextLayer(pageNumber, { holder, textLayer })
       }
     }
 
@@ -145,8 +245,9 @@ function PageView({
       obs.disconnect()
       renderTask?.cancel()
       textLayer?.cancel()
+      unregisterTextLayer(pageNumber)
     }
-  }, [doc, pageNumber, scale, wh])
+  }, [doc, pageNumber, scale, wh, annotations, flashAnnId])
 
   return (
     <div
@@ -161,6 +262,7 @@ function PageView({
         height: wh?.h
       }}>
       <canvas style={{ display: "block" }} />
+      <div className="pdf-annotations" />
       <div className="pdf-textlayer" />
       <style>{TEXT_LAYER_CSS}</style>
     </div>
@@ -171,11 +273,17 @@ function PageView({
 export default function PdfRenderer({
   doc,
   pageCount,
-  scrollTarget
+  scrollTarget,
+  annotations,
+  flashAnnId,
+  onFlashDone
 }: {
   doc: pdfjsLib.PDFDocumentProxy
   pageCount: number
   scrollTarget?: number | null
+  annotations?: PdfAnnotation[]
+  flashAnnId?: string | null
+  onFlashDone?: () => void
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [paneW, setPaneW] = useState(0)
@@ -206,6 +314,12 @@ export default function PdfRenderer({
     el?.scrollIntoView({ behavior: "auto", block: "start" })
   }, [scrollTarget])
 
+  // Only the page holding the flash target re-renders (avoids re-rendering
+  // every page's canvas when a card is clicked).
+  const flashPage = flashAnnId
+    ? annotations?.find((a) => a.id === flashAnnId)?.page ?? null
+    : null
+
   return (
     <div
       ref={containerRef}
@@ -219,7 +333,15 @@ export default function PdfRenderer({
       }}>
       {paneW > 0 &&
         Array.from({ length: pageCount }, (_, i) => i + 1).map((n) => (
-          <PageView key={n} doc={doc} pageNumber={n} paneW={paneW} />
+          <PageView
+            key={n}
+            doc={doc}
+            pageNumber={n}
+            paneW={paneW}
+            annotations={annotations?.filter((a) => a.page === n) ?? []}
+            flashAnnId={flashPage === n ? flashAnnId : null}
+            onFlashDone={onFlashDone}
+          />
         ))}
     </div>
   )
