@@ -194,7 +194,9 @@ export default function PdfRenderer({
         const page = await doc.getPage(1)
         if (cancelled) return
         const baseW = page.getViewport({ scale: 1 }).width
-        if (baseW > 0) setScale(Math.max(0.4, paneW / baseW))
+        if (baseW > 0) {
+          setScale(Math.max(0.4, paneW / baseW))
+        }
       } catch {}
     }, 80)
     return () => {

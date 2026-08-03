@@ -48,12 +48,12 @@ export default function PdfView({
   outlineDest?: PdfOutlineItem | null
 }) {
   const { loaded, error } = usePdfDocument(pdfId)
-  // Cards pane is a narrow adaptive width (never 50/50 — the PDF must dominate).
-  const [cardsWidth, setCardsWidth] = useState(() =>
-    Math.max(240, Math.min(320, Math.floor(window.innerWidth * 0.2)))
-  )
+  // PDF pane keeps a FIXED share of the width (cards pane flexes to fill the
+  // rest) — same structure as the working 50/50 layout. A flex:1 PDF pane lets
+  // page content force its width, which caused the cards pane to cover the PDF.
+  const [pdfPct, setPdfPct] = useState(0.78)
   const [scrollPage, setScrollPage] = useState<number | null>(null)
-  const dragRef = useRef<{ startX: number; startW: number } | null>(null)
+  const dragRef = useRef<{ startX: number; startPct: number } | null>(null)
 
   // Report the outline up so the sidebar can render the TOC.
   useEffect(() => {
@@ -74,18 +74,17 @@ export default function PdfView({
 
   const startDrag = useCallback((e: React.PointerEvent) => {
     e.preventDefault()
+    const rect = e.currentTarget.parentElement!.getBoundingClientRect()
     dragRef.current = {
       startX: e.clientX,
-      startW: cardsWidth
+      startPct: pdfPct
     }
     const mv = (ev: PointerEvent) => {
       const d = dragRef.current
-      if (!d) return
-      // Cards pane is right-anchored: dragging the handle left widens it, so
-      // the width delta is inverted (minus) vs a left-anchored pane.
-      setCardsWidth(
-        Math.max(240, Math.min(400, d.startW - (ev.clientX - d.startX)))
-      )
+      if (!d || rect.width === 0) return
+      // PDF pane is left-anchored: dragging the handle left narrows it.
+      const pct = d.startPct + (ev.clientX - d.startX) / rect.width
+      setPdfPct(Math.max(0.55, Math.min(0.92, pct)))
     }
     const up = () => {
       dragRef.current = null
@@ -94,17 +93,18 @@ export default function PdfView({
     }
     document.addEventListener("pointermove", mv)
     document.addEventListener("pointerup", up)
-  }, [cardsWidth])
+  }, [pdfPct])
 
   return (
     <Box sx={{ display: "flex", height: "100%", minHeight: 0 }}>
-      {/* Left: the PDF (fills) */}
+      {/* Left: the PDF (fixed share) */}
       <Box
         sx={{
-          flex: 1,
+          flex: `0 0 ${pdfPct * 100}%`,
           minWidth: 0,
           display: "flex",
-          flexDirection: "column"
+          flexDirection: "column",
+          overflow: "hidden"
         }}>
         {/* tool bar */}
         <Box
@@ -169,11 +169,10 @@ export default function PdfView({
         }}
       />
 
-      {/* Right: this PDF's cards (P2) */}
+      {/* Right: this PDF's cards (P2, flexes to fill) */}
       <Box
         sx={{
-          width: cardsWidth,
-          flexShrink: 0,
+          flex: 1,
           minWidth: 0,
           display: "flex",
           alignItems: "center",
