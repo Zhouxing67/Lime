@@ -1,7 +1,14 @@
 import JSZip from "jszip"
 
-import { addItem, addProject, getProjectByName } from "../database"
-import type { Item, ItemType, Project, Section } from "../types"
+import {
+  addItem,
+  addProject,
+  addReview,
+  getAllReviews,
+  getProjectByName,
+  searchItems
+} from "../database"
+import type { Item, ItemType, Project, ReviewEntry, Section } from "../types"
 
 export interface ImportResult {
   imported: number
@@ -114,6 +121,37 @@ function validateItem(
   return { item }
 }
 
+function validateReview(raw: unknown): ReviewEntry | null {
+  if (!raw || typeof raw !== "object") return null
+  const obj = raw as Record<string, unknown>
+  if (typeof obj.itemId !== "string" || obj.itemId.length === 0) return null
+  const srs = obj.srs as Record<string, unknown> | undefined
+  if (!srs || typeof srs !== "object") return null
+  return {
+    id:
+      typeof obj.id === "string" && obj.id.length > 0
+        ? obj.id
+        : crypto.randomUUID(),
+    itemId: obj.itemId,
+    projectId: typeof obj.projectId === "string" ? obj.projectId : "",
+    status: obj.status === "mastered" ? "mastered" : "active",
+    dueDate: typeof obj.dueDate === "number" ? obj.dueDate : Date.now(),
+    addedAt: typeof obj.addedAt === "number" ? obj.addedAt : Date.now(),
+    srs: {
+      dueDate: typeof srs.dueDate === "number" ? srs.dueDate : Date.now(),
+      interval: typeof srs.interval === "number" ? srs.interval : 0,
+      easeFactor:
+        typeof srs.easeFactor === "number" ? srs.easeFactor : 2.5,
+      reviewCount: typeof srs.reviewCount === "number" ? srs.reviewCount : 0,
+      lastReviewDate:
+        typeof srs.lastReviewDate === "number" ? srs.lastReviewDate : 0,
+      reviewHistory: Array.isArray(srs.reviewHistory)
+        ? (srs.reviewHistory as ReviewEntry["srs"]["reviewHistory"])
+        : undefined
+    }
+  }
+}
+
 function validateProject(raw: unknown): Project | null {
   if (!raw || typeof raw !== "object") return null
   const obj = raw as Record<string, unknown>
@@ -194,6 +232,7 @@ export async function importFromZip(
 
   let rawArray: unknown[]
   let importedProjects: Project[] = []
+  let importedReviews: ReviewEntry[] = []
   try {
     const parsed = JSON.parse(rawJson)
     if (Array.isArray(parsed)) {
@@ -213,6 +252,12 @@ export async function importFromZip(
         importedProjects = obj.projects
           .map(validateProject)
           .filter((p): p is Project => p !== null)
+      }
+      if (Array.isArray(obj.reviews)) {
+        for (const rv of obj.reviews) {
+          const review = validateReview(rv)
+          if (review) importedReviews.push(review)
+        }
       }
     } else {
       return {
@@ -280,6 +325,31 @@ export async function importFromZip(
       }
     } catch {
       result.skipped++
+    }
+  }
+
+  // ---- reviews import ----
+  if (importedReviews.length > 0) {
+    const validItemIds = new Set(
+      (await searchItems({})).map((i) => i.id)
+    )
+    const existingReviewItemIds = new Set(
+      (await getAllReviews()).map((r) => r.itemId)
+    )
+    for (const rv of importedReviews) {
+      if (projectIdMap.has(rv.projectId)) {
+        rv.projectId = projectIdMap.get(rv.projectId)!
+      }
+      // Drop orphans (item not present) and duplicates (review already exists
+      // for the item — itemId has a unique index).
+      if (!validItemIds.has(rv.itemId)) continue
+      if (existingReviewItemIds.has(rv.itemId)) continue
+      try {
+        await addReview(rv)
+        existingReviewItemIds.add(rv.itemId)
+      } catch {
+        result.errors.push({ index: -1, reason: "复习条目导入失败" })
+      }
     }
   }
 

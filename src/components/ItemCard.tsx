@@ -11,6 +11,7 @@ export default function ItemCard({
   item,
   firstRating,
   inReview,
+  mastered,
   readOnly,
   draggable,
   selectMode,
@@ -18,12 +19,14 @@ export default function ItemCard({
   onDelete,
   onClick,
   onToggleReview,
+  onReReview,
   onToggleRead,
   onCopyToProject
 }: {
   item: Item
   firstRating?: 1 | 2 | 3
   inReview?: boolean
+  mastered?: boolean
   readOnly?: boolean
   draggable?: boolean
   selectMode?: boolean
@@ -31,6 +34,7 @@ export default function ItemCard({
   onDelete: (id: string) => void
   onClick?: () => void
   onToggleReview?: (id: string) => void
+  onReReview?: (id: string) => void
   onToggleRead?: (id: string) => void
   onCopyToProject?: (id: string) => void
 }) {
@@ -139,10 +143,12 @@ export default function ItemCard({
           <ItemCardOperations
             item={item}
             inReview={inReview}
+            mastered={mastered}
             readOnly={readOnly}
             visible={hovered}
             onDelete={onDelete}
             onToggleReview={onToggleReview}
+            onReReview={onReReview}
             onCopyToProject={onCopyToProject}
           />
         )}

@@ -1,6 +1,6 @@
 import JSZip from "jszip"
 
-import type { Item, Project } from "../types"
+import type { Item, Project, ReviewEntry } from "../types"
 
 function dataUrlToBlob(dataUrl: string): Blob {
   const [meta, content] = dataUrl.split(",")
@@ -13,7 +13,8 @@ function dataUrlToBlob(dataUrl: string): Blob {
 
 export async function toJsonZip(
   items: Item[],
-  projects?: Project[]
+  projects?: Project[],
+  reviews?: ReviewEntry[]
 ): Promise<Blob> {
   const zip = new JSZip()
 
@@ -29,7 +30,11 @@ export async function toJsonZip(
     }
   }
 
-  const payload: { items: Item[]; projects?: Project[] } = { items }
+  const payload: {
+    items: Item[]
+    projects?: Project[]
+    reviews?: ReviewEntry[]
+  } = { items }
   if (projects && projects.length > 0) {
     payload.projects = projects.map(
       ({ id, name, createdAt, note, sections }) => ({
@@ -40,6 +45,9 @@ export async function toJsonZip(
         sections
       })
     )
+  }
+  if (reviews && reviews.length > 0) {
+    payload.reviews = reviews
   }
   const json = JSON.stringify(payload, null, 2)
   zip.file("export.json", json)

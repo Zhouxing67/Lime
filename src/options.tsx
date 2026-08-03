@@ -130,6 +130,9 @@ export default function OptionsPage() {
   const [reviewSrsMap, setReviewSrsMap] = useState<Map<string, SrsData>>(
     new Map()
   )
+  const [masteredItemIds, setMasteredItemIds] = useState<Set<string>>(
+    new Set()
+  )
   const [reviewTitlePending, setReviewTitlePending] = useState<string | null>(
     null
   )
@@ -312,6 +315,13 @@ export default function OptionsPage() {
     getAllReviews().then((reviews) => {
       setReviewItemIds(new Set(reviews.map((r) => r.itemId)))
       setReviewSrsMap(new Map(reviews.map((r) => [r.itemId, r.srs])))
+      setMasteredItemIds(
+        new Set(
+          reviews
+            .filter((r) => r.status === "mastered")
+            .map((r) => r.itemId)
+        )
+      )
     })
   }, [allItemsUnfiltered, reviewsVersion])
 
@@ -596,6 +606,22 @@ export default function OptionsPage() {
       setSnackbarMsg("已加入复习")
     },
     [allItemsUnfiltered, reviewItemIds]
+  )
+
+  const handleReReview = useCallback(
+    async (itemId: string) => {
+      const srs = reviewSrsMap.get(itemId)
+      if (!srs || !masteredItemIds.has(itemId)) return
+      // Demote back to active (keep SRS) and make it due now.
+      await updateReviewSrs(itemId, {
+        ...srs,
+        interval: 1,
+        dueDate: Date.now(),
+        lastReviewDate: Date.now()
+      })
+      setSnackbarMsg("已重新加入复习")
+    },
+    [reviewSrsMap, masteredItemIds]
   )
 
   const handleReviewFlip = useCallback(() => {
@@ -1216,8 +1242,10 @@ export default function OptionsPage() {
   const sharedCardGridProps = {
     selectedIds,
     reviewItemIds,
+    masteredItemIds,
     onOpenDialog: setDialogItem,
     onToggleReview: handleToggleReview,
+    onReReview: handleReReview,
     onToggleRead: handleToggleRead,
     onCopyToProject: setCopyCardId
   }

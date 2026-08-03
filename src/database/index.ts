@@ -735,8 +735,20 @@ export async function updateReviewSrs(
         if (entry) {
           entry.srs = srs
           entry.dueDate = srs.dueDate
-          // Auto-promote to mastered when interval reaches max
-          if (srs.interval >= 365) entry.status = "mastered"
+          // Promote to mastered at the interval cap; demote back to active
+          // when the latest rating is a fail/partial (不认识/模糊) — even if
+          // the interval stayed capped — or when a manual re-review resets it.
+          const lastRating =
+            srs.reviewHistory?.[srs.reviewHistory.length - 1]?.rating
+          if (entry.status === "mastered") {
+            entry.status =
+              srs.interval < 365 ||
+              (lastRating !== undefined && lastRating <= 2)
+                ? "active"
+                : "mastered"
+          } else if (srs.interval >= 365) {
+            entry.status = "mastered"
+          }
           store.put(entry)
         }
         resolve()

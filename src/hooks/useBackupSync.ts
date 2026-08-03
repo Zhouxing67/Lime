@@ -41,7 +41,11 @@ export function useBackupSync(options: {
     const selectedProjects = projects.filter((p) =>
       backupSelectedIds.includes(p.id)
     )
-    const blob = await toJsonZip(items, selectedProjects)
+    const reviews = await getAllReviews()
+    const scopedReviews = reviews.filter((r) =>
+      backupSelectedIds.includes(r.projectId)
+    )
+    const blob = await toJsonZip(items, selectedProjects, scopedReviews)
     const url = URL.createObjectURL(blob)
     await chrome.downloads.download({ url, filename: "lime-backup.zip" })
     URL.revokeObjectURL(url)

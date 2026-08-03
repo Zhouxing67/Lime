@@ -442,6 +442,59 @@ describe("database", () => {
       expect(all[0].status).toBe("mastered")
     })
 
+    it("mastered cards are not auto-reviewed but demote via rating or re-review (A1)", async () => {
+      const DAY = 86400000
+      await addReview(createTestReview("m1", "itemM1"))
+      const mastered = {
+        dueDate: Date.now() + 365 * DAY,
+        interval: 365,
+        easeFactor: 2.5,
+        reviewCount: 10,
+        lastReviewDate: Date.now()
+      }
+      // Promote to mastered.
+      await updateReviewSrs("itemM1", mastered)
+      expect((await getAllReviews())[0].status).toBe("mastered")
+      // Not in the due queue even when overdue (no auto re-verification).
+      await updateReviewSrs("itemM1", { ...mastered, dueDate: Date.now() - DAY })
+      expect(await getDueReviews()).toHaveLength(0)
+
+      // Manual re-review: reset interval → demotes to active + due now.
+      await updateReviewSrs("itemM1", {
+        ...mastered,
+        interval: 1,
+        dueDate: Date.now()
+      })
+      expect((await getAllReviews())[0].status).toBe("active")
+      expect(await getDueReviews()).toHaveLength(1)
+    })
+
+    it("模糊 on a mastered card demotes back to active (A1)", async () => {
+      const DAY = 86400000
+      await addReview(createTestReview("m2", "itemM2"))
+      await updateReviewSrs("itemM2", {
+        dueDate: Date.now() + 365 * DAY,
+        interval: 365,
+        easeFactor: 2.5,
+        reviewCount: 10,
+        lastReviewDate: Date.now()
+      })
+      // 模糊 keeps the interval capped at 365 but must still demote.
+      const vague = rateSrs(
+        {
+          dueDate: Date.now() + 365 * DAY,
+          interval: 365,
+          easeFactor: 2.5,
+          reviewCount: 10,
+          lastReviewDate: Date.now()
+        },
+        2
+      )
+      expect(vague.interval).toBe(365)
+      await updateReviewSrs("itemM2", vague)
+      expect((await getAllReviews())[0].status).toBe("active")
+    })
+
     it("updateReviewSrs should keep active card due today when rated <3", async () => {
       await addReview(createTestReview("r4", "item4"))
       const srs = rateSrs(

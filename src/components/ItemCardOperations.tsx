@@ -4,6 +4,7 @@ import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
 import FileCopyOutlinedIcon from "@mui/icons-material/FileCopyOutlined"
 import PlaylistAddCheckRoundedIcon from "@mui/icons-material/PlaylistAddCheckRounded"
 import PlaylistRemoveRoundedIcon from "@mui/icons-material/PlaylistRemoveRounded"
+import ReplayRoundedIcon from "@mui/icons-material/ReplayRounded"
 import { Box, IconButton, Stack, Tooltip } from "@mui/material"
 import { useState } from "react"
 
@@ -13,10 +14,12 @@ import { prettyUrl } from "../utils"
 interface ItemCardOperationsProps {
   item: Item
   inReview?: boolean
+  mastered?: boolean
   readOnly?: boolean
   visible?: boolean
   onDelete: (id: string) => void
   onToggleReview?: (id: string) => void
+  onReReview?: (id: string) => void
   onCopyToProject?: (id: string) => void
   onToggleRead?: (id: string) => void
 }
@@ -24,10 +27,12 @@ interface ItemCardOperationsProps {
 export default function ItemCardOperations({
   item,
   inReview,
+  mastered,
   readOnly,
   visible = false,
   onDelete,
   onToggleReview,
+  onReReview,
   onCopyToProject,
   onToggleRead
 }: ItemCardOperationsProps) {
@@ -76,6 +81,19 @@ export default function ItemCardOperations({
                   }}
                   sx={{ p: 0.75 }}>
                   <FileCopyOutlinedIcon sx={{ fontSize: 16 }} />
+                </IconButton>
+              </Tooltip>
+            )}
+            {mastered && onReReview && (
+              <Tooltip title="重新复习">
+                <IconButton
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onReReview(item.id)
+                  }}
+                  sx={{ p: 0.75 }}>
+                  <ReplayRoundedIcon sx={{ fontSize: 16 }} />
                 </IconButton>
               </Tooltip>
             )}

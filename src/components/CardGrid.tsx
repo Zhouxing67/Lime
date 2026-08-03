@@ -21,6 +21,7 @@ interface CardGridProps {
   readOnly?: boolean
   firstRating?: Map<string, 1 | 2 | 3>
   reviewItemIds?: Set<string>
+  masteredItemIds?: Set<string>
   onNewCard?: () => void
   draggable?: boolean
   draggedId?: string | null
@@ -31,6 +32,7 @@ interface CardGridProps {
   onDeleteItem: (id: string) => void
   onOpenDialog: (item: Item) => void
   onToggleReview?: (id: string) => void
+  onReReview?: (id: string) => void
   onToggleRead?: (id: string) => void
   onCopyToProject?: (id: string) => void
 }
@@ -56,9 +58,11 @@ export default function CardGrid({
   onDeleteItem,
   onOpenDialog,
   onToggleReview,
+  onReReview,
   onToggleRead,
   onCopyToProject,
   reviewItemIds,
+  masteredItemIds,
   onNewCard
 }: CardGridProps) {
   const theme = useTheme()
@@ -194,6 +198,7 @@ export default function CardGrid({
                 <ItemCard
                   item={it}
                   inReview={reviewItemIds?.has(it.id)}
+                  mastered={masteredItemIds?.has(it.id)}
                   readOnly={readOnly}
                   firstRating={firstRating?.get(it.id)}
                   draggable={draggable && !selectMode}
@@ -205,6 +210,7 @@ export default function CardGrid({
                     onOpenDialog(it)
                   }}
                   onToggleReview={onToggleReview}
+                  onReReview={onReReview}
                   onToggleRead={onToggleRead}
                   onCopyToProject={onCopyToProject}
                 />

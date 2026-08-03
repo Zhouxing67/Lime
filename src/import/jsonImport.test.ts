@@ -1,6 +1,6 @@
 import JSZip from "jszip"
 
-import { listProjects, searchItems } from "../database"
+import { getAllReviews, listProjects, searchItems } from "../database"
 import { importFromZip } from "./jsonImport"
 
 async function packZip(payload: unknown): Promise<File> {
@@ -130,5 +130,62 @@ describe("jsonImport", () => {
     const s2 = projects[0].sections?.find((s) => s.id === "s2")
     expect(s2?.parentId).toBe("s1")
     expect(s2?.level).toBe(2)
+  })
+
+  it("imports reviews for valid items and drops orphans (A2)", async () => {
+    const item = {
+      id: "rv-item",
+      type: "text" as const,
+      title: "标题",
+      content: "正文",
+      source: { url: "https://example.com/x" },
+      createdAt: 1690000000000,
+      projectId: "p1"
+    }
+    const data = {
+      items: [item],
+      projects: [{ id: "p1", name: "项目", createdAt: 1690000000000 }],
+      reviews: [
+        {
+          id: "rv1",
+          itemId: "rv-item",
+          projectId: "p1",
+          status: "active",
+          dueDate: 1700000000000,
+          addedAt: 1690000000000,
+          srs: {
+            dueDate: 1700000000000,
+            interval: 3,
+            easeFactor: 2.5,
+            reviewCount: 1,
+            lastReviewDate: 1690000000000,
+            reviewHistory: [{ date: 1690000000000, rating: 3 }]
+          }
+        },
+        {
+          id: "rv-orphan",
+          itemId: "no-such-item",
+          projectId: "p1",
+          status: "active",
+          dueDate: 1700000000000,
+          addedAt: 1690000000000,
+          srs: {
+            dueDate: 1700000000000,
+            interval: 1,
+            easeFactor: 2.5,
+            reviewCount: 1,
+            lastReviewDate: 1690000000000
+          }
+        }
+      ]
+    }
+    const file = await packZip(data)
+    const result = await importFromZip(file, ["p1"])
+
+    expect(result.errors).toHaveLength(0)
+    const reviews = await getAllReviews()
+    expect(reviews).toHaveLength(1)
+    expect(reviews[0].itemId).toBe("rv-item")
+    expect(reviews[0].srs.interval).toBe(3)
   })
 })
