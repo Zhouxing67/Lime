@@ -183,19 +183,25 @@ export default function PdfRenderer({
     return () => ro.disconnect()
   }, [])
 
-  // Derive a shared fit-width zoom from the first page's base width.
+  // Derive a shared fit-width zoom from the first page's base width. Recompute
+  // whenever the pane width changes (cards-pane resize) so the pages always fit
+  // — otherwise stale pages overflow and get clipped ("cards pane covers PDF").
   useEffect(() => {
-    if (paneW <= 0 || scale !== null) return
+    if (paneW <= 0) return
     let cancelled = false
-    doc.getPage(1).then((page) => {
-      if (cancelled) return
-      const baseW = page.getViewport({ scale: 1 }).width
-      if (baseW > 0) setScale(Math.max(0.4, paneW / baseW))
-    })
+    const t = setTimeout(async () => {
+      try {
+        const page = await doc.getPage(1)
+        if (cancelled) return
+        const baseW = page.getViewport({ scale: 1 }).width
+        if (baseW > 0) setScale(Math.max(0.4, paneW / baseW))
+      } catch {}
+    }, 80)
     return () => {
       cancelled = true
+      clearTimeout(t)
     }
-  }, [paneW, scale, doc])
+  }, [paneW, doc])
 
   // Scroll to a requested page (TOC navigation) — instant, positions are
   // accurate because every holder already carries its real page height.

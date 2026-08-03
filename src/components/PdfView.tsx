@@ -81,8 +81,11 @@ export default function PdfView({
     const mv = (ev: PointerEvent) => {
       const d = dragRef.current
       if (!d) return
-      // Dragging the left pane's right edge right = wider cards pane.
-      setCardsWidth(Math.max(240, Math.min(400, d.startW + (ev.clientX - d.startX))))
+      // Cards pane is right-anchored: dragging the handle left widens it, so
+      // the width delta is inverted (minus) vs a left-anchored pane.
+      setCardsWidth(
+        Math.max(240, Math.min(400, d.startW - (ev.clientX - d.startX)))
+      )
     }
     const up = () => {
       dragRef.current = null
