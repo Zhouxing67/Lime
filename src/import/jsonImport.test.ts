@@ -1,6 +1,8 @@
 import JSZip from "jszip"
 
 import { getAllReviews, listProjects, searchItems } from "../database"
+import type { Item, ReviewEntry } from "../types"
+import { toJsonZip } from "../utils/zip"
 import { importFromZip } from "./jsonImport"
 
 async function packZip(payload: unknown): Promise<File> {
@@ -186,6 +188,82 @@ describe("jsonImport", () => {
     const reviews = await getAllReviews()
     expect(reviews).toHaveLength(1)
     expect(reviews[0].itemId).toBe("rv-item")
+    expect(reviews[0].srs.interval).toBe(3)
+  })
+
+  it("round-trips a full-featured card + project + review through export→import (new fields survive)", async () => {
+    const item = {
+      id: "rt-1",
+      type: "text",
+      title: "标题",
+      content: "正文",
+      sectionId: "sec-1",
+      images: ["https://img.example.com/a.png"],
+      dueDate: "2026-08-05",
+      order: 7,
+      read: false,
+      updatedAt: 1700000000000,
+      source: {
+        title: "P",
+        url: "https://example.com/p",
+        site: "example.com"
+      },
+      createdAt: 1690000000000,
+      projectId: "p1",
+      // A field not in the Item type today — must survive the round-trip
+      // ("一次修改，一直有效"): export spreads, import spreads + validates.
+      futureField: "survives"
+    } as unknown as Item
+
+    const project = {
+      id: "p1",
+      name: "RT 项目",
+      createdAt: 1690000000000,
+      lastOpened: 1695000000000,
+      note: "备注"
+    }
+
+    const review: ReviewEntry = {
+      id: "rv-rt",
+      itemId: "rt-1",
+      projectId: "p1",
+      status: "active",
+      dueDate: Date.now(),
+      addedAt: Date.now(),
+      srs: {
+        dueDate: Date.now(),
+        interval: 3,
+        easeFactor: 2.3,
+        reviewCount: 1,
+        lastReviewDate: Date.now(),
+        reviewHistory: [{ date: Date.now(), rating: 3 }]
+      }
+    }
+
+    const blob = await toJsonZip([item], [project], [review])
+    const file = new File([blob], "backup.zip", { type: "application/zip" })
+    const result = await importFromZip(file, ["p1"])
+
+    expect(result.errors).toHaveLength(0)
+    expect(result.imported).toBe(1)
+
+    const items = await searchItems({})
+    const imported = items[0]
+    expect(imported.title).toBe("标题")
+    expect(imported.sectionId).toBe("sec-1")
+    expect(imported.images).toEqual(["https://img.example.com/a.png"])
+    expect(imported.dueDate).toBe("2026-08-05")
+    expect(imported.order).toBe(7)
+    expect(imported.read).toBe(false)
+    expect((imported as unknown as Record<string, unknown>).futureField).toBe(
+      "survives"
+    )
+
+    const projects = await listProjects()
+    expect(projects[0].lastOpened).toBe(1695000000000)
+
+    const reviews = await getAllReviews()
+    expect(reviews).toHaveLength(1)
     expect(reviews[0].srs.interval).toBe(3)
   })
 })

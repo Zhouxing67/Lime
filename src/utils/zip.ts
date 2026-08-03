@@ -36,15 +36,9 @@ export async function toJsonZip(
     reviews?: ReviewEntry[]
   } = { items }
   if (projects && projects.length > 0) {
-    payload.projects = projects.map(
-      ({ id, name, createdAt, note, sections }) => ({
-        id,
-        name,
-        createdAt,
-        note,
-        sections
-      })
-    )
+    // Spread projects so new fields (e.g. lastOpened) survive backups without
+    // a parallel export patch.
+    payload.projects = projects.map((p) => ({ ...p }))
   }
   if (reviews && reviews.length > 0) {
     payload.reviews = reviews

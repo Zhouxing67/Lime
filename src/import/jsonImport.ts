@@ -20,7 +20,7 @@ const VALID_TYPES: ItemType[] = ["text", "image", "link", "todo"]
 
 function validateItem(
   raw: unknown,
-  index: number
+  _index: number
 ): { item: Item } | { error: string } {
   if (!raw || typeof raw !== "object") {
     return { error: "条目不是有效对象" }
@@ -48,75 +48,58 @@ function validateItem(
     return { error: "source 缺失或不是对象" }
   }
 
-  const id =
+  // Spread the raw record first so NEW fields survive without a parallel
+  // import patch ("一次修改，一直有效"); only the critical + known fields
+  // below are validated and override the raw values.
+  const item: Item = { ...(raw as Item) }
+  item.id =
     typeof obj.id === "string" && obj.id.length > 0
       ? obj.id
       : crypto.randomUUID()
-
-  const createdAt =
+  item.type = obj.type as ItemType
+  item.content = obj.content
+  item.createdAt =
     typeof obj.createdAt === "number" && obj.createdAt > 0
       ? obj.createdAt
       : Date.now()
-
-  const item: Item = {
-    id,
-    type: obj.type as ItemType,
-    content: obj.content,
-    source: source
-      ? {
-          title: typeof source.title === "string" ? source.title : "",
-          url: source.url as string,
-          site: typeof source.site === "string" ? source.site : undefined
-        }
-      : undefined,
-    createdAt,
-    context:
-      obj.context && typeof obj.context === "object"
-        ? (obj.context as Item["context"])
-        : undefined,
-    projectId:
-      typeof obj.projectId === "string" && obj.projectId.length > 0
-        ? obj.projectId
-        : undefined
-  }
-
-  if (typeof obj.hash === "string" && obj.hash.length === 64) {
-    item.hash = obj.hash
-  }
-
-  if (typeof obj.title === "string" && obj.title.length > 0) {
-    item.title = obj.title
-  }
-
-  if (typeof obj.read === "boolean") {
-    item.read = obj.read
-  }
-
-  if (typeof obj.order === "number") {
-    item.order = obj.order
-  }
-
-  if (typeof obj.updatedAt === "number" && obj.updatedAt > 0) {
-    item.updatedAt = obj.updatedAt
-  }
-
-  if (
+  item.source = source
+    ? {
+        title: typeof source.title === "string" ? source.title : "",
+        url: source.url as string,
+        site: typeof source.site === "string" ? source.site : undefined
+      }
+    : undefined
+  item.projectId =
+    typeof obj.projectId === "string" && obj.projectId.length > 0
+      ? obj.projectId
+      : undefined
+  item.hash =
+    typeof obj.hash === "string" && obj.hash.length === 64
+      ? obj.hash
+      : undefined
+  item.title =
+    typeof obj.title === "string" && obj.title.length > 0
+      ? obj.title
+      : undefined
+  item.read = typeof obj.read === "boolean" ? obj.read : undefined
+  item.order = typeof obj.order === "number" ? obj.order : undefined
+  item.updatedAt =
+    typeof obj.updatedAt === "number" && obj.updatedAt > 0
+      ? obj.updatedAt
+      : undefined
+  item.images =
     Array.isArray(obj.images) &&
     obj.images.every((v) => typeof v === "string" && v.length > 0)
-  ) {
-    item.images = obj.images as string[]
-  }
-
-  if (typeof obj.sectionId === "string" && obj.sectionId.length > 0) {
-    item.sectionId = obj.sectionId
-  }
-
-  if (
-    typeof obj.dueDate === "string" &&
-    /^\d{4}-\d{2}-\d{2}$/.test(obj.dueDate)
-  ) {
-    item.dueDate = obj.dueDate
-  }
+      ? (obj.images as string[])
+      : undefined
+  item.sectionId =
+    typeof obj.sectionId === "string" && obj.sectionId.length > 0
+      ? obj.sectionId
+      : undefined
+  item.dueDate =
+    typeof obj.dueDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(obj.dueDate)
+      ? obj.dueDate
+      : undefined
 
   return { item }
 }
@@ -127,50 +110,50 @@ function validateReview(raw: unknown): ReviewEntry | null {
   if (typeof obj.itemId !== "string" || obj.itemId.length === 0) return null
   const srs = obj.srs as Record<string, unknown> | undefined
   if (!srs || typeof srs !== "object") return null
-  return {
-    id:
-      typeof obj.id === "string" && obj.id.length > 0
-        ? obj.id
-        : crypto.randomUUID(),
-    itemId: obj.itemId,
-    projectId: typeof obj.projectId === "string" ? obj.projectId : "",
-    status: obj.status === "mastered" ? "mastered" : "active",
-    dueDate: typeof obj.dueDate === "number" ? obj.dueDate : Date.now(),
-    addedAt: typeof obj.addedAt === "number" ? obj.addedAt : Date.now(),
-    srs: {
-      dueDate: typeof srs.dueDate === "number" ? srs.dueDate : Date.now(),
-      interval: typeof srs.interval === "number" ? srs.interval : 0,
-      easeFactor:
-        typeof srs.easeFactor === "number" ? srs.easeFactor : 2.5,
-      reviewCount: typeof srs.reviewCount === "number" ? srs.reviewCount : 0,
-      lastReviewDate:
-        typeof srs.lastReviewDate === "number" ? srs.lastReviewDate : 0,
-      reviewHistory: Array.isArray(srs.reviewHistory)
-        ? (srs.reviewHistory as ReviewEntry["srs"]["reviewHistory"])
-        : undefined
-    }
+  const review: ReviewEntry = { ...(raw as ReviewEntry) }
+  review.id =
+    typeof obj.id === "string" && obj.id.length > 0
+      ? obj.id
+      : crypto.randomUUID()
+  review.itemId = obj.itemId
+  review.projectId = typeof obj.projectId === "string" ? obj.projectId : ""
+  review.status = obj.status === "mastered" ? "mastered" : "active"
+  review.dueDate = typeof obj.dueDate === "number" ? obj.dueDate : Date.now()
+  review.addedAt = typeof obj.addedAt === "number" ? obj.addedAt : Date.now()
+  review.srs = {
+    ...(srs as unknown as ReviewEntry["srs"]),
+    dueDate: typeof srs.dueDate === "number" ? srs.dueDate : Date.now(),
+    interval: typeof srs.interval === "number" ? srs.interval : 0,
+    easeFactor: typeof srs.easeFactor === "number" ? srs.easeFactor : 2.5,
+    reviewCount: typeof srs.reviewCount === "number" ? srs.reviewCount : 0,
+    lastReviewDate:
+      typeof srs.lastReviewDate === "number" ? srs.lastReviewDate : 0,
+    reviewHistory: Array.isArray(srs.reviewHistory)
+      ? (srs.reviewHistory as ReviewEntry["srs"]["reviewHistory"])
+      : undefined
   }
+  return review
 }
 
 function validateProject(raw: unknown): Project | null {
   if (!raw || typeof raw !== "object") return null
   const obj = raw as Record<string, unknown>
   if (typeof obj.name !== "string" || obj.name.length === 0) return null
-  const project: Project = {
-    id:
-      typeof obj.id === "string" && obj.id.length > 0
-        ? obj.id
-        : crypto.randomUUID(),
-    name: obj.name,
-    createdAt:
-      typeof obj.createdAt === "number" && obj.createdAt > 0
-        ? obj.createdAt
-        : Date.now(),
-    note: typeof obj.note === "string" ? obj.note : undefined
-  }
-  if (typeof obj.lastOpened === "number" && obj.lastOpened > 0) {
-    project.lastOpened = obj.lastOpened
-  }
+  const project: Project = { ...(raw as Project) }
+  project.id =
+    typeof obj.id === "string" && obj.id.length > 0
+      ? obj.id
+      : crypto.randomUUID()
+  project.name = obj.name
+  project.createdAt =
+    typeof obj.createdAt === "number" && obj.createdAt > 0
+      ? obj.createdAt
+      : Date.now()
+  project.note = typeof obj.note === "string" ? obj.note : undefined
+  project.lastOpened =
+    typeof obj.lastOpened === "number" && obj.lastOpened > 0
+      ? obj.lastOpened
+      : undefined
   if (Array.isArray(obj.sections) && obj.sections.length > 0) {
     const sections: Section[] = []
     for (const s of obj.sections) {
@@ -191,7 +174,7 @@ function validateProject(raw: unknown): Project | null {
         })
       }
     }
-    if (sections.length > 0) project.sections = sections
+    project.sections = sections.length > 0 ? sections : undefined
   }
   return project
 }
