@@ -462,6 +462,20 @@ describe("database", () => {
       expect(due).toHaveLength(1)
       expect(due[0].itemId).toBe("item4")
     })
+
+    it("rateSrs gives differentiated first-review intervals (B1)", () => {
+      const fresh = () => ({
+        dueDate: Date.now(),
+        interval: 0,
+        easeFactor: 2.5,
+        reviewCount: 0,
+        lastReviewDate: 0
+      })
+      expect(rateSrs(fresh(), 3).interval).toBe(1)
+      expect(rateSrs(fresh(), 4).interval).toBe(4)
+      // 重来 resets interval to 1 → a later 4 compounds from there (3 days).
+      expect(rateSrs(rateSrs(fresh(), 1), 4).interval).toBe(3)
+    })
   })
 
   describe("bulkReplace", () => {

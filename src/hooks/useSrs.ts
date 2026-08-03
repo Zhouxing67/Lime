@@ -16,13 +16,21 @@ export function rateSrs(srs: SrsData, rating: 1 | 2 | 3 | 4): SrsData {
   let { interval, easeFactor, reviewCount } = srs
   reviewCount++
 
+  // First review (interval 0) needs a fixed baseline: multiplying 0 by EF
+  // would always clamp to 1 day, making "简单" identical to "良好" on the
+  // very first rating. Give 良好 a 1-day and 简单 a 4-day first interval
+  // (Anki-style), then compound as usual from the second review.
+  const firstReview = interval === 0
+
   if (rating < 3) {
     interval = 1
     easeFactor = Math.max(1.3, easeFactor - 0.2)
   } else if (rating === 3) {
-    interval = Math.max(1, interval * easeFactor)
+    interval = firstReview ? 1 : Math.max(1, interval * easeFactor)
   } else {
-    interval = Math.max(1, interval * easeFactor * 1.3)
+    interval = firstReview
+      ? 4
+      : Math.max(1, interval * easeFactor * 1.3)
     easeFactor += 0.15
   }
 
