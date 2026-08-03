@@ -69,7 +69,7 @@ export interface PanelData {
 }
 
 // ---- ErrorBoundary ----
-class PanelErrorBoundary extends React.Component<
+export class PanelErrorBoundary extends React.Component<
   { children: React.ReactNode },
   { hasError: boolean }
 > {
@@ -133,6 +133,23 @@ const IconPlus = () => (
   </svg>
 )
 
+const IconSidebar = () => (
+  <svg
+    viewBox="0 0 24 24"
+    style={{ display: "block", width: 16, height: 16, fill: "currentColor" }}>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4V4z" />
+  </svg>
+)
+
+const IconBack = () => (
+  <svg
+    viewBox="0 0 24 24"
+    style={{ display: "block", width: 16, height: 16, fill: "currentColor" }}>
+    <path d="M15.41 16.59 10.83 12l4.58-4.59L14 6l-6 6 6 6z" />
+  </svg>
+)
+
 const PANEL_CSS = `
 @keyframes limePanelIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 [data-lime-panel] { animation: limePanelIn 0.18s ease-out; }
@@ -177,21 +194,36 @@ export function FloatingPanel({
   data,
   pinned,
   position,
+  restorePosition,
   projects,
   selectedProjectId,
+  title,
+  setTitle,
+  content,
+  setContent,
+  imageDraft,
+  setImageDraft,
   onClose,
   onSaved,
   onPinChange,
   onPositionChange,
   onProjectsChange,
   onSelectedProjectChange,
-  onDirtyChange
+  onDirtyChange,
+  onOpenSidebar
 }: {
   data: PanelData
   pinned: boolean
   position: PanelPosition
+  restorePosition?: boolean
   projects: Project[]
   selectedProjectId: string
+  title: string
+  setTitle: (v: string) => void
+  content: string
+  setContent: React.Dispatch<React.SetStateAction<string>>
+  imageDraft: string
+  setImageDraft: (v: string) => void
   onClose: () => void
   onSaved: () => void
   onPinChange: (pinned: boolean) => void
@@ -199,15 +231,24 @@ export function FloatingPanel({
   onProjectsChange: (projects: Project[]) => void
   onSelectedProjectChange: (id: string) => void
   onDirtyChange?: (isDirty: boolean) => void
+  onOpenSidebar: () => void
 }) {
   return (
     <PanelErrorBoundary>
       <FloatingPanelContent
+        variant="float"
         data={data}
         pinned={pinned}
         position={position}
+        restorePosition={restorePosition}
         projects={projects}
         selectedProjectId={selectedProjectId}
+        title={title}
+        setTitle={setTitle}
+        content={content}
+        setContent={setContent}
+        imageDraft={imageDraft}
+        setImageDraft={setImageDraft}
         onClose={onClose}
         onSaved={onSaved}
         onPinChange={onPinChange}
@@ -215,30 +256,53 @@ export function FloatingPanel({
         onProjectsChange={onProjectsChange}
         onSelectedProjectChange={onSelectedProjectChange}
         onDirtyChange={onDirtyChange}
+        onOpenSidebar={onOpenSidebar}
       />
     </PanelErrorBoundary>
   )
 }
 
-function FloatingPanelContent({
+export function FloatingPanelContent({
   data,
+  variant = "float",
+  width = 360,
+  onWidthChange,
   pinned,
   position,
+  restorePosition,
   projects,
   selectedProjectId,
+  title,
+  setTitle,
+  content,
+  setContent,
+  imageDraft,
+  setImageDraft,
   onClose,
   onSaved,
   onPinChange,
   onPositionChange,
   onProjectsChange,
   onSelectedProjectChange,
-  onDirtyChange
+  onDirtyChange,
+  onOpenSidebar,
+  onBackToPanel
 }: {
   data: PanelData
+  variant?: "float" | "sidebar"
+  width?: number
+  onWidthChange?: (w: number) => void
   pinned: boolean
   position: PanelPosition
+  restorePosition?: boolean
   projects: Project[]
   selectedProjectId: string
+  title: string
+  setTitle: (v: string) => void
+  content: string
+  setContent: React.Dispatch<React.SetStateAction<string>>
+  imageDraft: string
+  setImageDraft: (v: string) => void
   onClose: () => void
   onSaved: () => void
   onPinChange: (pinned: boolean) => void
@@ -246,10 +310,9 @@ function FloatingPanelContent({
   onProjectsChange: (projects: Project[]) => void
   onSelectedProjectChange: (id: string) => void
   onDirtyChange?: (isDirty: boolean) => void
+  onOpenSidebar?: () => void
+  onBackToPanel?: () => void
 }) {
-  const [title, setTitle] = useState("")
-  const [content, setContent] = useState(data.text)
-  const [imageDraft, setImageDraft] = useState("")
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [creating, setCreating] = useState(false)
@@ -298,11 +361,9 @@ function FloatingPanelContent({
 
   // Sync content from new selection
   useEffect(() => {
-    setContent(data.text)
     setSaving(false)
     setSaved(false)
     setError("")
-    setImageDraft("")
   }, [data.text])
 
   // Load projects
@@ -329,6 +390,7 @@ function FloatingPanelContent({
 
   // Resize clamp
   useEffect(() => {
+    if (variant !== "float") return
     const onResize = () => {
       if (!ref.current || !ref.current.isConnected) return
       const r = ref.current.getBoundingClientRect()
@@ -363,7 +425,7 @@ function FloatingPanelContent({
 
   useEffect(() => {
     const el = ref.current
-    if (!el) return
+    if (!el || variant !== "float") return
     let dragging = false
     const mv = (e: PointerEvent) => {
       const d = dragRef.current
@@ -391,19 +453,28 @@ function FloatingPanelContent({
   }, [onPositionChange])
 
   // Position: if pinned, restore persisted position; otherwise position near selection
+  const restoredOnceRef = useRef(false)
   useEffect(() => {
     const el = ref.current
-    if (!el) return
+    if (!el || variant !== "float") return
     if (pinned) {
       el.style.left = `${position.left}px`
       el.style.top = `${position.top}px`
       wasPinnedRef.current = true
       return
     }
-    // Just unpinned: keep current position until the user selects new text or closes the panel
     if (wasPinnedRef.current) {
       wasPinnedRef.current = false
       return
+    }
+    // Re-opening after a surface switch — keep the last position (once).
+    if (restorePosition && !restoredOnceRef.current) {
+      restoredOnceRef.current = true
+      if (position.left > 0 || position.top > 0) {
+        el.style.left = `${position.left}px`
+        el.style.top = `${position.top}px`
+        return
+      }
     }
     const pw = 320,
       ph = el.offsetHeight || 340
@@ -417,7 +488,7 @@ function FloatingPanelContent({
     el.style.left = `${l}px`
     el.style.top = `${t}px`
     onPositionChange({ left: l, top: t })
-  }, [data.rect, pinned, position, onPositionChange])
+  }, [data.rect, pinned, position, restorePosition, variant, onPositionChange])
 
   const save = useCallback(async () => {
     if (!content.trim()) return
@@ -501,6 +572,31 @@ function FloatingPanelContent({
     setContent((prev) => removeMarkdownImage(prev, url))
   }, [])
 
+  // Sidebar width drag (left edge of the right-fixed sidebar).
+  const resizeRef = useRef<{ startX: number; startW: number } | null>(null)
+  const startSidebarResize = useCallback(
+    (e: React.PointerEvent) => {
+      if (variant !== "sidebar") return
+      e.preventDefault()
+      resizeRef.current = { startX: e.clientX, startW: width }
+      const mv = (ev: PointerEvent) => {
+        const d = resizeRef.current
+        if (!d) return
+        onWidthChange?.(
+          Math.max(300, Math.min(520, d.startW - (ev.clientX - d.startX)))
+        )
+      }
+      const up = () => {
+        resizeRef.current = null
+        document.removeEventListener("pointermove", mv)
+        document.removeEventListener("pointerup", up)
+      }
+      document.addEventListener("pointermove", mv)
+      document.addEventListener("pointerup", up)
+    },
+    [variant, width, onWidthChange]
+  )
+
   return (
     <div
       ref={ref}
@@ -508,21 +604,47 @@ function FloatingPanelContent({
       style={{
         position: "fixed",
         zIndex: 2147483646,
-        width: 320,
         overflow: "hidden",
-        display: "block",
+        display: "flex",
+        flexDirection: "column",
         background: colors.bgPaper,
-        borderRadius: 10,
-        boxShadow: colors.shadow,
+        borderRadius: variant === "float" ? 10 : 0,
         fontFamily: SANS_FONT,
         fontSize: 13,
         color: colors.textPrimary,
         boxSizing: "border-box",
+        ...(variant === "float"
+          ? { width: 320, boxShadow: colors.shadow }
+          : {
+              right: 0,
+              top: 0,
+              bottom: 0,
+              width,
+              boxShadow: "none",
+              borderLeft: `1px solid ${colors.divider}`
+            }),
         "--lime-primary": colors.primary,
         "--lime-bg-hover": colors.bgHover,
         "--lime-text-secondary": colors.textSecondary
-      } as React.CSSProperties}>
+      } as unknown as React.CSSProperties}>
       <style>{PANEL_CSS}</style>
+
+      {/* Sidebar width handle (left edge) */}
+      {variant === "sidebar" && (
+        <span
+          onPointerDown={startSidebarResize}
+          style={{
+            position: "absolute",
+            left: 0,
+            top: 0,
+            bottom: 0,
+            width: 4,
+            cursor: "col-resize",
+            zIndex: 1,
+            touchAction: "none"
+          }}
+        />
+      )}
 
       {/* Header: panel description + operations only */}
       <div
@@ -532,22 +654,25 @@ function FloatingPanelContent({
           gap: 8,
           padding: "8px 10px",
           minHeight: 40,
+          flexShrink: 0,
           borderBottom: `1px solid ${colors.divider}`
         }}>
-        <span
-          ref={handleRef}
-          onPointerDown={pd}
-          title={pinned ? "拖拽移动" : "拖拽以固定位置"}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            cursor: "grab",
-            padding: "0 4px",
-            marginLeft: -4,
-            color: colors.textSecondary
-          }}>
-          <IconGrip />
-        </span>
+        {variant === "float" && (
+          <span
+            ref={handleRef}
+            onPointerDown={pd}
+            title={pinned ? "拖拽移动" : "拖拽以固定位置"}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              cursor: "grab",
+              padding: "0 4px",
+              marginLeft: -4,
+              color: colors.textSecondary
+            }}>
+            <IconGrip />
+          </span>
+        )}
         <span
           style={{
             fontWeight: 600,
@@ -561,14 +686,35 @@ function FloatingPanelContent({
         </span>
         <span style={{ flex: 1 }} />
         <span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
-          <button
-            type="button"
-            className="lime-icon-btn"
-            style={iconBtn}
-            onClick={togglePin}
-            title={pinned ? "取消固定" : "固定面板"}>
-            <IconPushPin rotated={pinned} />
-          </button>
+          {variant === "float" ? (
+            <>
+              <button
+                type="button"
+                className="lime-icon-btn"
+                style={iconBtn}
+                onClick={onOpenSidebar}
+                title="移入右侧栏">
+                <IconSidebar />
+              </button>
+              <button
+                type="button"
+                className="lime-icon-btn"
+                style={iconBtn}
+                onClick={togglePin}
+                title={pinned ? "取消固定" : "固定面板"}>
+                <IconPushPin rotated={pinned} />
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="lime-icon-btn"
+              style={iconBtn}
+              onClick={onBackToPanel}
+              title="回到浮动面板">
+              <IconBack />
+            </button>
+          )}
           <button
             type="button"
             className="lime-icon-btn"
@@ -810,7 +956,8 @@ function FloatingPanelContent({
           gap: 6,
           padding: "8px 12px 10px",
           background: colors.bgDefault,
-          borderTop: `1px solid ${colors.divider}`
+          borderTop: `1px solid ${colors.divider}`,
+          marginTop: "auto"
         }}>
         {error && (
           <span

@@ -1,6 +1,7 @@
 import type { PlasmoCSConfig } from "plasmo"
 import { useCallback, useEffect, useRef, useState } from "react"
 
+import CaptureSidebar from "../components/CaptureSidebar"
 import FloatingPanel from "../components/FloatingPanel"
 import type { PanelData, PanelPosition } from "../components/FloatingPanel"
 import type { Project } from "../types"
@@ -24,17 +25,23 @@ export default function LimePanel() {
   const [projects, setProjects] = useState<Project[]>([])
   const [selectedProjectId, setSelectedProjectId] = useState("")
   const [position, setPosition] = useState<PanelPosition>({ left: 0, top: 0 })
+  // Which capture surface is active (switch model — never both).
+  const [surface, setSurface] = useState<"panel" | "sidebar">("panel")
+  const [restorePanel, setRestorePanel] = useState(false)
+  const [sidebarWidth, setSidebarWidth] = useState(360)
+  // Lifted draft shared by both surfaces.
+  const [title, setTitle] = useState("")
+  const [content, setContent] = useState("")
+  const [imageDraft, setImageDraft] = useState("")
   const prevSelectionRef = useRef("")
   const pinnedRef = useRef(pinned)
-  const positionRef = useRef(position)
   const dirtyRef = useRef(false)
+  // Remember which surface was last dismissed so the next Alt+L reopens it.
+  const lastClosedRef = useRef<"panel" | "sidebar">("panel")
 
   useEffect(() => {
     pinnedRef.current = pinned
   }, [pinned])
-  useEffect(() => {
-    positionRef.current = position
-  }, [position])
 
   // The panel reports whether it holds a draft; while it does, new Alt+L
   // selections are ignored so they can't overwrite the in-progress capture.
@@ -49,19 +56,37 @@ export default function LimePanel() {
       if (open && dirtyRef.current) return
       prevSelectionRef.current = text
       setData({ text, rect })
+      setTitle("")
+      setContent(text)
+      setImageDraft("")
+      setRestorePanel(false)
+      setSurface(lastClosedRef.current)
       setOpen(true)
     },
     [open]
   )
 
   const hide = useCallback(() => {
+    lastClosedRef.current = surface
     dirtyRef.current = false
     prevSelectionRef.current = ""
+    setTitle("")
+    setContent("")
+    setImageDraft("")
     setOpen(false)
-  }, [])
+  }, [surface])
 
   const onPinChange = useCallback((next: boolean) => {
     setPinned(next)
+  }, [])
+
+  const switchToSidebar = useCallback(() => {
+    setSurface("sidebar")
+  }, [])
+
+  const switchToPanel = useCallback(() => {
+    setRestorePanel(true)
+    setSurface("panel")
   }, [])
 
   useEffect(() => {
@@ -71,8 +96,8 @@ export default function LimePanel() {
         return el.closest?.("[data-lime-panel]") != null
       })
       if (insidePanel) return
-      // 面板只在按下 Alt+L 时出现，点击面板外关闭（钉住时保持）
-      if (!pinnedRef.current) hide()
+      // 浮动面板点击外部关闭（钉住时保持）；侧栏只在 ✕/Escape 关闭
+      if (surface === "panel" && !pinnedRef.current) hide()
     }
 
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -116,7 +141,7 @@ export default function LimePanel() {
       document.removeEventListener("mouseup", handleMouseUp)
       document.removeEventListener("keydown", handleKeyDown)
     }
-  }, [show, hide])
+  }, [show, hide, surface])
 
   // Reload content script on extension update
   useEffect(() => {
@@ -162,20 +187,39 @@ export default function LimePanel() {
 
   if (!open || !data) return null
 
-  return (
+  const sharedProps = {
+    data,
+    projects,
+    selectedProjectId,
+    title,
+    setTitle,
+    content,
+    setContent,
+    imageDraft,
+    setImageDraft,
+    onClose: hide,
+    onSaved: hide,
+    onProjectsChange: setProjects,
+    onSelectedProjectChange: setSelectedProjectId,
+    onDirtyChange
+  }
+
+  return surface === "panel" ? (
     <FloatingPanel
-      data={data}
+      {...sharedProps}
       pinned={pinned}
       position={position}
-      projects={projects}
-      selectedProjectId={selectedProjectId}
-      onClose={hide}
-      onSaved={hide}
+      restorePosition={restorePanel}
       onPinChange={onPinChange}
       onPositionChange={setPosition}
-      onProjectsChange={setProjects}
-      onSelectedProjectChange={setSelectedProjectId}
-      onDirtyChange={onDirtyChange}
+      onOpenSidebar={switchToSidebar}
+    />
+  ) : (
+    <CaptureSidebar
+      {...sharedProps}
+      width={sidebarWidth}
+      onWidthChange={setSidebarWidth}
+      onBackToPanel={switchToPanel}
     />
   )
 }
