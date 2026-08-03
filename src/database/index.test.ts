@@ -9,6 +9,10 @@ import type {
 } from "../types"
 import {
   addAnnotation,
+  createTextAnnotationCard,
+  deleteAnnotationWithCard,
+  deletePdfCard,
+  getItemsByPdf,
   addItem,
   addPdf,
   addProject,
@@ -744,5 +748,57 @@ describe("pdf stores", () => {
     await deleteAnnotation("a1")
     expect(await getAnnotation("a1")).toBeUndefined()
     expect(await getAnnotationsByPdf("pdf-1")).toHaveLength(1)
+  })
+})
+
+describe("pdf annotations ↔ cards", () => {
+  it("creates a text annotation + card atomically, links them 1:1", async () => {
+    const { card, annotation } = await createTextAnnotationCard({
+      pdfId: "pdf-a",
+      page: 3,
+      type: "highlight",
+      text: "关键段落",
+      startOffset: 10,
+      endOffset: 20,
+      title: "摘要"
+    })
+    expect(card.pdfRef?.annotationId).toBe(annotation.id)
+    expect(card.pdfRef?.page).toBe(3)
+    expect(annotation.itemId).toBe(card.id)
+    expect(annotation.kind).toBe("text")
+    expect(annotation.text).toBe("关键段落")
+
+    const items = await getItemsByPdf("pdf-a")
+    expect(items).toHaveLength(1)
+    expect(items[0].id).toBe(card.id)
+    expect(await getItemsByPdf("pdf-other")).toHaveLength(0)
+  })
+
+  it("deletes annotation + card together (both directions)", async () => {
+    const { card, annotation } = await createTextAnnotationCard({
+      pdfId: "pdf-b",
+      page: 1,
+      type: "underline",
+      text: "x",
+      startOffset: 0,
+      endOffset: 1
+    })
+    // delete via annotation
+    await deleteAnnotationWithCard(annotation.id)
+    expect(await getItemsByPdf("pdf-b")).toHaveLength(0)
+    expect(await getAnnotation(annotation.id)).toBeUndefined()
+
+    // delete via card
+    const { card: c2, annotation: a2 } = await createTextAnnotationCard({
+      pdfId: "pdf-c",
+      page: 1,
+      type: "highlight",
+      text: "y",
+      startOffset: 0,
+      endOffset: 1
+    })
+    await deletePdfCard(c2)
+    expect(await getItemsByPdf("pdf-c")).toHaveLength(0)
+    expect(await getAnnotation(a2.id)).toBeUndefined()
   })
 })

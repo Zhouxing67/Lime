@@ -274,6 +274,7 @@ export function createItem(data: {
   sectionId?: string
   images?: string[]
   dueDate?: string
+  pdfRef?: { pdfId: string; page: number; annotationId: string }
 }): Item {
   return {
     id: crypto.randomUUID(),
@@ -285,7 +286,8 @@ export function createItem(data: {
     projectId: data.projectId,
     ...(data.sectionId ? { sectionId: data.sectionId } : {}),
     ...(data.images && data.images.length > 0 ? { images: data.images } : {}),
-    ...(data.dueDate ? { dueDate: data.dueDate } : {})
+    ...(data.dueDate ? { dueDate: data.dueDate } : {}),
+    ...(data.pdfRef ? { pdfRef: data.pdfRef } : {})
   }
 }
 

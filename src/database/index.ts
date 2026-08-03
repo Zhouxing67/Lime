@@ -1,5 +1,6 @@
 import type {
   Item,
+  PdfMark,
   PdfAnnotation,
   PdfFile,
   Project,
@@ -7,7 +8,7 @@ import type {
   SearchQuery,
   SrsData
 } from "../types"
-import { computeItemHash } from "../utils"
+import { computeItemHash, createItem } from "../utils"
 
 const DB_NAME = "pickquote-db"
 const DB_VERSION = 9
@@ -931,4 +932,115 @@ export async function deleteAnnotation(id: string): Promise<void> {
       req.onerror = () => reject(req.error)
     })
   })
+}
+
+// ---- PDF annotations ↔ cards (P2) ----
+
+/** All cards belonging to a PDF (via pdfRef.pdfId), unsorted. */
+export async function getItemsByPdf(pdfId: string): Promise<Item[]> {
+  return withStore("items", "readonly", (store) => {
+    return new Promise((resolve, reject) => {
+      const results: Item[] = []
+      const req = store.openCursor()
+      req.onsuccess = () => {
+        const cursor = req.result
+        if (cursor) {
+          const item = cursor.value as Item
+          if (item.pdfRef?.pdfId === pdfId) results.push(item)
+          cursor.continue()
+        } else {
+          resolve(results)
+        }
+      }
+      req.onerror = () => reject(req.error)
+    })
+  })
+}
+
+/** Create a text annotation + its auto-captured card in ONE transaction. */
+export async function createTextAnnotationCard(input: {
+  pdfId: string
+  page: number
+  type: Exclude<PdfMark, "frame">
+  text: string
+  startOffset: number
+  endOffset: number
+  title?: string
+}): Promise<{ card: Item; annotation: PdfAnnotation }> {
+  const annotation: PdfAnnotation = {
+    id: crypto.randomUUID(),
+    pdfId: input.pdfId,
+    page: input.page,
+    kind: "text",
+    type: input.type,
+    startOffset: input.startOffset,
+    endOffset: input.endOffset,
+    text: input.text,
+    createdAt: Date.now()
+  }
+  const card = createItem({
+    type: "text",
+    title: input.title,
+    content: input.text,
+    pdfRef: {
+      pdfId: input.pdfId,
+      page: input.page,
+      annotationId: annotation.id
+    }
+  })
+  annotation.itemId = card.id
+  await tx(
+    { items: "readwrite", pdfAnnotations: "readwrite" },
+    async (stores) => {
+      await new Promise<void>((resolve, reject) => {
+        const r1 = stores.items.put(card)
+        r1.onsuccess = () => {
+          const r2 = stores.pdfAnnotations.put(annotation)
+          r2.onsuccess = () => resolve()
+          r2.onerror = () => reject(r2.error)
+        }
+        r1.onerror = () => reject(r1.error)
+      })
+    }
+  )
+  return { card, annotation }
+}
+
+/** Delete an annotation + its linked card together (1:1 coupling). */
+export async function deleteAnnotationWithCard(
+  annotationId: string
+): Promise<void> {
+  await tx(
+    { items: "readwrite", pdfAnnotations: "readwrite" },
+    async (stores) => {
+      const ann = await new Promise<PdfAnnotation | undefined>((resolve, reject) => {
+        const r = stores.pdfAnnotations.get(annotationId)
+        r.onsuccess = () => resolve(r.result as PdfAnnotation | undefined)
+        r.onerror = () => reject(r.error)
+      })
+      await new Promise<void>((resolve, reject) => {
+        if (ann?.itemId) stores.items.delete(ann.itemId)
+        const r = stores.pdfAnnotations.delete(annotationId)
+        r.onsuccess = () => resolve()
+        r.onerror = () => reject(r.error)
+      })
+    }
+  )
+}
+
+/** Delete a card + its linked annotation (the reverse of the above). */
+export async function deletePdfCard(card: Item): Promise<void> {
+  await tx(
+    { items: "readwrite", pdfAnnotations: "readwrite" },
+    async (stores) => {
+      await new Promise<void>((resolve, reject) => {
+        if (card.pdfRef?.annotationId) {
+          stores.pdfAnnotations.delete(card.pdfRef.annotationId)
+        }
+        const r = stores.items.delete(card.id)
+        r.onsuccess = () => resolve()
+        r.onerror = () => reject(r.error)
+      })
+    }
+  )
 }
