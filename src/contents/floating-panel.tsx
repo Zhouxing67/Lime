@@ -5,6 +5,7 @@ import CaptureSidebar from "../components/CaptureSidebar"
 import FloatingPanel from "../components/FloatingPanel"
 import type { PanelData, PanelPosition } from "../components/FloatingPanel"
 import type { Project } from "../types"
+import { appendMarkdownImage } from "../utils"
 import {
   flashMath,
   imageFromCursor,
@@ -53,17 +54,22 @@ export default function LimePanel() {
 
   const appendToDraft = useCallback(
     (text: string, type: "text" | "image") => {
-      const token = type === "image" ? `![图片](${text})` : text
       if (captureType === "image") {
-        // An image-only draft appends a second capture → becomes a text card.
+        // An image-only draft (content = a raw URL) becomes a text card.
         setCaptureType("text")
-        setContent((prev) => `![图片](${prev.trim()})\n\n${token}`)
+        setContent((prev) => {
+          const first = `![图片](${prev.trim()})`
+          return type === "image"
+            ? appendMarkdownImage(first, text)
+            : `${first}\n\n${text}`
+        })
         return
       }
-      setContent((prev) => {
-        const trimmed = prev.trim()
-        return trimmed ? `${trimmed}\n\n${token}` : token
-      })
+      setContent((prev) =>
+        type === "image"
+          ? appendMarkdownImage(prev, text)
+          : `${prev.trimEnd()}\n\n${text}`.trimStart()
+      )
     },
     [captureType]
   )
@@ -145,11 +151,12 @@ export default function LimePanel() {
           return
         }
         // Mode B: no selection — capture the paragraph containing the formula
-        // under the cursor (text + all its formulas).
+        // under the cursor (text + all its formulas). No length floor: even a
+        // short standalone formula ($x$ = 3 chars) must be capturable.
         const hit = paragraphFromCursor()
         if (hit) {
           const { content, el } = hit
-          if (content.length >= 5 && content.length <= 8000) {
+          if (content.length <= 8000) {
             const rect = el.getBoundingClientRect()
             if (rect.width > 0 && rect.height > 0) {
               show(content, rect)
@@ -162,7 +169,7 @@ export default function LimePanel() {
         const hitImg = imageFromCursor()
         if (hitImg) {
           const { src, el } = hitImg
-          if (src.length >= 5 && src.length <= 8000) {
+          if (src.length <= 8000) {
             const rect = el.getBoundingClientRect()
             if (rect.width > 0 && rect.height > 0) {
               show(src, rect, "image")

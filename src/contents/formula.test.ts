@@ -106,4 +106,14 @@ describe("formula", () => {
     expect(text).toContain("$\\sum_i y_i$")
     expect(text).toContain("后文")
   })
+
+  it("keeps short standalone formulas ($x$) capturable", () => {
+    document.body.innerHTML = `
+      <p><span class="katex">
+        <span class="katex-mathml"><math><semantics><annotation encoding="application/x-tex">x</annotation></semantics></math></span>
+      </span></p>
+    `
+    const para = document.querySelector("p")!
+    expect(mathBlockText(para)).toBe("$x$")
+  })
 })
