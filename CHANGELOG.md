@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+## 2.5.0 — 公式捕获 + 捕获侧栏 + 移除右键菜单
+
+### 新增能力
+- **公式捕获**：悬停公式显示柔和高亮（设置可关）；Alt+L 无选区时按"光标命中公式 → 捕获整段（文本 + 段内所有 `$…$`/`$$…$$`）"；选区含公式时自动提取 LaTeX。支持 KaTeX（`.katex annotation`）、知乎 `.ztext-math[data-tex]`、MathJax/原生 MathML 尽力提取
+- **Markdown 渲染公式**：`$…$`/`$$…$$` 用 KaTeX 渲染（卡片/复习/导出）；行内公式保持在同一段落内
+- **捕获侧栏（右侧停靠）**：浮动面板顶栏 📑 切换到全高右侧栏（宽度可调、左缘拖宽）；切换式（面板/侧栏只存在一个）、草稿共享；记住上次关闭的表面，下次 Alt+L 打开它
+- **图片捕获**：Alt+L 光标悬停 `<img>` → 图片卡（预览 + 摘要 + 保存）
+- **Alt+L 追加**：面板打开且有草稿时，Alt+L 追加新捕获（文本/公式/图片）到草稿末尾——公式/图片无法复制粘贴，这是它们唯一的追加通道
+- **链接快速输入**：正文表单粘贴链接 URL → 以摘要为标签插入 `[摘要](url)` markdown（替代原"链接卡"类型）
+- **移除右键菜单**（保存图片/链接/文本迁入面板与 Alt+L）
+
+### 修复
+- 卡片插入位置：order 分配收敛到数据库层（`ensureItemOrder`），新建/合并/捕获统一生效；copy-to-project 丢弃源项目的 `sectionId`/`order`（修复"孤儿卡"）
+- 行内公式不再单独渲染成行（marked html token 方案）
+- 导入改为 spread + 关键字段校验（新字段无需并行补丁）；导出项目补 `lastOpened`
+- 短公式（`$x$`）可捕获；`[data-tex]` 误标高亮收窄
+
+### 重构
+- `FloatingPanel.tsx`（1110 行）拆分：PanelForm（表单业务）/ panelTheme（纯主题）/ panelIcons（图标）
+- 工厂收敛：`createItem`/`cloneItem`/`currentSourceMeta`（utils）、`createReviewEntry`（useSrs）
+- 感知层去重：`mathTextFromClone` 共享选区/段落提取
+
 ## 2.4.0 — Markdown 导出 + mastered 可重学 + 备份含复习
 
 ### 新增能力
