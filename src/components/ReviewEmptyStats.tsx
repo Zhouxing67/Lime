@@ -1,6 +1,6 @@
 import AutoGraphRoundedIcon from "@mui/icons-material/AutoGraphRounded"
 import SchoolRoundedIcon from "@mui/icons-material/SchoolRounded"
-import { Box, Button, Stack, Typography, useMediaQuery } from "@mui/material"
+import { Box, Stack, Typography, useMediaQuery } from "@mui/material"
 import { useTheme } from "@mui/material/styles"
 
 import { RATING_META } from "../utils"
@@ -10,7 +10,6 @@ interface ReviewEmptyStatsProps {
   activeCount: number
   todayRatings: [number, number, number]
   streakDays: number
-  onExit: () => void
 }
 
 function StatCard({
@@ -40,8 +39,7 @@ export default function ReviewEmptyStats({
   masteredCount,
   activeCount,
   todayRatings,
-  streakDays,
-  onExit
+  streakDays
 }: ReviewEmptyStatsProps) {
   const theme = useTheme()
   const isWide = useMediaQuery(theme.breakpoints.up("sm"))
@@ -50,7 +48,7 @@ export default function ReviewEmptyStats({
   const todayTotal = todayRatings.reduce((s, n) => s + n, 0)
 
   return (
-    <Box sx={{ maxWidth: 720, mx: "auto", mt: 8, px: 2 }}>
+    <Box sx={{ maxWidth: 720, mx: "auto", mt: 6, px: 2 }}>
       <Stack direction={isWide ? "row" : "column"} spacing={2} sx={{ mb: 2 }}>
         {/* Mastered ring card */}
         <StatCard sx={{ flex: isWide ? "0 0 240px" : "auto" }}>
@@ -196,14 +194,6 @@ export default function ReviewEmptyStats({
           )}
         </StatCard>
       </Stack>
-
-      <Button
-        variant="outlined"
-        fullWidth
-        onClick={onExit}
-        sx={{ borderRadius: 1, py: 1 }}>
-        退出复习
-      </Button>
     </Box>
   )
 }

@@ -1,5 +1,6 @@
 import CheckRoundedIcon from "@mui/icons-material/CheckRounded"
 import {
+  alpha,
   Box,
   Button,
   Divider,
@@ -205,7 +206,6 @@ export default function ReviewSession({
         activeCount={activeCount}
         todayRatings={todayRatings}
         streakDays={streakDays}
-        onExit={onExit}
       />
     )
   }
@@ -307,30 +307,52 @@ export default function ReviewSession({
           return (
             <Tooltip key={meta.label} title={`快捷键 ${i + 1}`}>
               <Button
-                variant="outlined"
                 fullWidth
                 onClick={(e) => {
                   e.stopPropagation()
                   onRate(rating)
                 }}
-                sx={{
+                sx={(t) => ({
+                  position: "relative",
+                  py: 1.4,
                   borderRadius: 1,
-                  borderColor: meta.color,
+                  border: "1px solid",
+                  borderColor: "divider",
+                  bgcolor: "background.paper",
+                  boxShadow: t.custom.cardShadow,
                   color: meta.color,
-                  fontSize: "0.78rem",
-                  py: 0.75,
+                  fontSize: "0.95rem",
+                  fontWeight: 600,
                   minWidth: 0,
                   "&:hover": {
-                    bgcolor: `${meta.color}14`,
+                    bgcolor: alpha(meta.color, 0.06),
                     borderColor: meta.color
                   }
-                }}>
+                })}>
+                <Box
+                  sx={{
+                    position: "absolute",
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: 3,
+                    borderTopLeftRadius: 1,
+                    borderBottomLeftRadius: 1,
+                    bgcolor: meta.color
+                  }}
+                />
+                {meta.label}
                 <Box
                   component="span"
-                  sx={{ mr: 0.5, opacity: 0.5, fontSize: "0.7rem" }}>
+                  sx={{
+                    position: "absolute",
+                    top: 4,
+                    right: 6,
+                    fontSize: "0.65rem",
+                    opacity: 0.35
+                  }}>
                   {i + 1}
                 </Box>
-                {meta.label}
               </Button>
             </Tooltip>
           )

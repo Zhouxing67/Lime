@@ -55,6 +55,45 @@ function legacyImages(item: Item): string[] {
   )
 }
 
+/** Shared "原文" section (label + quote block + images) used by both the full
+ *  and review-back views so the back card reads like the full card. */
+function OriginalBlock({ item }: { item: Item }) {
+  return (
+    <Box>
+      <Typography
+        variant="caption"
+        sx={{
+          color: "text.secondary",
+          fontSize: "0.75rem",
+          letterSpacing: "0.05em",
+          mb: 0.5,
+          display: "block"
+        }}>
+        原文
+      </Typography>
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        {(item.type === "text" && item.content) || item.type !== "text" ? (
+          item.type === "text" ? (
+            <Box
+              sx={{
+                pl: 2,
+                borderLeft: "4px solid",
+                borderLeftColor: "primary.main"
+              }}>
+              <MarkdownRenderer content={item.content} />
+            </Box>
+          ) : (
+            <ContentBlock item={item} />
+          )
+        ) : null}
+        {legacyImages(item).length > 0 && (
+          <ImageGallery images={legacyImages(item)} />
+        )}
+      </Box>
+    </Box>
+  )
+}
+
 function ImageGallery({ images }: { images: string[] }) {
   if (!images || images.length === 0) return null
 
@@ -398,56 +437,42 @@ export default function CardRenderer({
 
   if (mode === "back") {
     return (
-      <>
-        <Typography
-          variant="subtitle2"
-          sx={{
-            color: "text.disabled",
-            mb: 1,
-            fontSize: "0.75rem",
-            letterSpacing: "0.04em"
-          }}>
-          原文
-        </Typography>
-        <Box sx={{ mb: 2.5 }}>
-          {item.type === "text" ? (
+      <Box
+        sx={{
+          flex: 1,
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column"
+        }}>
+        <Box sx={{ marginTop: "auto", marginBottom: "auto", width: "100%" }}>
+          <OriginalBlock item={item} />
+          {item.source?.url && (
             <Box
               sx={{
-                pl: 2,
-                borderLeft: "4px solid",
-                borderLeftColor: "primary.main"
+                mt: 2.5,
+                pt: 2,
+                borderTop: "1px solid",
+                borderColor: "divider"
               }}>
-              <MarkdownRenderer content={item.content} />
+              <Typography
+                variant="body2"
+                component="a"
+                href={item.source.url}
+                target="_blank"
+                onClick={(e) => e.stopPropagation()}
+                sx={{
+                  color: "primary.main",
+                  textDecoration: "none",
+                  "&:hover": { textDecoration: "underline" },
+                  fontSize: "0.8rem",
+                  wordBreak: "break-word"
+                }}>
+                ↗ {item.source.title || prettyUrl(item.source.url)}
+              </Typography>
             </Box>
-          ) : (
-            <ContentBlock item={item} />
           )}
         </Box>
-        {legacyImages(item).length > 0 && (
-          <ImageGallery images={legacyImages(item)} />
-        )}
-        {item.source?.url && (
-          <Typography
-            variant="body2"
-            component="a"
-            href={item.source.url}
-            target="_blank"
-            onClick={(e) => e.stopPropagation()}
-            sx={{
-              color: "primary.main",
-              textDecoration: "none",
-              "&:hover": { textDecoration: "underline" },
-              fontSize: "0.8rem",
-              wordBreak: "break-word",
-              mt: "auto",
-              pt: 2,
-              borderTop: "1px solid",
-              borderColor: "divider"
-            }}>
-            ↗ {item.source.title || prettyUrl(item.source.url)}
-          </Typography>
-        )}
-      </>
+      </Box>
     )
   }
 
@@ -484,36 +509,7 @@ export default function CardRenderer({
         </Box>
       )}
       <Box>
-        <Typography
-          variant="caption"
-          sx={{
-            color: "text.secondary",
-            fontSize: "0.75rem",
-            letterSpacing: "0.05em",
-            mb: 0.5,
-            display: "block"
-          }}>
-          原文
-        </Typography>
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          {(item.type === "text" && item.content) || item.type !== "text" ? (
-            item.type === "text" ? (
-              <Box
-                sx={{
-                  pl: 2,
-                  borderLeft: "4px solid",
-                  borderLeftColor: "primary.main"
-                }}>
-                <MarkdownRenderer content={item.content} />
-              </Box>
-            ) : (
-              <ContentBlock item={item} />
-            )
-          ) : null}
-          {legacyImages(item).length > 0 && (
-            <ImageGallery images={legacyImages(item)} />
-          )}
-        </Box>
+        <OriginalBlock item={item} />
       </Box>
       <Box sx={{ mt: 2 }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
