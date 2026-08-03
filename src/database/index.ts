@@ -206,6 +206,44 @@ function safeHostname(url: string): string | undefined {
   }
 }
 
+/** Highest `order` in a section (未分类 = no sectionId), -1 when empty. */
+export async function getMaxOrderInSection(
+  sectionId: string | undefined
+): Promise<number> {
+  return withStore("items", "readonly", (store) => {
+    return new Promise<number>((resolve) => {
+      let max = -1
+      const req = store.openCursor()
+      req.onsuccess = () => {
+        const cursor = req.result
+        if (cursor) {
+          const it = cursor.value as Item
+          if (
+            (sectionId ? it.sectionId === sectionId : !it.sectionId) &&
+            typeof it.order === "number" &&
+            it.order > max
+          ) {
+            max = it.order
+          }
+          cursor.continue()
+        } else {
+          resolve(max)
+        }
+      }
+      req.onerror = () => resolve(-1)
+    })
+  })
+}
+
+/** Returns the item with a guaranteed `order` (section max + 1 when absent).
+ *  The single source for insert order — capture, new-card, merge, import all
+ *  rely on it so a fresh card never lands at the front of a reordered section. */
+export async function ensureItemOrder<T extends Item>(item: T): Promise<T> {
+  if (item.order !== undefined) return item
+  const max = await getMaxOrderInSection(item.sectionId)
+  return { ...item, order: max + 1 }
+}
+
 export async function addItem(
   item: Item,
   opts?: { skipDedup?: boolean }
@@ -222,12 +260,13 @@ export async function addItem(
         ? await computeItemHash(item.content, item.source.url, item.images)
         : await computeItemHash(item.content, "", item.images))
   }
+  const ready = await ensureItemOrder(normalized)
 
   return withStore("items", "readwrite", async (store) => {
     // Todos are intentionally unique even with identical/empty content.
     if (opts?.skipDedup) {
       await new Promise<void>((resolve, reject) => {
-        const req = store.put(normalized)
+        const req = store.put(ready)
         req.onsuccess = () => resolve()
         req.onerror = () => reject(req.error)
       })
@@ -235,18 +274,18 @@ export async function addItem(
     }
     const idx = store.index("hash")
     return new Promise<boolean>((resolve, reject) => {
-      const req = idx.openCursor(IDBKeyRange.only(normalized.hash))
+      const req = idx.openCursor(IDBKeyRange.only(ready.hash))
       req.onsuccess = () => {
         const cursor = req.result
         if (!cursor) {
-          store.put(normalized)
+          store.put(ready)
           resolve(true)
           return
         }
         const existing = cursor.value as Item
         if (
-          existing.projectId === normalized.projectId &&
-          existing.source?.url === normalized.source?.url
+          existing.projectId === ready.projectId &&
+          existing.source?.url === ready.source?.url
         ) {
           resolve(false)
         } else {

@@ -2,18 +2,15 @@ import { useCallback, useState } from "react"
 
 import { addItem } from "../database"
 import type { Item } from "../types"
-import { maxScopeOrder } from "../utils"
 
 export function useNewCard({
   activeProjectId,
   activeSectionId,
-  onSearch,
-  allItemsUnfiltered
+  onSearch
 }: {
   activeProjectId: string | null
   activeSectionId: string | null
   onSearch: (projectId?: string | null) => void
-  allItemsUnfiltered: Item[]
 }) {
   const [newCardOpen, setNewCardOpen] = useState(false)
   const [newCardTitle, setNewCardTitle] = useState("")
@@ -36,12 +33,9 @@ export function useNewCard({
       activeSectionId && activeSectionId !== "__unclassified__"
         ? activeSectionId
         : undefined
-    // Place the new card LAST in its section: order = max(existing) + 1.
-    // Cards sort by `order ?? 0` first, then createdAt — an explicit order is
-    // required so a fresh card (undefined order, ties at 0) doesn't jump to
-    // the front of a reordered section. The unfiltered item set keeps active
-    // search/date filters from hiding same-scope cards with higher orders.
-    const maxOrder = maxScopeOrder(allItemsUnfiltered, sectionId)
+    // Place the new card LAST in its section — addItem auto-assigns the
+    // section's max order + 1, so a fresh card never lands at the front of a
+    // reordered section.
     const item: Item = {
       id: crypto.randomUUID(),
       type: "text",
@@ -49,7 +43,6 @@ export function useNewCard({
       content,
       createdAt: Date.now(),
       projectId: activeProjectId,
-      order: maxOrder + 1,
       ...(sectionId ? { sectionId } : {})
     }
     await addItem(item)
@@ -57,14 +50,7 @@ export function useNewCard({
     setNewCardTitle("")
     setNewCardContent("")
     onSearch(activeProjectId)
-  }, [
-    newCardTitle,
-    newCardContent,
-    activeProjectId,
-    activeSectionId,
-    onSearch,
-    allItemsUnfiltered
-  ])
+  }, [newCardTitle, newCardContent, activeProjectId, activeSectionId, onSearch])
 
   return {
     newCardOpen,

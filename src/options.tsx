@@ -63,6 +63,7 @@ import {
   deleteItems,
   getAllReviews,
   getDueReviews,
+  ensureItemOrder,
   removeReview,
   searchItems,
   tx,
@@ -80,7 +81,7 @@ import { createAppTheme } from "./theme"
 import { buildProjectMarkdown, buildScopeData } from "./utils/export"
 import type { Item, MergeSeparator, PresetName, Project, SearchQuery, SrsData, TodoFilter } from "./types"
 import { sendMessage } from "./types/messages"
-import { DAY_MS, RATING_META, buildMergedContent, compareCards, dueStatus, isTodoComplete, maxScopeOrder, toggleMarkdownTask, todayLocalDate } from "./utils"
+import { DAY_MS, RATING_META, buildMergedContent, compareCards, dueStatus, isTodoComplete, toggleMarkdownTask, todayLocalDate } from "./utils"
 
 const MIN_DRAWER_WIDTH = 200
 const MAX_DRAWER_WIDTH = 500
@@ -391,8 +392,7 @@ export default function OptionsPage() {
   } = useNewCard({
     activeProjectId,
     activeSectionId,
-    onSearch,
-    allItemsUnfiltered
+    onSearch
   })
 
   const onDelete = (id: string) => {
@@ -493,11 +493,6 @@ export default function OptionsPage() {
     const mergedSectionId =
       sameSection && firstSectionId ? firstSectionId : undefined
 
-    // Place the merged card last in its scope (same rule as new cards).
-    // Use the unfiltered item set so active search/date filters don't hide
-    // same-scope cards with higher orders.
-    const mergedMaxOrder = maxScopeOrder(allItemsUnfiltered, mergedSectionId)
-
     const newItem: Item = {
       id: crypto.randomUUID(),
       type: "text",
@@ -505,15 +500,16 @@ export default function OptionsPage() {
       content: mergedContent,
       createdAt: Date.now(),
       projectId: activeProjectId,
-      order: mergedMaxOrder + 1,
       ...(allImages.length > 0 ? { images: allImages } : {}),
       ...(mergedSectionId ? { sectionId: mergedSectionId } : {})
     }
+    // Place the merged card last in its scope (addItem-level auto-order).
+    const readyItem = await ensureItemOrder(newItem)
 
     // Atomic transaction: insert new + delete originals + cleanup reviews
     await tx({ items: "readwrite", reviews: "readwrite" }, async (stores) => {
       await new Promise<void>((resolve, reject) => {
-        const req = stores.items.put(newItem)
+        const req = stores.items.put(readyItem)
         req.onsuccess = () => resolve()
         req.onerror = () => reject(req.error)
       })

@@ -8,6 +8,7 @@ import {
   deleteItem,
   deleteItems,
   deleteProject,
+  ensureItemOrder,
   getAllReviews,
   getDueReviews,
   getProjectByName,
@@ -135,6 +136,45 @@ describe("database", () => {
 
       const items = await searchItems({})
       expect(items).toHaveLength(1)
+    })
+  })
+
+  describe("ensureItemOrder", () => {
+    it("appends to the section's end and to the unclassified scope separately", async () => {
+      const mk = (
+        id: string,
+        content: string,
+        sectionId?: string,
+        order?: number
+      ): Item =>
+        createTestItem({
+          id,
+          content,
+          ...(sectionId ? { sectionId } : {}),
+          ...(order !== undefined ? { order } : {})
+        })
+      await addItem(mk("o1", "a", "s1", 0))
+      await addItem(mk("o2", "b", "s1", 2))
+      await addItem(mk("o3", "c", undefined, 5))
+
+      const placed = await ensureItemOrder(mk("o4", "d", "s1"))
+      expect(placed.order).toBe(3)
+      const placedUnc = await ensureItemOrder(mk("o5", "e"))
+      expect(placedUnc.order).toBe(6)
+      // Explicit order is respected.
+      const explicit = await ensureItemOrder(mk("o6", "f", "s1", 9))
+      expect(explicit.order).toBe(9)
+    })
+
+    it("addItem auto-assigns order to a card without one", async () => {
+      await addItem(createTestItem({ id: "ao1", content: "a", sectionId: "s1", order: 0 }))
+      const ok = await addItem(
+        createTestItem({ id: "ao2", content: "b", sectionId: "s1" })
+      )
+      expect(ok).toBe(true)
+      const items = await searchItems({})
+      const placed = items.find((i) => i.id === "ao2")
+      expect(placed?.order).toBe(1)
     })
   })
 

@@ -243,17 +243,6 @@ export function compareCards<T extends { order?: number; createdAt?: number }>(
   return (a.order ?? 0) - (b.order ?? 0) || (a.createdAt ?? 0) - (b.createdAt ?? 0)
 }
 
-/** Highest order currently in the given scope (sectionId or unclassified). */
-export function maxScopeOrder<T extends { order?: number; sectionId?: string }>(
-  items: T[],
-  sectionId: string | undefined
-): number {
-  return items.reduce((acc, i) => {
-    const inScope = sectionId ? i.sectionId === sectionId : !i.sectionId
-    return inScope ? Math.max(acc, i.order ?? -1) : acc
-  }, -1)
-}
-
 /**
  * Computes the insertion index for a dragged card relative to a target card
  * within the target section's ordered card list (dragged card excluded).

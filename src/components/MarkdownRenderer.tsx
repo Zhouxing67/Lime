@@ -47,6 +47,34 @@ interface MarkdownRendererProps {
 /** Split on `$$…$$` (display) and `$…$` (inline) math. */
 const MATH_RE = /(\$\$[^$]+\$\$|\$[^$\n]+\$)/g
 
+function encodeTex(tex: string): string {
+  return btoa(unescape(encodeURIComponent(tex)))
+}
+function decodeTex(b64: string): string {
+  return decodeURIComponent(escape(atob(b64)))
+}
+
+/** Replace math with a self-closing `<lime-math/>` placeholder that marked
+ *  parses as an inline html token — this keeps inline math INSIDE its
+ *  paragraph (segment-splitting previously broke paragraphs into lines).
+ *  Fenced code blocks are left untouched. */
+function encodeMath(content: string): string {
+  const parts = content.split(/(```[\s\S]*?```|~~~[\s\S]*?~~~)/g)
+  return parts
+    .map((part, i) =>
+      i % 2 === 1
+        ? part
+        : part.replace(MATH_RE, (m) => {
+            const display = m.startsWith("$$")
+            const tex = display ? m.slice(2, -2) : m.slice(1, -1)
+            return `<lime-math data-t="${encodeTex(tex)}"${
+              display ? ' data-d="1"' : ""
+            }/>`
+          })
+    )
+    .join("")
+}
+
 /** KaTeX-rendered math. The HTML comes from KaTeX's own escaped output (it
  *  is not user-authored raw HTML), so dangerouslySetInnerHTML is safe here. */
 function MathSegment({
@@ -296,6 +324,22 @@ function createRenderer(
   },
   hr() {
     return <Divider key={this.elementId} sx={{ my: 2 }} />
+  },
+  html(html: ReactNode) {
+    const raw = String(html ?? "")
+    const m = /^<lime-math data-t="([^"]+)"(?: data-d="(\d)")?\/>$/.exec(raw)
+    if (m) {
+      const tex = decodeTex(m[1])
+      if (!tex) return null
+      return (
+        <MathSegment
+          key={this.elementId}
+          tex={tex}
+          display={m[2] === "1"}
+        />
+      )
+    }
+    return html
   }
   }
 }
@@ -312,7 +356,6 @@ export default function MarkdownRenderer({
     Boolean(maxLines) || Boolean(hideImages),
     onToggleTask
   )
-  const segments = content.split(MATH_RE)
   return (
     <Box
       sx={
@@ -336,15 +379,7 @@ export default function MarkdownRenderer({
             }
           : { fontFamily: (theme) => theme.custom.serif }
       }>
-      {segments.map((seg, i) => {
-        if (i % 2 === 0) {
-          if (!seg.trim()) return null
-          return <Markdown key={i} value={seg} renderer={renderer} gfm />
-        }
-        const display = seg.startsWith("$$")
-        const tex = display ? seg.slice(2, -2) : seg.slice(1, -1)
-        return <MathSegment key={i} tex={tex} display={display} />
-      })}
+      <Markdown value={encodeMath(content)} renderer={renderer} gfm />
     </Box>
   )
 }
