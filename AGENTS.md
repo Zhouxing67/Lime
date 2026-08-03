@@ -30,7 +30,7 @@ SemVer `X.Y.Z`. `package.json` `version` is the single source — Plasmo writes 
 
 Chrome Web Store restriction: the manifest version must be dot-separated integers — **no `-beta` / `-rc` suffixes in the store version**. Pre-release info lives only in git tags / CHANGELOG.
 
-Release flow (always, in order): bump `package.json` → move the CHANGELOG "Unreleased" section into a versioned heading → git tag `vX.Y.Z` → push. Keep an "Unreleased" heading at the top of CHANGELOG during development.
+Release flow (always, in order): bump `package.json` → move the CHANGELOG "Unreleased" section into a versioned heading → git tag `vX.Y.Z` → push → **`pnpm run build` BEFORE `pnpm run package`** (the package script reuses the existing `build/` output — without a fresh build the zip ships the previous version's manifest) → create the GitHub release and attach `build/chrome-mv3-prod.zip`. Keep an "Unreleased" heading at the top of CHANGELOG during development.
 
 ## Entrypoints
 
@@ -148,14 +148,17 @@ Layout is three columns: **NavRail | Sidebar | Main**.
 
 ## Review (SRS)
 
-- SM-2 algorithm: starting ease 2.5, min 1.3, max interval 365 days
+- SM-2-style algorithm: starting ease 2.5, min 1.3, max interval 365 days
+- **Three levels** (v2.3): `1=不认识` (fail, relearn immediately), `2=模糊` (slow ×1.3), `3=认识` (×1.6); legacy `4` reads as 认识. First-review baselines: 模糊 1d / 认识 2d
+- **Strict first-rating-of-the-day**: only the day's FIRST rating writes the schedule; same-day re-ratings are practice — a re-pass moves the failure's dueDate to tomorrow, a re-fail keeps the session loop. Detection via `reviewHistory` dayKey + session `firstSrsRef`
 - Review data stored in separate `reviews` store (ReviewEntry with itemId unique index)
 - Card must have `Item.title` before it can be added to review
-- `rateSrs(srs, 1|2|3|4)` — pure function applying SM-2 to SrsData
-- `updateReviewSrs(itemId, srs)` — persists rating to reviews store
-- Get due cards via `getDueReviews()` (dueDate index query)
-- Ratings: 1=重来, 2=困难, 3=良好, 4=简单
-- Cards rated <3 are requeued (trim-queue); >=3 are removed from queue
+- `rateSrs(srs, 1|2|3|4)` — pure function applying the algorithm to SrsData; `defaultSrs()` exports a fresh entry
+- `updateReviewSrs(itemId, srs)` — persists rating; auto-promotes to `mastered` at interval ≥ 365 (never demotes — known gap)
+- Get due cards via `getDueReviews()` (dueDate index query, active status only)
+- **Session queue is local & O(1)**: each rating updates the in-memory queue (pass → drop, fail → requeue to end); progress is absolute (剩余/已评/通过/重试); `getDueReviews` runs only at session start / queue-empty / re-entry. No prev/next
+- Reviews writes broadcast `_dbr` (not `_dbi`) — options/background do targeted review reloads, never `refreshAllData`
+- `getRecentItems` groups by `reviewHistory` per day (a multi-day card appears each day), not by `lastReviewDate`
 - Entering review tab auto-loads due cards; leaving discards session state
 
 ## Sync
