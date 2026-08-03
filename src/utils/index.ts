@@ -180,6 +180,8 @@ function diffDays(a: string, b: string): number {
 
 export type DueStatus = "none" | "overdue" | "today" | "tomorrow" | "future"
 
+export const DAY_MS = 86400000
+
 /** Three review levels: label + subdued semantic color (不认识/模糊/认识). */
 export const RATING_META = [
   { label: "不认识", color: "#b2705a" },

@@ -74,12 +74,12 @@ import { useCardDragReorder } from "./hooks/useCardDragReorder"
 import { useNewCard } from "./hooks/useNewCard"
 import { useProjects } from "./hooks/useProjects"
 import { useReview } from "./hooks/useReview"
-import { dayKey, rateSrs } from "./hooks/useSrs"
+import { dayKey, defaultSrs, rateSrs } from "./hooks/useSrs"
 import { importFromZip } from "./import"
 import { createAppTheme } from "./theme"
 import type { Item, MergeSeparator, PresetName, Project, SearchQuery, SrsData, TodoFilter } from "./types"
 import { sendMessage } from "./types/messages"
-import { RATING_META, buildMergedContent, compareCards, dueStatus, isTodoComplete, maxScopeOrder, toggleMarkdownTask, todayLocalDate } from "./utils"
+import { DAY_MS, RATING_META, buildMergedContent, compareCards, dueStatus, isTodoComplete, maxScopeOrder, toggleMarkdownTask, todayLocalDate } from "./utils"
 
 const MIN_DRAWER_WIDTH = 200
 const MAX_DRAWER_WIDTH = 500
@@ -258,7 +258,6 @@ export default function OptionsPage() {
     reviewStats,
     recentDates,
     reviewDateItems,
-    handleStartReview,
     handleExitReview,
     handleReviewDateClick,
     todayRatings,
@@ -588,13 +587,7 @@ export default function OptionsPage() {
         id: crypto.randomUUID(),
         itemId: card.id,
         projectId: card.projectId ?? "",
-        srs: {
-          dueDate: Date.now(),
-          interval: 0,
-          easeFactor: 2.5,
-          reviewCount: 0,
-          lastReviewDate: 0
-        },
+        srs: defaultSrs(),
         dueDate: Date.now(),
         status: "active",
         addedAt: Date.now()
@@ -623,9 +616,10 @@ export default function OptionsPage() {
       } else {
         const today = dayKey(Date.now())
         const wasRatedToday =
-          currentSrs.reviewHistory?.some(
+          firstSrsRef.current.has(current.id) ||
+          (currentSrs.reviewHistory?.some(
             (h) => dayKey(h.date) === today
-          ) ?? false
+          ) ?? false)
 
         if (!wasRatedToday) {
           // FIRST rating of the day → the only one that locks the schedule.
@@ -648,7 +642,7 @@ export default function OptionsPage() {
             const base = firstSrsRef.current.get(current.id) ?? currentSrs
             await updateReviewSrs(current.id, {
               ...base,
-              dueDate: Date.now() + 86400000
+              dueDate: Date.now() + DAY_MS
             })
             setReviewItems((q) => q.slice(1))
             setSessionPassedIds((prev) => new Set(prev).add(current.id))
@@ -1931,27 +1925,27 @@ export default function OptionsPage() {
                           ...card,
                           title: reviewTitleDraft.trim()
                         })
-                        // Add to review
-                        await addReview({
-                          id: crypto.randomUUID(),
-                          itemId: card.id,
-                          projectId: card.projectId ?? "",
-                          srs: {
+                        // Add to review (skip if it entered review while the
+                        // dialog was open — itemId has a unique index).
+                        const alreadyInReview = reviewItemIds.has(card.id)
+                        if (!alreadyInReview) {
+                          await addReview({
+                            id: crypto.randomUUID(),
+                            itemId: card.id,
+                            projectId: card.projectId ?? "",
+                            srs: defaultSrs(),
                             dueDate: Date.now(),
-                            interval: 0,
-                            easeFactor: 2.5,
-                            reviewCount: 0,
-                            lastReviewDate: 0
-                          },
-                          dueDate: Date.now(),
-                          status: "active",
-                          addedAt: Date.now()
-                        })
+                            status: "active",
+                            addedAt: Date.now()
+                          })
+                        }
                         setReviewTitlePending(null)
                         setReviewTitleDraft("")
                         const reviews = await getAllReviews()
                         setReviewItemIds(new Set(reviews.map((r) => r.itemId)))
-                        setSnackbarMsg("已加入复习")
+                        setSnackbarMsg(
+                          alreadyInReview ? "已在复习中" : "已加入复习"
+                        )
                       }}>
                       加入复习
                     </Button>

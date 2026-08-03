@@ -8,6 +8,7 @@ import {
   getReviewStatsByStore
 } from "../database"
 import type { Item } from "../types"
+import { DAY_MS } from "../utils"
 import { dayKey, getRecentItems as getRecentItemsBySrs } from "./useSrs"
 import type { ReviewStats } from "./useSrs"
 
@@ -122,7 +123,6 @@ export function useReview(options: UseReviewOptions) {
   }, [sidebarTab, reviewDateFilter]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const recentDates = useMemo(() => {
-    const DAY_MS = 86400000
     const now = Date.now()
     const result: { key: string; label: string; count: number }[] = []
     for (let i = 0; i < 3; i++) {
@@ -144,14 +144,6 @@ export function useReview(options: UseReviewOptions) {
     if (!reviewDateFilter) return []
     return recentItems.find((g) => g.date === reviewDateFilter)?.items ?? []
   }, [reviewDateFilter, recentItems])
-
-  // Entering review tab: load due cards (fresh, no session persistence)
-  const handleStartReview = useCallback(async () => {
-    const due = await getDueReviews()
-    const items = pairWithItems(due, allItemsUnfiltered)
-    setReviewItems(items)
-    setSidebarTab("review")
-  }, [allItemsUnfiltered, setSidebarTab, setReviewItems])
 
   const handleExitReview = useCallback(async () => {
     setReviewItems([])
@@ -176,9 +168,7 @@ export function useReview(options: UseReviewOptions) {
     streakDays,
     recentDates,
     reviewDateItems,
-    handleStartReview,
     handleExitReview,
-    handleReviewDateClick,
-    recentItems
+    handleReviewDateClick
   }
 }

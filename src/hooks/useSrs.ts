@@ -1,7 +1,9 @@
 import { getAllReviews } from "../database"
 import type { Item, ReviewEntry, SrsData } from "../types"
+import { DAY_MS } from "../utils"
 
-function defaultSrs(): SrsData {
+/** A fresh SrsData with no review history (first review). */
+export function defaultSrs(): SrsData {
   return {
     dueDate: Date.now(),
     interval: 0,
@@ -61,8 +63,6 @@ export interface ReviewStats {
   dueCount: number
   activeCount: number
 }
-
-const DAY_MS = 86400000
 
 export function dayKey(ts: number): string {
   const d = new Date(ts)
