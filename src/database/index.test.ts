@@ -1,4 +1,4 @@
-import { rateSrs } from "../hooks/useSrs"
+import { dayKey, getRecentItems, rateSrs } from "../hooks/useSrs"
 import type { Item, Project, ReviewEntry, SearchQuery } from "../types"
 import {
   addItem,
@@ -551,6 +551,42 @@ describe("database", () => {
       expect(reviews).toHaveLength(1)
       expect(reviews[0].id).toBe("remote-rv")
       expect(reviews[0].itemId).toBe("i1")
+    })
+  })
+
+  describe("getRecentItems", () => {
+    it("groups a card under every day it was reviewed (not just the latest)", async () => {
+      const yesterday = Date.now() - 86400000
+      const today = Date.now()
+      const i1: Item = createTestItem({ id: "g1" })
+      const i2: Item = createTestItem({ id: "g2" })
+      await addItem(i1)
+      await addItem(i2)
+
+      // g1 reviewed yesterday AND today → must appear in both groups.
+      await addReview(
+        createTestReview("gr1", "g1", "", {
+          lastReviewDate: today,
+          reviewHistory: [
+            { date: yesterday, rating: 2 },
+            { date: today, rating: 3 }
+          ]
+        })
+      )
+      // g2 reviewed today only.
+      await addReview(
+        createTestReview("gr2", "g2", "", {
+          lastReviewDate: today,
+          reviewHistory: [{ date: today, rating: 3 }]
+        })
+      )
+
+      const groups = await getRecentItems([i1, i2], 3)
+      expect(groups).toHaveLength(2)
+      const todayGroup = groups.find((g) => g.date === dayKey(today))
+      const yesterdayGroup = groups.find((g) => g.date === dayKey(yesterday))
+      expect(todayGroup?.items.map((i) => i.id).sort()).toEqual(["g1", "g2"])
+      expect(yesterdayGroup?.items.map((i) => i.id)).toEqual(["g1"])
     })
   })
 })

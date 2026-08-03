@@ -75,22 +75,26 @@ export async function getRecentItems(
 ): Promise<{ date: string; items: Item[] }[]> {
   const cutoff = Date.now() - days * DAY_MS
   const reviews = await getAllReviews()
-  // Filter for recently reviewed entries
-  const recentReviews = reviews.filter((r) => r.srs.lastReviewDate >= cutoff)
-  if (recentReviews.length === 0) return []
-
-  // Build item lookup
   const itemMap = new Map(allItems.map((i) => [i.id, i]))
 
-  // Group by date with actual items
+  // Group by each reviewHistory entry's day (not lastReviewDate, which would
+  // hide a card from earlier days once it's reviewed again later). A card
+  // appears once per day; legacy data with multiple same-day ratings dedupes.
+  const seen = new Set<string>()
   const map = new Map<string, Item[]>()
-  for (const r of recentReviews) {
+  for (const r of reviews) {
     const item = itemMap.get(r.itemId)
-    if (!item) continue
-    const key = dayKey(r.srs.lastReviewDate)
-    const arr = map.get(key) ?? []
-    arr.push(item)
-    map.set(key, arr)
+    if (!item || !r.srs.reviewHistory) continue
+    for (const h of r.srs.reviewHistory) {
+      if (h.date < cutoff) continue
+      const key = dayKey(h.date)
+      const dedup = `${key}:${item.id}`
+      if (seen.has(dedup)) continue
+      seen.add(dedup)
+      const arr = map.get(key) ?? []
+      arr.push(item)
+      map.set(key, arr)
+    }
   }
 
   return Array.from(map.entries())

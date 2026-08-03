@@ -19,7 +19,7 @@ interface CardGridProps {
   selectMode: boolean
   selectedIds: string[]
   readOnly?: boolean
-  firstRating?: Map<string, 1 | 2 | 3 | 4>
+  firstRating?: Map<string, 1 | 2 | 3>
   reviewItemIds?: Set<string>
   onNewCard?: () => void
   draggable?: boolean

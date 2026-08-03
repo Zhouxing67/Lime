@@ -7,7 +7,7 @@ import { hostnameOf } from "../utils"
 import CardRenderer, { typeIcon } from "./CardRenderer"
 import ItemCardOperations from "./ItemCardOperations"
 
-const RATING_COLORS = ["#ef4444", "#f97316", "#22c55e", "#3b82f6"]
+const RATING_COLORS = ["#ef4444", "#f97316", "#22c55e"]
 
 export default function ItemCard({
   item,
@@ -24,7 +24,7 @@ export default function ItemCard({
   onCopyToProject
 }: {
   item: Item
-  firstRating?: 1 | 2 | 3 | 4
+  firstRating?: 1 | 2 | 3
   inReview?: boolean
   readOnly?: boolean
   draggable?: boolean
