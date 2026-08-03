@@ -1,6 +1,7 @@
 import type { PlasmoCSConfig } from "plasmo"
 
 import { sendMessage } from "../types/messages"
+import { currentSourceMeta } from "../utils"
 import { selectionWithMath } from "./formula"
 
 export const config: PlasmoCSConfig = {
@@ -45,11 +46,7 @@ document.addEventListener("keydown", (e) => {
     const payload = {
       type: "text" as const,
       content: text,
-      source: {
-        title: document.title,
-        url: window.location.href,
-        site: window.location.hostname
-      }
+      source: currentSourceMeta()
     }
     sendMessage({ kind: "capture", payload }).catch(() => {})
   }

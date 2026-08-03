@@ -75,13 +75,13 @@ import { useCardDragReorder } from "./hooks/useCardDragReorder"
 import { useNewCard } from "./hooks/useNewCard"
 import { useProjects } from "./hooks/useProjects"
 import { useReview } from "./hooks/useReview"
-import { dayKey, defaultSrs, rateSrs } from "./hooks/useSrs"
+import { createReviewEntry, dayKey, rateSrs } from "./hooks/useSrs"
 import { importFromZip } from "./import"
 import { createAppTheme } from "./theme"
 import { buildProjectMarkdown, buildScopeData } from "./utils/export"
 import type { Item, MergeSeparator, PresetName, Project, SearchQuery, SrsData, TodoFilter } from "./types"
 import { sendMessage } from "./types/messages"
-import { DAY_MS, RATING_META, buildMergedContent, compareCards, dueStatus, isTodoComplete, toggleMarkdownTask, todayLocalDate } from "./utils"
+import { DAY_MS, RATING_META, buildMergedContent, cloneItem, compareCards, createItem, dueStatus, isTodoComplete, toggleMarkdownTask, todayLocalDate } from "./utils"
 
 const MIN_DRAWER_WIDTH = 200
 const MAX_DRAWER_WIDTH = 500
@@ -491,16 +491,14 @@ export default function OptionsPage() {
     const mergedSectionId =
       sameSection && firstSectionId ? firstSectionId : undefined
 
-    const newItem: Item = {
-      id: crypto.randomUUID(),
+    const newItem = createItem({
       type: "text",
       title: mergedTitle.trim(),
       content: mergedContent,
-      createdAt: Date.now(),
       projectId: activeProjectId,
-      ...(allImages.length > 0 ? { images: allImages } : {}),
+      images: allImages,
       ...(mergedSectionId ? { sectionId: mergedSectionId } : {})
-    }
+    })
     // Place the merged card last in its scope (addItem-level auto-order).
     const readyItem = await ensureItemOrder(newItem)
 
@@ -588,15 +586,7 @@ export default function OptionsPage() {
       }
 
       // Has title → add directly
-      await addReview({
-        id: crypto.randomUUID(),
-        itemId: card.id,
-        projectId: card.projectId ?? "",
-        srs: defaultSrs(),
-        dueDate: Date.now(),
-        status: "active",
-        addedAt: Date.now()
-      })
+      await addReview(createReviewEntry(itemId, card.projectId ?? ""))
       setReviewItemIds((prev) => new Set(prev).add(itemId))
       setSnackbarMsg("已加入复习")
     },
@@ -1077,12 +1067,7 @@ export default function OptionsPage() {
     if (!copyCardId) return
     const card = allItems.find((i) => i.id === copyCardId)
     if (card) {
-      const newCard = {
-        ...card,
-        id: crypto.randomUUID(),
-        createdAt: Date.now(),
-        projectId: targetProjectId
-      }
+      const newCard = cloneItem(card, targetProjectId)
       const saved = await addItem(newCard)
       if (!saved) {
         setSnackbarMsg("目标项目已存在相同内容，跳过复制")
@@ -1102,12 +1087,7 @@ export default function OptionsPage() {
     for (const id of selectedIds) {
       const card = allItems.find((i) => i.id === id)
       if (!card) continue
-      const newCard = {
-        ...card,
-        id: crypto.randomUUID(),
-        createdAt: Date.now(),
-        projectId: targetProjectId
-      }
+      const newCard = cloneItem(card, targetProjectId)
       const saved = await addItem(newCard)
       if (!saved) skipped++
     }
@@ -1209,14 +1189,12 @@ export default function OptionsPage() {
       const cleanDue =
         dueDate && /^\d{4}-\d{2}-\d{2}$/.test(dueDate) ? dueDate : undefined
       if (item.id === "__new__") {
-        const created: Item = {
-          id: crypto.randomUUID(),
+        const created = createItem({
           type: "todo",
           title: title.trim() || undefined,
           content,
-          createdAt: Date.now(),
           ...(cleanDue && { dueDate: cleanDue })
-        }
+        })
         await addItem(created, { skipDedup: true })
       } else {
         await updateItem({
@@ -1925,15 +1903,9 @@ export default function OptionsPage() {
                         // dialog was open — itemId has a unique index).
                         const alreadyInReview = reviewItemIds.has(card.id)
                         if (!alreadyInReview) {
-                          await addReview({
-                            id: crypto.randomUUID(),
-                            itemId: card.id,
-                            projectId: card.projectId ?? "",
-                            srs: defaultSrs(),
-                            dueDate: Date.now(),
-                            status: "active",
-                            addedAt: Date.now()
-                          })
+                          await addReview(
+                            createReviewEntry(card.id, card.projectId ?? "")
+                          )
                         }
                         setReviewTitlePending(null)
                         setReviewTitleDraft("")

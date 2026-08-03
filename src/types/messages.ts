@@ -1,10 +1,12 @@
+import type { SourceMeta } from "./index"
+
 export interface CaptureMessage {
   kind: "capture"
   payload: {
     type: "text" | "image" | "link"
     content: string
     title?: string
-    source: { title: string; url: string; site: string }
+    source: SourceMeta
     projectId?: string
   }
 }

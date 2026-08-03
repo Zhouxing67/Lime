@@ -19,6 +19,7 @@ import {
 } from "../database"
 import type { Item, Project } from "../types"
 import { sendMessage } from "../types/messages"
+import { createItem } from "../utils"
 
 interface PendingCapture {
   type: Item["type"]
@@ -49,16 +50,13 @@ export default function NewProjectPage() {
   const saveAndClose = async (projectId: string, projectName: string) => {
     if (!pending) return
     setBusy(true)
-    const item: Item = {
-      id: crypto.randomUUID(),
+    const item = createItem({
       type: pending.type,
       content: pending.content,
       source: pending.source,
-      createdAt: Date.now(),
       projectId
-    }
+    })
     const saved = await addItem(item)
-
     const result = await chrome.storage.session.get("pendingTabId")
     const tabId = (result as { pendingTabId?: number }).pendingTabId
 

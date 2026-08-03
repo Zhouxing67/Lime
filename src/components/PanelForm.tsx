@@ -4,6 +4,7 @@ import type { Project } from "../types"
 import { sendMessage } from "../types/messages"
 import {
   appendMarkdownImage,
+  currentSourceMeta,
   extractMarkdownImages,
   removeMarkdownImage
 } from "../utils"
@@ -93,11 +94,7 @@ export default function PanelForm({
           type: captureType,
           content: content.trim(),
           title: title.trim() || undefined,
-          source: {
-            title: document.title,
-            url: window.location.href,
-            site: window.location.hostname
-          },
+          source: currentSourceMeta(),
           projectId: selectedProjectId || undefined
         }
       })

@@ -13,6 +13,22 @@ export function defaultSrs(): SrsData {
   }
 }
 
+/** A fresh active ReviewEntry for a card — the single construction site. */
+export function createReviewEntry(
+  itemId: string,
+  projectId: string
+): ReviewEntry {
+  return {
+    id: crypto.randomUUID(),
+    itemId,
+    projectId,
+    srs: defaultSrs(),
+    dueDate: Date.now(),
+    status: "active",
+    addedAt: Date.now()
+  }
+}
+
 /** Apply a rating to SrsData, returning a new SrsData.
  *
  * Three levels: 1=不认识 (fail, relearn immediately), 2=模糊 (slow growth),

@@ -1,3 +1,5 @@
+import type { Item, SourceMeta } from "../types"
+
 export type MergeSeparator = "rule" | "ordered" | "unordered" | "none"
 
 /** Join several cards' content per the chosen separator. */
@@ -259,4 +261,58 @@ export function computeDropIndex<T extends { id: string; order?: number; created
   const targetIndex = sorted.findIndex((c) => c.id === targetId)
   if (targetIndex === -1) return sorted.length
   return pos === "after" ? targetIndex + 1 : targetIndex
+}
+
+/** Fresh item factory — the single place a new card/todo/capture is built.
+ *  Order is deliberately left undefined (the DB auto-assigns it). */
+export function createItem(data: {
+  type: Item["type"]
+  content: string
+  title?: string
+  source?: SourceMeta
+  projectId?: string
+  sectionId?: string
+  images?: string[]
+  dueDate?: string
+}): Item {
+  return {
+    id: crypto.randomUUID(),
+    type: data.type,
+    title: data.title,
+    content: data.content,
+    source: data.source,
+    createdAt: Date.now(),
+    projectId: data.projectId,
+    ...(data.sectionId ? { sectionId: data.sectionId } : {}),
+    ...(data.images && data.images.length > 0 ? { images: data.images } : {}),
+    ...(data.dueDate ? { dueDate: data.dueDate } : {})
+  }
+}
+
+/** Clone a card into another project. Section ids are per-project UUIDs and
+ *  order is per-section, so neither transfers — a copy drops them and lands in
+ *  the target project's 未分类 with a fresh auto-assigned order. */
+export function cloneItem(source: Item, targetProjectId: string): Item {
+  const {
+    id: _id,
+    createdAt: _createdAt,
+    sectionId: _sectionId,
+    order: _order,
+    ...rest
+  } = source
+  return {
+    ...rest,
+    id: crypto.randomUUID(),
+    createdAt: Date.now(),
+    projectId: targetProjectId
+  }
+}
+
+/** Source metadata for the current page (content-script only — touches DOM). */
+export function currentSourceMeta(): SourceMeta {
+  return {
+    title: document.title,
+    url: window.location.href,
+    site: window.location.hostname
+  }
 }

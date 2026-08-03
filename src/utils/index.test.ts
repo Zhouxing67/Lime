@@ -1,8 +1,11 @@
 import {
   appendMarkdownImage,
   buildMergedContent,
+  cloneItem,
   computeDropIndex,
   computeItemHash,
+  createItem,
+  currentSourceMeta,
   dueLabel,
   dueStatus,
   extractMarkdownImages,
@@ -365,5 +368,53 @@ describe("utils", () => {
         "## 标题A\n内容A\n\n内容B"
       )
     })
+  })
+})
+
+describe("createItem / cloneItem / currentSourceMeta", () => {
+  it("createItem builds a fresh item with optional fields, no order", () => {
+    const item = createItem({
+      type: "text",
+      title: "t",
+      content: "c",
+      projectId: "p",
+      sectionId: "s",
+      images: ["a"],
+      dueDate: "2026-08-05"
+    })
+    expect(item.id).toBeTruthy()
+    expect(item.type).toBe("text")
+    expect(item.sectionId).toBe("s")
+    expect(item.images).toEqual(["a"])
+    expect(item.dueDate).toBe("2026-08-05")
+    // Order is intentionally left for the DB layer to auto-assign.
+    expect(item.order).toBeUndefined()
+  })
+
+  it("createItem omits empty optional fields", () => {
+    const item = createItem({ type: "image", content: "https://x/y.png" })
+    expect(item.images).toBeUndefined()
+    expect(item.sectionId).toBeUndefined()
+    expect(item.dueDate).toBeUndefined()
+  })
+
+  it("cloneItem drops project-scoped sectionId/order and retargets the project", () => {
+    const src = {
+      ...createItem({ type: "text", content: "x", sectionId: "old-sec" }),
+      order: 5
+    }
+    const clone = cloneItem(src, "target")
+    expect(clone.projectId).toBe("target")
+    expect(clone.id).not.toBe(src.id)
+    expect(clone.sectionId).toBeUndefined()
+    expect(clone.order).toBeUndefined()
+    expect(clone.content).toBe("x")
+  })
+
+  it("currentSourceMeta reads the page metadata", () => {
+    document.title = "Test Page"
+    const meta = currentSourceMeta()
+    expect(meta.title).toBe("Test Page")
+    expect(meta.site).toBe(window.location.hostname)
   })
 })

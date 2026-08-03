@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react"
 
 import { addItem } from "../database"
-import type { Item } from "../types"
+import { createItem } from "../utils"
 
 export function useNewCard({
   activeProjectId,
@@ -36,15 +36,13 @@ export function useNewCard({
     // Place the new card LAST in its section — addItem auto-assigns the
     // section's max order + 1, so a fresh card never lands at the front of a
     // reordered section.
-    const item: Item = {
-      id: crypto.randomUUID(),
+    const item = createItem({
       type: "text",
       title,
       content,
-      createdAt: Date.now(),
       projectId: activeProjectId,
       ...(sectionId ? { sectionId } : {})
-    }
+    })
     await addItem(item)
     setNewCardOpen(false)
     setNewCardTitle("")

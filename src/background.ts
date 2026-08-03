@@ -8,9 +8,9 @@ import {
   touchProject,
   tx
 } from "./database"
-import type { Item, Project, SourceMeta } from "./types"
+import type { Item, Project } from "./types"
 import type { ExtensionMessage } from "./types/messages"
-import { isTodoComplete } from "./utils"
+import { createItem, isTodoComplete } from "./utils"
 
 async function updateBadge() {
   try {
@@ -74,25 +74,6 @@ function notifySystem(text: string) {
   } catch {
     // notifications API unavailable
   }
-}
-
-function createItem(data: {
-  type: Item["type"]
-  content: string
-  title?: string
-  source?: SourceMeta
-  projectId?: string
-}): Item {
-  const item: Item = {
-    id: crypto.randomUUID(),
-    type: data.type,
-    title: data.title,
-    content: data.content,
-    source: data.source,
-    createdAt: Date.now(),
-    projectId: data.projectId
-  }
-  return item
 }
 
 // Listen for database changes broadcast via storage
