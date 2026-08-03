@@ -23,7 +23,6 @@ export default function CaptureSidebar({
   setImageDraft,
   captureType,
   onClose,
-  onSaved,
   onProjectsChange,
   onSelectedProjectChange,
   onDirtyChange,
@@ -42,7 +41,6 @@ export default function CaptureSidebar({
   setImageDraft: (v: string) => void
   captureType: "text" | "image"
   onClose: () => void
-  onSaved: () => void
   onProjectsChange: (projects: Project[]) => void
   onSelectedProjectChange: (id: string) => void
   onDirtyChange?: (isDirty: boolean) => void
@@ -68,7 +66,6 @@ export default function CaptureSidebar({
         setImageDraft={setImageDraft}
         captureType={captureType}
         onClose={onClose}
-        onSaved={onSaved}
         onPinChange={noop}
         onPositionChange={noop}
         onProjectsChange={onProjectsChange}

@@ -243,7 +243,6 @@ export default function LimePanel() {
     setImageDraft,
     captureType,
     onClose: hide,
-    onSaved: hide,
     onProjectsChange: setProjects,
     onSelectedProjectChange: setSelectedProjectId,
     onDirtyChange
