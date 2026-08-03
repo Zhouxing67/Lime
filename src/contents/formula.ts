@@ -84,15 +84,64 @@ export function selectionWithMath(sel: Selection): string {
   return (fragment.textContent ?? "").replace(/\s+/g, " ").trim()
 }
 
-/** Capture the formula under the current cursor, if any. Prefers the last
- *  mousemove target (robust against overlays) with elementFromPoint fallback. */
-export function mathFromCursor(): { content: string; el: Element } | null {
-  const el =
+const MATH_CONTAINER_SELECTOR =
+  ".katex, .katex-display, mjx-container, .MathJax, .MathJax_Display, .ztext-math, [data-tex]"
+
+function isBlockDisplay(d: string): boolean {
+  return d === "block" || d === "flex" || d === "grid" || d === "list-item"
+}
+
+/** Nearest block-level paragraph container that holds `el`, skipping the
+ *  formula's own wrappers (.katex-display / .ztext-math / …). */
+export function enclosingParagraph(el: Element): Element {
+  let cur: Element | null = el
+  while (cur && cur !== document.body && cur !== document.documentElement) {
+    if (!cur.matches(MATH_CONTAINER_SELECTOR)) {
+      const parent = cur.parentElement
+      if (
+        isBlockDisplay(window.getComputedStyle(cur).display) &&
+        parent &&
+        isBlockDisplay(window.getComputedStyle(parent).display)
+      ) {
+        return cur
+      }
+    }
+    cur = cur.parentElement
+  }
+  return el
+}
+
+/** Rebuild a block element's text, replacing every math container with its
+ *  `$…$` / `$$…$$` LaTeX source. */
+export function mathBlockText(root: Element): string {
+  const clone = root.cloneNode(true) as Element
+  for (const el of Array.from(clone.querySelectorAll(".katex"))) {
+    const src = katexSource(el)
+    if (!src) continue
+    el.replaceWith(document.createTextNode(wrapMath(el, src)))
+  }
+  for (const el of Array.from(
+    clone.querySelectorAll(
+      "mjx-container, .MathJax, math, .ztext-math, [data-tex]"
+    )
+  )) {
+    const src = mathSource(el)
+    if (!src) continue
+    el.replaceWith(document.createTextNode(wrapMath(el, src)))
+  }
+  return (clone.textContent ?? "").replace(/\s+/g, " ").trim()
+}
+
+/** Capture the paragraph containing the formula under the cursor — the whole
+ *  paragraph's text with every formula as $…$ / $$…$$. */
+export function paragraphFromCursor(): { content: string; el: Element } | null {
+  const formula =
     lastTarget?.closest?.(MATH_SELECTOR) ?? mathAtPoint(lastX, lastY)
-  if (!el) return null
-  const src = mathSource(el)
-  if (!src) return null
-  return { content: wrapMath(el, src), el }
+  if (!formula) return null
+  const para = enclosingParagraph(formula)
+  const content = mathBlockText(para)
+  if (!content || content.length < 5) return null
+  return { content, el: para }
 }
 
 // ---- cursor tracking + hover highlight ----

@@ -7,7 +7,7 @@ import type { Project } from "../types"
 import {
   flashMath,
   initMathHover,
-  mathFromCursor,
+  paragraphFromCursor,
   selectionWithMath,
   setMathHoverEnabled
 } from "./formula"
@@ -94,11 +94,12 @@ export default function LimePanel() {
           show(text, rect)
           return
         }
-        // Mode B: no selection — capture the formula under the cursor.
-        const hit = mathFromCursor()
+        // Mode B: no selection — capture the paragraph containing the formula
+        // under the cursor (text + all its formulas).
+        const hit = paragraphFromCursor()
         if (hit) {
           const { content, el } = hit
-          if (content.length >= 5 && content.length <= 2000) {
+          if (content.length >= 5 && content.length <= 8000) {
             const rect = el.getBoundingClientRect()
             if (rect.width > 0 && rect.height > 0) {
               show(content, rect)
