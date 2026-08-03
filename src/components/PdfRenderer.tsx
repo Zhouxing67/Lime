@@ -130,7 +130,11 @@ function PageView({
       (entries) => {
         if (entries[0].isIntersecting) {
           obs.disconnect()
-          render().catch((e) => console.warn("[pdf] page render:", e))
+          render().catch((e) => {
+            // Cancelled renders are expected on scroll/re-render, not errors.
+            if (e instanceof pdfjsLib.RenderingCancelledException) return
+            console.warn("[pdf] page render:", e)
+          })
         }
       },
       { rootMargin: "400px 0px" }
