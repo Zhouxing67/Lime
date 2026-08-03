@@ -152,7 +152,9 @@ const IconBack = () => (
 
 const PANEL_CSS = `
 @keyframes limePanelIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-[data-lime-panel] { animation: limePanelIn 0.18s ease-out; }
+@keyframes limeSidebarIn { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
+[data-lime-panel]:not([data-lime-sidebar]) { animation: limePanelIn 0.18s ease-out; }
+[data-lime-sidebar] { animation: limeSidebarIn 0.22s cubic-bezier(0.2, 0.8, 0.2, 1); }
 [data-lime-panel] .lime-icon-btn:hover { background: var(--lime-bg-hover); color: var(--lime-primary); }
 [data-lime-panel] .lime-input:focus { border-color: var(--lime-primary) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--lime-primary) 16%, transparent); }
 [data-lime-panel] .lime-input::placeholder { color: var(--lime-text-secondary); }
@@ -622,6 +624,7 @@ export function FloatingPanelContent({
     <div
       ref={ref}
       data-lime-panel="true"
+      data-lime-sidebar={variant === "sidebar" ? "true" : undefined}
       style={{
         position: "fixed",
         zIndex: 2147483646,
@@ -639,9 +642,9 @@ export function FloatingPanelContent({
           : {
               right: 0,
               top: 0,
-              bottom: 0,
+              height: "100vh",
               width,
-              boxShadow: "none",
+              boxShadow: "-6px 0 20px rgba(0,0,0,0.06)",
               borderLeft: `1px solid ${colors.divider}`
             }),
         "--lime-primary": colors.primary,
@@ -676,6 +679,7 @@ export function FloatingPanelContent({
           padding: "8px 10px",
           minHeight: 40,
           flexShrink: 0,
+          background: variant === "sidebar" ? colors.bgDefault : "transparent",
           borderBottom: `1px solid ${colors.divider}`
         }}>
         {variant === "float" && (
