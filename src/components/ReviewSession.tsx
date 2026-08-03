@@ -17,23 +17,22 @@ interface ReviewSessionProps {
   remaining: number
   /** Rating actions taken this session. */
   ratedCount: number
-  /** Cards whose final rating was >= 3. */
+  /** Cards that left the queue this session (final rating >= 2). */
   passedCount: number
   flipped: boolean
   completed: boolean
   animating: boolean
-  ratings: Map<string, number>
   masteredCount: number
   activeCount: number
-  todayRatings: [number, number, number, number]
+  todayRatings: [number, number, number]
   streakDays: number
   onFlip: () => void
-  onRate: (rating: 1 | 2 | 3 | 4) => void
+  onRate: (rating: 1 | 2 | 3) => void
   onExit: () => void
 }
 
-const LABELS = ["重来", "困难", "良好", "简单"]
-const COLORS = ["#ef4444", "#f97316", "#22c55e", "#3b82f6"]
+const LABELS = ["不认识", "模糊", "认识"]
+const COLORS = ["#ef4444", "#f97316", "#22c55e"]
 
 export default function ReviewSession({
   item,
@@ -43,7 +42,6 @@ export default function ReviewSession({
   flipped,
   completed,
   animating,
-  ratings,
   masteredCount,
   activeCount,
   todayRatings,
@@ -60,9 +58,9 @@ export default function ReviewSession({
         e.preventDefault()
         onFlip()
       }
-      if (["1", "2", "3", "4"].includes(e.key)) {
+      if (["1", "2", "3"].includes(e.key)) {
         e.preventDefault()
-        const r = Number(e.key) as 1 | 2 | 3 | 4
+        const r = Number(e.key) as 1 | 2 | 3
         if (flipped) onRate(r)
       }
     }
@@ -262,7 +260,7 @@ export default function ReviewSession({
           pointerEvents: flipped ? "auto" : "none"
         }}>
         {LABELS.map((label, i) => {
-          const rating = (i + 1) as 1 | 2 | 3 | 4
+          const rating = (i + 1) as 1 | 2 | 3
           return (
             <Tooltip key={label} title={`快捷键 ${i + 1}`}>
               <Button

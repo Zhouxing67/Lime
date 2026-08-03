@@ -11,30 +11,33 @@ function defaultSrs(): SrsData {
   }
 }
 
-/** Apply SM-2 rating to SrsData, returning a new SrsData */
+/** Apply a rating to SrsData, returning a new SrsData.
+ *
+ * Three levels: 1=不认识 (fail, relearn immediately), 2=模糊 (slow growth),
+ * 3/4=认识 (moderate growth). Interval growth uses fixed factors (×1.3 / ×1.6)
+ * with a guaranteed minimum step of +1 day; the first review uses fixed
+ * baselines (模糊 1d, 认识 2d) so the very first rating isn't collapsed to 1d.
+ */
 export function rateSrs(srs: SrsData, rating: 1 | 2 | 3 | 4): SrsData {
   let { interval, easeFactor, reviewCount } = srs
   reviewCount++
-
-  // First review (interval 0) needs a fixed baseline: multiplying 0 by EF
-  // would always clamp to 1 day, making "简单" identical to "良好" on the
-  // very first rating. Give 良好 a 1-day and 简单 a 4-day first interval
-  // (Anki-style), then compound as usual from the second review.
   const firstReview = interval === 0
 
-  if (rating < 3) {
+  if (rating === 1) {
     interval = 1
     easeFactor = Math.max(1.3, easeFactor - 0.2)
-  } else if (rating === 3) {
-    interval = firstReview ? 1 : Math.max(1, interval * easeFactor)
+  } else if (rating === 2) {
+    interval = firstReview
+      ? 1
+      : Math.min(365, Math.max(interval + 1, Math.round(interval * 1.3)))
   } else {
     interval = firstReview
-      ? 4
-      : Math.max(1, interval * easeFactor * 1.3)
-    easeFactor += 0.15
+      ? 2
+      : Math.min(365, Math.max(interval + 1, Math.round(interval * 1.6)))
+    easeFactor = Math.round((easeFactor + 0.05) * 100) / 100
   }
 
-  interval = Math.min(365, Math.max(1, Math.round(interval)))
+  interval = Math.min(365, Math.max(1, interval))
   easeFactor = Math.max(1.3, Math.round(easeFactor * 100) / 100)
 
   const now = Date.now()
@@ -47,7 +50,7 @@ export function rateSrs(srs: SrsData, rating: 1 | 2 | 3 | 4): SrsData {
     interval,
     easeFactor,
     reviewCount,
-    dueDate: rating < 3 ? now : now + interval * 86400000,
+    dueDate: rating === 1 ? now : now + interval * 86400000,
     lastReviewDate: now,
     reviewHistory
   }

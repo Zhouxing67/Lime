@@ -3,13 +3,13 @@ import SchoolRoundedIcon from "@mui/icons-material/SchoolRounded"
 import { Box, Button, Stack, Typography, useMediaQuery } from "@mui/material"
 import { useTheme } from "@mui/material/styles"
 
-const RATING_LABELS = ["重来", "困难", "良好", "简单"]
-const RATING_COLORS = ["#ef4444", "#f97316", "#22c55e", "#3b82f6"]
+const RATING_LABELS = ["不认识", "模糊", "认识"]
+const RATING_COLORS = ["#ef4444", "#f97316", "#22c55e"]
 
 interface ReviewEmptyStatsProps {
   masteredCount: number
   activeCount: number
-  todayRatings: [number, number, number, number]
+  todayRatings: [number, number, number]
   streakDays: number
   onExit: () => void
 }

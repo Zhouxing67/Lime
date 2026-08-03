@@ -59,8 +59,8 @@ export function useReview(options: UseReviewOptions) {
     { date: string; items: Item[] }[]
   >([])
   const [todayRatings, setTodayRatings] = useState<
-    [number, number, number, number]
-  >([0, 0, 0, 0])
+    [number, number, number]
+  >([0, 0, 0])
   const [streakDays, setStreakDays] = useState(0)
 
   const allItemsRef = useRef(allItemsUnfiltered)
@@ -79,7 +79,7 @@ export function useReview(options: UseReviewOptions) {
     getAllReviews().then((reviews) => {
       const todayKey = dayKey(Date.now())
       const allDateKeys = new Set<string>()
-      const counts: [number, number, number, number] = [0, 0, 0, 0]
+      const counts: [number, number, number] = [0, 0, 0]
       for (const r of reviews) {
         if (!r.srs.reviewHistory) continue
         let foundToday = false
@@ -87,7 +87,11 @@ export function useReview(options: UseReviewOptions) {
           allDateKeys.add(dayKey(h.date))
           if (dayKey(h.date) === todayKey && !foundToday) {
             foundToday = true
-            if (h.rating >= 1 && h.rating <= 4) counts[h.rating - 1]++
+            // 1=不认识, 2=模糊, 3=认识; legacy 4 maps to 认识 (index 2).
+            if (h.rating >= 1 && h.rating <= 4) {
+              const idx = h.rating >= 3 ? 2 : h.rating - 1
+              counts[idx]++
+            }
           }
         }
       }

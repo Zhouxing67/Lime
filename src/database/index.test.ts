@@ -427,9 +427,9 @@ describe("database", () => {
         },
         4
       )
-      // Rating 4 several times to push interval to 365
+      // Rating 认识 (4) repeatedly to push interval to 365 (×1.6 growth).
       let current = srs
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < 20; i++) {
         current = rateSrs(current, 4)
       }
       expect(current.interval).toBe(365)
@@ -463,7 +463,7 @@ describe("database", () => {
       expect(due[0].itemId).toBe("item4")
     })
 
-    it("rateSrs gives differentiated first-review intervals (B1)", () => {
+    it("rateSrs gives differentiated first-review intervals (3 levels)", () => {
       const fresh = () => ({
         dueDate: Date.now(),
         interval: 0,
@@ -471,10 +471,38 @@ describe("database", () => {
         reviewCount: 0,
         lastReviewDate: 0
       })
-      expect(rateSrs(fresh(), 3).interval).toBe(1)
-      expect(rateSrs(fresh(), 4).interval).toBe(4)
-      // 重来 resets interval to 1 → a later 4 compounds from there (3 days).
-      expect(rateSrs(rateSrs(fresh(), 1), 4).interval).toBe(3)
+      // 模糊 first → 1 day; 认识 first → 2 days.
+      expect(rateSrs(fresh(), 2).interval).toBe(1)
+      expect(rateSrs(fresh(), 3).interval).toBe(2)
+      expect(rateSrs(fresh(), 4).interval).toBe(2) // legacy 4 = 认识
+      // 不认识 resets interval to 1 → a later 认识 grows from there.
+      expect(rateSrs(rateSrs(fresh(), 1), 3).interval).toBe(2)
+    })
+
+    it("rateSrs slow-growth curve: 模糊 ×1.3, 认识 ×1.6", () => {
+      const fresh = () => ({
+        dueDate: Date.now(),
+        interval: 0,
+        easeFactor: 2.5,
+        reviewCount: 0,
+        lastReviewDate: 0
+      })
+      // 模糊: 1 → 2 → 3 → 4 → 5
+      let s = rateSrs(fresh(), 2)
+      const vague = [s.interval]
+      for (let i = 0; i < 4; i++) {
+        s = rateSrs(s, 2)
+        vague.push(s.interval)
+      }
+      expect(vague).toEqual([1, 2, 3, 4, 5])
+      // 认识: 2 → 3 → 5 → 8 → 13
+      s = rateSrs(fresh(), 3)
+      const know = [s.interval]
+      for (let i = 0; i < 4; i++) {
+        s = rateSrs(s, 3)
+        know.push(s.interval)
+      }
+      expect(know).toEqual([2, 3, 5, 8, 13])
     })
   })
 

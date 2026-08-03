@@ -104,7 +104,7 @@ export default function OptionsPage() {
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>("projects")
   const [reviewItems, setReviewItems] = useState<Item[]>([])
   const [reviewDateFilter, setReviewDateFilter] = useState<string | null>(null)
-  const [ratingFilter, setRatingFilter] = useState<1 | 2 | 3 | 4 | null>(null)
+  const [ratingFilter, setRatingFilter] = useState<1 | 2 | 3 | null>(null)
   const [allItemsUnfiltered, setAllItemsUnfiltered] = useState<Item[]>([])
   const [todoItems, setTodoItems] = useState<Item[]>([])
   const [todoEditingId, setTodoEditingId] = useState<string | null>(null)
@@ -137,10 +137,14 @@ export default function OptionsPage() {
   // Review session state (owned by options.tsx, not ReviewSession)
   const [reviewFlipped, setReviewFlipped] = useState(false)
   const [reviewCompleted, setReviewCompleted] = useState(false)
-  const [sessionRatings, setSessionRatings] = useState<Map<string, number>>(
-    new Map()
+  /** Cards that left the queue this session (final rating >= 2). */
+  const [sessionPassedIds, setSessionPassedIds] = useState<Set<string>>(
+    new Set()
   )
   const [sessionRatedCount, setSessionRatedCount] = useState(0)
+  /** The exact rateSrs result of each card's FIRST rating today (so same-day
+   * re-ratings can re-schedule without re-applying rateSrs). */
+  const firstSrsRef = useRef<Map<string, SrsData>>(new Map())
   const [animating, setAnimating] = useState(false)
   /** Bumped by `_dbr` broadcasts → triggers a lightweight review-state reload
    * (no full refreshAllData) so the session stays in sync with review writes. */
@@ -161,9 +165,9 @@ export default function OptionsPage() {
     () => ({
       remaining: reviewItems.length,
       rated: sessionRatedCount,
-      passed: Array.from(sessionRatings.values()).filter((r) => r >= 3).length
+      passed: sessionPassedIds.size
     }),
-    [reviewItems.length, sessionRatedCount, sessionRatings]
+    [reviewItems.length, sessionRatedCount, sessionPassedIds]
   )
 
   const ITEMS_PER_PAGE = 20
@@ -273,14 +277,14 @@ export default function OptionsPage() {
   })
 
   const cardFirstRating = useMemo(() => {
-    const m = new Map<string, 1 | 2 | 3 | 4>()
+    const m = new Map<string, 1 | 2 | 3>()
     if (!reviewDateFilter) return m
     for (const [itemId, srs] of reviewSrsMap) {
       if (!srs.reviewHistory) continue
       const entry = srs.reviewHistory.find(
         (e) => dayKey(e.date) === reviewDateFilter
       )
-      if (entry) m.set(itemId, entry.rating)
+      if (entry) m.set(itemId, Math.min(entry.rating, 3) as 1 | 2 | 3)
     }
     return m
   }, [reviewDateFilter, reviewSrsMap])
@@ -340,8 +344,9 @@ export default function OptionsPage() {
       setReviewFlipped(false)
       setAnimating(false)
       setReviewCompleted(false)
-      setSessionRatings(new Map())
+      setSessionPassedIds(new Set())
       setSessionRatedCount(0)
+      firstSrsRef.current = new Map()
     }
   }, [reviewItems, sidebarTab])
 
@@ -610,37 +615,52 @@ export default function OptionsPage() {
       const current = reviewItems[0]
       if (!current) return
 
+      const currentSrs = reviewSrsMap.get(current.id)
       // Existence guard: the review entry may have been removed mid-session
       // (cross-window/sync). Drop the phantom card without rating it.
-      const entryGone = !reviewSrsMap.has(current.id)
-      if (entryGone) {
+      if (!currentSrs) {
         setReviewItems((q) => q.slice(1))
       } else {
-        const currentSrs = reviewSrsMap.get(current.id)
-        const newSrs = currentSrs
-          ? rateSrs(currentSrs, rating)
-          : rateSrs(
-              {
-                dueDate: Date.now(),
-                interval: 0,
-                easeFactor: 2.5,
-                reviewCount: 0,
-                lastReviewDate: 0
-              },
-              rating
-            )
-        await updateReviewSrs(current.id, newSrs)
-        // Local O(1) queue update: passed → drop; failed → requeue to end.
-        setReviewItems((q) =>
-          rating >= 3 ? q.slice(1) : [...q.slice(1), current]
-        )
-        setSessionRatings((prev) => new Map(prev).set(current.id, rating))
-        setSessionRatedCount((c) => c + 1)
+        const today = dayKey(Date.now())
+        const wasRatedToday =
+          currentSrs.reviewHistory?.some(
+            (h) => dayKey(h.date) === today
+          ) ?? false
+
+        if (!wasRatedToday) {
+          // FIRST rating of the day → the only one that locks the schedule.
+          const newSrs = rateSrs(currentSrs, rating)
+          firstSrsRef.current.set(current.id, newSrs)
+          await updateReviewSrs(current.id, newSrs)
+          setSessionRatedCount((c) => c + 1)
+          if (rating >= 2) {
+            setReviewItems((q) => q.slice(1))
+            setSessionPassedIds((prev) => new Set(prev).add(current.id))
+          } else {
+            setReviewItems((q) => [...q.slice(1), current])
+          }
+        } else {
+          // Same-day re-rating: practice only, no schedule change. A re-pass
+          // moves the failure's dueDate to tomorrow (so it won't re-appear
+          // today); a re-fail keeps it in the session loop.
+          setSessionRatedCount((c) => c + 1)
+          if (rating >= 2) {
+            const base = firstSrsRef.current.get(current.id) ?? currentSrs
+            await updateReviewSrs(current.id, {
+              ...base,
+              dueDate: Date.now() + 86400000
+            })
+            setReviewItems((q) => q.slice(1))
+            setSessionPassedIds((prev) => new Set(prev).add(current.id))
+          } else {
+            setReviewItems((q) => [...q.slice(1), current])
+          }
+        }
       }
 
       // The queue empties only when the last card is dropped/passed — the
       // only point that needs a live DB reconcile (mid-session additions).
-      const willEmpty = (rating >= 3 || entryGone) && reviewItems.length === 1
+      const willEmpty = (rating >= 2 || !currentSrs) && reviewItems.length === 1
       setAnimating(true)
       setTimeout(async () => {
         setReviewFlipped(false)
@@ -1418,10 +1438,10 @@ export default function OptionsPage() {
                   {recentDates.find((d) => d.key === reviewDateFilter)?.label ??
                     reviewDateFilter}
                 </Typography>
-                {([null, 1, 2, 3, 4] as const).map((r) => {
+                {([null, 1, 2, 3] as const).map((r) => {
                   const active = ratingFilter === r
-                  const COLORS = ["#ef4444", "#f97316", "#22c55e", "#3b82f6"]
-                  const LABELS = ["全部", "重来", "困难", "良好", "简单"]
+                  const COLORS = ["#ef4444", "#f97316", "#22c55e"]
+                  const LABELS = ["全部", "不认识", "模糊", "认识"]
                   const i = r === null ? 0 : r
                   const color = r === null ? "#94a3b8" : COLORS[r - 1]
                   return (
@@ -1520,7 +1540,6 @@ export default function OptionsPage() {
                       flipped={reviewFlipped}
                       completed={reviewCompleted}
                       animating={animating}
-                      ratings={sessionRatings}
                       masteredCount={reviewStats.masteredCount}
                       activeCount={reviewStats.activeCount}
                       todayRatings={todayRatings}
