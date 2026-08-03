@@ -2122,23 +2122,23 @@ export default function OptionsPage() {
                  accept=".zip"
                  onChange={handleImportBackupFile}
                />
-               <input
-                 ref={pdfFileInputRef}
-                 type="file"
-                 hidden
-                 accept="application/pdf"
-                 onChange={(e) => {
-                   const f = e.target.files?.[0]
-                   if (f) {
-                     handleOpenPdfFile(f)
-                     setSidebarTab("pdf")
-                   }
-                   e.target.value = ""
-                 }}
-               />
-             </Container>
-            )}
-          </Box>
+              </Container>
+             )}
+             <input
+               ref={pdfFileInputRef}
+               type="file"
+               hidden
+               accept="application/pdf"
+               onChange={(e) => {
+                 const f = e.target.files?.[0]
+                 if (f) {
+                   handleOpenPdfFile(f)
+                   setSidebarTab("pdf")
+                 }
+                 e.target.value = ""
+               }}
+             />
+           </Box>
           <FooterBar
             sidebarTab={sidebarTab}
             totalItems={allItemsUnfiltered.length}
