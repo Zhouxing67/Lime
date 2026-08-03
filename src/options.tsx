@@ -135,14 +135,16 @@ export default function OptionsPage() {
   )
   const [reviewTitleDraft, setReviewTitleDraft] = useState("")
   // Review session state (owned by options.tsx, not ReviewSession)
-  const [reviewIndex, setReviewIndex] = useState(0)
   const [reviewFlipped, setReviewFlipped] = useState(false)
   const [reviewCompleted, setReviewCompleted] = useState(false)
   const [sessionRatings, setSessionRatings] = useState<Map<string, number>>(
     new Map()
   )
+  const [sessionRatedCount, setSessionRatedCount] = useState(0)
   const [animating, setAnimating] = useState(false)
-  const [sessionTotal, setSessionTotal] = useState(0)
+  /** Bumped by `_dbr` broadcasts → triggers a lightweight review-state reload
+   * (no full refreshAllData) so the session stays in sync with review writes. */
+  const [reviewsVersion, setReviewsVersion] = useState(0)
   const [expandedNav, setExpandedNav] = useState<Set<string>>(new Set())
   const [navOpen, setNavOpen] = useState(false)
   const [activeSectionByProject, setActiveSectionByProject] = useState<
@@ -155,16 +157,13 @@ export default function OptionsPage() {
   } | null>(null)
   const [mergeState, setMergeState] = useState<Item[] | null>(null)
 
-  const [slideDir, setSlideDir] = useState<1 | -1>(1)
-
   const reviewProgress = useMemo(
     () => ({
-      current: Math.min(reviewIndex + 1, reviewItems.length),
-      total: reviewItems.length,
-      sessionMastered: Array.from(sessionRatings.values()).filter((r) => r >= 3)
-        .length
+      remaining: reviewItems.length,
+      rated: sessionRatedCount,
+      passed: Array.from(sessionRatings.values()).filter((r) => r >= 3).length
     }),
-    [reviewIndex, reviewItems.length, sessionRatings]
+    [reviewItems.length, sessionRatedCount, sessionRatings]
   )
 
   const ITEMS_PER_PAGE = 20
@@ -269,7 +268,8 @@ export default function OptionsPage() {
     reviewItems,
     setReviewItems,
     reviewDateFilter,
-    setReviewDateFilter
+    setReviewDateFilter,
+    reviewsVersion
   })
 
   const cardFirstRating = useMemo(() => {
@@ -304,13 +304,13 @@ export default function OptionsPage() {
     searchItems({}).then(setAllItemsUnfiltered)
   }, [])
 
-  // Load review states (refresh when data changes)
+  // Load review states (refresh when items or review data change)
   useEffect(() => {
     getAllReviews().then((reviews) => {
       setReviewItemIds(new Set(reviews.map((r) => r.itemId)))
       setReviewSrsMap(new Map(reviews.map((r) => [r.itemId, r.srs])))
     })
-  }, [allItemsUnfiltered])
+  }, [allItemsUnfiltered, reviewsVersion])
 
   // Immediate search for non-keyword filter changes
   useEffect(() => {
@@ -339,10 +339,9 @@ export default function OptionsPage() {
     if (reviewItems.length === 0 && sidebarTab !== "review") {
       setReviewFlipped(false)
       setAnimating(false)
-      setSlideDir(1)
       setReviewCompleted(false)
       setSessionRatings(new Map())
-      setReviewIndex(0)
+      setSessionRatedCount(0)
     }
   }, [reviewItems, sidebarTab])
 
@@ -607,79 +606,62 @@ export default function OptionsPage() {
 
   const handleReviewRate = useCallback(
     async (rating: 1 | 2 | 3 | 4) => {
-      if (
-        reviewIndex >= reviewItems.length ||
-        animating ||
-        reviewItems.length === 0
-      )
-        return
-      const current = reviewItems[reviewIndex]
+      if (animating || reviewItems.length === 0) return
+      const current = reviewItems[0]
       if (!current) return
-      const currentSrs = reviewSrsMap.get(current.id)
-      const newSrs = currentSrs
-        ? rateSrs(currentSrs, rating)
-        : rateSrs(
-            {
-              dueDate: Date.now(),
-              interval: 0,
-              easeFactor: 2.5,
-              reviewCount: 0,
-              lastReviewDate: 0
-            },
-            rating
-          )
-      await updateReviewSrs(current.id, newSrs)
-      setSessionRatings((prev) => {
-        if (prev.has(current.id)) return prev
-        const next = new Map(prev)
-        next.set(current.id, rating)
-        return next
-      })
+
+      // Existence guard: the review entry may have been removed mid-session
+      // (cross-window/sync). Drop the phantom card without rating it.
+      const entryGone = !reviewSrsMap.has(current.id)
+      if (entryGone) {
+        setReviewItems((q) => q.slice(1))
+      } else {
+        const currentSrs = reviewSrsMap.get(current.id)
+        const newSrs = currentSrs
+          ? rateSrs(currentSrs, rating)
+          : rateSrs(
+              {
+                dueDate: Date.now(),
+                interval: 0,
+                easeFactor: 2.5,
+                reviewCount: 0,
+                lastReviewDate: 0
+              },
+              rating
+            )
+        await updateReviewSrs(current.id, newSrs)
+        // Local O(1) queue update: passed → drop; failed → requeue to end.
+        setReviewItems((q) =>
+          rating >= 3 ? q.slice(1) : [...q.slice(1), current]
+        )
+        setSessionRatings((prev) => new Map(prev).set(current.id, rating))
+        setSessionRatedCount((c) => c + 1)
+      }
+
+      // The queue empties only when the last card is dropped/passed — the
+      // only point that needs a live DB reconcile (mid-session additions).
+      const willEmpty = (rating >= 3 || entryGone) && reviewItems.length === 1
       setAnimating(true)
-      setSlideDir(1)
       setTimeout(async () => {
-        const due = await getDueReviews()
-        const itemMap = new Map(allItemsUnfiltered.map((i) => [i.id, i]))
-        const items = due
-          .map((r) => itemMap.get(r.itemId))
-          .filter((i): i is Item => i !== undefined)
         setReviewFlipped(false)
-        if (items.length === 0) {
-          setReviewCompleted(true)
-          setReviewItems([])
-        } else {
-          setReviewItems(items)
-          setReviewIndex(0)
-        }
         setAnimating(false)
+        if (willEmpty) {
+          const due = await getDueReviews()
+          const itemMap = new Map(allItemsUnfiltered.map((i) => [i.id, i]))
+          const items = due
+            .map((r) => itemMap.get(r.itemId))
+            .filter((i): i is Item => i !== undefined)
+          if (items.length === 0) {
+            setReviewCompleted(true)
+            setReviewItems([])
+          } else {
+            setReviewItems(items)
+          }
+        }
       }, 350)
     },
-    [reviewIndex, reviewItems, reviewSrsMap, animating, allItemsUnfiltered]
+    [reviewItems, reviewSrsMap, animating, allItemsUnfiltered]
   )
-
-  const handleReviewPrev = useCallback(() => {
-    if (reviewIndex > 0 && !animating) {
-      setSlideDir(-1)
-      setAnimating(true)
-      setReviewFlipped(false)
-      setTimeout(() => {
-        setReviewIndex((i) => i - 1)
-        setAnimating(false)
-      }, 350)
-    }
-  }, [reviewIndex, animating])
-
-  const handleReviewNext = useCallback(() => {
-    if (reviewIndex < reviewItems.length - 1 && !animating) {
-      setSlideDir(1)
-      setAnimating(true)
-      setReviewFlipped(false)
-      setTimeout(() => {
-        setReviewIndex((i) => i + 1)
-        setAnimating(false)
-      }, 350)
-    }
-  }, [reviewIndex, reviewItems.length, animating])
 
   const {
     backupFileInputRef,
@@ -858,6 +840,11 @@ export default function OptionsPage() {
     ) => {
       if (changes._dbi || changes._dbp) {
         refreshRef.current()
+      }
+      // Review writes broadcast `_dbr`: reload only review state (light),
+      // never the full refreshAllData chain.
+      if (changes._dbr) {
+        setReviewsVersion((v) => v + 1)
       }
     }
     chrome.storage.onChanged.addListener(onChange)
@@ -1330,7 +1317,6 @@ export default function OptionsPage() {
               reviewProgress={
                 sidebarTab === "review" ? reviewProgress : undefined
               }
-              reviewStats={sidebarTab === "review" ? reviewStats : undefined}
               activeProjectName={activeProject?.name}>
               {sidebarTab === "review" ? (
                 <Tooltip title="退出复习">
@@ -1527,17 +1513,13 @@ export default function OptionsPage() {
                     </Box>
                   ) : sidebarTab === "review" ? (
                     <ReviewSession
-                      item={reviewItems[reviewIndex] ?? null}
-                      total={
-                        reviewCompleted
-                          ? sessionRatings.size
-                          : reviewItems.length
-                      }
-                      current={Math.min(reviewIndex + 1, reviewItems.length)}
+                      item={reviewItems[0] ?? null}
+                      remaining={reviewProgress.remaining}
+                      ratedCount={reviewProgress.rated}
+                      passedCount={reviewProgress.passed}
                       flipped={reviewFlipped}
                       completed={reviewCompleted}
                       animating={animating}
-                      slideDir={slideDir}
                       ratings={sessionRatings}
                       masteredCount={reviewStats.masteredCount}
                       activeCount={reviewStats.activeCount}
@@ -1545,8 +1527,6 @@ export default function OptionsPage() {
                       streakDays={streakDays}
                       onFlip={handleReviewFlip}
                       onRate={handleReviewRate}
-                      onPrev={handleReviewPrev}
-                      onNext={handleReviewNext}
                       onExit={handleExitReview}
                     />
                   ) : (

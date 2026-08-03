@@ -1,9 +1,6 @@
-import ChevronLeftRoundedIcon from "@mui/icons-material/ChevronLeftRounded"
-import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded"
 import {
   Box,
   Button,
-  IconButton,
   Stack,
   Tooltip,
   Typography
@@ -16,12 +13,15 @@ import ReviewEmptyStats from "./ReviewEmptyStats"
 
 interface ReviewSessionProps {
   item: Item | null
-  total: number
-  current: number
+  /** Cards left in the current pass (absolute, no ratio). */
+  remaining: number
+  /** Rating actions taken this session. */
+  ratedCount: number
+  /** Cards whose final rating was >= 3. */
+  passedCount: number
   flipped: boolean
   completed: boolean
   animating: boolean
-  slideDir: 1 | -1
   ratings: Map<string, number>
   masteredCount: number
   activeCount: number
@@ -29,8 +29,6 @@ interface ReviewSessionProps {
   streakDays: number
   onFlip: () => void
   onRate: (rating: 1 | 2 | 3 | 4) => void
-  onPrev: () => void
-  onNext: () => void
   onExit: () => void
 }
 
@@ -39,12 +37,12 @@ const COLORS = ["#ef4444", "#f97316", "#22c55e", "#3b82f6"]
 
 export default function ReviewSession({
   item,
-  total,
-  current,
+  remaining,
+  ratedCount,
+  passedCount,
   flipped,
   completed,
   animating,
-  slideDir,
   ratings,
   masteredCount,
   activeCount,
@@ -52,8 +50,6 @@ export default function ReviewSession({
   streakDays,
   onFlip,
   onRate,
-  onPrev,
-  onNext,
   onExit
 }: ReviewSessionProps) {
   // Keyboard shortcuts
@@ -76,13 +72,7 @@ export default function ReviewSession({
 
   // Completion screen
   if (completed) {
-    const firstRatings = Array.from(ratings.values())
-    const avgRating =
-      firstRatings.length > 0
-        ? firstRatings.reduce((s, r) => s + r, 0) / firstRatings.length
-        : 0
-    const goodCount = firstRatings.filter((r) => r >= 3).length
-    const accuracy = total > 0 ? goodCount / total : 0
+    const retries = Math.max(0, ratedCount - passedCount)
     return (
       <Box
         sx={{
@@ -95,7 +85,7 @@ export default function ReviewSession({
           mx: "auto"
         }}>
         <Typography sx={{ fontSize: "4rem", mb: 2, lineHeight: 1 }}>
-          {accuracy >= 0.8 ? "🎉" : accuracy >= 0.5 ? "👍" : "💪"}
+          {retries === 0 ? "🎉" : "💪"}
         </Typography>
         <Typography
           variant="h5"
@@ -114,38 +104,39 @@ export default function ReviewSession({
             <Box sx={{ textAlign: "center" }}>
               <Typography
                 variant="h4"
-                sx={{ fontWeight: 600, color: "success.main" }}>
-                {Math.round(accuracy * 100)}%
-              </Typography>
-              <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                准确率
-              </Typography>
-            </Box>
-            <Box sx={{ textAlign: "center" }}>
-              <Typography
-                variant="h4"
                 sx={{ fontWeight: 600, color: "primary.main" }}>
-                {total}
+                {passedCount}
               </Typography>
               <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                复习卡片
+                通过（张）
               </Typography>
             </Box>
             <Box sx={{ textAlign: "center" }}>
               <Typography
                 variant="h4"
-                sx={{ fontWeight: 600, color: "secondary.main" }}>
-                {goodCount}
+                sx={{ fontWeight: 600, color: "text.secondary" }}>
+                {ratedCount}
               </Typography>
               <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                已掌握
+                本次已评（次）
+              </Typography>
+            </Box>
+            <Box sx={{ textAlign: "center" }}>
+              <Typography
+                variant="h4"
+                sx={{ fontWeight: 600, color: "warning.main" }}>
+                {retries}
+              </Typography>
+              <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                重试（次）
               </Typography>
             </Box>
           </Stack>
         </Box>
         <Stack spacing={0.5} sx={{ mb: 3, textAlign: "center" }}>
           <Typography variant="body2" sx={{ color: "text.secondary" }}>
-            熟悉率 {goodCount}/{total} · 平均评分 {avgRating.toFixed(1)}
+            本次复习 {ratedCount} 次 · 通过 {passedCount} 张
+            {retries > 0 ? ` · 重试 ${retries} 次` : ""}
           </Typography>
           {masteredCount > 0 && (
             <Typography
@@ -194,48 +185,9 @@ export default function ReviewSession({
           from { opacity: 0; transform: translateX(60px); }
           to { opacity: 1; transform: translateX(0); }
         }
-        @keyframes reviewSlideInLeft {
-          from { opacity: 0; transform: translateX(-60px); }
-          to { opacity: 1; transform: translateX(0); }
-        }
       `}</style>
 
       <Box sx={{ position: "relative", mb: 3 }}>
-        <IconButton
-          disabled={current <= 1}
-          onClick={onPrev}
-          sx={{
-            position: "absolute",
-            left: -64,
-            top: "50%",
-            transform: "translateY(-50%)",
-            zIndex: 2,
-            bgcolor: "background.paper",
-            border: "1px solid",
-            borderColor: "divider",
-            boxShadow: 2,
-            "&:hover": { bgcolor: "action.hover" }
-          }}>
-          <ChevronLeftRoundedIcon sx={{ fontSize: 28 }} />
-        </IconButton>
-        <IconButton
-          disabled={current >= total}
-          onClick={onNext}
-          sx={{
-            position: "absolute",
-            right: -64,
-            top: "50%",
-            transform: "translateY(-50%)",
-            zIndex: 2,
-            bgcolor: "background.paper",
-            border: "1px solid",
-            borderColor: "divider",
-            boxShadow: 2,
-            "&:hover": { bgcolor: "action.hover" }
-          }}>
-          <ChevronRightRoundedIcon sx={{ fontSize: 28 }} />
-        </IconButton>
-
         <Box
           onClick={onFlip}
           sx={{
@@ -244,7 +196,7 @@ export default function ReviewSession({
             cursor: "pointer",
             animation: animating
               ? "reviewSlideOut 0.3s ease-in forwards"
-              : `reviewSlideIn${slideDir === 1 ? "Right" : "Left"} 0.35s ease-out`
+              : "reviewSlideInRight 0.35s ease-out"
           }}>
           {/* Front */}
           <Box

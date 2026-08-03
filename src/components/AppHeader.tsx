@@ -3,14 +3,15 @@ import ViewSidebarRoundedIcon from "@mui/icons-material/ViewSidebarRounded"
 import { Box, IconButton, Stack, Tooltip, Typography } from "@mui/material"
 import type { ReactNode } from "react"
 
-import type { ReviewStats } from "../hooks/useSrs"
-
 interface AppHeaderProps {
   drawerOpen: boolean
   headerHeight: number
   onToggleDrawer: () => void
-  reviewProgress?: { current: number; total: number; sessionMastered: number }
-  reviewStats?: ReviewStats
+  reviewProgress?: {
+    remaining: number
+    rated: number
+    passed: number
+  }
   activeProjectName?: string
   children?: ReactNode
 }
@@ -20,7 +21,6 @@ export default function AppHeader({
   headerHeight,
   onToggleDrawer,
   reviewProgress,
-  reviewStats,
   activeProjectName,
   children
 }: AppHeaderProps) {
@@ -83,19 +83,12 @@ export default function AppHeader({
             </Typography>
           )}
         </Stack>
-        {reviewProgress && reviewProgress.total > 0 && (
+        {reviewProgress && reviewProgress.remaining > 0 && (
           <Typography
             variant="body2"
             sx={{ color: "text.secondary", fontSize: "0.85rem", ml: 0.5 }}>
-            第 {reviewProgress.current} 张 / 共 {reviewProgress.total} 张
-          </Typography>
-        )}
-        {reviewProgress && (
-          <Typography
-            variant="caption"
-            sx={{ color: "text.disabled", fontSize: "0.72rem" }}>
-            · 已掌握 {reviewProgress.sessionMastered ?? 0} · 待复习{" "}
-            {reviewStats?.dueCount ?? 0}
+            剩余 {reviewProgress.remaining} 张 · 已评{" "}
+            {reviewProgress.rated} 次 · 通过 {reviewProgress.passed} 张
           </Typography>
         )}
         <Box sx={{ flexGrow: 1 }} />

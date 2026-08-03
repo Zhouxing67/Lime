@@ -31,6 +31,8 @@ interface UseReviewOptions {
   setReviewItems: (items: Item[]) => void
   reviewDateFilter: string | null
   setReviewDateFilter: (key: string | null) => void
+  /** Bumped on `_dbr` broadcasts so review stats reload without refreshAllData. */
+  reviewsVersion: number
 }
 
 export function useReview(options: UseReviewOptions) {
@@ -43,7 +45,8 @@ export function useReview(options: UseReviewOptions) {
     reviewItems,
     reviewDateFilter,
     setReviewDateFilter,
-    setReviewItems
+    setReviewItems,
+    reviewsVersion
   } = options
 
   const [dueCount, setDueCount] = useState(0)
@@ -100,7 +103,7 @@ export function useReview(options: UseReviewOptions) {
       }
       setStreakDays(streak)
     })
-  }, [allItemsUnfiltered])
+  }, [allItemsUnfiltered, reviewsVersion])
 
   // Load due cards every time the user enters review tab (always from DB)
   // allItemsUnfiltered NOT in deps to prevent refreshAllData from racing with rating timeout

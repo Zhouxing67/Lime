@@ -46,8 +46,12 @@ async function bgFetch(
 // ---- Dirty-check helpers ----
 
 async function hasChangesSince(lastSync: number): Promise<boolean> {
-  const data = await chrome.storage.local.get(["_dbi", "_dbp"])
-  return (data._dbi ?? 0) > lastSync || (data._dbp ?? 0) > lastSync
+  const data = await chrome.storage.local.get(["_dbi", "_dbp", "_dbr"])
+  return (
+    (data._dbi ?? 0) > lastSync ||
+    (data._dbp ?? 0) > lastSync ||
+    (data._dbr ?? 0) > lastSync
+  )
 }
 
 async function getLastSyncTime(): Promise<number | null> {

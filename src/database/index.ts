@@ -13,9 +13,9 @@ type TableNames = "items" | "projects" | "reviews"
 async function broadcastDbChange(name: TableNames): Promise<void> {
   try {
     if (typeof chrome?.storage?.local?.set === "function") {
-      await chrome.storage.local.set({
-        [name === "projects" ? "_dbp" : "_dbi"]: Date.now()
-      })
+      const key =
+        name === "projects" ? "_dbp" : name === "reviews" ? "_dbr" : "_dbi"
+      await chrome.storage.local.set({ [key]: Date.now() })
     }
   } catch {}
 }

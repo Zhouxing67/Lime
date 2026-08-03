@@ -107,7 +107,7 @@ chrome.storage.onChanged.addListener((changes) => {
     rebuildProjectMenus().catch(() => {})
     rebuildRecentMenus().catch(() => {})
   }
-  if (changes._dbi) {
+  if (changes._dbi || changes._dbr) {
     updateBadge()
   }
 })
