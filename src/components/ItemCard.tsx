@@ -20,7 +20,6 @@ export default function ItemCard({
   onClick,
   onToggleReview,
   onReReview,
-  onToggleRead,
   onCopyToProject
 }: {
   item: Item
@@ -35,7 +34,6 @@ export default function ItemCard({
   onClick?: () => void
   onToggleReview?: (id: string) => void
   onReReview?: (id: string) => void
-  onToggleRead?: (id: string) => void
   onCopyToProject?: (id: string) => void
 }) {
   const [hovered, setHovered] = useState(false)

@@ -117,7 +117,6 @@ export default function OptionsPage() {
     null
   )
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
-  const [readingFilter, setReadingFilter] = useState(false)
   const [dateRange, setDateRange] = useState<{
     from?: number
     to?: number
@@ -344,10 +343,10 @@ export default function OptionsPage() {
   }, [keyword, activeProjectId])
 
   // Clear selection when the search scope changes so batch ops never act on
-  // cards hidden by a new keyword/date range/reading filter.
+  // cards hidden by a new keyword/date range.
   useEffect(() => {
     setSelectedIds([])
-  }, [keyword, dateRange, activeProjectId, readingFilter])
+  }, [keyword, dateRange, activeProjectId])
 
   // Reset review session state when exiting review
   useEffect(() => {
@@ -431,7 +430,6 @@ export default function OptionsPage() {
     const sentinelVisible =
       hasMore &&
       !!activeProjectId &&
-      !readingFilter &&
       Boolean(keyword || dateRange)
     if (!sentinelVisible) return
     const observer = new IntersectionObserver(
@@ -451,7 +449,7 @@ export default function OptionsPage() {
         observer.unobserve(currentRef)
       }
     }
-  }, [hasMore, activeProjectId, readingFilter, keyword, dateRange])
+  }, [hasMore, activeProjectId, keyword, dateRange])
 
   const handleBatchDelete = () => {
     if (selectedIds.length === 0) return
@@ -1047,17 +1045,6 @@ export default function OptionsPage() {
     })
   }, [expandedNav, activeSectionByProject, drawerWidth])
 
-  const handleToggleRead = async (id: string) => {
-    const item = allItems.find((i) => i.id === id)
-    if (!item) return
-    await updateItem({ ...item, read: !item.read })
-    onSearch()
-  }
-
-  const handleToggleReadingFilter = () => {
-    setReadingFilter((prev) => !prev)
-  }
-
   const handleExportMarkdown = useCallback(
     async (projectId: string, sectionId?: string | null) => {
       const project = projects.find((p) => p.id === projectId)
@@ -1130,10 +1117,6 @@ export default function OptionsPage() {
     if (skipped > 0) setSnackbarMsg(`跳过 ${skipped} 条重复内容`)
     onSearch()
   }
-
-  const readingFilteredItems = allItems.filter(
-    (i) => i.type === "link" && !i.read
-  )
 
   // ---- Todo state & handlers (global view, newest first, not draggable) ----
   const today = todayLocalDate()
@@ -1258,11 +1241,7 @@ export default function OptionsPage() {
   // Full card set the current view renders. 全选 must target this scope, not
   // the paginated displayedItems slice (which only holds the first page) —
   // otherwise select-all in the section/outline view only picks 20 cards.
-  const viewItems = readingFilter
-    ? readingFilteredItems
-    : keyword || dateRange
-      ? allItems
-      : scopeItems
+  const viewItems = keyword || dateRange ? allItems : scopeItems
 
   const sharedCardGridProps = {
     selectedIds,
@@ -1271,7 +1250,6 @@ export default function OptionsPage() {
     onOpenDialog: setDialogItem,
     onToggleReview: handleToggleReview,
     onReReview: handleReReview,
-    onToggleRead: handleToggleRead,
     onCopyToProject: setCopyCardId
   }
 
@@ -1305,13 +1283,11 @@ export default function OptionsPage() {
           width={drawerWidth}
           projects={projects}
           sidebarTab={sidebarTab}
-          readingFilter={readingFilter}
           backupSelectedIds={backupSelectedIds}
           syncStatus={syncStatus}
           todoStats={todoStats}
           todoFilter={todoFilter}
           onTodoFilterChange={setTodoFilter}
-          onToggleReadingFilter={handleToggleReadingFilter}
           onWidthChange={(w) => setDrawerWidth(w)}
           onNewProjectClick={() => setCreateDialogOpen(true)}
           onToggleBackup={(id) =>
@@ -1630,7 +1606,7 @@ export default function OptionsPage() {
                     />
                   ) : (
                     <>
-                      {!readingFilter && !activeProject && (
+                      {!activeProject && (
                         <ProjectHub
                           projects={projects}
                           countByProject={countByProject}
@@ -1650,37 +1626,7 @@ export default function OptionsPage() {
                         />
                       )}
 
-                      {readingFilter ? (
-                        readingFilteredItems.length === 0 ? (
-                          <EmptyState
-                            icon={
-                              <SearchOffRoundedIcon
-                                className="empty-icon"
-                                sx={{ fontSize: 80, mb: 3 }}
-                              />
-                            }
-                            title="阅读清单已清空"
-                            subtitle="所有链接都已标记为已读"
-                          />
-                        ) : (
-                          <CardGrid
-                            items={readingFilteredItems}
-                            selectMode={selectMode}
-                            onSelectItem={(id) =>
-                              setSelectedIds((prev) =>
-                                prev.includes(id)
-                                  ? prev.filter((i) => i !== id)
-                                  : [...prev, id]
-                              )
-                            }
-                            onDeleteItem={onDelete}
-                            {...sharedCardGridProps}
-                          />
-                        )
-                      ) : null}
-
-                      {!readingFilter &&
-                        activeProject &&
+                      {activeProject &&
                         !keyword &&
                         !dateRange && (
                           <>
@@ -1788,8 +1734,7 @@ export default function OptionsPage() {
                           </>
                         )}
 
-                      {!readingFilter &&
-                        activeProject &&
+                      {activeProject &&
                         (keyword || dateRange) && (
                           <CardGrid
                             items={displayedItems}
@@ -1806,8 +1751,7 @@ export default function OptionsPage() {
                           />
                         )}
 
-                      {!readingFilter &&
-                        activeProject &&
+                      {activeProject &&
                         !hasMore &&
                         allItems.length === 0 &&
                         (keyword ? (
@@ -1845,8 +1789,7 @@ export default function OptionsPage() {
                           />
                         ))}
 
-                      {!readingFilter &&
-                        activeProject &&
+                      {activeProject &&
                         !keyword &&
                         !dateRange &&
                         allItems.length > 0 &&
@@ -1865,7 +1808,6 @@ export default function OptionsPage() {
 
                       {hasMore &&
                         activeProject &&
-                        !readingFilter &&
                         (keyword || dateRange) && (
                           <Box
                             ref={loadMoreRef}

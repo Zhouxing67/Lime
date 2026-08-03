@@ -7,6 +7,7 @@ import type { PanelData, PanelPosition } from "../components/FloatingPanel"
 import type { Project } from "../types"
 import {
   flashMath,
+  imageFromCursor,
   initMathHover,
   paragraphFromCursor,
   selectionWithMath,
@@ -33,6 +34,7 @@ export default function LimePanel() {
   const [title, setTitle] = useState("")
   const [content, setContent] = useState("")
   const [imageDraft, setImageDraft] = useState("")
+  const [captureType, setCaptureType] = useState<"text" | "image">("text")
   const prevSelectionRef = useRef("")
   const pinnedRef = useRef(pinned)
   const dirtyRef = useRef(false)
@@ -50,7 +52,7 @@ export default function LimePanel() {
   }, [])
 
   const show = useCallback(
-    (text: string, rect: DOMRect) => {
+    (text: string, rect: DOMRect, type: "text" | "image" = "text") => {
       if (text === prevSelectionRef.current && open && pinnedRef.current) return
       // Panel already holds a draft (open + non-empty) — keep its content.
       if (open && dirtyRef.current) return
@@ -59,6 +61,7 @@ export default function LimePanel() {
       setTitle("")
       setContent(text)
       setImageDraft("")
+      setCaptureType(type)
       setRestorePanel(false)
       setSurface(lastClosedRef.current)
       setOpen(true)
@@ -131,6 +134,18 @@ export default function LimePanel() {
               flashMath(el)
             }
           }
+          return
+        }
+        // Mode C: an `<img>` under the cursor → image card.
+        const hitImg = imageFromCursor()
+        if (hitImg) {
+          const { src, el } = hitImg
+          if (src.length >= 5 && src.length <= 8000) {
+            const rect = el.getBoundingClientRect()
+            if (rect.width > 0 && rect.height > 0) {
+              show(src, rect, "image")
+            }
+          }
         }
       }
     }
@@ -197,6 +212,7 @@ export default function LimePanel() {
     setContent,
     imageDraft,
     setImageDraft,
+    captureType,
     onClose: hide,
     onSaved: hide,
     onProjectsChange: setProjects,

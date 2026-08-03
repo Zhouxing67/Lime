@@ -1,10 +1,4 @@
 import {
-  createMenus,
-  ensureMenusReady,
-  rebuildProjectMenus,
-  rebuildRecentMenus
-} from "./background/menus"
-import {
   addItem,
   addProject,
   getDueReviews,
@@ -103,17 +97,12 @@ function createItem(data: {
 
 // Listen for database changes broadcast via storage
 chrome.storage.onChanged.addListener((changes) => {
-  if (changes._dbp) {
-    rebuildProjectMenus().catch(() => {})
-    rebuildRecentMenus().catch(() => {})
-  }
   if (changes._dbi || changes._dbr) {
     updateBadge()
   }
 })
 
 chrome.runtime.onInstalled.addListener(() => {
-  createMenus().catch((e) => console.warn("onInstalled createMenus failed:", e))
   updateBadge()
   // Notify all tabs to reload content scripts
   chrome.tabs.query({}, (tabs) => {
@@ -128,128 +117,7 @@ chrome.runtime.onInstalled.addListener(() => {
 })
 
 chrome.runtime.onStartup.addListener(() => {
-  createMenus().catch((e) => console.warn("onStartup createMenus failed:", e))
   updateBadge()
-})
-
-chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  try {
-    await ensureMenusReady()
-    const { menuItemId } = info
-
-    const url = info.pageUrl ?? tab?.url ?? ""
-    const title = tab?.title ?? ""
-    const site = url ? new URL(url).hostname : undefined
-
-    const base = {
-      source: { title, url, site },
-      createdAt: Date.now()
-    }
-
-    const saveAndNotify = async (
-      type: Item["type"],
-      content: string,
-      projectId?: string,
-      projectName?: string
-    ) => {
-      const item = createItem({ type, content, source: base.source, projectId })
-      const saved = await addItem(item)
-      if (saved && projectId) {
-        touchProject(projectId).catch(() => {})
-      }
-      notifyTab(tab?.id, saved, type, projectName)
-    }
-
-    const captureAndSave = async (
-      projectId?: string,
-      projectName?: string
-    ): Promise<void> => {
-      if (info.selectionText) {
-        await saveAndNotify("text", info.selectionText, projectId, projectName)
-        return
-      }
-      if (info.srcUrl) {
-        await saveAndNotify("image", info.srcUrl, projectId, projectName)
-        return
-      }
-      if (info.linkUrl) {
-        await saveAndNotify("link", info.linkUrl, projectId, projectName)
-        return
-      }
-      if (tab?.url) {
-        await saveAndNotify("link", tab.url, projectId, projectName)
-      }
-    }
-
-    // ---- "新建项目并加入" ----
-    if (menuItemId === "pickquote-new-project") {
-      let captureType: Item["type"] = "text"
-      let captureContent = ""
-      if (info.selectionText) {
-        captureType = "text"
-        captureContent = info.selectionText
-      } else if (info.srcUrl) {
-        captureType = "image"
-        captureContent = info.srcUrl
-      } else if (info.linkUrl) {
-        captureType = "link"
-        captureContent = info.linkUrl
-      } else if (tab?.url) {
-        captureType = "link"
-        captureContent = tab.url
-      } else {
-        return
-      }
-
-      await new Promise<void>((resolve) =>
-        chrome.storage.session.set(
-          {
-            pendingCapture: {
-              type: captureType,
-              content: captureContent,
-              source: base.source
-            },
-            pendingTabId: tab?.id
-          },
-          () => resolve()
-        )
-      )
-      chrome.windows.create({
-        url: chrome.runtime.getURL("tabs/new-project.html"),
-        type: "popup",
-        width: 480,
-        height: 460
-      })
-      return
-    }
-
-    // ---- "最近项目" ----
-    if (
-      typeof menuItemId === "string" &&
-      menuItemId.startsWith("pickquote-recent-")
-    ) {
-      const idx = parseInt(menuItemId.slice("pickquote-recent-".length), 10)
-      const recent = await getRecentProjects(3)
-      const project = recent[idx]
-      if (!project) return
-      await captureAndSave(project.id, project.name)
-      return
-    }
-
-    // ---- "加入已有项目" ----
-    if (
-      typeof menuItemId === "string" &&
-      menuItemId.startsWith("pickquote-proj-")
-    ) {
-      const projectId = menuItemId.slice("pickquote-proj-".length)
-      const projects = await listProjects()
-      const project = projects.find((p) => p.id === projectId)
-      await captureAndSave(projectId, project?.name ?? "未知项目")
-      return
-    }
-  } catch (e) {
-    console.error("contextMenus.onClicked failed:", e)
-  }
 })
 
 chrome.runtime.onMessage.addListener((raw: any, _sender, sendResponse) => {

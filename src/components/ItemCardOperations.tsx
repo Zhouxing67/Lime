@@ -1,4 +1,3 @@
-import CheckCircleOutlineRoundedIcon from "@mui/icons-material/CheckCircleOutlineRounded"
 import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded"
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
 import FileCopyOutlinedIcon from "@mui/icons-material/FileCopyOutlined"
@@ -21,7 +20,6 @@ interface ItemCardOperationsProps {
   onToggleReview?: (id: string) => void
   onReReview?: (id: string) => void
   onCopyToProject?: (id: string) => void
-  onToggleRead?: (id: string) => void
 }
 
 export default function ItemCardOperations({
@@ -33,8 +31,7 @@ export default function ItemCardOperations({
   onDelete,
   onToggleReview,
   onReReview,
-  onCopyToProject,
-  onToggleRead
+  onCopyToProject
 }: ItemCardOperationsProps) {
   const [copied, setCopied] = useState(false)
 
@@ -114,22 +111,6 @@ export default function ItemCardOperations({
                   ) : (
                     <PlaylistAddCheckRoundedIcon sx={{ fontSize: 16 }} />
                   )}
-                </IconButton>
-              </Tooltip>
-            )}
-            {item.type === "link" && onToggleRead && (
-              <Tooltip title={item.read ? "标记未读" : "标记已读"}>
-                <IconButton
-                  size="small"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onToggleRead(item.id)
-                  }}
-                  sx={{
-                    p: 0.75,
-                    color: item.read ? "success.main" : "text.disabled"
-                  }}>
-                  <CheckCircleOutlineRoundedIcon sx={{ fontSize: 16 }} />
                 </IconButton>
               </Tooltip>
             )}

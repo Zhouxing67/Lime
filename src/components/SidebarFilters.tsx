@@ -24,7 +24,6 @@ interface SidebarFiltersProps {
   width: number
   sidebarTab: SidebarTab
   projects: Project[]
-  readingFilter: boolean
   backupSelectedIds: string[]
   syncStatus: string
   recentDates: { key: string; label: string; count: number }[]
@@ -35,7 +34,6 @@ interface SidebarFiltersProps {
   children?: ReactNode
   onReviewDateClick: (dateKey: string | null) => void
   onWidthChange: (w: number) => void
-  onToggleReadingFilter: () => void
   onNewProjectClick: () => void
   onToggleBackup: (id: string) => void
   onToggleBackupAll: () => void
@@ -98,7 +96,6 @@ export default function SidebarFilters({
   width,
   sidebarTab,
   projects,
-  readingFilter,
   backupSelectedIds,
   syncStatus,
   recentDates,
@@ -109,7 +106,6 @@ export default function SidebarFilters({
   children,
   onReviewDateClick,
   onWidthChange,
-  onToggleReadingFilter,
   onNewProjectClick,
   onToggleBackup,
   onToggleBackupAll,
@@ -429,40 +425,6 @@ export default function SidebarFilters({
                       flex: 1
                     }}>
                     新建项目
-                  </Typography>
-                </Stack>
-
-                <Stack
-                  direction="row"
-                  alignItems="center"
-                  spacing={1}
-                  sx={{
-                    px: 1.5,
-                    py: 0.75,
-                    borderTop: "1px solid",
-                    borderColor: "divider",
-                    cursor: "pointer",
-                    bgcolor: readingFilter ? "action.selected" : "transparent",
-                    "&:hover": { bgcolor: "action.hover" }
-                  }}
-                  onClick={onToggleReadingFilter}>
-                  <Box
-                    sx={{
-                      width: 3,
-                      height: 14,
-                      borderRadius: 1,
-                      bgcolor: readingFilter ? "primary.main" : "text.disabled",
-                      flexShrink: 0
-                    }}
-                  />
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      fontSize: "0.8rem",
-                      fontWeight: 600,
-                      color: readingFilter ? "primary.main" : "text.secondary"
-                    }}>
-                    稍后阅读
                   </Typography>
                 </Stack>
               </Well>

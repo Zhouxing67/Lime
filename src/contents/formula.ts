@@ -144,6 +144,18 @@ export function paragraphFromCursor(): { content: string; el: Element } | null {
   return { content, el: para }
 }
 
+/** `<img>` under the current cursor (for Alt+L image capture). */
+export function imageFromCursor(): { src: string; el: Element } | null {
+  const img =
+    lastTarget?.closest?.("img") ??
+    document.elementFromPoint(lastX, lastY)?.closest?.("img") ??
+    null
+  if (!img) return null
+  const src = img.getAttribute("src")
+  if (!src) return null
+  return { src, el: img }
+}
+
 // ---- cursor tracking + hover highlight ----
 
 let lastX = -1

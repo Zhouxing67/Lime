@@ -33,7 +33,6 @@ interface CardGridProps {
   onOpenDialog: (item: Item) => void
   onToggleReview?: (id: string) => void
   onReReview?: (id: string) => void
-  onToggleRead?: (id: string) => void
   onCopyToProject?: (id: string) => void
 }
 
@@ -59,7 +58,6 @@ export default function CardGrid({
   onOpenDialog,
   onToggleReview,
   onReReview,
-  onToggleRead,
   onCopyToProject,
   reviewItemIds,
   masteredItemIds,
@@ -211,7 +209,6 @@ export default function CardGrid({
                   }}
                   onToggleReview={onToggleReview}
                   onReReview={onReReview}
-                  onToggleRead={onToggleRead}
                   onCopyToProject={onCopyToProject}
                 />
               </Box>

@@ -21,6 +21,7 @@ export default function CaptureSidebar({
   setContent,
   imageDraft,
   setImageDraft,
+  captureType,
   onClose,
   onSaved,
   onProjectsChange,
@@ -39,6 +40,7 @@ export default function CaptureSidebar({
   setContent: React.Dispatch<React.SetStateAction<string>>
   imageDraft: string
   setImageDraft: (v: string) => void
+  captureType: "text" | "image"
   onClose: () => void
   onSaved: () => void
   onProjectsChange: (projects: Project[]) => void
@@ -64,6 +66,7 @@ export default function CaptureSidebar({
         setContent={setContent}
         imageDraft={imageDraft}
         setImageDraft={setImageDraft}
+        captureType={captureType}
         onClose={onClose}
         onSaved={onSaved}
         onPinChange={noop}

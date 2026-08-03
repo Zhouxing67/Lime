@@ -48,7 +48,6 @@
   },
   "manifest": {
     "permissions": [
-      "contextMenus",
       "activeTab",
       "tabs",
       "scripting",

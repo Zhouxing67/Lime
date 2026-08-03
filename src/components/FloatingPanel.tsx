@@ -203,6 +203,7 @@ export function FloatingPanel({
   setContent,
   imageDraft,
   setImageDraft,
+  captureType,
   onClose,
   onSaved,
   onPinChange,
@@ -224,6 +225,7 @@ export function FloatingPanel({
   setContent: React.Dispatch<React.SetStateAction<string>>
   imageDraft: string
   setImageDraft: (v: string) => void
+  captureType: "text" | "image"
   onClose: () => void
   onSaved: () => void
   onPinChange: (pinned: boolean) => void
@@ -249,6 +251,7 @@ export function FloatingPanel({
         setContent={setContent}
         imageDraft={imageDraft}
         setImageDraft={setImageDraft}
+        captureType={captureType}
         onClose={onClose}
         onSaved={onSaved}
         onPinChange={onPinChange}
@@ -278,6 +281,7 @@ export function FloatingPanelContent({
   setContent,
   imageDraft,
   setImageDraft,
+  captureType,
   onClose,
   onSaved,
   onPinChange,
@@ -303,6 +307,7 @@ export function FloatingPanelContent({
   setContent: React.Dispatch<React.SetStateAction<string>>
   imageDraft: string
   setImageDraft: (v: string) => void
+  captureType: "text" | "image"
   onClose: () => void
   onSaved: () => void
   onPinChange: (pinned: boolean) => void
@@ -318,6 +323,7 @@ export function FloatingPanelContent({
   const [creating, setCreating] = useState(false)
   const [newName, setNewName] = useState("")
   const [error, setError] = useState("")
+  const [linkDraft, setLinkDraft] = useState("")
   const ref = useRef<HTMLDivElement>(null)
 
   // ---- Theme: preset from storage + dark mode from prefers-color-scheme ----
@@ -364,6 +370,7 @@ export function FloatingPanelContent({
     setSaving(false)
     setSaved(false)
     setError("")
+    setLinkDraft("")
   }, [data.text])
 
   // Load projects
@@ -498,7 +505,7 @@ export function FloatingPanelContent({
       const res = await sendMessage<{ ok: boolean; saved?: boolean }>({
         kind: "capture",
         payload: {
-          type: "text",
+          type: captureType,
           content: content.trim(),
           title: title.trim() || undefined,
           source: {
@@ -522,13 +529,14 @@ export function FloatingPanelContent({
         setContent("")
         setTitle("")
         setImageDraft("")
+        setLinkDraft("")
       }, 1200)
     } catch (err) {
       console.warn("[lime] save failed:", err)
       setError("保存失败")
       setSaving(false)
     }
-  }, [content, title, selectedProjectId, onSaved])
+  }, [content, title, captureType, selectedProjectId, onSaved])
 
   const createProject = useCallback(async () => {
     if (!newName.trim()) return
@@ -571,6 +579,19 @@ export function FloatingPanelContent({
   const removeImage = useCallback((url: string) => {
     setContent((prev) => removeMarkdownImage(prev, url))
   }, [])
+
+  /** Insert `[摘要](url)` into the content (label forced from the 摘要 field). */
+  const addLink = useCallback(() => {
+    const url = linkDraft.trim()
+    const label = title.trim()
+    if (!url || !label) return
+    setContent((prev) => {
+      const token = `[${label}](${url})`
+      const trimmed = prev.trim()
+      return trimmed ? `${trimmed}\n\n${token}` : token
+    })
+    setLinkDraft("")
+  }, [linkDraft, title, setContent])
 
   // Sidebar width drag (left edge of the right-fixed sidebar).
   const resizeRef = useRef<{ startX: number; startW: number } | null>(null)
@@ -844,52 +865,129 @@ export function FloatingPanelContent({
           onChange={(e) => setTitle(e.target.value)}
           style={{ ...inputStyle(colors), fontWeight: 500, marginBottom: 8 }}
         />
-        <textarea
-          className="lime-input"
-          placeholder="输入内容…"
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          rows={4}
-          style={{ ...inputStyle(colors), lineHeight: 1.7, resize: "vertical" }}
-        />
-
-        {/* Image URL input — plain DOM, no MUI (content-script bundle) */}
-        <div style={{ display: "flex", gap: 4, marginTop: 8 }}>
-          <input
-            className="lime-input"
-            placeholder="图片 URL（可选，回车插入）"
-            value={imageDraft}
-            onChange={(e) => setImageDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault()
-                addImage(imageDraft)
-                setImageDraft("")
-              }
-            }}
-            style={{ ...inputStyle(colors), padding: "6px 10px", fontSize: 12 }}
-          />
-          <button
-            type="button"
-            disabled={!imageDraft.trim()}
-            onClick={() => {
-              addImage(imageDraft)
-              setImageDraft("")
-            }}
+        {captureType === "image" ? (
+          /* Image capture: preview + 摘要 + save (no body / URL inputs). */
+          <img
+            src={content}
+            alt=""
             style={{
-              border: "none",
+              width: "100%",
+              maxHeight: 260,
+              objectFit: "contain",
               borderRadius: 8,
-              padding: "0 10px",
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: "pointer",
-              background: imageDraft.trim() ? colors.primary : colors.bgHover,
-              color: imageDraft.trim() ? "#fff" : colors.textDisabled,
-              flexShrink: 0
-            }}>
-            ＋
-          </button>
-        </div>
+              background: colors.bgHover,
+              display: "block"
+            }}
+          />
+        ) : (
+          <>
+            <textarea
+              className="lime-input"
+              placeholder="输入内容…"
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              rows={4}
+              style={{
+                ...inputStyle(colors),
+                lineHeight: 1.7,
+                resize: "vertical"
+              }}
+            />
+
+            {/* Image URL input — plain DOM, no MUI (content-script bundle) */}
+            <div style={{ display: "flex", gap: 4, marginTop: 8 }}>
+              <input
+                className="lime-input"
+                placeholder="图片 URL（可选，回车插入）"
+                value={imageDraft}
+                onChange={(e) => setImageDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault()
+                    addImage(imageDraft)
+                    setImageDraft("")
+                  }
+                }}
+                style={{
+                  ...inputStyle(colors),
+                  padding: "6px 10px",
+                  fontSize: 12
+                }}
+              />
+              <button
+                type="button"
+                disabled={!imageDraft.trim()}
+                onClick={() => {
+                  addImage(imageDraft)
+                  setImageDraft("")
+                }}
+                style={{
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "0 10px",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  background: imageDraft.trim()
+                    ? colors.primary
+                    : colors.bgHover,
+                  color: imageDraft.trim() ? "#fff" : colors.textDisabled,
+                  flexShrink: 0
+                }}>
+                ＋
+              </button>
+            </div>
+
+            {/* Link quick-input: pastes [摘要](url) into the content */}
+            <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
+              <input
+                className="lime-input"
+                placeholder="链接 URL（可选，以摘要为标签插入）"
+                value={linkDraft}
+                onChange={(e) => setLinkDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault()
+                    addLink()
+                  }
+                }}
+                style={{
+                  ...inputStyle(colors),
+                  padding: "6px 10px",
+                  fontSize: 12
+                }}
+              />
+              <button
+                type="button"
+                disabled={!linkDraft.trim() || !title.trim()}
+                onClick={addLink}
+                title={
+                  title.trim()
+                    ? "插入链接"
+                    : "请先填写摘要作为链接标签"
+                }
+                style={{
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "0 10px",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  background:
+                    linkDraft.trim() && title.trim()
+                      ? colors.primary
+                      : colors.bgHover,
+                  color:
+                    linkDraft.trim() && title.trim()
+                      ? "#fff"
+                      : colors.textDisabled,
+                  flexShrink: 0
+                }}>
+                ＋
+              </button>
+            </div>
+          </>
+        )}
         {panelImages.length > 0 && (
           <div
             style={{
