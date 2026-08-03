@@ -48,7 +48,10 @@ import NavRail from "./components/NavRail"
 import type { SidebarTab } from "./components/NavRail"
 import NewCardDialog from "./components/NewCardDialog"
 import NewProjectDialog from "./components/NewProjectDialog"
+import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
 import ProjectHub from "./components/ProjectHub"
+import PdfView from "./components/PdfView"
+import type { PdfOutlineItem } from "./components/PdfView"
 import ProjectTree from "./components/ProjectTree"
 import ReviewSession from "./components/ReviewSession"
 import SettingsDialog from "./components/SettingsDialog"
@@ -64,6 +67,8 @@ import {
   getAllReviews,
   getDueReviews,
   ensureItemOrder,
+  addPdf,
+  listPdfs,
   removeReview,
   searchItems,
   tx,
@@ -79,7 +84,7 @@ import { createReviewEntry, dayKey, rateSrs } from "./hooks/useSrs"
 import { importFromZip } from "./import"
 import { createAppTheme } from "./theme"
 import { buildProjectMarkdown, buildScopeData } from "./utils/export"
-import type { Item, MergeSeparator, PresetName, Project, SearchQuery, SrsData, TodoFilter } from "./types"
+import type { Item, MergeSeparator, PdfFile, PresetName, Project, SearchQuery, SrsData, TodoFilter } from "./types"
 import { sendMessage } from "./types/messages"
 import { DAY_MS, RATING_META, buildMergedContent, cloneItem, compareCards, createItem, dueStatus, isTodoComplete, toggleMarkdownTask, todayLocalDate } from "./utils"
 
@@ -104,6 +109,12 @@ export default function OptionsPage() {
   const [preset, setPreset] = useState<PresetName>("classic")
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>("projects")
+  const [pdfs, setPdfs] = useState<PdfFile[]>([])
+  const [activePdfId, setActivePdfId] = useState<string | null>(null)
+  const [pdfOutline, setPdfOutline] = useState<PdfOutlineItem[] | null>(null)
+  const [pdfOutlineDest, setPdfOutlineDest] = useState<PdfOutlineItem | null>(
+    null
+  )
   const [reviewItems, setReviewItems] = useState<Item[]>([])
   const [reviewDateFilter, setReviewDateFilter] = useState<string | null>(null)
   const [ratingFilter, setRatingFilter] = useState<1 | 2 | 3 | null>(null)
@@ -855,6 +866,36 @@ export default function OptionsPage() {
     return () => link.remove()
   }, [])
 
+  // ---- PDF library ----
+  const loadPdfs = useCallback(async () => {
+    const list = await listPdfs()
+    setPdfs(list)
+  }, [])
+  useEffect(() => {
+    loadPdfs()
+  }, [loadPdfs])
+
+  const pdfFileInputRef = useRef<HTMLInputElement>(null)
+  const handleOpenPdfFile = useCallback(async (file: File) => {
+    try {
+      const pdf: PdfFile = {
+        id: crypto.randomUUID(),
+        name: file.name,
+        bytes: new Blob([await file.arrayBuffer()], {
+          type: "application/pdf"
+        }),
+        pageCount: 0,
+        addedAt: Date.now()
+      }
+      await addPdf(pdf)
+      setActivePdfId(pdf.id)
+    } catch (e) {
+      console.warn("[lime] open pdf failed:", e)
+    }
+  }, [])
+  const handleOpenPdf = useCallback((id: string) => setActivePdfId(id), [])
+  const handleClosePdf = useCallback(() => setActivePdfId(null), [])
+
   // Subscribe to database changes via storage broadcast
   const refreshRef = useRef(refreshAllData)
   refreshRef.current = refreshAllData
@@ -871,10 +912,14 @@ export default function OptionsPage() {
       if (changes._dbr) {
         setReviewsVersion((v) => v + 1)
       }
+      // PDF writes broadcast `_dbpdf`: refresh the PDF library only.
+      if (changes._dbpdf) {
+        loadPdfs()
+      }
     }
     chrome.storage.onChanged.addListener(onChange)
     return () => chrome.storage.onChanged.removeListener(onChange)
-  }, [])
+  }, [loadPdfs])
 
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null
   const otherProjects = useMemo(
@@ -1265,7 +1310,13 @@ export default function OptionsPage() {
           syncStatus={syncStatus}
           todoStats={todoStats}
           todoFilter={todoFilter}
+          pdfs={pdfs}
+          activePdfId={activePdfId}
+          pdfOutline={pdfOutline}
           onTodoFilterChange={setTodoFilter}
+          onOpenPdfClick={() => pdfFileInputRef.current?.click()}
+          onOpenPdf={handleOpenPdf}
+          onOutlineClick={setPdfOutlineDest}
           onWidthChange={(w) => setDrawerWidth(w)}
           onNewProjectClick={() => setCreateDialogOpen(true)}
           onToggleBackup={(id) =>
@@ -1518,10 +1569,36 @@ export default function OptionsPage() {
           <Box
             sx={{
               flex: 1,
-              overflow: "auto",
+              overflow: sidebarTab === "pdf" ? "hidden" : "auto",
               minHeight: 0,
               bgcolor: (t) => t.custom.surface2
             }}>
+            {sidebarTab === "pdf" ? (
+              activePdfId ? (
+                <PdfView
+                  pdfId={activePdfId}
+                  onClose={handleClosePdf}
+                  onOutlineLoaded={setPdfOutline}
+                  outlineDest={pdfOutlineDest}
+                />
+              ) : (
+                <Box
+                  sx={{
+                    height: "100%",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 1.5,
+                    color: "text.disabled"
+                  }}>
+                  <PictureAsPdfRoundedIcon sx={{ fontSize: 72, opacity: 0.5 }} />
+                  <Typography variant="body2" sx={{ fontSize: "0.85rem" }}>
+                    在左侧打开一个 PDF 开始阅读
+                  </Typography>
+                </Box>
+              )
+            ) : (
             <Container sx={{ py: 4 }} maxWidth="xl">
               <Fade in key={sidebarTab} timeout={250}>
                 <Box>
@@ -2041,11 +2118,26 @@ export default function OptionsPage() {
               <input
                 ref={backupFileInputRef}
                 type="file"
-                hidden
-                accept=".zip"
-                onChange={handleImportBackupFile}
-              />
-            </Container>
+                 hidden
+                 accept=".zip"
+                 onChange={handleImportBackupFile}
+               />
+               <input
+                 ref={pdfFileInputRef}
+                 type="file"
+                 hidden
+                 accept="application/pdf"
+                 onChange={(e) => {
+                   const f = e.target.files?.[0]
+                   if (f) {
+                     handleOpenPdfFile(f)
+                     setSidebarTab("pdf")
+                   }
+                   e.target.value = ""
+                 }}
+               />
+             </Container>
+            )}
           </Box>
           <FooterBar
             sidebarTab={sidebarTab}

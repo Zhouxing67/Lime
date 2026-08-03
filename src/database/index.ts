@@ -1,10 +1,23 @@
-import type { Item, Project, ReviewEntry, SearchQuery, SrsData } from "../types"
+import type {
+  Item,
+  PdfAnnotation,
+  PdfFile,
+  Project,
+  ReviewEntry,
+  SearchQuery,
+  SrsData
+} from "../types"
 import { computeItemHash } from "../utils"
 
 const DB_NAME = "pickquote-db"
-const DB_VERSION = 8
+const DB_VERSION = 9
 
-type TableNames = "items" | "projects" | "reviews"
+type TableNames =
+  | "items"
+  | "projects"
+  | "reviews"
+  | "pdfs"
+  | "pdfAnnotations"
 
 // ---- Cross-context change notification ----
 // Any successful write transaction automatically broadcasts a version stamp
@@ -14,7 +27,13 @@ async function broadcastDbChange(name: TableNames): Promise<void> {
   try {
     if (typeof chrome?.storage?.local?.set === "function") {
       const key =
-        name === "projects" ? "_dbp" : name === "reviews" ? "_dbr" : "_dbi"
+        name === "projects"
+          ? "_dbp"
+          : name === "reviews"
+            ? "_dbr"
+            : name === "pdfs" || name === "pdfAnnotations"
+              ? "_dbpdf"
+              : "_dbi"
       await chrome.storage.local.set({ [key]: Date.now() })
     }
   } catch {}
@@ -86,6 +105,15 @@ function openDb(version?: number): Promise<IDBDatabase> {
             }
           }
         }
+      }
+      // v9 migration: PDF stores
+      if (!db.objectStoreNames.contains("pdfs")) {
+        const ps = db.createObjectStore("pdfs", { keyPath: "id" })
+        ps.createIndex("addedAt", "addedAt", { unique: false })
+      }
+      if (!db.objectStoreNames.contains("pdfAnnotations")) {
+        const as = db.createObjectStore("pdfAnnotations", { keyPath: "id" })
+        as.createIndex("pdfId", "pdfId", { unique: false })
       }
     }
     req.onsuccess = () => resolve(req.result)
@@ -792,6 +820,114 @@ export async function updateReviewSrs(
         }
         resolve()
       }
+      req.onerror = () => reject(req.error)
+    })
+  })
+}
+
+// ---- PDF stores (v9) ----
+
+export async function addPdf(pdf: PdfFile): Promise<void> {
+  return withStore("pdfs", "readwrite", async (store) => {
+    await new Promise<void>((resolve, reject) => {
+      const req = store.put(pdf)
+      req.onsuccess = () => resolve()
+      req.onerror = () => reject(req.error)
+    })
+  })
+}
+
+export async function getPdf(id: string): Promise<PdfFile | undefined> {
+  return withStore("pdfs", "readonly", (store) => {
+    return new Promise((resolve, reject) => {
+      const req = store.get(id)
+      req.onsuccess = () => resolve(req.result as PdfFile | undefined)
+      req.onerror = () => reject(req.error)
+    })
+  })
+}
+
+export async function listPdfs(): Promise<PdfFile[]> {
+  return withStore("pdfs", "readonly", (store) => {
+    return new Promise((resolve, reject) => {
+      const results: PdfFile[] = []
+      const req = store.openCursor()
+      req.onsuccess = () => {
+        const cursor = req.result
+        if (cursor) {
+          results.push(cursor.value as PdfFile)
+          cursor.continue()
+        } else {
+          resolve(results.sort((a, b) => b.addedAt - a.addedAt))
+        }
+      }
+      req.onerror = () => reject(req.error)
+    })
+  })
+}
+
+export async function deletePdf(id: string): Promise<void> {
+  return withStore("pdfs", "readwrite", async (store) => {
+    await new Promise<void>((resolve, reject) => {
+      const req = store.delete(id)
+      req.onsuccess = () => resolve()
+      req.onerror = () => reject(req.error)
+    })
+  })
+}
+
+export async function addAnnotation(ann: PdfAnnotation): Promise<void> {
+  return withStore("pdfAnnotations", "readwrite", async (store) => {
+    await new Promise<void>((resolve, reject) => {
+      const req = store.put(ann)
+      req.onsuccess = () => resolve()
+      req.onerror = () => reject(req.error)
+    })
+  })
+}
+
+export async function getAnnotation(
+  id: string
+): Promise<PdfAnnotation | undefined> {
+  return withStore("pdfAnnotations", "readonly", (store) => {
+    return new Promise((resolve, reject) => {
+      const req = store.get(id)
+      req.onsuccess = () => resolve(req.result as PdfAnnotation | undefined)
+      req.onerror = () => reject(req.error)
+    })
+  })
+}
+
+export async function getAnnotationsByPdf(
+  pdfId: string
+): Promise<PdfAnnotation[]> {
+  return withStore("pdfAnnotations", "readonly", (store) => {
+    return new Promise((resolve, reject) => {
+      const results: PdfAnnotation[] = []
+      const req = store.index("pdfId").openCursor(IDBKeyRange.only(pdfId))
+      req.onsuccess = () => {
+        const cursor = req.result
+        if (cursor) {
+          results.push(cursor.value as PdfAnnotation)
+          cursor.continue()
+        } else {
+          resolve(
+            results.sort(
+              (a, b) => a.page - b.page || a.createdAt - b.createdAt
+            )
+          )
+        }
+      }
+      req.onerror = () => reject(req.error)
+    })
+  })
+}
+
+export async function deleteAnnotation(id: string): Promise<void> {
+  return withStore("pdfAnnotations", "readwrite", async (store) => {
+    await new Promise<void>((resolve, reject) => {
+      const req = store.delete(id)
+      req.onsuccess = () => resolve()
       req.onerror = () => reject(req.error)
     })
   })

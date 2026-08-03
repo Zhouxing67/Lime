@@ -16,7 +16,8 @@ import { useEffect, useRef } from "react"
 import type { ReactNode } from "react"
 import type { SxProps, Theme } from "@mui/material"
 
-import type { Project, TodoFilter, TodoStats } from "../types"
+import type { PdfFile, Project, TodoFilter, TodoStats } from "../types"
+import type { PdfOutlineItem } from "./PdfView"
 import type { SidebarTab } from "./NavRail"
 
 interface SidebarFiltersProps {
@@ -30,7 +31,13 @@ interface SidebarFiltersProps {
   reviewDateFilter: string | null
   todoStats: TodoStats
   todoFilter: TodoFilter
+  pdfs: PdfFile[]
+  activePdfId: string | null
+  pdfOutline: PdfOutlineItem[] | null
   onTodoFilterChange: (filter: TodoFilter) => void
+  onOpenPdfClick: () => void
+  onOpenPdf: (id: string) => void
+  onOutlineClick: (item: PdfOutlineItem) => void
   children?: ReactNode
   onReviewDateClick: (dateKey: string | null) => void
   onWidthChange: (w: number) => void
@@ -47,7 +54,8 @@ const TAB_TITLES: Record<SidebarTab, string> = {
   projects: "项目",
   review: "复习",
   backup: "备份与同步",
-  todo: "待办"
+  todo: "待办",
+  pdf: "PDF 阅读"
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -66,6 +74,54 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
         {children}
       </Typography>
     </Stack>
+  )
+}
+
+/** Recursive PDF outline (TOC) tree. */
+function OutlineTree({
+  item,
+  depth,
+  onSelect
+}: {
+  item: PdfOutlineItem
+  depth: number
+  onSelect: (item: PdfOutlineItem) => void
+}) {
+  return (
+    <>
+      <Box
+        onClick={() => onSelect(item)}
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          pl: 1 + depth * 1.25,
+          pr: 1,
+          py: 0.5,
+          borderRadius: 1,
+          cursor: "pointer",
+          color: "text.secondary",
+          "&:hover": { bgcolor: "action.hover", color: "text.primary" }
+        }}>
+        <Typography
+          variant="body2"
+          sx={{
+            fontSize: "0.8rem",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap"
+          }}>
+          {item.title}
+        </Typography>
+      </Box>
+      {item.items?.map((child) => (
+        <OutlineTree
+          key={child.title + child.dest}
+          item={child}
+          depth={depth + 1}
+          onSelect={onSelect}
+        />
+      ))}
+    </>
   )
 }
 
@@ -102,7 +158,13 @@ export default function SidebarFilters({
   reviewDateFilter,
   todoStats,
   todoFilter,
+  pdfs,
+  activePdfId,
+  pdfOutline,
   onTodoFilterChange,
+  onOpenPdfClick,
+  onOpenPdf,
+  onOutlineClick,
   children,
   onReviewDateClick,
   onWidthChange,
@@ -388,6 +450,86 @@ export default function SidebarFilters({
                   </Box>
                 ))}
               </Well>
+            </Box>
+          ) : sidebarTab === "pdf" ? (
+            /* PDF tab: TOC when a PDF is open, otherwise the library */
+            <Box sx={{ py: 1 }}>
+              {activePdfId && pdfOutline && pdfOutline.length > 0 ? (
+                <Well>
+                  <Box sx={{ mb: 0.5 }}>
+                    <SectionLabel>目录</SectionLabel>
+                  </Box>
+                  {pdfOutline.map((item) => (
+                    <OutlineTree
+                      key={item.title + item.dest}
+                      item={item}
+                      depth={0}
+                      onSelect={onOutlineClick}
+                    />
+                  ))}
+                </Well>
+              ) : (
+                <>
+                  <Well>
+                    <Box sx={{ mb: 0.5 }}>
+                      <SectionLabel>PDF 库</SectionLabel>
+                    </Box>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<AddRoundedIcon />}
+                      onClick={onOpenPdfClick}
+                      fullWidth>
+                      打开 PDF
+                    </Button>
+                  </Well>
+                  {pdfs.length > 0 && (
+                    <>
+                      <Box sx={{ height: 1.5 }} />
+                      <Well>
+                        <Box sx={{ mb: 0.5 }}>
+                          <SectionLabel>最近</SectionLabel>
+                        </Box>
+                        {pdfs.map((p) => (
+                          <Box
+                            key={p.id}
+                            onClick={() => onOpenPdf(p.id)}
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 1,
+                              px: 1,
+                              py: 0.5,
+                              borderRadius: 1,
+                              cursor: "pointer",
+                              bgcolor:
+                                activePdfId === p.id
+                                  ? "action.selected"
+                                  : "transparent",
+                              color:
+                                activePdfId === p.id
+                                  ? "text.primary"
+                                  : "text.secondary",
+                              "&:hover": { bgcolor: "action.hover" }
+                            }}>
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                fontSize: "0.8rem",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                                flex: 1
+                              }}>
+                              {p.name}
+                            </Typography>
+                          </Box>
+                        ))}
+                      </Well>
+                    </>
+                  )}
+                </>
+              )}
             </Box>
           ) : (
             /* Project tab content: tree + actions */

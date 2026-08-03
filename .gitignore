@@ -38,3 +38,7 @@ pnpm-workspace.yaml
 .tsbuildinfo
 tsconfig.tsbuildinfo
 .cortexkit/
+
+# deepwork session state
+.slim/deepwork/
+assets/pdfjs/

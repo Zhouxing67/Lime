@@ -49,6 +49,43 @@ export interface Item {
   images?: string[]
   /** Todo due date as local "YYYY-MM-DD" (day-based expiry) */
   dueDate?: string
+  /** Link back to a local PDF annotation (card belongs to the PDF, not a project) */
+  pdfRef?: {
+    pdfId: string
+    page: number
+    annotationId: string
+  }
+}
+
+export type PdfMark = "highlight" | "underline" | "wavy" | "strike" | "frame"
+
+export interface PdfFile {
+  id: string
+  name: string
+  /** The original PDF bytes (self-contained — reopening doesn't need the file path) */
+  bytes: Blob
+  pageCount: number
+  addedAt: number
+}
+
+export interface PdfAnnotation {
+  id: string
+  pdfId: string
+  /** 1-based page number */
+  page: number
+  /** text = text-selection mark (linked card is a text card); region = framed box (image card) */
+  kind: "text" | "region"
+  type: PdfMark
+  /** text annotations: char offsets into the page's concatenated textContent */
+  startOffset?: number
+  endOffset?: number
+  text?: string
+  /** region annotations: rects in the page's CSS px at 100% zoom */
+  rects?: { x: number; y: number; w: number; h: number }[]
+  color?: string
+  /** Linked card id (annotation ↔ card are 1:1) */
+  itemId?: string
+  createdAt: number
 }
 
 export interface SearchQuery {

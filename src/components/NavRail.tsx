@@ -1,12 +1,13 @@
 import BackupRoundedIcon from "@mui/icons-material/BackupRounded"
 import ChecklistRoundedIcon from "@mui/icons-material/ChecklistRounded"
 import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded"
+import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
 import SchoolRoundedIcon from "@mui/icons-material/SchoolRounded"
 import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded"
 import { Badge, Box, IconButton, Tooltip } from "@mui/material"
 import { alpha } from "@mui/material/styles"
 
-export type SidebarTab = "projects" | "review" | "backup" | "todo"
+export type SidebarTab = "projects" | "review" | "backup" | "todo" | "pdf"
 
 interface NavRailProps {
   sidebarTab: SidebarTab
@@ -46,6 +47,12 @@ const BUTTONS: {
     label: "待办",
     icon: <ChecklistRoundedIcon sx={{ fontSize: 22 }} />,
     badgeFor: "todo"
+  },
+  {
+    tab: "pdf",
+    label: "PDF 阅读",
+    icon: <PictureAsPdfRoundedIcon sx={{ fontSize: 22 }} />,
+    badgeFor: null
   }
 ]
 

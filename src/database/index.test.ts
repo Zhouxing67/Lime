@@ -1,17 +1,32 @@
 import { dayKey, getRecentItems, rateSrs } from "../hooks/useSrs"
-import type { Item, Project, ReviewEntry, SearchQuery } from "../types"
+import type {
+  Item,
+  PdfAnnotation,
+  PdfFile,
+  Project,
+  ReviewEntry,
+  SearchQuery
+} from "../types"
 import {
+  addAnnotation,
   addItem,
+  addPdf,
   addProject,
   addReview,
   bulkReplace,
+  deleteAnnotation,
   deleteItem,
   deleteItems,
+  deletePdf,
   deleteProject,
   ensureItemOrder,
   getAllReviews,
+  getAnnotation,
+  getAnnotationsByPdf,
   getDueReviews,
+  getPdf,
   getProjectByName,
+  listPdfs,
   listProjects,
   searchItems,
   updateItem,
@@ -681,5 +696,53 @@ describe("database", () => {
       expect(todayGroup?.items.map((i) => i.id).sort()).toEqual(["g1", "g2"])
       expect(yesterdayGroup?.items.map((i) => i.id)).toEqual(["g1"])
     })
+  })
+})
+
+describe("pdf stores", () => {
+  it("adds, reads, lists, and deletes a PDF", async () => {
+    const pdf: PdfFile = {
+      id: "pdf-1",
+      name: "paper.pdf",
+      bytes: new Blob(["x"]),
+      pageCount: 3,
+      addedAt: 1000
+    }
+    await addPdf(pdf)
+    expect((await getPdf("pdf-1"))?.name).toBe("paper.pdf")
+    expect(await listPdfs()).toHaveLength(1)
+    await deletePdf("pdf-1")
+    expect(await getPdf("pdf-1")).toBeUndefined()
+  })
+
+  it("stores annotations keyed by pdfId, sorted by page", async () => {
+    const a1: PdfAnnotation = {
+      id: "a1",
+      pdfId: "pdf-1",
+      page: 1,
+      kind: "text",
+      type: "highlight",
+      startOffset: 0,
+      endOffset: 5,
+      text: "hi",
+      createdAt: 1
+    }
+    const a2: PdfAnnotation = {
+      id: "a2",
+      pdfId: "pdf-1",
+      page: 2,
+      kind: "region",
+      type: "frame",
+      rects: [{ x: 0, y: 0, w: 10, h: 10 }],
+      createdAt: 2
+    }
+    await addAnnotation(a1)
+    await addAnnotation(a2)
+    const list = await getAnnotationsByPdf("pdf-1")
+    expect(list).toHaveLength(2)
+    expect(list[0].page).toBe(1)
+    await deleteAnnotation("a1")
+    expect(await getAnnotation("a1")).toBeUndefined()
+    expect(await getAnnotationsByPdf("pdf-1")).toHaveLength(1)
   })
 })

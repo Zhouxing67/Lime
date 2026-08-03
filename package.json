@@ -6,7 +6,9 @@
   "author": "minorcell",
   "scripts": {
     "dev": "plasmo dev",
+    "predev": "node scripts/copy-pdfjs-assets.mjs",
     "build": "plasmo build",
+    "prebuild": "node scripts/copy-pdfjs-assets.mjs",
     "package": "plasmo package",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -22,6 +24,7 @@
     "jszip": "^3.10.1",
     "katex": "^0.18.1",
     "marked-react": "^4.0.0",
+    "pdfjs-dist": "^6.2.108",
     "plasmo": "0.90.5",
     "react": "18.2.0",
     "react-dom": "18.2.0",
@@ -68,6 +71,12 @@
     },
     "content_security_policy": {
       "extension_pages": "script-src 'self'; object-src 'self'; img-src 'self' https: data: blob:; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://cdn.jsdelivr.net"
-    }
+    },
+    "web_accessible_resources": [
+      {
+        "resources": ["assets/pdfjs/**"],
+        "matches": ["<all_urls>"]
+      }
+    ]
   }
 }
