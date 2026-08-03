@@ -92,12 +92,37 @@ describe("buildScopeData + buildProjectMarkdown", () => {
     expect(skippedImages).toBe(1)
   })
 
-  it("includes a source footer and card separators", () => {
+  it("includes a source footer and separates cards as new paragraphs", () => {
     const items: Item[] = [
       item({ title: "卡", content: "正文", source: { title: "来源页", url: "https://x.com/y" } })
     ]
     const { markdown } = buildProjectMarkdown(buildScopeData(proj, items, null))
     expect(markdown).toContain("> 来源：[来源页](https://x.com/y)")
-    expect(markdown).toContain("---")
+    expect(markdown).not.toContain("---")
+  })
+
+  it("appends legacy item.images that are not already in content", () => {
+    const items: Item[] = [
+      item({
+        title: "卡",
+        content: "![已有](https://img.example.com/in.png) 正文",
+        images: ["https://img.example.com/in.png", "https://img.example.com/old.png"]
+      })
+    ]
+    const { markdown, skippedImages } = buildProjectMarkdown(
+      buildScopeData(proj, items, null)
+    )
+    expect(markdown).toContain("![图片](https://img.example.com/old.png)")
+    expect(markdown).not.toContain("![图片](https://img.example.com/in.png)")
+    expect(skippedImages).toBe(0)
+  })
+
+  it("falls back to the whole project for a stale section id", () => {
+    const items: Item[] = [item({ id: "i-l1", sectionId: "l1", title: "一级卡" })]
+    const data = buildScopeData(proj, items, "deleted-section")
+    expect(data.rootTitle).toBe("项目")
+    const { markdown } = buildProjectMarkdown(data)
+    expect(markdown).toContain("## 一级")
+    expect(markdown).toContain("### 一级卡")
   })
 })

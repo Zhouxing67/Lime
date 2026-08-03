@@ -1,5 +1,5 @@
 import type { Item, Project, Section } from "../types"
-import { prettyUrl } from "./index"
+import { extractMarkdownImages, prettyUrl } from "./index"
 
 /** Heading-to-bold transform for card content inside the exported document:
  *  heading lines render as bold, everything else (paragraphs, lists, code
@@ -45,13 +45,22 @@ function renderCard(
   } else {
     const body = transformContent(item.content).trim()
     if (body) parts.push(body)
+    // Legacy pre-Markdown images (item.images) not yet embedded in content.
+    const embedded = new Set(extractMarkdownImages(item.content))
+    for (const url of item.images ?? []) {
+      if (embedded.has(url)) continue
+      if (url.startsWith("data:image")) {
+        skipped.count++
+        continue
+      }
+      parts.push(`![图片](${url})`)
+    }
   }
 
   if (item.source?.url) {
     const label = item.source.title || prettyUrl(item.source.url)
     parts.push(`> 来源：[${label}](${item.source.url})`)
   }
-  parts.push("---")
   return parts.join("\n\n")
 }
 
@@ -138,7 +147,18 @@ export function buildScopeData(
   }
 
   const target = sections.find((s) => s.id === scopeSectionId)
-  if (!target) return { rootTitle: project.name, groups: [], flatItems: [] }
+  if (!target) {
+    // Stale section id (deleted since the menu was rendered) — fall back to
+    // the whole project so the export is never empty.
+    const validIds = new Set(sections.map((s) => s.id))
+    return {
+      rootTitle: project.name,
+      groups: buildGroups(sections, projectItems, null),
+      flatItems: projectItems.filter(
+        (i) => !i.sectionId || !validIds.has(i.sectionId)
+      )
+    }
+  }
 
   // Breadcrumb root: 项目 / 一级 / 二级.
   const breadcrumb: string[] = [project.name, target.title]

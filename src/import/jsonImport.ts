@@ -337,6 +337,8 @@ export async function importFromZip(
       (await getAllReviews()).map((r) => r.itemId)
     )
     for (const rv of importedReviews) {
+      // Scope to the selected projects when a filter is active.
+      if (projectIds && !projectIds.includes(rv.projectId)) continue
       if (projectIdMap.has(rv.projectId)) {
         rv.projectId = projectIdMap.get(rv.projectId)!
       }
