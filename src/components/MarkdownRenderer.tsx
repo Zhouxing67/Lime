@@ -1,5 +1,7 @@
 import CheckRoundedIcon from "@mui/icons-material/CheckRounded"
 import { Box, Divider, Link, Typography } from "@mui/material"
+import katex from "katex"
+import "katex/dist/katex.min.css"
 import Markdown from "marked-react"
 import type { ReactRenderer } from "marked-react"
 import type { ReactNode } from "react"
@@ -40,6 +42,39 @@ interface MarkdownRendererProps {
   hideImages?: boolean
   /** Enable interactive task checkboxes; called with the task index in content. */
   onToggleTask?: (index: number) => void
+}
+
+/** Split on `$$…$$` (display) and `$…$` (inline) math. */
+const MATH_RE = /(\$\$[^$]+\$\$|\$[^$\n]+\$)/g
+
+/** KaTeX-rendered math. The HTML comes from KaTeX's own escaped output (it
+ *  is not user-authored raw HTML), so dangerouslySetInnerHTML is safe here. */
+function MathSegment({
+  tex,
+  display
+}: {
+  tex: string
+  display: boolean
+}) {
+  const html = katex.renderToString(tex, {
+    displayMode: display,
+    throwOnError: false
+  })
+  return (
+    <Box
+      component={display ? "div" : "span"}
+      dangerouslySetInnerHTML={{ __html: html }}
+      sx={
+        display
+          ? { my: 1.5, overflowX: "auto", textAlign: "center" }
+          : {
+              display: "inline-block",
+              verticalAlign: "middle",
+              maxWidth: "100%"
+            }
+      }
+    />
+  )
 }
 
 function createRenderer(
@@ -277,6 +312,7 @@ export default function MarkdownRenderer({
     Boolean(maxLines) || Boolean(hideImages),
     onToggleTask
   )
+  const segments = content.split(MATH_RE)
   return (
     <Box
       sx={
@@ -300,7 +336,15 @@ export default function MarkdownRenderer({
             }
           : { fontFamily: (theme) => theme.custom.serif }
       }>
-      <Markdown value={content} renderer={renderer} gfm />
+      {segments.map((seg, i) => {
+        if (i % 2 === 0) {
+          if (!seg.trim()) return null
+          return <Markdown key={i} value={seg} renderer={renderer} gfm />
+        }
+        const display = seg.startsWith("$$")
+        const tex = display ? seg.slice(2, -2) : seg.slice(1, -1)
+        return <MathSegment key={i} tex={tex} display={display} />
+      })}
     </Box>
   )
 }

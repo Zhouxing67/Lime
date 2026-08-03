@@ -2,6 +2,7 @@ import CheckRoundedIcon from "@mui/icons-material/CheckRounded"
 import CloudDoneRoundedIcon from "@mui/icons-material/CloudDoneRounded"
 import CloudSyncRoundedIcon from "@mui/icons-material/CloudSyncRounded"
 import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded"
+import FunctionsRoundedIcon from "@mui/icons-material/FunctionsRounded"
 import PaletteRoundedIcon from "@mui/icons-material/PaletteRounded"
 import {
   Box,
@@ -9,6 +10,7 @@ import {
   CircularProgress,
   DialogActions,
   Stack,
+  Switch,
   TextField,
   Tooltip,
   Typography
@@ -41,6 +43,7 @@ export default function SettingsDialog({
     text: string
   }>({ type: "idle", text: "" })
   const [testing, setTesting] = useState(false)
+  const [mathHoverEnabled, setMathHover] = useState(true)
 
   useEffect(() => {
     if (!open) return
@@ -54,6 +57,9 @@ export default function SettingsDialog({
           ? new Date(data.lastSyncTime).toLocaleString("zh-CN")
           : "从未同步"
       )
+    })
+    chrome.storage.local.get("mathHoverEnabled", (data) => {
+      setMathHover(data.mathHoverEnabled !== false)
     })
   }, [open])
 
@@ -239,6 +245,42 @@ export default function SettingsDialog({
               </Tooltip>
             ))}
           </Stack>
+        </Box>
+
+        <Box
+          sx={{
+            mt: 2,
+            pt: 2,
+            borderTop: "1px solid",
+            borderColor: "divider",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between"
+          }}>
+          <Box>
+            <Typography
+              variant="subtitle2"
+              sx={{ color: "text.secondary", fontSize: "0.85rem" }}>
+              <FunctionsRoundedIcon
+                sx={{ fontSize: 16, mr: 0.5, verticalAlign: "text-bottom" }}
+              />
+              悬停公式高亮
+            </Typography>
+            <Typography
+              variant="caption"
+              sx={{ color: "text.disabled", display: "block", mt: 0.5 }}>
+              阅读页面悬停公式时显示柔和底色，便于 Alt+L 拾取公式
+            </Typography>
+          </Box>
+          <Switch
+            checked={mathHoverEnabled}
+            onChange={(e) => {
+              setMathHover(e.target.checked)
+              chrome.storage.local.set({
+                mathHoverEnabled: e.target.checked
+              })
+            }}
+          />
         </Box>
       </Stack>
     </DialogShell>

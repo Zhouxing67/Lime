@@ -1,0 +1,149 @@
+const MATH_SELECTOR = ".katex, mjx-container, .MathJax, math"
+const HIGHLIGHT_CLASS = "lime-math-hover"
+const FLASH_CLASS = "lime-math-flash"
+
+/** Extract the LaTeX source from a KaTeX `.katex` element (its `.katex-mathml
+ *  annotation` node always holds `application/x-tex`). */
+function katexSource(el: Element): string | null {
+  const ann = el.querySelector(".katex-mathml annotation")
+  const src = ann?.textContent?.trim()
+  return src && src.length > 0 ? src : null
+}
+
+/** Best-effort source for MathJax / native MathML containers. */
+function fallbackMathSource(el: Element): string | null {
+  const ann = el.querySelector("annotation")
+  if (ann?.textContent?.trim()) return ann.textContent.trim()
+  const label = el.getAttribute("aria-label")
+  if (label?.trim()) return label.trim()
+  const rendered = el.textContent?.trim()
+  return rendered && rendered.length > 0 ? rendered : null
+}
+
+/** LaTeX source (or best-effort text) of any math container. */
+export function mathSource(el: Element): string | null {
+  if (el.classList.contains("katex")) return katexSource(el)
+  return fallbackMathSource(el)
+}
+
+function isDisplayMath(el: Element): boolean {
+  return (
+    el.closest?.(".katex-display") != null ||
+    el.closest?.(".MathJax_Display") != null ||
+    el.matches?.('[display="block"], [display="true"]') === true
+  )
+}
+
+/** Wrap a source with inline/display delimiters. */
+export function wrapMath(el: Element, src: string): string {
+  return isDisplayMath(el) ? `$$${src}$$` : `$${src}$`
+}
+
+/** Element under the given page coordinates that is a math container. */
+export function mathAtPoint(x: number, y: number): Element | null {
+  if (x < 0 || y < 0) return null
+  const el = document.elementFromPoint(x, y)
+  if (!el) return null
+  return el.closest?.(MATH_SELECTOR) ?? null
+}
+
+/** Rebuild a selection's text, replacing math containers with `$…$`/`$$…$$`
+ *  LaTeX source. Falls back to the plain selection text if nothing matched. */
+export function selectionWithMath(sel: Selection): string {
+  if (!sel.rangeCount || sel.isCollapsed) return sel.toString().trim()
+  const fragment = sel.getRangeAt(0).cloneContents()
+  for (const el of Array.from(fragment.querySelectorAll(".katex"))) {
+    const src = katexSource(el)
+    if (!src) continue
+    el.replaceWith(document.createTextNode(wrapMath(el, src)))
+  }
+  for (const el of Array.from(
+    fragment.querySelectorAll("mjx-container, .MathJax, math")
+  )) {
+    const src = fallbackMathSource(el)
+    if (!src) continue
+    el.replaceWith(document.createTextNode(wrapMath(el, src)))
+  }
+  return (fragment.textContent ?? "").replace(/\s+/g, " ").trim()
+}
+
+/** Capture the formula under the current cursor, if any. */
+export function mathFromCursor(): { content: string; el: Element } | null {
+  const el = mathAtPoint(lastX, lastY)
+  if (!el) return null
+  const src = mathSource(el)
+  if (!src) return null
+  return { content: wrapMath(el, src), el }
+}
+
+// ---- cursor tracking + hover highlight ----
+
+let lastX = -1
+let lastY = -1
+let hovered: Element | null = null
+let styleEl: HTMLStyleElement | null = null
+let enabled = true
+
+export function setMathHoverEnabled(v: boolean) {
+  enabled = v
+  if (!v) clearHighlight()
+}
+
+export function getLastCursor(): { x: number; y: number } {
+  return { x: lastX, y: lastY }
+}
+
+function clearHighlight() {
+  hovered?.classList.remove(HIGHLIGHT_CLASS)
+  hovered = null
+}
+
+/** Brief capture feedback on a formula. */
+export function flashMath(el: Element) {
+  clearHighlight()
+  el.classList.add(FLASH_CLASS)
+  setTimeout(() => el.classList.remove(FLASH_CLASS), 900)
+}
+
+/** Start persistent mousemove → hover highlight + cursor tracking. Returns a
+ *  cleanup that also removes the injected style. */
+export function initMathHover(): () => void {
+  if (!styleEl) {
+    styleEl = document.createElement("style")
+    styleEl.textContent = `
+.${HIGHLIGHT_CLASS} { background-color: rgba(99,102,241,.10) !important; border-radius: 3px; }
+.${FLASH_CLASS} { background-color: rgba(99,102,241,.18) !important; border-radius: 3px; }
+`
+    document.head.appendChild(styleEl)
+  }
+  let raf = 0
+  const onMove = (e: MouseEvent) => {
+    lastX = e.clientX
+    lastY = e.clientY
+    if (raf) return
+    raf = requestAnimationFrame(() => {
+      raf = 0
+      if (!enabled) return
+      const el = mathAtPoint(lastX, lastY)
+      if (el === hovered) return
+      clearHighlight()
+      if (el) {
+        el.classList.add(HIGHLIGHT_CLASS)
+        hovered = el
+      }
+    })
+  }
+  const onScroll = () => clearHighlight()
+  document.addEventListener("mousemove", onMove)
+  window.addEventListener("scroll", onScroll, true)
+  return () => {
+    document.removeEventListener("mousemove", onMove)
+    window.removeEventListener("scroll", onScroll, true)
+    if (raf) cancelAnimationFrame(raf)
+    clearHighlight()
+    if (styleEl) {
+      styleEl.remove()
+      styleEl = null
+    }
+  }
+}

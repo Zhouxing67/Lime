@@ -1,0 +1,52 @@
+import { mathSource, selectionWithMath } from "./formula"
+
+describe("formula", () => {
+  it("extracts LaTeX from a KaTeX .katex element", () => {
+    document.body.innerHTML = `
+      <span class="katex">
+        <span class="katex-mathml">
+          <math><semantics><annotation encoding="application/x-tex">\\frac{1}{x}</annotation></semantics></math>
+        </span>
+        <span class="katex-html" aria-hidden="true"></span>
+      </span>
+    `
+    const el = document.querySelector(".katex")!
+    expect(mathSource(el)).toBe("\\frac{1}{x}")
+  })
+
+  it("replaces inline math with $…$ in a selection's text", () => {
+    document.body.innerHTML = `
+      <p>前文 <span class="katex">
+        <span class="katex-mathml"><math><semantics><annotation encoding="application/x-tex">x^2</annotation></semantics></math></span>
+        <span class="katex-html" aria-hidden="true"></span>
+      </span> 后文</p>
+    `
+    const sel = window.getSelection()
+    if (!sel) throw new Error("no selection in jsdom")
+    const range = document.createRange()
+    range.selectNodeContents(document.querySelector("p")!)
+    sel.removeAllRanges()
+    sel.addRange(range)
+    const text = selectionWithMath(sel)
+    expect(text).toContain("$x^2$")
+    expect(text).toContain("前文")
+    expect(text).toContain("后文")
+  })
+
+  it("uses display delimiters for math inside .katex-display", () => {
+    document.body.innerHTML = `
+      <div class="katex-display"><span class="katex">
+        <span class="katex-mathml"><math><semantics><annotation encoding="application/x-tex">\\int_0^1 x dx</annotation></semantics></math></span>
+        <span class="katex-html" aria-hidden="true"></span>
+      </span></div>
+    `
+    const sel = window.getSelection()
+    if (!sel) throw new Error("no selection in jsdom")
+    const range = document.createRange()
+    range.selectNode(document.querySelector(".katex-display")!)
+    sel.removeAllRanges()
+    sel.addRange(range)
+    const text = selectionWithMath(sel)
+    expect(text).toContain("$$\\int_0^1 x dx$$")
+  })
+})

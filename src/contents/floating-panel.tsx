@@ -4,6 +4,13 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import FloatingPanel from "../components/FloatingPanel"
 import type { PanelData, PanelPosition } from "../components/FloatingPanel"
 import type { Project } from "../types"
+import {
+  flashMath,
+  initMathHover,
+  mathFromCursor,
+  selectionWithMath,
+  setMathHoverEnabled
+} from "./formula"
 
 export const config: PlasmoCSConfig = {
   matches: ["https://*/*", "http://*/*"],
@@ -75,12 +82,28 @@ export default function LimePanel() {
       if (e.altKey && e.key.toLowerCase() === "l") {
         e.preventDefault()
         const sel = window.getSelection()
-        const text = sel?.toString().trim()
-        if (!text || text.length < 5 || text.length > 2000) return
-        const range = sel!.getRangeAt(0)
-        const rect = range.getBoundingClientRect()
-        if (rect.width === 0 || rect.height === 0) return
-        show(text, rect)
+        const rawText = sel?.toString().trim() ?? ""
+        // Mode A: a real selection — rebuild it with any formulas as $…$.
+        if (sel && !sel.isCollapsed && rawText.length >= 5) {
+          const text = selectionWithMath(sel)
+          if (text.length < 5 || text.length > 2000) return
+          const rect = sel.getRangeAt(0).getBoundingClientRect()
+          if (rect.width === 0 || rect.height === 0) return
+          show(text, rect)
+          return
+        }
+        // Mode B: no selection — capture the formula under the cursor.
+        const hit = mathFromCursor()
+        if (hit) {
+          const { content, el } = hit
+          if (content.length >= 5 && content.length <= 2000) {
+            const rect = el.getBoundingClientRect()
+            if (rect.width > 0 && rect.height > 0) {
+              show(content, rect)
+              flashMath(el)
+            }
+          }
+        }
       }
     }
 
@@ -101,6 +124,26 @@ export default function LimePanel() {
     chrome.runtime.onMessage.addListener(h)
     return () => {
       chrome.runtime.onMessage.removeListener(h)
+    }
+  }, [])
+
+  // Formula hover highlight + cursor tracking; honors the settings toggle.
+  useEffect(() => {
+    const cleanup = initMathHover()
+    chrome.storage.local.get("mathHoverEnabled", (data) => {
+      setMathHoverEnabled(data.mathHoverEnabled !== false)
+    })
+    const onChanged = (
+      changes: Record<string, chrome.storage.StorageChange>
+    ) => {
+      if ("mathHoverEnabled" in changes) {
+        setMathHoverEnabled(changes.mathHoverEnabled.newValue !== false)
+      }
+    }
+    chrome.storage.onChanged.addListener(onChanged)
+    return () => {
+      cleanup()
+      chrome.storage.onChanged.removeListener(onChanged)
     }
   }, [])
 

@@ -1,6 +1,7 @@
 import type { PlasmoCSConfig } from "plasmo"
 
 import { sendMessage } from "../types/messages"
+import { selectionWithMath } from "./formula"
 
 export const config: PlasmoCSConfig = {
   matches: ["https://*/*", "http://*/*"],
@@ -38,7 +39,7 @@ document.addEventListener("keydown", (e) => {
   if (e.altKey && e.key === "s") {
     e.preventDefault()
     const sel = window.getSelection()
-    const text = sel?.toString().trim()
+    const text = selectionWithMath(sel).trim()
     if (!text) return
 
     const payload = {
