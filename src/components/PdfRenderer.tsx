@@ -11,7 +11,10 @@ const TEXT_LAYER_CSS = `
   position: absolute; white-space: pre; cursor: text;
   transform-origin: 0% 0%; color: transparent;
 }
-.pdf-textlayer ::selection { background: rgba(99,102,241,0.22); }
+.pdf-textlayer ::selection {
+  background: rgba(99,102,241,0.26);
+  border-radius: 2px;
+}
 `
 
 /** Render one page lazily (IntersectionObserver) at DPR crispness + text layer. */

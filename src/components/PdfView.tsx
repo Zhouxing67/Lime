@@ -14,15 +14,22 @@ export type PdfOutlineItem = {
   items?: PdfOutlineItem[]
 }
 
-/** Resolve an outline item's `.dest` to a 1-based page number. */
+/** Resolve an outline item's `.dest` to a 1-based page number. Only named
+ *  (string) dests need `getDestination`; array dests carry the page ref already. */
 export async function outlinePageNumber(
   doc: pdfjsLib.PDFDocumentProxy,
   item: PdfOutlineItem
 ): Promise<number | null> {
   try {
-    const dest = await doc.getDestination(item.dest as never)
-    if (dest && dest[0]) {
-      return (await doc.getPageIndex(dest[0])) + 1
+    let dest = item.dest
+    if (typeof dest === "string") {
+      dest = (await doc.getDestination(dest)) ?? undefined
+    }
+    if (Array.isArray(dest) && dest.length > 0) {
+      const pageRef = dest[0]
+      if (pageRef) {
+        return (await doc.getPageIndex(pageRef)) + 1
+      }
     }
   } catch {}
   return null

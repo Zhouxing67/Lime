@@ -1,6 +1,8 @@
 import AddRoundedIcon from "@mui/icons-material/AddRounded"
+import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded"
 import CloudDownloadRoundedIcon from "@mui/icons-material/CloudDownloadRounded"
 import CloudUploadRoundedIcon from "@mui/icons-material/CloudUploadRounded"
+import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded"
 import FileDownloadRoundedIcon from "@mui/icons-material/FileDownloadRounded"
 import FileUploadRoundedIcon from "@mui/icons-material/FileUploadRounded"
 import {
@@ -12,7 +14,7 @@ import {
   Stack,
   Typography
 } from "@mui/material"
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { ReactNode } from "react"
 import type { SxProps, Theme } from "@mui/material"
 
@@ -77,7 +79,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   )
 }
 
-/** Recursive PDF outline (TOC) tree. */
+/** Recursive PDF outline (TOC) tree with per-node collapse. */
 function OutlineTree({
   item,
   depth,
@@ -87,6 +89,8 @@ function OutlineTree({
   depth: number
   onSelect: (item: PdfOutlineItem) => void
 }) {
+  const [collapsed, setCollapsed] = useState(false)
+  const hasChildren = !!item.items?.length
   return (
     <>
       <Box
@@ -94,6 +98,7 @@ function OutlineTree({
         sx={{
           display: "flex",
           alignItems: "center",
+          gap: 0.25,
           pl: 1 + depth * 1.25,
           pr: 1,
           py: 0.5,
@@ -102,6 +107,28 @@ function OutlineTree({
           color: "text.secondary",
           "&:hover": { bgcolor: "action.hover", color: "text.primary" }
         }}>
+        {hasChildren ? (
+          <Box
+            component="span"
+            onClick={(e) => {
+              e.stopPropagation()
+              setCollapsed((c) => !c)
+            }}
+            sx={{
+              display: "inline-flex",
+              color: "text.disabled",
+              cursor: "pointer",
+              "&:hover": { color: "text.secondary" }
+            }}>
+            {collapsed ? (
+              <ChevronRightRoundedIcon sx={{ fontSize: 14 }} />
+            ) : (
+              <ExpandMoreRoundedIcon sx={{ fontSize: 14 }} />
+            )}
+          </Box>
+        ) : (
+          <Box component="span" sx={{ width: 14 }} />
+        )}
         <Typography
           variant="body2"
           sx={{
@@ -113,14 +140,15 @@ function OutlineTree({
           {item.title}
         </Typography>
       </Box>
-      {item.items?.map((child) => (
-        <OutlineTree
-          key={child.title + child.dest}
-          item={child}
-          depth={depth + 1}
-          onSelect={onSelect}
-        />
-      ))}
+      {!collapsed &&
+        item.items?.map((child) => (
+          <OutlineTree
+            key={child.title + child.dest}
+            item={child}
+            depth={depth + 1}
+            onSelect={onSelect}
+          />
+        ))}
     </>
   )
 }
@@ -200,7 +228,9 @@ export default function SidebarFilters({
             bgcolor: "background.paper",
             borderRight: "1px solid",
             borderColor: "divider",
-            overflowX: "hidden"
+            overflowX: "hidden",
+            overflowY: "auto",
+            height: "100%"
           }
         }}>
         <Box
