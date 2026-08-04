@@ -47,7 +47,7 @@ function DueChip({ item, today }: { item: Item; today: string }) {
         lineHeight: 1.4,
         px: 0.75,
         py: 0.15,
-        borderRadius: 0.75,
+        borderRadius: 1,
         color: tone.color,
         bgcolor:
           status === "overdue"

@@ -758,7 +758,7 @@ export default function PdfView({
                       sx={{
                         px: 0.5,
                         py: 0.1,
-                        borderRadius: 0.5,
+                        borderRadius: 1,
                         bgcolor: "action.hover",
                         fontSize: "0.66rem",
                         color: "text.secondary",

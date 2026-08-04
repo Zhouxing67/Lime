@@ -492,29 +492,41 @@ export default function SidebarFilters({
                 <Well>
                   <SectionLabel>近期回顾</SectionLabel>
                   <Stack spacing={0.5} sx={{ mt: 1 }}>
-                    {recentDates.map((item) => (
-                      <Button
-                        key={item.key}
-                        size="small"
-                        variant={
-                          reviewDateFilter === item.key
-                            ? "contained"
-                            : "outlined"
-                        }
-                        fullWidth
-                        onClick={() =>
-                          onReviewDateClick(
-                            reviewDateFilter === item.key ? null : item.key
-                          )
-                        }
-                        sx={{
-                          borderRadius: 1,
-                          fontSize: "0.75rem",
-                          justifyContent: "flex-start"
-                        }}>
-                        {item.label} · {item.count} 张
-                      </Button>
-                    ))}
+                    {recentDates.map((item) => {
+                      const active = reviewDateFilter === item.key
+                      return (
+                        <Box
+                          key={item.key}
+                          onClick={() =>
+                            onReviewDateClick(active ? null : item.key)
+                          }
+                          sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 1,
+                            px: 1,
+                            py: 0.5,
+                            borderRadius: 1,
+                            cursor: "pointer",
+                            bgcolor: active ? "action.selected" : "transparent",
+                            color: active ? "text.primary" : "text.secondary",
+                            "&:hover": { bgcolor: "action.hover" }
+                          }}>
+                          <Typography
+                            variant="body2"
+                            noWrap
+                            sx={{ fontSize: "0.8rem" }}>
+                            {item.label}
+                          </Typography>
+                          <Typography
+                            variant="caption"
+                            sx={{ fontSize: "0.68rem", color: "text.disabled" }}>
+                            {item.count} 张
+                          </Typography>
+                        </Box>
+                      )
+                    })}
                   </Stack>
                 </Well>
               )}

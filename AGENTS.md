@@ -146,6 +146,20 @@ Layout is three columns: **NavRail | Sidebar | Main**.
 - Card drag-reorder → `useCardDragReorder` (pointer events, same-section only); never use HTML5 `draggable` for cards
 - Projects are strictly isolated: no cross-project card search (hub search filters projects by name/note); new cards default into the active section via `useNewCard`
 
+## UI 一致性（防风格割裂）
+
+**复用优先**（新 UI 必须复用，禁止手写 inline）：
+- 空态 → `EmptyState`；弹窗 → `DialogShell`；操作栏 → `BatchToolbar`（可配置 actions + countLabel）
+- 侧栏列表行 → 轻量行模式（active = `action.selected` + `text.primary`，hover = `action.hover`）——**禁止用 MUI `Button outlined/contained` 做筛选行**
+- 瓦片/虚线瓦片 → 复用 `ProjectHub`/`PdfHub` 的 Paper 卡片 + `1.5px dashed borderStrong` 虚线
+- 卡片 hover → `cardShadowHover` + `translateY(-1px)` + `borderStrong`；hover 操作渐显 `opacity 0.15s`，破坏性操作常显
+- 类型/状态指示 → 色点 + 标签（复用 `RATING_META`/`MARK_DOT`），不另造样式
+
+**Token 档位**：
+- 圆角：卡片/按钮/瓦片/chip 一律 `1`（不自定义 0.5/0.75）
+- 过渡：hover `0.2s ease`；入场/页面切换 `0.25s ease-out`；micro 动效 `0.15s`
+- 硬编码 hex 仅限例外：PDF 纸张 `#fff`/`#f0efec`、浮动面板主题、批注色（`pdfTheme`）——其余一律用 `t.custom.*`/palette
+
 ## Review (SRS)
 
 - SM-2-style algorithm: starting ease 2.5, min 1.3, max interval 365 days

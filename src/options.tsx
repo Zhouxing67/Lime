@@ -1799,15 +1799,16 @@ export default function OptionsPage() {
                   ) : sidebarTab === "review" && reviewDateFilter ? (
                     <Box>
                       {ratingFilter && filteredDateItems.length === 0 ? (
-                        <Typography
-                          variant="body2"
-                          sx={{
-                            color: "text.secondary",
-                            textAlign: "center",
-                            py: 4
-                          }}>
-                          该评分下无卡片
-                        </Typography>
+                        <EmptyState
+                          icon={
+                            <SearchOffRoundedIcon
+                              className="empty-icon"
+                              sx={{ fontSize: 64, mb: 2 }}
+                            />
+                          }
+                          title="该评分下无卡片"
+                          subtitle="切换评分或清除筛选试试"
+                        />
                       ) : (
                         <CardGrid
                           items={filteredDateItems}

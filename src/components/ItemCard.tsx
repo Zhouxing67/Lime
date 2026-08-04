@@ -57,7 +57,7 @@ export default function ItemCard({
         border: "1px solid",
         borderColor: selectMode ? "primary.main" : "divider",
         transition:
-          "box-shadow 0.25s ease, transform 0.25s ease, border-color 0.25s ease, background-color 0.25s ease",
+          "box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease",
         "&:hover": {
           boxShadow: theme.custom.cardShadowHover,
           transform: "translateY(-1px)",
