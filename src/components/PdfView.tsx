@@ -22,7 +22,8 @@ import {
   createTextAnnotationCard,
   deletePdfCard,
   getAnnotationsByPdf,
-  getItemsByPdf
+  getItemsByPdf,
+  updateItem
 } from "../database"
 import type { Item, PdfAnnotation, PdfMark } from "../types"
 import { usePdfDocument } from "../hooks/usePdfDocument"
@@ -30,6 +31,8 @@ import { MARK_DOT, MARK_LABEL } from "./pdfTheme"
 import { getTextLayer } from "./pdfRegistry"
 import { searchPdfText, textLayerOffsets } from "./pdfText"
 import type { PdfSearchMatch } from "./pdfText"
+import PdfCardBody from "./PdfCardBody"
+import PdfEditDialog from "./PdfEditDialog"
 import PdfRenderer from "./PdfRenderer"
 
 export type PdfOutlineItem = {
@@ -84,6 +87,7 @@ export default function PdfView({
   const [flashAnnId, setFlashAnnId] = useState<string | null>(null)
   const [annotations, setAnnotations] = useState<PdfAnnotation[]>([])
   const [pdfCards, setPdfCards] = useState<Item[]>([])
+  const [editCard, setEditCard] = useState<Item | null>(null)
   const [frameMode, setFrameMode] = useState(false)
   const [canGoBack, setCanGoBack] = useState(false)
   const currentPageRef = useRef(1)
@@ -228,6 +232,21 @@ export default function PdfView({
     await deletePdfCard(card)
     // The write broadcasts _dbpdf → the storage listener reloads.
   }, [])
+
+  const handleCardEdit = useCallback((card: Item) => {
+    setEditCard(card)
+  }, [])
+
+  const handleSaveIdea = useCallback(
+    async (idea: string) => {
+      if (!editCard) return
+      await updateItem({ ...editCard, idea })
+      setEditCard(null)
+      // The write broadcasts _dbi → the PdfView's reload path picks it up.
+      await reloadPdfData()
+    },
+    [editCard, reloadPdfData]
+  )
 
   // ---- PDF text search ----
   const jumpToSearchMatch = useCallback(
@@ -730,46 +749,33 @@ export default function PdfView({
                     size="small"
                     onClick={(e) => {
                       e.stopPropagation()
+                      handleCardEdit(card)
+                    }}
+                    sx={{ p: 0.25, color: "text.disabled" }}>
+                    <EditRoundedIcon sx={{ fontSize: 14 }} />
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation()
                       handleCardDelete(card)
                     }}
                     sx={{ p: 0.25, color: "text.disabled" }}>
                     <DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />
                   </IconButton>
                 </Box>
-                {card.type === "image" ? (
-                  <Box
-                    component="img"
-                    src={card.content}
-                    alt=""
-                    sx={{
-                      display: "block",
-                      maxWidth: "100%",
-                      maxHeight: 140,
-                      borderRadius: 1,
-                      objectFit: "contain",
-                      bgcolor: "#f5f4f2"
-                    }}
-                  />
-                ) : (
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      fontSize: "0.8rem",
-                      lineHeight: 1.5,
-                      display: "-webkit-box",
-                      WebkitLineClamp: 3,
-                      WebkitBoxOrient: "vertical",
-                      overflow: "hidden",
-                      color: "text.primary"
-                    }}>
-                    {card.content}
-                  </Typography>
-                )}
+                <PdfCardBody item={card} maxLines={4} />
               </Box>
             )
           })
         )}
       </Box>
+      <PdfEditDialog
+        item={editCard}
+        open={Boolean(editCard)}
+        onClose={() => setEditCard(null)}
+        onSave={handleSaveIdea}
+      />
     </Box>
   )
 }

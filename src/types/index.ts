@@ -57,6 +57,9 @@ export interface Item {
   }
   /** Denormalized pdfRef.pdfId for the IndexedDB index (deep paths aren't indexable). */
   pdfRefPdfId?: string
+  /** Personal note / 补充说明 (markdown). Generic optional field — the PDF
+   *  cards' editable part (content stays read-only). */
+  idea?: string
 }
 
 export type PdfMark = "highlight" | "underline" | "wavy" | "strike" | "frame"
