@@ -62,8 +62,9 @@ async function bgFetchBinary(
     url: `${BASE_URL}${path}`,
     method: options.method ?? "GET",
     authBase64,
+    // Content-Type only matters for PUT; harmless on GET but keep it off.
+    contentType: options.method === "PUT" ? "application/pdf" : undefined,
     body: options.bodyBase64,
-    contentType: "application/pdf",
     binary: true
   })
 }
@@ -94,7 +95,14 @@ export async function uploadPdfFiles(
 ): Promise<void> {
   const withBytes = localPdfs.filter((p) => p.bytes)
   if (withBytes.length === 0) return
-  await bgFetch(cred, "/Apps/lime/pdfs/", { method: "MKCOL" }).catch(() => {})
+  // MKCOL the pdfs/ collection; tolerate "already exists" (405/301/302), but
+  // rethrow auth/network failures so the user sees the real cause.
+  const mkcol = await bgFetch(cred, "/Apps/lime/pdfs/", {
+    method: "MKCOL"
+  }).catch(() => null)
+  if (mkcol && !mkcol.ok && ![405, 301, 302].includes(mkcol.status)) {
+    throw new Error(`创建云端 PDF 目录失败：HTTP ${mkcol.status}`)
+  }
   const remote = new Set(await listRemotePdfs(cred))
   let done = 0
   for (const pdf of withBytes) {
@@ -106,8 +114,7 @@ export async function uploadPdfFiles(
       method: "PUT",
       bodyBase64: bytesToBase64(bytes)
     })
-    if (!res.ok && res.status !== 405)
-      throw new Error(`PDF 上传失败：HTTP ${res.status}`)
+    if (!res.ok) throw new Error(`PDF 上传失败：HTTP ${res.status}`)
   }
 }
 
@@ -317,7 +324,14 @@ export async function downloadRemote(
       pdfs
     )
     if (localPayload.contentHash === remote.contentHash) {
-      return { success: true, direction: "noop", message: "数据无变化" }
+      // Include the payload even on noop: the caller still needs the remote
+      // pdfs metadata to pull PDF files that were interrupted mid-download.
+      return {
+        success: true,
+        direction: "noop",
+        message: "数据无变化",
+        payload: remote
+      }
     }
 
     return {

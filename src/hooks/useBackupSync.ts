@@ -163,29 +163,29 @@ export function useBackupSync(options: {
         setSyncStatus(remote.message || "下载失败")
         return
       }
-      if (remote.direction === "noop") {
-        setSyncStatus(remote.message || "数据无变化")
-        return
-      }
       if (remote.payload) {
-        setSyncStatus("正在应用数据…")
-        await bulkReplace(
-          remote.payload.items,
-          remote.payload.projects,
-          remote.payload.reviews ?? [],
-          allItemsUnfiltered,
-          projects,
-          reviews
-        )
-        // PDF domain (notes only — local file bytes are preserved).
+        if (remote.direction === "download") {
+          setSyncStatus("正在应用数据…")
+          await bulkReplace(
+            remote.payload.items,
+            remote.payload.projects,
+            remote.payload.reviews ?? [],
+            allItemsUnfiltered,
+            projects,
+            reviews
+          )
+          // PDF domain (notes only — local file bytes are preserved).
+          const localPdfs = await listPdfs()
+          await applyPdfSync(
+            remote.payload.pdfs ?? [],
+            remote.payload.pdfAnnotations ?? [],
+            localPdfs,
+            annotations
+          )
+        }
+        // PDF file layer: ALWAYS attempt to pull missing files — a noop hash
+        // match must not strand PDFs interrupted on a previous download.
         const localPdfs = await listPdfs()
-        await applyPdfSync(
-          remote.payload.pdfs ?? [],
-          remote.payload.pdfAnnotations ?? [],
-          localPdfs,
-          annotations
-        )
-        // PDF file layer: download the files the remote has that we lack.
         const fetched = await downloadPdfFiles(
           cred,
           remote.payload.pdfs ?? [],
@@ -205,7 +205,9 @@ export function useBackupSync(options: {
         chrome.storage.local.set({ lastSyncTime: Date.now() })
         const msg = remote.message || "从云端同步"
         setSyncStatus(msg)
-        await refreshAllData()
+        if (remote.direction === "download" || fetched.length > 0) {
+          await refreshAllData()
+        }
       }
     } catch (e) {
       setSnackbarMsg(`下载失败：${e}`)
