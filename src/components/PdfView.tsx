@@ -328,6 +328,36 @@ export default function PdfView({
             />
             {MARK_LABEL.frame}
           </Box>
+          {/* jump to page */}
+          <input
+            type="number"
+            min={1}
+            max={loaded?.pageCount}
+            placeholder="页码"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                const n = Number((e.target as HTMLInputElement).value)
+                if (
+                  Number.isInteger(n) &&
+                  n >= 1 &&
+                  n <= (loaded?.pageCount ?? Infinity)
+                ) {
+                  setScrollPage(n)
+                }
+                ;(e.target as HTMLInputElement).value = ""
+              }
+            }}
+            style={{
+              width: 44,
+              marginLeft: 4,
+              padding: "3px 6px",
+              fontSize: "0.72rem",
+              border: "1px solid",
+              borderColor: "rgba(0,0,0,0.12)",
+              borderRadius: 4,
+              outline: "none"
+            }}
+          />
         </Box>
         {error ? (
           <Box sx={{ p: 3, color: "error.main", fontSize: "0.85rem" }}>
