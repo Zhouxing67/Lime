@@ -67,8 +67,9 @@ export type PdfMark = "highlight" | "underline" | "wavy" | "strike" | "frame"
 export interface PdfFile {
   id: string
   name: string
-  /** The original PDF bytes (self-contained — reopening doesn't need the file path) */
-  bytes: Blob
+  /** The PDF bytes. NULL = a synced placeholder (metadata only — the file
+   *  must be opened locally to attach its notes). */
+  bytes: Blob | null
   pageCount: number
   addedAt: number
   /** Last time the PDF was opened (for recent-first ordering / hub tiles). */

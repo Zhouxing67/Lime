@@ -40,6 +40,10 @@ export function usePdfDocument(pdfId: string | null) {
           setError("PDF 不存在")
           return
         }
+        if (!file.bytes) {
+          setError("该 PDF 尚未同步文件，请打开本地文件后匹配批注")
+          return
+        }
         task = pdfjsLib.getDocument({
           data: await file.bytes.arrayBuffer(),
           cMapUrl: chrome.runtime.getURL("assets/pdfjs/cmaps/"),

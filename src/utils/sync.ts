@@ -1,4 +1,4 @@
-import type { Item, Project, ReviewEntry } from "../types"
+import type { Item, PdfAnnotation, PdfFile, Project, ReviewEntry } from "../types"
 import { sendMessage } from "../types/messages"
 import { computeItemHash } from "./index"
 
@@ -10,6 +10,9 @@ export interface SyncCredentials {
   appPassword: string
 }
 
+/** PDF metadata as it travels in the sync payload (never the file bytes). */
+export type PdfSyncMeta = Pick<PdfFile, "id" | "name" | "pageCount" | "addedAt" | "lastOpened">
+
 interface SyncPayload {
   version: number
   syncedAt: number
@@ -18,6 +21,8 @@ interface SyncPayload {
   projects: Project[]
   items: Item[]
   reviews: ReviewEntry[]
+  pdfAnnotations: PdfAnnotation[]
+  pdfs: PdfSyncMeta[]
 }
 
 export interface SyncResult {
@@ -46,11 +51,12 @@ async function bgFetch(
 // ---- Dirty-check helpers ----
 
 async function hasChangesSince(lastSync: number): Promise<boolean> {
-  const data = await chrome.storage.local.get(["_dbi", "_dbp", "_dbr"])
+  const data = await chrome.storage.local.get(["_dbi", "_dbp", "_dbr", "_dbpdf"])
   return (
     (data._dbi ?? 0) > lastSync ||
     (data._dbp ?? 0) > lastSync ||
-    (data._dbr ?? 0) > lastSync
+    (data._dbr ?? 0) > lastSync ||
+    (data._dbpdf ?? 0) > lastSync
   )
 }
 
@@ -82,7 +88,9 @@ async function downloadSyncFile(
   if (!res.ok) throw new Error(`下载失败：HTTP ${res.status}`)
   try {
     const payload = JSON.parse(res.body) as SyncPayload
-    if (!payload.version || !Array.isArray(payload.items))
+    if (payload.version !== 4)
+      throw new Error("云端数据版本不兼容，请升级扩展后重试")
+    if (!Array.isArray(payload.items))
       throw new Error("数据格式异常：缺少 items 字段")
     return payload
   } catch (e: any) {
@@ -107,24 +115,30 @@ async function uploadSyncFile(
 async function buildPayload(
   items: Item[],
   projects: Project[],
-  reviews: ReviewEntry[]
+  reviews: ReviewEntry[],
+  pdfAnnotations: PdfAnnotation[],
+  pdfs: PdfSyncMeta[]
 ): Promise<SyncPayload> {
   const byId = <T extends { id: string }>(arr: T[]) =>
     [...arr].sort((a, b) => a.id.localeCompare(b.id))
   const raw = JSON.stringify({
     items: byId(items),
     projects: byId(projects),
-    reviews: byId(reviews)
+    reviews: byId(reviews),
+    pdfAnnotations: byId(pdfAnnotations),
+    pdfs: byId(pdfs)
   })
   const contentHash = await computeItemHash(raw, "")
   return {
-    version: 3,
+    version: 4,
     syncedAt: Date.now(),
     contentHash,
-    deviceInfo: { version: "0.3.0" },
+    deviceInfo: { version: "0.4.0" },
     projects: byId(projects),
     items: byId(items),
-    reviews: byId(reviews)
+    reviews: byId(reviews),
+    pdfAnnotations: byId(pdfAnnotations),
+    pdfs: byId(pdfs)
   }
 }
 
@@ -133,6 +147,8 @@ export async function runSync(
   items: Item[],
   projects: Project[],
   reviews: ReviewEntry[],
+  pdfAnnotations: PdfAnnotation[],
+  pdfs: PdfSyncMeta[],
   onStatus?: (status: string) => void
 ): Promise<SyncResult> {
   try {
@@ -143,7 +159,13 @@ export async function runSync(
     }
 
     onStatus?.("正在序列化数据…")
-    const localPayload = await buildPayload(items, projects, reviews)
+    const localPayload = await buildPayload(
+      items,
+      projects,
+      reviews,
+      pdfAnnotations,
+      pdfs
+    )
 
     onStatus?.("正在检查云端…")
     const remote = await downloadSyncFile(cred)
@@ -179,6 +201,8 @@ export async function downloadRemote(
   items: Item[],
   projects: Project[],
   reviews: ReviewEntry[],
+  pdfAnnotations: PdfAnnotation[],
+  pdfs: PdfSyncMeta[],
   onStatus?: (status: string) => void
 ): Promise<SyncResult> {
   try {
@@ -189,7 +213,13 @@ export async function downloadRemote(
     }
 
     onStatus?.("正在对比数据…")
-    const localPayload = await buildPayload(items, projects, reviews)
+    const localPayload = await buildPayload(
+      items,
+      projects,
+      reviews,
+      pdfAnnotations,
+      pdfs
+    )
     if (localPayload.contentHash === remote.contentHash) {
       return { success: true, direction: "noop", message: "数据无变化" }
     }

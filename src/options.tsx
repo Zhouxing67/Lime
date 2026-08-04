@@ -75,6 +75,7 @@ import {
   ensureItemOrder,
   addPdf,
   deletePdf,
+  getAnnotationsByPdf,
   listPdfs,
   touchPdf,
   removeReview,
@@ -892,23 +893,32 @@ export default function OptionsPage() {
   }, [loadPdfs])
 
   const pdfFileInputRef = useRef<HTMLInputElement>(null)
-  const handleOpenPdfFile = useCallback(async (file: File) => {
-    try {
-      const pdf: PdfFile = {
-        id: crypto.randomUUID(),
-        name: file.name,
-        bytes: new Blob([await file.arrayBuffer()], {
+  const handleOpenPdfFile = useCallback(
+    async (file: File) => {
+      try {
+        const bytes = new Blob([await file.arrayBuffer()], {
           type: "application/pdf"
-        }),
-        pageCount: 0,
-        addedAt: Date.now()
+        })
+        const pdf: PdfFile = {
+          id: crypto.randomUUID(),
+          name: file.name,
+          bytes,
+          pageCount: 0,
+          addedAt: Date.now()
+        }
+        const id = await addPdf(pdf)
+        setActivePdfId(id)
+        // Opening the file that matches a synced placeholder attaches its notes.
+        const annotations = await getAnnotationsByPdf(id)
+        if (annotations.length > 0) {
+          setSnackbarMsg(`已关联 ${annotations.length} 条批注`)
+        }
+      } catch (e) {
+        console.warn("[lime] open pdf failed:", e)
       }
-      await addPdf(pdf)
-      setActivePdfId(pdf.id)
-    } catch (e) {
-      console.warn("[lime] open pdf failed:", e)
-    }
-  }, [])
+    },
+    []
+  )
   const handleOpenPdf = useCallback((id: string) => {
     touchPdf(id)
     setActivePdfId(id)

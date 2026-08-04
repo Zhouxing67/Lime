@@ -297,10 +297,12 @@ function PdfTab({
                 </Box>
               )}
             </Box>
-            {visible.map((p) => (
+            {visible.map((p) => {
+              const isPlaceholder = !p.bytes
+              return (
               <Box
                 key={p.id}
-                onClick={() => onOpenPdf(p.id)}
+                onClick={() => (isPlaceholder ? onOpenPdfClick() : onOpenPdf(p.id))}
                 sx={{
                   display: "flex",
                   alignItems: "center",
@@ -313,7 +315,11 @@ function PdfTab({
                   "&:hover": { bgcolor: "action.hover", color: "text.primary" }
                 }}>
                 <PictureAsPdfRoundedIcon
-                  sx={{ fontSize: 15, color: "text.disabled", flexShrink: 0 }}
+                  sx={{
+                    fontSize: 15,
+                    color: isPlaceholder ? "primary.main" : "text.disabled",
+                    flexShrink: 0
+                  }}
                 />
                 <Typography
                   variant="body2"
@@ -326,6 +332,13 @@ function PdfTab({
                   }}>
                   {p.name}
                 </Typography>
+                {isPlaceholder && (
+                  <Typography
+                    variant="caption"
+                    sx={{ fontSize: "0.62rem", color: "primary.main", flexShrink: 0 }}>
+                    未同步
+                  </Typography>
+                )}
                 <Typography
                   variant="caption"
                   sx={{
@@ -336,7 +349,8 @@ function PdfTab({
                   {countByPdf[p.id] ?? 0}
                 </Typography>
               </Box>
-            ))}
+              )
+            })}
           </Well>
           {/* bottom: 打开 PDF (same row style as 新建项目) */}
           <Well sx={{ p: 0, mt: 0.5, overflow: "hidden" }}>

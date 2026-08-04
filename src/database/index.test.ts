@@ -9,13 +9,14 @@ import type {
 } from "../types"
 import {
   addAnnotation,
+  addPdf,
+  applyPdfSync,
   createRegionAnnotationCard,
   createTextAnnotationCard,
   deleteAnnotationWithCard,
   deletePdfCard,
   getItemsByPdf,
   addItem,
-  addPdf,
   addProject,
   addReview,
   bulkReplace,
@@ -714,11 +715,11 @@ describe("pdf stores", () => {
       pageCount: 3,
       addedAt: 1000
     }
-    await addPdf(pdf)
-    expect((await getPdf("pdf-1"))?.name).toBe("paper.pdf")
+    const id = await addPdf(pdf)
+    expect((await getPdf(id))?.name).toBe("paper.pdf")
     expect(await listPdfs()).toHaveLength(1)
-    await deletePdf("pdf-1")
-    expect(await getPdf("pdf-1")).toBeUndefined()
+    await deletePdf(id)
+    expect(await getPdf(id)).toBeUndefined()
   })
 
   it("stores annotations keyed by pdfId, sorted by page", async () => {
@@ -830,37 +831,80 @@ describe("pdf region annotations (框选)", () => {
 
 describe("pdf delete cascade + lastOpened", () => {
   it("touchPdf updates lastOpened", async () => {
-    await addPdf({
+    const id = await addPdf({
       id: "pdf-t",
       name: "a.pdf",
       bytes: new Blob(["x"]),
       pageCount: 1,
       addedAt: 1000
     })
-    await touchPdf("pdf-t")
-    const pdf = await getPdf("pdf-t")
+    await touchPdf(id)
+    const pdf = await getPdf(id)
     expect(pdf?.lastOpened).toBeGreaterThanOrEqual(1000)
   })
 
   it("deletePdf removes the pdf, its annotations and its cards", async () => {
-    const { card } = await createTextAnnotationCard({
-      pdfId: "pdf-del",
-      page: 1,
-      type: "highlight",
-      text: "x",
-      startOffset: 0,
-      endOffset: 1
-    })
-    await addPdf({
+    const pdfId = await addPdf({
       id: "pdf-del",
       name: "del.pdf",
       bytes: new Blob(["y"]),
       pageCount: 1,
       addedAt: 1
     })
-    await deletePdf("pdf-del")
-    expect(await getPdf("pdf-del")).toBeUndefined()
-    expect(await getItemsByPdf("pdf-del")).toHaveLength(0)
+    const { card } = await createTextAnnotationCard({
+      pdfId,
+      page: 1,
+      type: "highlight",
+      text: "x",
+      startOffset: 0,
+      endOffset: 1
+    })
+    await deletePdf(pdfId)
+    expect(await getPdf(pdfId)).toBeUndefined()
+    expect(await getItemsByPdf(pdfId)).toHaveLength(0)
     expect(await getAnnotation(card.pdfRef!.annotationId)).toBeUndefined()
+  })
+})
+
+describe("pdf content-hash id + notes-only sync", () => {
+  it("addPdf computes a content-hash id and dedups identical files", async () => {
+    const bytes = new Blob(["same-content"], { type: "application/pdf" })
+    const id1 = await addPdf({ id: "x", name: "a.pdf", bytes, pageCount: 1, addedAt: 1 })
+    const id2 = await addPdf({ id: "y", name: "b.pdf", bytes, pageCount: 1, addedAt: 2 })
+    expect(id1).toBe(id2)
+    expect(id1).toHaveLength(64)
+    const list = await listPdfs()
+    expect(list.filter((p) => p.id === id1)).toHaveLength(1)
+  })
+
+  it("a placeholder is filled when the matching file opens, and real bytes are never clobbered by a placeholder", async () => {
+    const bytes = new Blob(["paper"], { type: "application/pdf" })
+    // learn the content-hash id from the real file first
+    const realId = await addPdf({ id: "r", name: "p.pdf", bytes, pageCount: 0, addedAt: 1 })
+    // a later synced placeholder with the same id must NOT clobber the file
+    await addPdf({ id: realId, name: "p.pdf", bytes: null, pageCount: 0, addedAt: 2 })
+    expect((await getPdf(realId))?.bytes).toBeTruthy()
+    // reverse: placeholder first, then the file opens → fills it
+    await deletePdf(realId)
+    await addPdf({ id: realId, name: "p.pdf", bytes: null, pageCount: 0, addedAt: 3 })
+    expect((await getPdf(realId))?.bytes).toBeNull()
+    await addPdf({ id: "whatever", name: "p.pdf", bytes, pageCount: 0, addedAt: 4 })
+    expect((await getPdf(realId))?.bytes).toBeTruthy()
+  })
+
+  it("applyPdfSync upserts annotations and deletes local-not-in-remote", async () => {
+    const remoteAnn: PdfAnnotation = {
+      id: "ra1", pdfId: "pdf-s", page: 1, kind: "text", type: "highlight",
+      startOffset: 0, endOffset: 1, text: "x", createdAt: 1
+    }
+    const localAnn: PdfAnnotation = {
+      id: "la1", pdfId: "pdf-s", page: 1, kind: "text", type: "underline",
+      startOffset: 0, endOffset: 1, text: "y", createdAt: 2
+    }
+    await addAnnotation(localAnn)
+    await applyPdfSync([{ id: "pdf-s", name: "s.pdf", pageCount: 1, addedAt: 1 }], [remoteAnn], [], [localAnn])
+    expect((await getAnnotation("ra1"))?.text).toBe("x")
+    expect(await getAnnotation("la1")).toBeUndefined()
+    expect((await getPdf("pdf-s"))?.bytes).toBeNull()
   })
 })

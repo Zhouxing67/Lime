@@ -8,7 +8,7 @@ import type {
   SearchQuery,
   SrsData
 } from "../types"
-import { computeItemHash, createItem } from "../utils"
+import { computeItemHash, createItem, sha256Bytes } from "../utils"
 
 const DB_NAME = "pickquote-db"
 const DB_VERSION = 10
@@ -139,9 +139,108 @@ function openDb(version?: number): Promise<IDBDatabase> {
         }
       }
     }
-    req.onsuccess = () => resolve(req.result)
+    req.onsuccess = async () => {
+      const db = req.result
+      await migratePdfIdsIfNeeded(db)
+      resolve(db)
+    }
     req.onerror = () => reject(req.error)
   })
+}
+
+// ---- One-time data migration: rewrite legacy uuid PDF ids → content-hash ids
+// (stable cross-device identity for the notes-only sync). Idempotent.
+
+async function migratePdfIdsIfNeeded(db: IDBDatabase): Promise<void> {
+  try {
+    const data = await chrome.storage.local.get("_pdfIdMigrated")
+    if (data?._pdfIdMigrated) return
+
+    const pdfs = await new Promise<PdfFile[]>((resolve, reject) => {
+      const tx = db.transaction("pdfs", "readonly")
+      const store = tx.objectStore("pdfs")
+      const out: PdfFile[] = []
+      const r = store.openCursor()
+      r.onsuccess = () => {
+        const c = r.result
+        if (c) {
+          out.push(c.value as PdfFile)
+          c.continue()
+        } else resolve(out)
+      }
+      r.onerror = () => reject(r.error)
+    })
+
+    const remap = new Map<string, string>()
+    for (const pdf of pdfs) {
+      if (!pdf.bytes) continue
+      try {
+        const hash = await sha256Bytes(pdf.bytes)
+        if (hash !== pdf.id) remap.set(pdf.id, hash)
+      } catch {
+        /* unreadable bytes — leave as-is */
+      }
+    }
+    if (remap.size > 0) {
+      await tx(
+        { pdfs: "readwrite", pdfAnnotations: "readwrite", items: "readwrite" },
+        async (stores) => {
+          for (const [oldId, newId] of remap) {
+            const existing = await new Promise<PdfFile | undefined>(
+              (resolve, reject) => {
+                const r = stores.pdfs.get(newId)
+                r.onsuccess = () => resolve(r.result as PdfFile | undefined)
+                r.onerror = () => reject(r.error)
+              }
+            )
+            const old = await new Promise<PdfFile | undefined>(
+              (resolve, reject) => {
+                const r = stores.pdfs.get(oldId)
+                r.onsuccess = () => resolve(r.result as PdfFile | undefined)
+                r.onerror = () => reject(r.error)
+              }
+            )
+            if (old && !existing?.bytes) stores.pdfs.put({ ...old, id: newId })
+            stores.pdfs.delete(oldId)
+            await new Promise<void>((resolve, reject) => {
+              const r = stores.pdfAnnotations
+                .index("pdfId")
+                .openCursor(IDBKeyRange.only(oldId))
+              r.onsuccess = () => {
+                const c = r.result
+                if (c) {
+                  const ann = c.value as PdfAnnotation
+                  ann.pdfId = newId
+                  c.update(ann)
+                  c.continue()
+                } else resolve()
+              }
+              r.onerror = () => reject(r.error)
+            })
+            await new Promise<void>((resolve, reject) => {
+              const r = stores.items
+                .index("pdfRefPdfId")
+                .openCursor(IDBKeyRange.only(oldId))
+              r.onsuccess = () => {
+                const c = r.result
+                if (c) {
+                  const item = c.value as Item
+                  item.pdfRef = { ...item.pdfRef!, pdfId: newId }
+                  item.pdfRefPdfId = newId
+                  c.update(item)
+                  c.continue()
+                } else resolve()
+              }
+              r.onerror = () => reject(r.error)
+            })
+          }
+        }
+      )
+    }
+    await chrome.storage.local.set({ _pdfIdMigrated: Date.now() })
+  } catch (e) {
+    console.warn("[lime] pdf id migration failed:", e)
+  }
 }
 
 async function withStore<T>(
@@ -850,17 +949,32 @@ export async function updateReviewSrs(
 
 // ---- PDF stores (v9) ----
 
-export async function addPdf(pdf: PdfFile): Promise<void> {
+/** Add or "fill" a PDF. The id is the SHA-256 content hash of the bytes (a
+ *  stable cross-device identity). If a record with the same id already holds
+ *  the real bytes, the call is idempotent; a metadata-only placeholder gets
+ *  filled when the matching local file is opened. Returns the content-hash id. */
+export async function addPdf(pdf: PdfFile): Promise<string> {
+  let id = pdf.id
+  if (pdf.bytes) id = await sha256Bytes(pdf.bytes)
   const record: PdfFile = {
     ...pdf,
+    id,
     lastOpened: pdf.lastOpened ?? pdf.addedAt
   }
   return withStore("pdfs", "readwrite", async (store) => {
-    await new Promise<void>((resolve, reject) => {
-      const req = store.put(record)
-      req.onsuccess = () => resolve()
-      req.onerror = () => reject(req.error)
+    const existing = await new Promise<PdfFile | undefined>((resolve, reject) => {
+      const r = store.get(id)
+      r.onsuccess = () => resolve(r.result as PdfFile | undefined)
+      r.onerror = () => reject(r.error)
     })
+    // Keep a real file over a placeholder, and don't re-put the same file.
+    if (existing?.bytes) return id
+    await new Promise<void>((resolve, reject) => {
+      const r = store.put(record)
+      r.onsuccess = () => resolve()
+      r.onerror = () => reject(r.error)
+    })
+    return id
   })
 }
 
@@ -1180,5 +1294,34 @@ export async function getAllAnnotations(): Promise<PdfAnnotation[]> {
       }
       req.onerror = () => reject(req.error)
     })
+  })
+}
+
+// ---- PDF notes-only sync application ----
+
+/** Apply the remote PDF domain after a notes-only download: upsert PDF
+ *  metadata as placeholders (local file bytes are preserved), upsert remote
+ *  annotations + delete local annotations not on the remote. */
+export async function applyPdfSync(
+  remotePdfs: {
+    id: string
+    name: string
+    pageCount: number
+    addedAt: number
+    lastOpened?: number
+  }[],
+  remoteAnnotations: PdfAnnotation[],
+  _localPdfs: PdfFile[],
+  localAnnotations: PdfAnnotation[]
+): Promise<void> {
+  for (const pdf of remotePdfs) {
+    await addPdf({ ...pdf, bytes: null })
+  }
+  const remoteIds = new Set(remoteAnnotations.map((a) => a.id))
+  await tx({ pdfAnnotations: "readwrite" }, async (stores) => {
+    for (const ann of remoteAnnotations) stores.pdfAnnotations.put(ann)
+    for (const local of localAnnotations) {
+      if (!remoteIds.has(local.id)) stores.pdfAnnotations.delete(local.id)
+    }
   })
 }

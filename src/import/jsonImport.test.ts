@@ -1,6 +1,7 @@
 import JSZip from "jszip"
 
 import {
+  addPdf,
   createTextAnnotationCard,
   getAllReviews,
   getAnnotation,
@@ -278,14 +279,15 @@ describe("jsonImport", () => {
 
 describe("pdf backup round-trip", () => {
   it("exports + imports PDFs, annotations and their cards", async () => {
-    const pdfId = "pdf-bk"
+    const bytes = new Blob(["pdf-bytes"], { type: "application/pdf" })
     const pdf: PdfFile = {
-      id: pdfId,
+      id: "tmp",
       name: "paper.pdf",
-      bytes: new Blob(["pdf-bytes"], { type: "application/pdf" }),
+      bytes,
       pageCount: 0,
       addedAt: 100
     }
+    const pdfId = await addPdf(pdf)
     const { card, annotation } = await createTextAnnotationCard({
       pdfId,
       page: 1,
@@ -294,7 +296,7 @@ describe("pdf backup round-trip", () => {
       startOffset: 0,
       endOffset: 4
     })
-    const blob = await toJsonZip([card], [], [], [pdf], [annotation])
+    const blob = await toJsonZip([card], [], [], [{ ...pdf, id: pdfId }], [annotation])
     await importFromZip(blob as File)
 
     const restored = await getPdf(pdfId)

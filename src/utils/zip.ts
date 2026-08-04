@@ -33,8 +33,10 @@ export async function toJsonZip(
   }
 
   // PDF files are stored as blobs (local-only domain; not in WebDAV sync).
+  // Metadata-only placeholders (synced without the file) are skipped.
   const pdfMeta: { id: string; name: string; addedAt: number }[] = []
   for (const pdf of pdfs ?? []) {
+    if (!pdf.bytes) continue
     zip.file(`pdfs/${pdf.id}.pdf`, pdf.bytes)
     pdfMeta.push({ id: pdf.id, name: pdf.name, addedAt: pdf.addedAt })
   }

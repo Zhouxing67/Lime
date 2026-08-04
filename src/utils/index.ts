@@ -31,6 +31,26 @@ export async function sha256(input: string): Promise<string> {
   return hashHex
 }
 
+/** SHA-256 of binary data — the PDF's content hash (stable cross-device id). */
+export async function sha256Bytes(data: Blob | ArrayBuffer): Promise<string> {
+  let buf: ArrayBuffer
+  if (data instanceof ArrayBuffer) {
+    buf = data
+  } else if (typeof (data as Blob).arrayBuffer === "function") {
+    buf = await (data as Blob).arrayBuffer()
+  } else {
+    buf = await new Promise<ArrayBuffer>((resolve, reject) => {
+      const fr = new FileReader()
+      fr.onload = () => resolve(fr.result as ArrayBuffer)
+      fr.onerror = () => reject(fr.error)
+      fr.readAsArrayBuffer(data)
+    })
+  }
+  const hashBuffer = await crypto.subtle.digest("SHA-256", buf)
+  const hashArray = Array.from(new Uint8Array(hashBuffer))
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("")
+}
+
 export async function computeItemHash(
   content: string,
   url: string,

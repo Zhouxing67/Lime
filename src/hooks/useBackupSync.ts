@@ -1,9 +1,11 @@
 import { useRef } from "react"
 
 import {
+  applyPdfSync,
   bulkReplace,
   getAllAnnotations,
-  getAllReviews
+  getAllReviews,
+  listPdfs
 } from "../database"
 import type { Item, PdfFile, Project } from "../types"
 import { downloadRemote, runSync, type SyncCredentials } from "../utils/sync"
@@ -94,11 +96,21 @@ export function useBackupSync(options: {
         return
       }
       const reviews = await getAllReviews()
+      const annotations = await getAllAnnotations()
+      const pdfMeta = (await listPdfs()).map((p) => ({
+        id: p.id,
+        name: p.name,
+        pageCount: p.pageCount,
+        addedAt: p.addedAt,
+        lastOpened: p.lastOpened
+      }))
       const result = await runSync(
         cred,
         allItemsUnfiltered,
         projects,
         reviews,
+        annotations,
+        pdfMeta,
         setSyncStatus
       )
       if (result.success) chrome.storage.local.set({ lastSyncTime: Date.now() })
@@ -118,11 +130,21 @@ export function useBackupSync(options: {
       }
 
       const reviews = await getAllReviews()
+      const annotations = await getAllAnnotations()
+      const pdfMeta = (await listPdfs()).map((p) => ({
+        id: p.id,
+        name: p.name,
+        pageCount: p.pageCount,
+        addedAt: p.addedAt,
+        lastOpened: p.lastOpened
+      }))
       const remote = await downloadRemote(
         cred,
         allItemsUnfiltered,
         projects,
         reviews,
+        annotations,
+        pdfMeta,
         setSyncStatus
       )
       if (!remote.success) {
@@ -142,6 +164,14 @@ export function useBackupSync(options: {
           allItemsUnfiltered,
           projects,
           reviews
+        )
+        // PDF domain (notes only — local file bytes are preserved).
+        const localPdfs = await listPdfs()
+        await applyPdfSync(
+          remote.payload.pdfs ?? [],
+          remote.payload.pdfAnnotations ?? [],
+          localPdfs,
+          annotations
         )
         chrome.storage.local.set({ lastSyncTime: Date.now() })
         const msg = remote.message || "从云端同步"

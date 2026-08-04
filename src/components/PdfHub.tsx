@@ -118,20 +118,30 @@ export default function PdfHub({
       )}
       {sorted.map((p) => {
         const isSelected = selectable ? selected?.(p.id) ?? false : false
+        const isPlaceholder = !p.bytes
         return (
         <Paper
           key={p.id}
           elevation={0}
-          onClick={() => (selectable ? onToggleSelect?.(p.id) : onOpenPdf(p.id))}
+          onClick={() => {
+            if (selectable) return onToggleSelect?.(p.id)
+            // A synced placeholder has no local file — open the picker to match.
+            if (isPlaceholder) return onNewPdf()
+            return onOpenPdf(p.id)
+          }}
           sx={(theme) => ({
             p: 2,
             borderRadius: 1,
-            border: "1px solid",
+            border: isPlaceholder
+              ? "1.5px dashed"
+              : "1px solid",
             borderColor: selectable
               ? "primary.main"
-              : isSelected
-                ? "primary.main"
-                : "divider",
+              : isPlaceholder
+                ? theme.custom.borderStrong
+                : isSelected
+                  ? "primary.main"
+                  : "divider",
             cursor: "pointer",
             position: "relative",
             // Align with ItemCard's selectMode look: uniform primary tint in
@@ -213,6 +223,13 @@ export default function PdfHub({
                 {countByPdf[p.id] ?? 0} 张摘录 ·{" "}
                 {relativeTime(p.lastOpened) || "未打开"}
               </Typography>
+              {isPlaceholder && (
+                <Typography
+                  variant="caption"
+                  sx={{ color: "primary.main", fontSize: "0.68rem" }}>
+                  未同步文件 · 点击打开本地 PDF 匹配
+                </Typography>
+              )}
             </Box>
           </Stack>
         </Paper>
