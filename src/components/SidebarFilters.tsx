@@ -682,6 +682,7 @@ export default function SidebarFilters({
           ) : sidebarTab === "pdf" ? (
             /* PDF tab: TOC when a PDF is open, otherwise the library */
             <PdfTab
+              key={activePdfId ?? "none"}
               activePdfId={activePdfId}
               pdfOutline={pdfOutline}
               pdfs={pdfs}
