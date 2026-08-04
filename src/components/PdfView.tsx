@@ -2,12 +2,14 @@ import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded"
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
 import EditRoundedIcon from "@mui/icons-material/EditRounded"
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
+import SearchRoundedIcon from "@mui/icons-material/SearchRounded"
 import {
   Box,
   CircularProgress,
   IconButton,
   Menu,
   MenuItem,
+  TextField,
   Typography
 } from "@mui/material"
 import { useCallback, useEffect, useRef, useState } from "react"
@@ -412,19 +414,21 @@ export default function PdfView({
             </MenuItem>
           </Menu>
         </Box>
-        {/* second row: search + jump-to-page */}
+        {/* second row: search + jump-to-page (align with FilterChips style) */}
         <Box
           sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 0.75,
-            px: 1,
-            minHeight: 38,
+            py: 1,
+            px: 2,
+            bgcolor: "background.paper",
             borderBottom: "1px solid",
             borderColor: "divider",
-            bgcolor: (t) => t.custom.surface2
+            display: "flex",
+            alignItems: "center",
+            gap: 1
           }}>
-          <input
+          <TextField
+            size="small"
+            variant="outlined"
             placeholder="搜索 PDF 全文…"
             defaultValue={searchState.query}
             onKeyDown={(e) => {
@@ -432,21 +436,26 @@ export default function PdfView({
                 handleSearch((e.target as HTMLInputElement).value)
               }
             }}
-            style={{
+            sx={{
               flex: 1,
               minWidth: 0,
-              padding: "5px 8px",
-              fontSize: "0.78rem",
-              border: "1px solid",
-              borderColor: "rgba(0,0,0,0.12)",
-              borderRadius: 4,
-              outline: "none"
+              "& .MuiOutlinedInput-root": {
+                borderRadius: 1,
+                fontSize: "0.8rem"
+              }
+            }}
+            InputProps={{
+              startAdornment: (
+                <SearchRoundedIcon
+                  sx={{ fontSize: 16, mr: 0.5, color: "text.disabled" }}
+                />
+              )
             }}
           />
           {searchState.loading ? (
             <Box
               sx={{
-                fontSize: "0.7rem",
+                fontSize: "0.72rem",
                 color: "text.disabled",
                 whiteSpace: "nowrap"
               }}>
@@ -458,7 +467,7 @@ export default function PdfView({
                 onClick={() => handleSearchNav(-1)}
                 title="上一个匹配"
                 sx={{
-                  fontSize: "0.72rem",
+                  fontSize: "0.75rem",
                   color: "text.secondary",
                   cursor: "pointer",
                   px: 0.5,
@@ -468,7 +477,7 @@ export default function PdfView({
               </Box>
               <Box
                 sx={{
-                  fontSize: "0.7rem",
+                  fontSize: "0.72rem",
                   color: "text.disabled",
                   whiteSpace: "nowrap"
                 }}>
@@ -478,7 +487,7 @@ export default function PdfView({
                 onClick={() => handleSearchNav(1)}
                 title="下一个匹配"
                 sx={{
-                  fontSize: "0.72rem",
+                  fontSize: "0.75rem",
                   color: "text.secondary",
                   cursor: "pointer",
                   px: 0.5,
@@ -490,17 +499,17 @@ export default function PdfView({
           ) : searchState.query ? (
             <Box
               sx={{
-                fontSize: "0.7rem",
+                fontSize: "0.72rem",
                 color: "text.disabled",
                 whiteSpace: "nowrap"
               }}>
               无结果
             </Box>
           ) : null}
-          <input
+          <TextField
+            size="small"
+            variant="outlined"
             type="number"
-            min={1}
-            max={loaded?.pageCount}
             placeholder="跳转页码"
             onKeyDown={(e) => {
               if (e.key === "Enter") {
@@ -515,14 +524,12 @@ export default function PdfView({
                 ;(e.target as HTMLInputElement).value = ""
               }
             }}
-            style={{
-              width: 92,
-              padding: "5px 8px",
-              fontSize: "0.78rem",
-              border: "1px solid",
-              borderColor: "rgba(0,0,0,0.12)",
-              borderRadius: 4,
-              outline: "none"
+            sx={{
+              width: 110,
+              "& .MuiOutlinedInput-root": {
+                borderRadius: 1,
+                fontSize: "0.8rem"
+              }
             }}
           />
         </Box>
