@@ -382,6 +382,25 @@ export default function PdfHub({
           </Typography>
         </Stack>
       )}
+      {!selectable &&
+      shownPdfs.length === 0 &&
+      topicView !== "all" &&
+      topicView !== "topics" ? (
+        <Box sx={{ py: 6, textAlign: "center" }}>
+          <Typography
+            variant="body2"
+            sx={{ color: "text.secondary", fontSize: "0.85rem", mb: 1.5 }}>
+            此主题下暂无 PDF
+          </Typography>
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={() => setTopicView("topics")}
+            sx={{ borderRadius: 1, fontSize: "0.75rem", textTransform: "none" }}>
+            返回全部主题
+          </Button>
+        </Box>
+      ) : (
       <Box
         sx={{
           display: "grid",
@@ -552,12 +571,13 @@ export default function PdfHub({
                       未同步文件 · 点击打开本地 PDF 匹配
                     </Typography>
                   )}
-                </Box>
-              </Stack>
-            </Paper>
-          )
-        })}
-      </Box>
+                 </Box>
+               </Stack>
+             </Paper>
+           )
+         })}
+       </Box>
+      )}
       {!selectable && (
         <Menu
           anchorEl={moveMenu?.anchor}
