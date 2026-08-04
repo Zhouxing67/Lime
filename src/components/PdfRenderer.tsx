@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 
 import * as pdfjsLib from "pdfjs-dist"
 
@@ -8,6 +8,7 @@ import { textLayerRects } from "./pdfText"
 import type { PdfRect } from "./pdfText"
 
 // Low-saturation annotation colors (align with the app's RATING_META family).
+const EMPTY_ANNOTATIONS: PdfAnnotation[] = []
 const MARK_COLOR: Record<PdfMark, string> = {
   highlight: "rgba(183,149,91,0.26)",
   underline: "#6f9476",
@@ -131,7 +132,9 @@ const TEXT_LAYER_CSS = `
 
 /** Render one page lazily (IntersectionObserver) at DPR crispness + text layer.
  *  Each page fits the pane width INDEPENDENTLY (per-page zoom) so mixed-size
- *  PDFs never overflow the pane ("cards pane covers PDF"). */
+ *  PDFs never overflow the pane. Size + render both happen ONLY when the page
+ *  scrolls near the viewport — a 492-page PDF mounts 492 placeholder holders
+ *  but computes/render just the visible ones. */
 function PageView({
   doc,
   pageNumber,
@@ -150,12 +153,21 @@ function PageView({
   const holderRef = useRef<HTMLDivElement>(null)
   const [wh, setWh] = useState<{ w: number; h: number } | null>(null)
   const [scale, setScale] = useState(1)
+  const flashDoneRef = useRef(onFlashDone)
+  flashDoneRef.current = onFlashDone
+  const placeholderH = paneW > 0 ? Math.floor(paneW * 1.414) : 0
 
-  // Per-page fit-width scale + holder size (no canvas rendering).
   useEffect(() => {
-    if (paneW <= 0) return
+    const holder = holderRef.current
+    if (!holder || paneW <= 0) return
     let cancelled = false
-    doc.getPage(pageNumber).then((page) => {
+    let renderTask: pdfjsLib.RenderTask | null = null
+    let textLayer: InstanceType<typeof pdfjsLib.TextLayer> | null = null
+    let flashTimer: number | null = null
+    const dpr = window.devicePixelRatio || 1
+
+    const computeSize = async () => {
+      const page = await doc.getPage(pageNumber)
       if (cancelled) return
       const baseW = page.getViewport({ scale: 1 }).width
       if (baseW <= 0) return
@@ -163,22 +175,10 @@ function PageView({
       const vp = page.getViewport({ scale: s })
       setScale(s)
       setWh({ w: Math.floor(vp.width), h: Math.floor(vp.height) })
-    })
-    return () => {
-      cancelled = true
     }
-  }, [doc, pageNumber, paneW])
-
-  // Render canvas + text layer when the holder scrolls into view.
-  useEffect(() => {
-    const holder = holderRef.current
-    if (!holder || !wh) return
-    let cancelled = false
-    let renderTask: pdfjsLib.RenderTask | null = null
-    let textLayer: InstanceType<typeof pdfjsLib.TextLayer> | null = null
-    const dpr = window.devicePixelRatio || 1
 
     const render = async () => {
+      if (!wh) return
       const page = await doc.getPage(pageNumber)
       if (cancelled) return
       const canvas = holder.querySelector("canvas")
@@ -217,8 +217,8 @@ function PageView({
         const annDiv = holder.querySelector<HTMLElement>(".pdf-annotations")
         if (annDiv) {
           drawPageAnnotations(annDiv, annotations, textLayer, holder, flashAnnId)
-          if (flashAnnId) {
-            setTimeout(() => onFlashDone?.(), 1500)
+          if (flashAnnId && flashTimer === null) {
+            flashTimer = window.setTimeout(() => flashDoneRef.current?.(), 1500)
           }
         }
         // Expose for the toolbar's selection→offset mapping.
@@ -230,14 +230,18 @@ function PageView({
       (entries) => {
         if (entries[0].isIntersecting) {
           obs.disconnect()
-          render().catch((e) => {
-            // Cancelled renders are expected on scroll/re-render, not errors.
-            if (e instanceof pdfjsLib.RenderingCancelledException) return
-            console.warn("[pdf] page render:", e)
-          })
+          if (!wh) {
+            computeSize().catch((e) => console.warn("[pdf] page size:", e))
+          } else {
+            render().catch((e) => {
+              // Cancelled renders are expected on scroll/re-render, not errors.
+              if (e instanceof pdfjsLib.RenderingCancelledException) return
+              console.warn("[pdf] page render:", e)
+            })
+          }
         }
       },
-      { rootMargin: "400px 0px" }
+      { rootMargin: "800px 0px" }
     )
     obs.observe(holder)
     return () => {
@@ -245,9 +249,10 @@ function PageView({
       obs.disconnect()
       renderTask?.cancel()
       textLayer?.cancel()
+      if (flashTimer !== null) window.clearTimeout(flashTimer)
       unregisterTextLayer(pageNumber)
     }
-  }, [doc, pageNumber, scale, wh, annotations, flashAnnId])
+  }, [doc, pageNumber, paneW, wh, scale, annotations, flashAnnId])
 
   return (
     <div
@@ -258,8 +263,8 @@ function PageView({
         margin: "0 auto 12px",
         background: "#fff",
         boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
-        width: wh?.w,
-        height: wh?.h
+        width: wh?.w ?? (paneW > 0 ? Math.floor(paneW) : undefined),
+        height: wh?.h ?? (paneW > 0 ? placeholderH : undefined)
       }}>
       <canvas style={{ display: "block" }} />
       <div className="pdf-annotations" />
@@ -287,6 +292,19 @@ export default function PdfRenderer({
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [paneW, setPaneW] = useState(0)
+
+  // Stable per-page annotation arrays — rebuilt ONLY when the annotations prop
+  // changes, so unrelated re-renders (scrollPage/flashAnnId) don't trigger every
+  // page to re-render its canvas.
+  const pageAnnMap = useMemo(() => {
+    const m = new Map<number, PdfAnnotation[]>()
+    for (const a of annotations ?? []) {
+      const list = m.get(a.page)
+      if (list) list.push(a)
+      else m.set(a.page, [a])
+    }
+    return m
+  }, [annotations])
 
   // Measure the pane width (with a tolerance to avoid a scrollbar-induced
   // resize loop when the pages re-render and the vertical scrollbar toggles).
@@ -338,7 +356,7 @@ export default function PdfRenderer({
             doc={doc}
             pageNumber={n}
             paneW={paneW}
-            annotations={annotations?.filter((a) => a.page === n) ?? []}
+            annotations={pageAnnMap.get(n) ?? EMPTY_ANNOTATIONS}
             flashAnnId={flashPage === n ? flashAnnId : null}
             onFlashDone={onFlashDone}
           />

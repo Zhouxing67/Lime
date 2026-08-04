@@ -142,7 +142,7 @@ export default function PdfView({
           endOffset: offsets.end
         })
         sel.removeAllRanges()
-        await reloadPdfData()
+        // The write broadcasts _dbpdf → the storage listener reloads.
       } catch (e) {
         console.warn("[pdf] create annotation failed:", e)
       }
@@ -156,13 +156,10 @@ export default function PdfView({
     setFlashAnnId(card.pdfRef.annotationId)
   }, [])
 
-  const handleCardDelete = useCallback(
-    async (card: Item) => {
-      await deletePdfCard(card)
-      reloadPdfData()
-    },
-    [reloadPdfData]
-  )
+  const handleCardDelete = useCallback(async (card: Item) => {
+    await deletePdfCard(card)
+    // The write broadcasts _dbpdf → the storage listener reloads.
+  }, [])
 
   // Cards sorted by original position (page + annotation startOffset).
   const sortedCards = [...pdfCards].sort((a, b) => {

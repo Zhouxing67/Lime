@@ -287,7 +287,9 @@ export function createItem(data: {
     ...(data.sectionId ? { sectionId: data.sectionId } : {}),
     ...(data.images && data.images.length > 0 ? { images: data.images } : {}),
     ...(data.dueDate ? { dueDate: data.dueDate } : {}),
-    ...(data.pdfRef ? { pdfRef: data.pdfRef } : {})
+    ...(data.pdfRef
+      ? { pdfRef: data.pdfRef, pdfRefPdfId: data.pdfRef.pdfId }
+      : {})
   }
 }
 

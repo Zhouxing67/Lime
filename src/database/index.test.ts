@@ -764,6 +764,7 @@ describe("pdf annotations ↔ cards", () => {
     })
     expect(card.pdfRef?.annotationId).toBe(annotation.id)
     expect(card.pdfRef?.page).toBe(3)
+    expect(card.pdfRefPdfId).toBe("pdf-a")
     expect(annotation.itemId).toBe(card.id)
     expect(annotation.kind).toBe("text")
     expect(annotation.text).toBe("关键段落")

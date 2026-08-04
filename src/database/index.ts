@@ -11,7 +11,7 @@ import type {
 import { computeItemHash, createItem } from "../utils"
 
 const DB_NAME = "pickquote-db"
-const DB_VERSION = 9
+const DB_VERSION = 10
 
 type TableNames =
   | "items"
@@ -115,6 +115,28 @@ function openDb(version?: number): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains("pdfAnnotations")) {
         const as = db.createObjectStore("pdfAnnotations", { keyPath: "id" })
         as.createIndex("pdfId", "pdfId", { unique: false })
+      }
+      // v10 migration: denormalized pdfRefPdfId index for fast per-PDF card
+      // lookups (IndexedDB can't index the nested pdfRef.pdfId path).
+      if (db.objectStoreNames.contains("items")) {
+        const itemsStore = req.transaction.objectStore("items")
+        if (!itemsStore.indexNames.contains("pdfRefPdfId")) {
+          itemsStore.createIndex("pdfRefPdfId", "pdfRefPdfId", {
+            unique: false
+          })
+        }
+        const backfill = itemsStore.openCursor()
+        backfill.onsuccess = () => {
+          const cursor = backfill.result
+          if (cursor) {
+            const item = cursor.value
+            if (item?.pdfRef?.pdfId && !item.pdfRefPdfId) {
+              item.pdfRefPdfId = item.pdfRef.pdfId
+              cursor.update(item)
+            }
+            cursor.continue()
+          }
+        }
       }
     }
     req.onsuccess = () => resolve(req.result)
@@ -936,22 +958,14 @@ export async function deleteAnnotation(id: string): Promise<void> {
 
 // ---- PDF annotations ↔ cards (P2) ----
 
-/** All cards belonging to a PDF (via pdfRef.pdfId), unsorted. */
+/** All cards belonging to a PDF (via the pdfRefPdfId index), unsorted. */
 export async function getItemsByPdf(pdfId: string): Promise<Item[]> {
   return withStore("items", "readonly", (store) => {
     return new Promise((resolve, reject) => {
       const results: Item[] = []
-      const req = store.openCursor()
-      req.onsuccess = () => {
-        const cursor = req.result
-        if (cursor) {
-          const item = cursor.value as Item
-          if (item.pdfRef?.pdfId === pdfId) results.push(item)
-          cursor.continue()
-        } else {
-          resolve(results)
-        }
-      }
+      const idx = store.index("pdfRefPdfId")
+      const req = idx.getAll(pdfId)
+      req.onsuccess = () => resolve((req.result as Item[]) ?? [])
       req.onerror = () => reject(req.error)
     })
   })

@@ -55,6 +55,8 @@ export interface Item {
     page: number
     annotationId: string
   }
+  /** Denormalized pdfRef.pdfId for the IndexedDB index (deep paths aren't indexable). */
+  pdfRefPdfId?: string
 }
 
 export type PdfMark = "highlight" | "underline" | "wavy" | "strike" | "frame"
