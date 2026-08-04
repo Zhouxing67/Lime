@@ -160,6 +160,37 @@ Layout is three columns: **NavRail | Sidebar | Main**.
 - 过渡：hover `0.2s ease`；入场/页面切换 `0.25s ease-out`；micro 动效 `0.15s`
 - 硬编码 hex 仅限例外：PDF 纸张 `#fff`/`#f0efec`、浮动面板主题、批注色（`pdfTheme`）——其余一律用 `t.custom.*`/palette
 
+## Code Review Checklist
+
+每次 code review 按以下维度执行（P1 阻断 → P2 → P3），**追踪完整数据流而非孤立看文件**。
+
+### P1 · 正确性与数据安全
+- [ ] 逻辑错误 / 边界：off-by-one、空值、并发/竞态、状态陈旧
+- [ ] 数据丢失风险：迁移/导入/同步路径是否会丢数据；事务是否原子
+- [ ] 异常处理：失败是否捕获 + console 有具体原因（不裸报错）
+- [ ] 安全：用户 markdown 无 dangerouslySetInnerHTML（除 KaTeX 转义输出）；凭据只在 chrome.storage.sync；CSP 覆盖外部资源
+
+### P2 · 分层职责 + 数据流 + 边界
+- [ ] 职责归属：逻辑是否在正确层（DB 负责 order 等持久化规则；utils 纯函数；组件渲染；业务在 hooks）
+- [ ] 广播链路：热写路径是否触发 `refreshAllData`（应定向广播 `_dbi`/`_dbp`/`_dbr`/`_dbpdf` + 轻量重载）
+- [ ] 状态一致性：无陈旧/重复状态；关闭/清理是否清干净（如 pdfOutline）
+- [ ] 卸载/取消竞态：document 监听器泄漏、setState-on-unmounted、异步取消（AbortController、pdf.js 取消异常）
+
+### P3 · 重复 / 可维护 / UX
+- [ ] 重复维护：同逻辑多处（抽 utils/组件）；死代码、console.debug、未用导出
+- [ ] 组件内聚：组件职责单一，过大组件考虑拆分（如 FloatingPanel）
+- [ ] UI 一致性：复用清单（EmptyState/DialogShell/BatchToolbar/Well/轻量行/瓦片）+ token 档位；无硬编码样式
+
+### 跨 bundle / 数据兼容（本项目的特殊维度）
+- [ ] 数据兼容：DB_VERSION 迁移、SyncPayload 版本门控、导入导出往返（spread 校验，新字段存活）
+- [ ] 跨 bundle：background 无 DOM；content script 注入时机（MV3 更新不重注入）；options 组合根
+- [ ] 批注↔卡片 1:1：改一边必须联动另一边（创建原子、删除级联、类型改只影响 overlay）
+
+### 方法论
+- 功能失效时从用户动作 → 持久化 → 反馈全链路追踪（框架边界常是根因）
+- 验证真实构建行为（dev 构建 vs 打包可能分叉）
+- 按 P1/P2/P3 排序，一次修复一个批次；共享组件改动检查所有调用点（可选 prop 默认不变）
+
 ## Review (SRS)
 
 - SM-2-style algorithm: starting ease 2.5, min 1.3, max interval 365 days
