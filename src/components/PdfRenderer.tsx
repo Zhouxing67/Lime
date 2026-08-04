@@ -138,7 +138,14 @@ const TEXT_LAYER_CSS = `
   0% { opacity: 1; }
   100% { opacity: 0; }
 }
-.pdf-annotations { pointer-events: none; }
+.pdf-annotations {
+  /* Above the text layer (z-index 0 + spans pointer-events auto) so clicks
+     reach the annotations instead of being swallowed by the selectable text. */
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
 .pdf-ann {
   pointer-events: auto;
   cursor: pointer;
