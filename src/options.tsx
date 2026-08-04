@@ -978,12 +978,26 @@ export default function OptionsPage() {
   const refreshRef = useRef(refreshAllData)
   refreshRef.current = refreshAllData
 
+  // Coalesce burst writes: a batch/annotation/toggle sequence fires many _dbi
+  // broadcasts within ~150ms — debounce them into ONE refreshAllData instead of
+  // a full-store re-scan per write.
+  const refreshTimerRef = useRef<number | null>(null)
+  useEffect(() => {
+    return () => {
+      if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current)
+    }
+  }, [])
+
   useEffect(() => {
     const onChange = (
       changes: Record<string, chrome.storage.StorageChange>
     ) => {
       if (changes._dbi || changes._dbp) {
-        refreshRef.current()
+        if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current)
+        refreshTimerRef.current = window.setTimeout(() => {
+          refreshTimerRef.current = null
+          refreshRef.current()
+        }, 150)
       }
       // Review writes broadcast `_dbr`: reload only review state (light),
       // never the full refreshAllData chain.
