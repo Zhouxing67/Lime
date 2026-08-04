@@ -111,7 +111,7 @@ export function useBackupSync(options: {
         pageCount: p.pageCount,
         addedAt: p.addedAt,
         lastOpened: p.lastOpened,
-        topic: p.topic
+        ...(p.topic ? { topic: p.topic } : {})
       }))
       const result = await runSync(
         cred,
@@ -150,7 +150,7 @@ export function useBackupSync(options: {
         pageCount: p.pageCount,
         addedAt: p.addedAt,
         lastOpened: p.lastOpened,
-        topic: p.topic
+        ...(p.topic ? { topic: p.topic } : {})
       }))
       const remote = await downloadRemote(
         cred,
@@ -202,7 +202,7 @@ export function useBackupSync(options: {
             pageCount: meta.pageCount,
             addedAt: meta.addedAt,
             lastOpened: meta.lastOpened,
-            topic: meta.topic
+            ...(meta.topic ? { topic: meta.topic } : {})
           })
         }
         chrome.storage.local.set({ lastSyncTime: Date.now() })

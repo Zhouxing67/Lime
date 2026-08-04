@@ -1,4 +1,5 @@
 import { dayKey, getRecentItems, rateSrs } from "../hooks/useSrs"
+import { sha256Bytes } from "../utils"
 import type {
   Item,
   PdfAnnotation,
@@ -931,5 +932,18 @@ describe("updatePdfTopic", () => {
     expect((await getPdf(id))?.topic).toBe("深度学习")
     await updatePdfTopic(id, undefined)
     expect((await getPdf(id))?.topic).toBeUndefined()
+  })
+})
+
+describe("addPdf placeholder topic preservation", () => {
+  it("keeps the topic when a synced placeholder is filled with real bytes", async () => {
+    const bytes = new Blob(["fill-topic"], { type: "application/pdf" })
+    const id = await sha256Bytes(bytes)
+    // Synced placeholder first (metadata with topic, no bytes).
+    await addPdf({ id, name: "p.pdf", bytes: null, pageCount: 3, addedAt: 1, topic: "Math" })
+    // Then the real file is opened locally (no topic in the record).
+    await addPdf({ id: "any", name: "p.pdf", bytes, pageCount: 3, addedAt: 1 })
+    expect((await getPdf(id))?.topic).toBe("Math")
+    expect((await getPdf(id))?.bytes).not.toBeNull()
   })
 })

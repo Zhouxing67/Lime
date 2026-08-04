@@ -991,8 +991,11 @@ export async function addPdf(pdf: PdfFile): Promise<string> {
     })
     // Keep a real file over a placeholder, and don't re-put the same file.
     if (existing?.bytes) return id
+    // Filling a synced placeholder must NOT drop fields the placeholder carries
+    // (topic, lastOpened) that the caller's record may lack — merge onto it.
+    const merged = existing ? { ...existing, ...record } : record
     await new Promise<void>((resolve, reject) => {
-      const r = store.put(record)
+      const r = store.put(merged)
       r.onsuccess = () => resolve()
       r.onerror = () => reject(r.error)
     })
@@ -1353,6 +1356,7 @@ export async function applyPdfSync(
     pageCount: number
     addedAt: number
     lastOpened?: number
+    topic?: string
   }[],
   remoteAnnotations: PdfAnnotation[],
   _localPdfs: PdfFile[],
