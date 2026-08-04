@@ -186,6 +186,14 @@ Layout is three columns: **NavRail | Sidebar | Main**.
 - [ ] 跨 bundle：background 无 DOM；content script 注入时机（MV3 更新不重注入）；options 组合根
 - [ ] 批注↔卡片 1:1：改一边必须联动另一边（创建原子、删除级联、类型改只影响 overlay）
 
+### 导入 / 导出 / 同步 正确性（数据往返三链路）
+任何数据模型 / 字段语义改动，必须三链路全查：
+- [ ] 导出 `toJsonZip`：新字段 / 改字段是否序列化存活（type-agnostic，无白名单遗漏）
+- [ ] 导入 `jsonImport`：`validateItem`/`validateReview`/`validatePdfAnnotation` 的 spread + key 校验是否放行新字段；id 语义变更（如 contentHash）是否需重映射（导出 id → 实际 id）
+- [ ] 同步：SyncPayload 序列化 + 哈希覆盖新字段；`bulkReplace`/`applyPdfSync` 的 upsert/删除是否跟随；跨设备 id 稳定性
+- [ ] 往返测试：导出 → 清空 → 导入，新字段存活；字段值语义变化（如 annotation.type）不破坏往返
+- [ ] 三链路共享不变式：注解 ↔ 卡片 1:1、pdfId 一致性、删除级联在导入/同步后仍成立
+
 ### 方法论
 - 功能失效时从用户动作 → 持久化 → 反馈全链路追踪（框架边界常是根因）
 - 验证真实构建行为（dev 构建 vs 打包可能分叉）
