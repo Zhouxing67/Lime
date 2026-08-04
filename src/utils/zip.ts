@@ -1,6 +1,6 @@
 import JSZip from "jszip"
 
-import type { Item, Project, ReviewEntry } from "../types"
+import type { Item, PdfAnnotation, PdfFile, Project, ReviewEntry } from "../types"
 
 function dataUrlToBlob(dataUrl: string): Blob {
   const [meta, content] = dataUrl.split(",")
@@ -14,7 +14,9 @@ function dataUrlToBlob(dataUrl: string): Blob {
 export async function toJsonZip(
   items: Item[],
   projects?: Project[],
-  reviews?: ReviewEntry[]
+  reviews?: ReviewEntry[],
+  pdfs?: PdfFile[],
+  pdfAnnotations?: PdfAnnotation[]
 ): Promise<Blob> {
   const zip = new JSZip()
 
@@ -30,10 +32,19 @@ export async function toJsonZip(
     }
   }
 
+  // PDF files are stored as blobs (local-only domain; not in WebDAV sync).
+  const pdfMeta: { id: string; name: string; addedAt: number }[] = []
+  for (const pdf of pdfs ?? []) {
+    zip.file(`pdfs/${pdf.id}.pdf`, pdf.bytes)
+    pdfMeta.push({ id: pdf.id, name: pdf.name, addedAt: pdf.addedAt })
+  }
+
   const payload: {
     items: Item[]
     projects?: Project[]
     reviews?: ReviewEntry[]
+    pdfAnnotations?: PdfAnnotation[]
+    pdfs?: { id: string; name: string; addedAt: number }[]
   } = { items }
   if (projects && projects.length > 0) {
     // Spread projects so new fields (e.g. lastOpened) survive backups without
@@ -42,6 +53,12 @@ export async function toJsonZip(
   }
   if (reviews && reviews.length > 0) {
     payload.reviews = reviews
+  }
+  if (pdfAnnotations && pdfAnnotations.length > 0) {
+    payload.pdfAnnotations = pdfAnnotations
+  }
+  if (pdfMeta.length > 0) {
+    payload.pdfs = pdfMeta
   }
   const json = JSON.stringify(payload, null, 2)
   zip.file("export.json", json)

@@ -1102,3 +1102,23 @@ export async function deletePdfCard(card: Item): Promise<void> {
     }
   )
 }
+
+/** All annotations across every PDF (for backup). */
+export async function getAllAnnotations(): Promise<PdfAnnotation[]> {
+  return withStore("pdfAnnotations", "readonly", (store) => {
+    return new Promise((resolve, reject) => {
+      const results: PdfAnnotation[] = []
+      const req = store.openCursor()
+      req.onsuccess = () => {
+        const cursor = req.result
+        if (cursor) {
+          results.push(cursor.value as PdfAnnotation)
+          cursor.continue()
+        } else {
+          resolve(results)
+        }
+      }
+      req.onerror = () => reject(req.error)
+    })
+  })
+}

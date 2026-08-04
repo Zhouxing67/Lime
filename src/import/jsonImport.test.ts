@@ -1,7 +1,15 @@
 import JSZip from "jszip"
 
-import { getAllReviews, listProjects, searchItems } from "../database"
-import type { Item, ReviewEntry } from "../types"
+import {
+  createTextAnnotationCard,
+  getAllReviews,
+  getAnnotation,
+  getItemsByPdf,
+  getPdf,
+  listProjects,
+  searchItems
+} from "../database"
+import type { Item, PdfFile, ReviewEntry } from "../types"
 import { toJsonZip } from "../utils/zip"
 import { importFromZip } from "./jsonImport"
 
@@ -265,5 +273,36 @@ describe("jsonImport", () => {
     const reviews = await getAllReviews()
     expect(reviews).toHaveLength(1)
     expect(reviews[0].srs.interval).toBe(3)
+  })
+})
+
+describe("pdf backup round-trip", () => {
+  it("exports + imports PDFs, annotations and their cards", async () => {
+    const pdfId = "pdf-bk"
+    const pdf: PdfFile = {
+      id: pdfId,
+      name: "paper.pdf",
+      bytes: new Blob(["pdf-bytes"], { type: "application/pdf" }),
+      pageCount: 0,
+      addedAt: 100
+    }
+    const { card, annotation } = await createTextAnnotationCard({
+      pdfId,
+      page: 1,
+      type: "highlight",
+      text: "备份测试",
+      startOffset: 0,
+      endOffset: 4
+    })
+    const blob = await toJsonZip([card], [], [], [pdf], [annotation])
+    await importFromZip(blob as File)
+
+    const restored = await getPdf(pdfId)
+    expect(restored?.name).toBe("paper.pdf")
+    expect(restored?.bytes).toBeTruthy()
+    expect((await getAnnotation(annotation.id))?.text).toBe("备份测试")
+    const cards = await getItemsByPdf(pdfId)
+    expect(cards).toHaveLength(1)
+    expect(cards[0].id).toBe(card.id)
   })
 })

@@ -1,6 +1,11 @@
 import { useRef } from "react"
 
-import { bulkReplace, getAllReviews } from "../database"
+import {
+  bulkReplace,
+  getAllAnnotations,
+  getAllReviews,
+  listPdfs
+} from "../database"
 import type { Item, Project } from "../types"
 import { downloadRemote, runSync, type SyncCredentials } from "../utils/sync"
 import { toJsonZip } from "../utils/zip"
@@ -45,7 +50,17 @@ export function useBackupSync(options: {
     const scopedReviews = reviews.filter((r) =>
       backupSelectedIds.includes(r.projectId)
     )
-    const blob = await toJsonZip(items, selectedProjects, scopedReviews)
+    // PDF domain is not project-scoped — always back it up.
+    const pdfCards = allItemsUnfiltered.filter((i) => i.pdfRef)
+    const pdfs = await listPdfs()
+    const annotations = await getAllAnnotations()
+    const blob = await toJsonZip(
+      [...items, ...pdfCards],
+      selectedProjects,
+      scopedReviews,
+      pdfs,
+      annotations
+    )
     const url = URL.createObjectURL(blob)
     await chrome.downloads.download({ url, filename: "lime-backup.zip" })
     URL.revokeObjectURL(url)

@@ -1,14 +1,25 @@
 import JSZip from "jszip"
 
 import {
+  addAnnotation,
   addItem,
+  addPdf,
   addProject,
   addReview,
+  getAllAnnotations,
   getAllReviews,
   getProjectByName,
   searchItems
 } from "../database"
-import type { Item, ItemType, Project, ReviewEntry, Section } from "../types"
+import type {
+  Item,
+  ItemType,
+  PdfAnnotation,
+  PdfMark,
+  Project,
+  ReviewEntry,
+  Section
+} from "../types"
 
 export interface ImportResult {
   imported: number
@@ -43,6 +54,7 @@ function validateItem(
 
   if (
     obj.type !== "todo" &&
+    !obj.pdfRef &&
     (!source || typeof source.url !== "string" || source.url.length === 0)
   ) {
     return { error: "source 缺失或不是对象" }
@@ -135,8 +147,27 @@ function validateReview(raw: unknown): ReviewEntry | null {
   return review
 }
 
-function validateProject(raw: unknown): Project | null {
+function validatePdfAnnotation(raw: unknown): PdfAnnotation | null {
   if (!raw || typeof raw !== "object") return null
+  const obj = raw as Record<string, unknown>
+  if (typeof obj.pdfId !== "string" || typeof obj.page !== "number") return null
+  const ann: PdfAnnotation = { ...(raw as PdfAnnotation) }
+  ann.id =
+    typeof obj.id === "string" && obj.id.length > 0
+      ? obj.id
+      : crypto.randomUUID()
+  ann.pdfId = obj.pdfId
+  ann.page = obj.page
+  ann.kind = obj.kind === "region" ? "region" : "text"
+  ann.type = (obj.type as PdfMark) ?? "highlight"
+  ann.createdAt =
+    typeof obj.createdAt === "number" && obj.createdAt > 0
+      ? obj.createdAt
+      : Date.now()
+  return ann
+}
+
+function validateProject(raw: unknown): Project | null {  if (!raw || typeof raw !== "object") return null
   const obj = raw as Record<string, unknown>
   if (typeof obj.name !== "string" || obj.name.length === 0) return null
   const project: Project = { ...(raw as Project) }
@@ -216,6 +247,8 @@ export async function importFromZip(
   let rawArray: unknown[]
   let importedProjects: Project[] = []
   let importedReviews: ReviewEntry[] = []
+  let importedAnnotations: PdfAnnotation[] = []
+  let importedPdfMeta: { id: string; name: string; addedAt: number }[] = []
   try {
     const parsed = JSON.parse(rawJson)
     if (Array.isArray(parsed)) {
@@ -241,6 +274,15 @@ export async function importFromZip(
           const review = validateReview(rv)
           if (review) importedReviews.push(review)
         }
+      }
+      if (Array.isArray(obj.pdfAnnotations)) {
+        for (const ra of obj.pdfAnnotations) {
+          const ann = validatePdfAnnotation(ra)
+          if (ann) importedAnnotations.push(ann)
+        }
+      }
+      if (Array.isArray(obj.pdfs)) {
+        importedPdfMeta = obj.pdfs as { id: string; name: string; addedAt: number }[]
       }
     } else {
       return {
@@ -301,7 +343,14 @@ export async function importFromZip(
       continue
     }
     try {
-      if (await addItem(item, item.type === "todo" ? { skipDedup: true } : undefined)) {
+      if (
+        await addItem(
+          item,
+          item.type === "todo" || item.pdfRef
+            ? { skipDedup: true }
+            : undefined
+        )
+      ) {
         result.imported++
       } else {
         result.skipped++
@@ -335,6 +384,45 @@ export async function importFromZip(
       } catch {
         result.errors.push({ index: -1, reason: "复习条目导入失败" })
       }
+    }
+  }
+
+  // ---- PDFs + annotations import (local-only domain) ----
+  const pdfIdSet = new Set<string>()
+  const pdfMetaByName = new Map<string, { id: string; name: string; addedAt: number }>()
+  for (const meta of importedPdfMeta) pdfMetaByName.set(meta.id, meta)
+  for (const zipPath of Object.keys(zip.files)) {
+    if (!zipPath.startsWith("pdfs/") || !zipPath.endsWith(".pdf")) continue
+    const id = zipPath.slice("pdfs/".length, -".pdf".length)
+    try {
+      const bytes = await zip.files[zipPath].async("blob")
+      const meta = pdfMetaByName.get(id)
+      await addPdf({
+        id,
+        name: meta?.name ?? "",
+        bytes,
+        pageCount: 0,
+        addedAt: meta?.addedAt ?? Date.now()
+      })
+      pdfIdSet.add(id)
+    } catch {
+      result.errors.push({ index: -1, reason: "PDF 文件导入失败" })
+    }
+  }
+
+  const existingAnnotationIds = new Set(
+    (await getAllAnnotations()).map((a) => a.id)
+  )
+  for (const ann of importedAnnotations) {
+    // Drop orphans (pdf not imported) and duplicates (id unique index).
+    if (!pdfIdSet.has(ann.pdfId)) continue
+    if (existingAnnotationIds.has(ann.id)) continue
+    try {
+      await addAnnotation(ann)
+      existingAnnotationIds.add(ann.id)
+      result.imported++
+    } catch {
+      result.errors.push({ index: -1, reason: "批注导入失败" })
     }
   }
 
