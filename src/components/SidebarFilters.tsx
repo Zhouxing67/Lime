@@ -5,6 +5,7 @@ import CloudUploadRoundedIcon from "@mui/icons-material/CloudUploadRounded"
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded"
 import FileDownloadRoundedIcon from "@mui/icons-material/FileDownloadRounded"
 import FileUploadRoundedIcon from "@mui/icons-material/FileUploadRounded"
+import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
 import UnfoldLessRoundedIcon from "@mui/icons-material/UnfoldLessRounded"
 import UnfoldMoreRoundedIcon from "@mui/icons-material/UnfoldMoreRounded"
 import {
@@ -36,6 +37,7 @@ interface SidebarFiltersProps {
   todoStats: TodoStats
   todoFilter: TodoFilter
   pdfs: PdfFile[]
+  countByPdf: Record<string, number>
   activePdfId: string | null
   pdfOutline: PdfOutlineItem[] | null
   onTodoFilterChange: (filter: TodoFilter) => void
@@ -205,6 +207,7 @@ function PdfTab({
   activePdfId,
   pdfOutline,
   pdfs,
+  countByPdf,
   onOutlineClick,
   onOpenPdfClick,
   onOpenPdf,
@@ -213,12 +216,15 @@ function PdfTab({
   activePdfId: string | null
   pdfOutline: PdfOutlineItem[] | null
   pdfs: PdfFile[]
+  countByPdf: Record<string, number>
   onOutlineClick: (item: PdfOutlineItem) => void
   onOpenPdfClick: () => void
   onOpenPdf: (id: string) => void
   onExportPdf: (pdf: PdfFile) => void
 }) {
   const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(new Set())
+  const [showAll, setShowAll] = useState(false)
+  const RECENT_TOTAL = 7
   const toggleKey = (key: string) =>
     setCollapsedKeys((prev) => {
       const next = new Set(prev)
@@ -226,6 +232,13 @@ function PdfTab({
       else next.add(key)
       return next
     })
+  const ordered = [...pdfs].sort(
+    (a, b) =>
+      (b.lastOpened ?? 0) - (a.lastOpened ?? 0) || b.addedAt - a.addedAt
+  )
+  const visible = showAll ? ordered : ordered.slice(0, RECENT_TOTAL)
+  const hiddenCount = ordered.length - visible.length
+
   return (
     <Box sx={{ py: 1 }}>
       {activePdfId && pdfOutline && pdfOutline.length > 0 ? (
@@ -272,73 +285,109 @@ function PdfTab({
       ) : (
         <>
           <Well>
-            <Box sx={{ mb: 0.5 }}>
-              <SectionLabel>PDF 库</SectionLabel>
-            </Box>
-            <Button
-              size="small"
-              variant="outlined"
-              startIcon={<AddRoundedIcon />}
-              onClick={onOpenPdfClick}
-              fullWidth>
-              打开 PDF
-            </Button>
-          </Well>
-          {pdfs.length > 0 && (
-            <>
-              <Box sx={{ height: 1.5 }} />
-              <Well>
-                <Box sx={{ mb: 0.5 }}>
-                  <SectionLabel>最近</SectionLabel>
+            <Box sx={{ display: "flex", alignItems: "center", mb: 0.5 }}>
+              <SectionLabel>最近</SectionLabel>
+              <Box sx={{ flex: 1 }} />
+              {hiddenCount > 0 && (
+                <Box
+                  onClick={() => setShowAll((s) => !s)}
+                  sx={{
+                    fontSize: "0.68rem",
+                    color: "text.disabled",
+                    cursor: "pointer",
+                    px: 0.5,
+                    "&:hover": { color: "text.primary" }
+                  }}>
+                  {showAll ? "收起" : `全部 PDF (${ordered.length})`}
                 </Box>
-                {pdfs.map((p) => (
-                  <Box
-                    key={p.id}
-                    onClick={() => onOpenPdf(p.id)}
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 1,
-                      px: 1,
-                      py: 0.5,
-                      borderRadius: 1,
-                      cursor: "pointer",
-                      bgcolor:
-                        activePdfId === p.id ? "action.selected" : "transparent",
-                      color:
-                        activePdfId === p.id ? "text.primary" : "text.secondary",
-                      "&:hover": { bgcolor: "action.hover" }
-                    }}>
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        fontSize: "0.8rem",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                        flex: 1
-                      }}>
-                      {p.name}
-                    </Typography>
-                    <FileDownloadRoundedIcon
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onExportPdf(p)
-                      }}
-                      titleAccess="导出此 PDF（含批注与卡片）"
-                      sx={{
-                        fontSize: 15,
-                        color: "text.disabled",
-                        cursor: "pointer",
-                        flexShrink: 0,
-                        "&:hover": { color: "primary.main" }
-                      }}
-                    />
-                  </Box>
-                ))}
-              </Well>
-            </>
-          )}
+              )}
+            </Box>
+            {visible.map((p) => (
+              <Box
+                key={p.id}
+                onClick={() => onOpenPdf(p.id)}
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1,
+                  px: 1,
+                  py: 0.5,
+                  borderRadius: 1,
+                  cursor: "pointer",
+                  color: "text.secondary",
+                  "&:hover": { bgcolor: "action.hover", color: "text.primary" }
+                }}>
+                <PictureAsPdfRoundedIcon
+                  sx={{ fontSize: 15, color: "text.disabled", flexShrink: 0 }}
+                />
+                <Typography
+                  variant="body2"
+                  sx={{
+                    fontSize: "0.8rem",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    flex: 1
+                  }}>
+                  {p.name}
+                </Typography>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    fontSize: "0.66rem",
+                    color: "text.disabled",
+                    flexShrink: 0
+                  }}>
+                  {countByPdf[p.id] ?? 0}
+                </Typography>
+                <FileDownloadRoundedIcon
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onExportPdf(p)
+                  }}
+                  titleAccess="导出此 PDF（含批注与卡片）"
+                  sx={{
+                    fontSize: 15,
+                    color: "text.disabled",
+                    cursor: "pointer",
+                    flexShrink: 0,
+                    "&:hover": { color: "primary.main" }
+                  }}
+                />
+              </Box>
+            ))}
+          </Well>
+          {/* bottom: 打开 PDF (same row style as 新建项目) */}
+          <Well sx={{ p: 0, mt: 0.5, overflow: "hidden" }}>
+            <Stack
+              direction="row"
+              alignItems="center"
+              spacing={1}
+              onClick={onOpenPdfClick}
+              sx={{
+                px: 1.5,
+                py: 0.75,
+                cursor: "pointer",
+                "&:hover": {
+                  bgcolor: "action.hover",
+                  "& .pdf-open-icon": { color: "primary.main" }
+                }
+              }}>
+              <AddRoundedIcon
+                className="pdf-open-icon"
+                sx={{
+                  fontSize: 16,
+                  color: "text.secondary",
+                  transition: "color 0.15s"
+                }}
+              />
+              <Typography
+                variant="body2"
+                sx={{ fontSize: "0.8rem", color: "text.secondary", flex: 1 }}>
+                打开 PDF
+              </Typography>
+            </Stack>
+          </Well>
         </>
       )}
     </Box>
@@ -357,6 +406,7 @@ export default function SidebarFilters({
   todoStats,
   todoFilter,
   pdfs,
+  countByPdf,
   activePdfId,
   pdfOutline,
   onTodoFilterChange,
@@ -658,6 +708,7 @@ export default function SidebarFilters({
               activePdfId={activePdfId}
               pdfOutline={pdfOutline}
               pdfs={pdfs}
+              countByPdf={countByPdf}
               onOutlineClick={onOutlineClick}
               onOpenPdfClick={onOpenPdfClick}
               onOpenPdf={onOpenPdf}

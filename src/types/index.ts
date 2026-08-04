@@ -68,6 +68,8 @@ export interface PdfFile {
   bytes: Blob
   pageCount: number
   addedAt: number
+  /** Last time the PDF was opened (for recent-first ordering / hub tiles). */
+  lastOpened?: number
 }
 
 export interface PdfAnnotation {

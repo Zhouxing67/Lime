@@ -851,11 +851,33 @@ export async function updateReviewSrs(
 // ---- PDF stores (v9) ----
 
 export async function addPdf(pdf: PdfFile): Promise<void> {
+  const record: PdfFile = {
+    ...pdf,
+    lastOpened: pdf.lastOpened ?? pdf.addedAt
+  }
   return withStore("pdfs", "readwrite", async (store) => {
     await new Promise<void>((resolve, reject) => {
-      const req = store.put(pdf)
+      const req = store.put(record)
       req.onsuccess = () => resolve()
       req.onerror = () => reject(req.error)
+    })
+  })
+}
+
+/** Mark a PDF as just-opened (drives recent-first ordering in the sidebar/hub). */
+export async function touchPdf(id: string): Promise<void> {
+  return withStore("pdfs", "readwrite", async (store) => {
+    const pdf = await new Promise<PdfFile | undefined>((resolve, reject) => {
+      const r = store.get(id)
+      r.onsuccess = () => resolve(r.result as PdfFile | undefined)
+      r.onerror = () => reject(r.error)
+    })
+    if (!pdf) return
+    pdf.lastOpened = Date.now()
+    await new Promise<void>((resolve, reject) => {
+      const r = store.put(pdf)
+      r.onsuccess = () => resolve()
+      r.onerror = () => reject(r.error)
     })
   })
 }
@@ -889,14 +911,52 @@ export async function listPdfs(): Promise<PdfFile[]> {
   })
 }
 
+/** Delete a PDF + its annotations + its PDF cards together (no orphans). */
 export async function deletePdf(id: string): Promise<void> {
-  return withStore("pdfs", "readwrite", async (store) => {
-    await new Promise<void>((resolve, reject) => {
-      const req = store.delete(id)
-      req.onsuccess = () => resolve()
-      req.onerror = () => reject(req.error)
-    })
-  })
+  await tx(
+    { items: "readwrite", pdfAnnotations: "readwrite", pdfs: "readwrite" },
+    async (stores) => {
+      const annotations = await new Promise<PdfAnnotation[]>((resolve, reject) => {
+        const results: PdfAnnotation[] = []
+        const req = stores.pdfAnnotations
+          .index("pdfId")
+          .openCursor(IDBKeyRange.only(id))
+        req.onsuccess = () => {
+          const cursor = req.result
+          if (cursor) {
+            results.push(cursor.value as PdfAnnotation)
+            cursor.continue()
+          } else {
+            resolve(results)
+          }
+        }
+        req.onerror = () => reject(req.error)
+      })
+      await new Promise<void>((resolve, reject) => {
+        const r = stores.items
+          .index("pdfRefPdfId")
+          .openCursor(IDBKeyRange.only(id))
+        r.onsuccess = () => {
+          const cursor = r.result
+          if (cursor) {
+            cursor.delete()
+            cursor.continue()
+          } else {
+            resolve()
+          }
+        }
+        r.onerror = () => reject(r.error)
+      })
+      for (const ann of annotations) {
+        stores.pdfAnnotations.delete(ann.id)
+      }
+      await new Promise<void>((resolve, reject) => {
+        const r = stores.pdfs.delete(id)
+        r.onsuccess = () => resolve()
+        r.onerror = () => reject(r.error)
+      })
+    }
+  )
 }
 
 export async function addAnnotation(ann: PdfAnnotation): Promise<void> {

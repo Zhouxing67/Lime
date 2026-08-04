@@ -50,6 +50,7 @@ import NewCardDialog from "./components/NewCardDialog"
 import NewProjectDialog from "./components/NewProjectDialog"
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
 import ProjectHub from "./components/ProjectHub"
+import PdfHub from "./components/PdfHub"
 import PdfView from "./components/PdfView"
 import type { PdfOutlineItem } from "./components/PdfView"
 import ProjectTree from "./components/ProjectTree"
@@ -68,9 +69,11 @@ import {
   getDueReviews,
   ensureItemOrder,
   addPdf,
+  deletePdf,
   getAnnotationsByPdf,
   getItemsByPdf,
   listPdfs,
+  touchPdf,
   removeReview,
   searchItems,
   tx,
@@ -114,6 +117,7 @@ export default function OptionsPage() {
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>("projects")
   const [pdfs, setPdfs] = useState<PdfFile[]>([])
   const [activePdfId, setActivePdfId] = useState<string | null>(null)
+  const [pdfDeleteTarget, setPdfDeleteTarget] = useState<PdfFile | null>(null)
   const [pdfOutline, setPdfOutline] = useState<PdfOutlineItem[] | null>(null)
   const [pdfOutlineDest, setPdfOutlineDest] = useState<PdfOutlineItem | null>(
     null
@@ -896,8 +900,28 @@ export default function OptionsPage() {
       console.warn("[lime] open pdf failed:", e)
     }
   }, [])
-  const handleOpenPdf = useCallback((id: string) => setActivePdfId(id), [])
+  const handleOpenPdf = useCallback((id: string) => {
+    touchPdf(id)
+    setActivePdfId(id)
+  }, [])
   const handleClosePdf = useCallback(() => setActivePdfId(null), [])
+
+  const handleDeletePdf = useCallback(
+    (pdf: PdfFile) => {
+      setPdfDeleteTarget(pdf)
+    },
+    []
+  )
+
+  const confirmDeletePdf = useCallback(async () => {
+    if (!pdfDeleteTarget) return
+    await deletePdf(pdfDeleteTarget.id)
+    if (activePdfId === pdfDeleteTarget.id) {
+      setActivePdfId(null)
+      setPdfOutline(null)
+    }
+    setPdfDeleteTarget(null)
+  }, [pdfDeleteTarget, activePdfId])
 
   const handleExportPdf = useCallback(async (pdf: PdfFile) => {
     try {
@@ -944,6 +968,14 @@ export default function OptionsPage() {
   }, [loadPdfs])
 
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null
+
+  const countByPdf = useMemo(() => {
+    const m: Record<string, number> = {}
+    for (const it of allItemsUnfiltered) {
+      if (it.pdfRefPdfId) m[it.pdfRefPdfId] = (m[it.pdfRefPdfId] ?? 0) + 1
+    }
+    return m
+  }, [allItemsUnfiltered])
   const otherProjects = useMemo(
     () => projects.filter((p) => p.id !== activeProjectId),
     [projects, activeProjectId]
@@ -1333,6 +1365,7 @@ export default function OptionsPage() {
           todoStats={todoStats}
           todoFilter={todoFilter}
           pdfs={pdfs}
+          countByPdf={countByPdf}
           activePdfId={activePdfId}
           pdfOutline={pdfOutline}
           onTodoFilterChange={setTodoFilter}
@@ -1623,17 +1656,19 @@ export default function OptionsPage() {
                 <Box
                   sx={{
                     height: "100%",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 1.5,
-                    color: "text.disabled"
+                    overflowY: "auto",
+                    bgcolor: (t) => t.custom.surface2
                   }}>
-                  <PictureAsPdfRoundedIcon sx={{ fontSize: 72, opacity: 0.5 }} />
-                  <Typography variant="body2" sx={{ fontSize: "0.85rem" }}>
-                    在左侧打开一个 PDF 开始阅读
-                  </Typography>
+                  <Container sx={{ py: 4 }} maxWidth="xl">
+                    <PdfHub
+                      pdfs={pdfs}
+                      countByPdf={countByPdf}
+                      onOpenPdf={handleOpenPdf}
+                      onNewPdf={() => pdfFileInputRef.current?.click()}
+                      onDeletePdf={handleDeletePdf}
+                      onExportPdf={handleExportPdf}
+                    />
+                  </Container>
                 </Box>
               )
             ) : (
@@ -2081,6 +2116,20 @@ export default function OptionsPage() {
                     ? handleConfirmBatchDelete
                     : handleConfirmDelete
                 }
+              />
+
+              <DeleteConfirmDialog
+                open={Boolean(pdfDeleteTarget)}
+                batch={false}
+                count={1}
+                itemLabel="这个 PDF"
+                message={
+                  pdfDeleteTarget
+                    ? `将删除「${pdfDeleteTarget.name}」及其全部批注与摘录卡片。`
+                    : undefined
+                }
+                onCancel={() => setPdfDeleteTarget(null)}
+                onConfirm={confirmDeletePdf}
               />
 
               <DialogShell

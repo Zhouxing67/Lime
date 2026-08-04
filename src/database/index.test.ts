@@ -34,6 +34,7 @@ import {
   listPdfs,
   listProjects,
   searchItems,
+  touchPdf,
   updateItem,
   updateReviewSrs
 } from "./index"
@@ -824,5 +825,42 @@ describe("pdf region annotations (框选)", () => {
     const items = await getItemsByPdf("pdf-region")
     expect(items).toHaveLength(1)
     expect(items[0].type).toBe("image")
+  })
+})
+
+describe("pdf delete cascade + lastOpened", () => {
+  it("touchPdf updates lastOpened", async () => {
+    await addPdf({
+      id: "pdf-t",
+      name: "a.pdf",
+      bytes: new Blob(["x"]),
+      pageCount: 1,
+      addedAt: 1000
+    })
+    await touchPdf("pdf-t")
+    const pdf = await getPdf("pdf-t")
+    expect(pdf?.lastOpened).toBeGreaterThanOrEqual(1000)
+  })
+
+  it("deletePdf removes the pdf, its annotations and its cards", async () => {
+    const { card } = await createTextAnnotationCard({
+      pdfId: "pdf-del",
+      page: 1,
+      type: "highlight",
+      text: "x",
+      startOffset: 0,
+      endOffset: 1
+    })
+    await addPdf({
+      id: "pdf-del",
+      name: "del.pdf",
+      bytes: new Blob(["y"]),
+      pageCount: 1,
+      addedAt: 1
+    })
+    await deletePdf("pdf-del")
+    expect(await getPdf("pdf-del")).toBeUndefined()
+    expect(await getItemsByPdf("pdf-del")).toHaveLength(0)
+    expect(await getAnnotation(card.pdfRef!.annotationId)).toBeUndefined()
   })
 })
