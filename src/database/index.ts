@@ -1395,3 +1395,46 @@ export async function updateAnnotationType(
     })
   })
 }
+
+/** Rename a topic across all PDFs carrying it. */
+export async function renamePdfTopic(
+  oldTopic: string,
+  newTopic: string
+): Promise<void> {
+  return withStore("pdfs", "readwrite", async (store) => {
+    const all = await new Promise<PdfFile[]>((resolve, reject) => {
+      const r = store.getAll()
+      r.onsuccess = () => resolve((r.result as PdfFile[]) ?? [])
+      r.onerror = () => reject(r.error)
+    })
+    for (const pdf of all) {
+      if (pdf.topic !== oldTopic) continue
+      pdf.topic = newTopic
+      await new Promise<void>((resolve, reject) => {
+        const r = store.put(pdf)
+        r.onsuccess = () => resolve()
+        r.onerror = () => reject(r.error)
+      })
+    }
+  })
+}
+
+/** Clear a topic from every PDF carrying it (→ 未分类). */
+export async function clearPdfTopic(topic: string): Promise<void> {
+  return withStore("pdfs", "readwrite", async (store) => {
+    const all = await new Promise<PdfFile[]>((resolve, reject) => {
+      const r = store.getAll()
+      r.onsuccess = () => resolve((r.result as PdfFile[]) ?? [])
+      r.onerror = () => reject(r.error)
+    })
+    for (const pdf of all) {
+      if (pdf.topic !== topic) continue
+      delete pdf.topic
+      await new Promise<void>((resolve, reject) => {
+        const r = store.put(pdf)
+        r.onsuccess = () => resolve()
+        r.onerror = () => reject(r.error)
+      })
+    }
+  })
+}

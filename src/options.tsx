@@ -77,6 +77,8 @@ import {
   deletePdf,
   getAnnotationsByPdf,
   listPdfs,
+  renamePdfTopic,
+  clearPdfTopic,
   touchPdf,
   removeReview,
   searchItems,
@@ -119,8 +121,12 @@ export default function OptionsPage() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>("projects")
   const [pdfs, setPdfs] = useState<PdfFile[]>([])
+  const [extraTopics, setExtraTopics] = useState<string[]>([])
   const [activePdfId, setActivePdfId] = useState<string | null>(null)
   const [pdfDeleteTarget, setPdfDeleteTarget] = useState<PdfFile | null>(null)
+  const [topicDeleteTarget, setTopicDeleteTarget] = useState<string | null>(
+    null
+  )
   const [pdfOutline, setPdfOutline] = useState<PdfOutlineItem[] | null>(null)
   const [pdfOutlineDest, setPdfOutlineDest] = useState<PdfOutlineItem | null>(
     null
@@ -891,7 +897,50 @@ export default function OptionsPage() {
   }, [])
   useEffect(() => {
     loadPdfs()
+    // Empty user-created topics (no PDFs carry them yet) persist in storage.
+    chrome.storage.local.get("_pdfTopics").then((data) => {
+      const t = (data._pdfTopics as string[]) ?? []
+      if (t.length > 0) setExtraTopics(t)
+    })
   }, [loadPdfs])
+
+  const topics = useMemo(() => {
+    const all = new Set<string>(extraTopics)
+    for (const p of pdfs) if (p.topic) all.add(p.topic)
+    return [...all]
+  }, [extraTopics, pdfs])
+
+  const saveExtraTopics = useCallback((list: string[]) => {
+    setExtraTopics(list)
+    chrome.storage.local.set({ _pdfTopics: list })
+  }, [])
+
+  const handleNewTopic = useCallback(
+    (name: string) => {
+      if (!name || extraTopics.includes(name)) return
+      saveExtraTopics([...extraTopics, name])
+    },
+    [extraTopics, saveExtraTopics]
+  )
+
+  const handleRenameTopic = useCallback(
+    async (oldName: string, newName: string) => {
+      await renamePdfTopic(oldName, newName)
+      saveExtraTopics(extraTopics.map((t) => (t === oldName ? newName : t)))
+    },
+    [extraTopics, saveExtraTopics]
+  )
+
+  const handleDeleteTopic = useCallback((topic: string) => {
+    setTopicDeleteTarget(topic)
+  }, [])
+
+  const confirmDeleteTopic = useCallback(async () => {
+    if (!topicDeleteTarget) return
+    await clearPdfTopic(topicDeleteTarget)
+    saveExtraTopics(extraTopics.filter((t) => t !== topicDeleteTarget))
+    setTopicDeleteTarget(null)
+  }, [topicDeleteTarget, extraTopics, saveExtraTopics])
 
   const pdfFileInputRef = useRef<HTMLInputElement>(null)
   const handleOpenPdfFile = useCallback(
@@ -1774,6 +1823,10 @@ export default function OptionsPage() {
                       onOpenPdf={handleOpenPdf}
                       onNewPdf={() => pdfFileInputRef.current?.click()}
                       onDeletePdf={handleDeletePdf}
+                      topics={topics}
+                      onNewTopic={handleNewTopic}
+                      onRenameTopic={handleRenameTopic}
+                      onDeleteTopic={handleDeleteTopic}
                     />
                   </Container>
                 </Box>
@@ -2253,6 +2306,20 @@ export default function OptionsPage() {
                 }
                 onCancel={() => setPdfDeleteTarget(null)}
                 onConfirm={confirmDeletePdf}
+              />
+
+              <DeleteConfirmDialog
+                open={Boolean(topicDeleteTarget)}
+                batch={false}
+                count={1}
+                itemLabel="这个主题"
+                message={
+                  topicDeleteTarget
+                    ? `将删除主题「${topicDeleteTarget}」，该主题下的 PDF 将回到「未分类」（文件与摘录保留）。`
+                    : undefined
+                }
+                onCancel={() => setTopicDeleteTarget(null)}
+                onConfirm={confirmDeleteTopic}
               />
 
               <DialogShell
