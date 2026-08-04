@@ -340,3 +340,24 @@ export function currentSourceMeta(): SourceMeta {
     site: window.location.hostname
   }
 }
+
+// ---- base64 (chunked — a 10MB PDF must not hit btoa's argument limit) ----
+
+const B64_CHUNK = 0x8000
+
+/** Encode binary → base64 in chunks (safe for large PDFs). */
+export function bytesToBase64(data: Uint8Array): string {
+  let bin = ""
+  for (let i = 0; i < data.length; i += B64_CHUNK) {
+    bin += String.fromCharCode(...data.subarray(i, i + B64_CHUNK))
+  }
+  return btoa(bin)
+}
+
+/** Decode base64 → bytes (chunked, memory-safe). */
+export function base64ToBytes(base64: string): Uint8Array {
+  const bin = atob(base64)
+  const bytes = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+  return bytes
+}

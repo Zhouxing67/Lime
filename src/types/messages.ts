@@ -23,6 +23,9 @@ export interface WebDavMessage {
   authBase64: string
   body?: string
   contentType?: string
+  /** Binary mode: `body` is base64 (upload) and the response body is base64
+   *  (download) instead of text. */
+  binary?: boolean
 }
 
 export interface SaveFeedbackMessage {

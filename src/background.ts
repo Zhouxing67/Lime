@@ -97,6 +97,8 @@ chrome.runtime.onInstalled.addListener(() => {
   })
 })
 
+import { base64ToBytes, bytesToBase64 } from "./utils"
+
 chrome.runtime.onStartup.addListener(() => {
   updateBadge()
 })
@@ -108,20 +110,27 @@ chrome.runtime.onMessage.addListener((raw: any, _sender, sendResponse) => {
   switch (msg.kind) {
     case "webdav": {
       const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), 20000)
+      // Binary transfers (PDF files) need more headroom than small JSON/text.
+      const timer = setTimeout(
+        () => controller.abort(),
+        msg.binary ? 120000 : 20000
+      )
       const headers: Record<string, string> = {
         Authorization: `Basic ${msg.authBase64}`
       }
       if (msg.contentType) headers["Content-Type"] = msg.contentType
+      const body = msg.binary && msg.body ? base64ToBytes(msg.body) : (msg.body ?? null)
       fetch(msg.url, {
         method: msg.method ?? "GET",
         headers,
-        body: msg.body ?? null,
+        body: body as BodyInit | null,
         signal: controller.signal
       })
         .then(async (res) => {
           clearTimeout(timer)
-          const body = await res.text()
+          const body = msg.binary
+            ? bytesToBase64(new Uint8Array(await res.arrayBuffer()))
+            : await res.text()
           sendResponse({ ok: res.ok, status: res.status, body })
         })
         .catch((e) => {

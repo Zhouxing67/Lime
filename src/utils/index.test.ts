@@ -1,4 +1,6 @@
 import {
+  base64ToBytes,
+  bytesToBase64,
   appendMarkdownImage,
   buildMergedContent,
   cloneItem,
@@ -416,5 +418,20 @@ describe("createItem / cloneItem / currentSourceMeta", () => {
     const meta = currentSourceMeta()
     expect(meta.title).toBe("Test Page")
     expect(meta.site).toBe(window.location.hostname)
+  })
+})
+
+describe("base64 (chunked)", () => {
+  it("round-trips binary data including multi-chunk payloads", () => {
+    const bytes = new Uint8Array(100000)
+    for (let i = 0; i < bytes.length; i++) bytes[i] = (i * 7 + 3) % 256
+    const b64 = bytesToBase64(bytes)
+    const back = base64ToBytes(b64)
+    expect(back).toEqual(bytes)
+  })
+
+  it("handles empty input", () => {
+    expect(bytesToBase64(new Uint8Array(0))).toBe("")
+    expect(base64ToBytes("")).toEqual(new Uint8Array(0))
   })
 })
