@@ -3,18 +3,19 @@ import { useRef } from "react"
 import {
   bulkReplace,
   getAllAnnotations,
-  getAllReviews,
-  listPdfs
+  getAllReviews
 } from "../database"
-import type { Item, Project } from "../types"
+import type { Item, PdfFile, Project } from "../types"
 import { downloadRemote, runSync, type SyncCredentials } from "../utils/sync"
 import { toJsonZip } from "../utils/zip"
 
 export function useBackupSync(options: {
   projects: Project[]
   allItemsUnfiltered: Item[]
+  backupScope: "projects" | "pdfs"
   backupSelectedIds: string[]
-  setBackupSelectedIds: (ids: string[]) => void
+  backupSelectedPdfIds: string[]
+  pdfs: PdfFile[]
   syncStatus: string
   setSyncStatus: (status: string) => void
   refreshAllData: () => Promise<void>
@@ -23,8 +24,10 @@ export function useBackupSync(options: {
   const {
     projects,
     allItemsUnfiltered,
+    backupScope,
     backupSelectedIds,
-    setBackupSelectedIds,
+    backupSelectedPdfIds,
+    pdfs,
     setSyncStatus,
     refreshAllData,
     setSnackbarMsg
@@ -40,30 +43,47 @@ export function useBackupSync(options: {
   }
 
   const handleExportBackup = async () => {
-    const items = allItemsUnfiltered.filter(
-      (i) => i.projectId && backupSelectedIds.includes(i.projectId)
-    )
-    const selectedProjects = projects.filter((p) =>
-      backupSelectedIds.includes(p.id)
-    )
-    const reviews = await getAllReviews()
-    const scopedReviews = reviews.filter((r) =>
-      backupSelectedIds.includes(r.projectId)
-    )
-    // PDF domain is not project-scoped — always back it up.
-    const pdfCards = allItemsUnfiltered.filter((i) => i.pdfRef)
-    const pdfs = await listPdfs()
-    const annotations = await getAllAnnotations()
-    const blob = await toJsonZip(
-      [...items, ...pdfCards],
-      selectedProjects,
-      scopedReviews,
-      pdfs,
-      annotations
-    )
-    const url = URL.createObjectURL(blob)
-    await chrome.downloads.download({ url, filename: "lime-backup.zip" })
-    URL.revokeObjectURL(url)
+    if (backupScope === "projects") {
+      const items = allItemsUnfiltered.filter(
+        (i) => i.projectId && backupSelectedIds.includes(i.projectId)
+      )
+      const selectedProjects = projects.filter((p) =>
+        backupSelectedIds.includes(p.id)
+      )
+      const reviews = await getAllReviews()
+      const scopedReviews = reviews.filter((r) =>
+        backupSelectedIds.includes(r.projectId)
+      )
+      const blob = await toJsonZip(items, selectedProjects, scopedReviews)
+      const url = URL.createObjectURL(blob)
+      await chrome.downloads.download({ url, filename: "lime-backup.zip" })
+      URL.revokeObjectURL(url)
+    } else {
+      const selectedPdfs = pdfs.filter((p) =>
+        backupSelectedPdfIds.includes(p.id)
+      )
+      const pdfCards = allItemsUnfiltered.filter(
+        (i) => i.pdfRef && backupSelectedPdfIds.includes(i.pdfRef.pdfId)
+      )
+      const annotations = (await getAllAnnotations()).filter((a) =>
+        backupSelectedPdfIds.includes(a.pdfId)
+      )
+      const blob = await toJsonZip(
+        pdfCards,
+        [],
+        [],
+        selectedPdfs,
+        annotations
+      )
+      const url = URL.createObjectURL(blob)
+      const name = selectedPdfs.length === 1 ? selectedPdfs[0].name : "pdfs"
+      const safe = name.replace(/[\\/:*?"<>|]/g, "-").slice(0, 60)
+      await chrome.downloads.download({
+        url,
+        filename: `lime-pdf-${safe || "export"}.zip`
+      })
+      URL.revokeObjectURL(url)
+    }
   }
 
   const handleUploadSync = async () => {

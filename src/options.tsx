@@ -50,6 +50,7 @@ import NewCardDialog from "./components/NewCardDialog"
 import NewProjectDialog from "./components/NewProjectDialog"
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
 import ProjectHub from "./components/ProjectHub"
+import BackupView from "./components/BackupView"
 import PdfHub from "./components/PdfHub"
 import PdfView from "./components/PdfView"
 import type { PdfOutlineItem } from "./components/PdfView"
@@ -70,8 +71,6 @@ import {
   ensureItemOrder,
   addPdf,
   deletePdf,
-  getAnnotationsByPdf,
-  getItemsByPdf,
   listPdfs,
   touchPdf,
   removeReview,
@@ -89,7 +88,6 @@ import { createReviewEntry, dayKey, rateSrs } from "./hooks/useSrs"
 import { importFromZip } from "./import"
 import { createAppTheme } from "./theme"
 import { buildProjectMarkdown, buildScopeData } from "./utils/export"
-import { toJsonZip } from "./utils/zip"
 import type { Item, MergeSeparator, PdfFile, PresetName, Project, SearchQuery, SrsData, TodoFilter } from "./types"
 import { sendMessage } from "./types/messages"
 import { DAY_MS, RATING_META, buildMergedContent, cloneItem, compareCards, createItem, dueStatus, isTodoComplete, toggleMarkdownTask, todayLocalDate } from "./utils"
@@ -718,8 +716,10 @@ export default function OptionsPage() {
   } = useBackupSync({
     projects,
     allItemsUnfiltered,
+    backupScope,
     backupSelectedIds,
-    setBackupSelectedIds,
+    backupSelectedPdfIds,
+    pdfs,
     syncStatus,
     setSyncStatus,
     refreshAllData,
@@ -910,6 +910,33 @@ export default function OptionsPage() {
   }, [])
   const handleClosePdf = useCallback(() => setActivePdfId(null), [])
 
+  const handleBackupToggleSelect = useCallback(
+    (id: string) => {
+      if (backupScope === "projects") {
+        setBackupSelectedIds((prev) =>
+          prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+        )
+      } else {
+        setBackupSelectedPdfIds((prev) =>
+          prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+        )
+      }
+    },
+    [backupScope]
+  )
+
+  const handleBackupSelectAll = useCallback(() => {
+    if (backupScope === "projects") {
+      setBackupSelectedIds((prev) =>
+        prev.length === projects.length ? [] : projects.map((p) => p.id)
+      )
+    } else {
+      setBackupSelectedPdfIds((prev) =>
+        prev.length === pdfs.length ? [] : pdfs.map((p) => p.id)
+      )
+    }
+  }, [backupScope, projects, pdfs])
+
   const handleDeletePdf = useCallback(
     (pdf: PdfFile) => {
       setPdfDeleteTarget(pdf)
@@ -926,25 +953,6 @@ export default function OptionsPage() {
     }
     setPdfDeleteTarget(null)
   }, [pdfDeleteTarget, activePdfId])
-
-  const handleExportPdf = useCallback(async (pdf: PdfFile) => {
-    try {
-      const [items, annotations] = await Promise.all([
-        getItemsByPdf(pdf.id),
-        getAnnotationsByPdf(pdf.id)
-      ])
-      const blob = await toJsonZip(items, [], [], [pdf], annotations)
-      const url = URL.createObjectURL(blob)
-      const name = pdf.name.replace(/[\\/:*?"<>|]/g, "-").slice(0, 60)
-      await chrome.downloads.download({
-        url,
-        filename: `lime-pdf-${name || "export"}.zip`
-      })
-      URL.revokeObjectURL(url)
-    } catch (e) {
-      console.warn("[lime] export pdf failed:", e)
-    }
-  }, [])
 
   // Subscribe to database changes via storage broadcast
   const refreshRef = useRef(refreshAllData)
@@ -1375,21 +1383,11 @@ export default function OptionsPage() {
           onTodoFilterChange={setTodoFilter}
           onOpenPdfClick={() => pdfFileInputRef.current?.click()}
           onOpenPdf={handleOpenPdf}
-          onExportPdf={handleExportPdf}
           onOutlineClick={setPdfOutlineDest}
           onWidthChange={(w) => setDrawerWidth(w)}
           onNewProjectClick={() => setCreateDialogOpen(true)}
-          onToggleBackup={(id) =>
-            setBackupSelectedIds((prev) =>
-              prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-            )
-          }
-          onToggleBackupAll={() =>
-            setBackupSelectedIds((prev) =>
-              prev.length === projects.length ? [] : projects.map((p) => p.id)
-            )
-          }
-          onExportBackup={handleExportBackup}
+          backupScope={backupScope}
+          onBackupScopeChange={setBackupScope}
           onImportBackup={() => backupFileInputRef.current?.click()}
           onUploadSync={handleUploadSync}
           onDownloadSync={handleDownloadSync}
@@ -1670,7 +1668,6 @@ export default function OptionsPage() {
                       onOpenPdf={handleOpenPdf}
                       onNewPdf={() => pdfFileInputRef.current?.click()}
                       onDeletePdf={handleDeletePdf}
-                      onExportPdf={handleExportPdf}
                     />
                   </Container>
                 </Box>
@@ -1679,7 +1676,23 @@ export default function OptionsPage() {
             <Container sx={{ py: 4 }} maxWidth="xl">
               <Fade in key={sidebarTab} timeout={250}>
                 <Box>
-                  {sidebarTab === "todo" ? (
+                  {sidebarTab === "backup" ? (
+                    <BackupView
+                      scope={backupScope}
+                      projects={projects}
+                      pdfs={pdfs}
+                      countByProject={countByProject}
+                      countByPdf={countByPdf}
+                      selectedIds={
+                        backupScope === "projects"
+                          ? backupSelectedIds
+                          : backupSelectedPdfIds
+                      }
+                      onToggleSelect={handleBackupToggleSelect}
+                      onSelectAll={handleBackupSelectAll}
+                      onExport={handleExportBackup}
+                    />
+                  ) : sidebarTab === "todo" ? (
                     <TodoView
                       items={filteredTodos}
                       editingId={todoEditingId}

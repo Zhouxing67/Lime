@@ -1,7 +1,6 @@
 import AddRoundedIcon from "@mui/icons-material/AddRounded"
 import CheckRoundedIcon from "@mui/icons-material/CheckRounded"
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
-import FileDownloadRoundedIcon from "@mui/icons-material/FileDownloadRounded"
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
 import { Box, Button, IconButton, Paper, Stack, Typography } from "@mui/material"
 import { alpha } from "@mui/material/styles"
@@ -24,7 +23,6 @@ interface PdfHubProps {
   onOpenPdf: (id: string) => void
   onNewPdf: () => void
   onDeletePdf: (pdf: PdfFile) => void
-  onExportPdf: (pdf: PdfFile) => void
   /** Read-only multi-select mode (backup view): click toggles selection. */
   selectable?: boolean
   selected?: (id: string) => boolean
@@ -37,7 +35,6 @@ export default function PdfHub({
   onOpenPdf,
   onNewPdf,
   onDeletePdf,
-  onExportPdf,
   selectable,
   selected,
   onToggleSelect
@@ -135,7 +132,6 @@ export default function PdfHub({
               transform: "translateY(-1px)",
               borderColor: isSelected ? "primary.main" : theme.custom.borderStrong,
               ".hub-delete": { opacity: 1 },
-              ".hub-export": { opacity: 1 },
               ".hub-check": { opacity: 1 }
             }
           })}>
@@ -215,27 +211,6 @@ export default function PdfHub({
               </Typography>
             </Box>
           </Stack>
-          {!selectable && (
-            <IconButton
-              className="hub-export"
-              size="small"
-              onClick={(e) => {
-                e.stopPropagation()
-                onExportPdf(p)
-              }}
-              sx={{
-                position: "absolute",
-                bottom: 4,
-                right: 4,
-                p: 0.5,
-                opacity: 0,
-                color: "text.disabled",
-                transition: "opacity 0.15s",
-                "&:hover": { color: "primary.main", bgcolor: "transparent" }
-              }}>
-              <FileDownloadRoundedIcon sx={{ fontSize: 16 }} />
-            </IconButton>
-          )}
         </Paper>
         )
       })}

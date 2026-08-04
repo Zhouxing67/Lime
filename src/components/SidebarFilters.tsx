@@ -5,6 +5,7 @@ import CloudUploadRoundedIcon from "@mui/icons-material/CloudUploadRounded"
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded"
 import FileDownloadRoundedIcon from "@mui/icons-material/FileDownloadRounded"
 import FileUploadRoundedIcon from "@mui/icons-material/FileUploadRounded"
+import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded"
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
 import UnfoldLessRoundedIcon from "@mui/icons-material/UnfoldLessRounded"
 import UnfoldMoreRoundedIcon from "@mui/icons-material/UnfoldMoreRounded"
@@ -43,15 +44,13 @@ interface SidebarFiltersProps {
   onTodoFilterChange: (filter: TodoFilter) => void
   onOpenPdfClick: () => void
   onOpenPdf: (id: string) => void
-  onExportPdf: (pdf: PdfFile) => void
   onOutlineClick: (item: PdfOutlineItem) => void
   children?: ReactNode
   onReviewDateClick: (dateKey: string | null) => void
   onWidthChange: (w: number) => void
   onNewProjectClick: () => void
-  onToggleBackup: (id: string) => void
-  onToggleBackupAll: () => void
-  onExportBackup: () => void
+  backupScope: "projects" | "pdfs"
+  onBackupScopeChange: (scope: "projects" | "pdfs") => void
   onImportBackup: () => void
   onUploadSync: () => void
   onDownloadSync: () => void
@@ -210,8 +209,7 @@ function PdfTab({
   countByPdf,
   onOutlineClick,
   onOpenPdfClick,
-  onOpenPdf,
-  onExportPdf
+  onOpenPdf
 }: {
   activePdfId: string | null
   pdfOutline: PdfOutlineItem[] | null
@@ -220,7 +218,6 @@ function PdfTab({
   onOutlineClick: (item: PdfOutlineItem) => void
   onOpenPdfClick: () => void
   onOpenPdf: (id: string) => void
-  onExportPdf: (pdf: PdfFile) => void
 }) {
   const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(new Set())
   const [showAll, setShowAll] = useState(false)
@@ -340,20 +337,6 @@ function PdfTab({
                   }}>
                   {countByPdf[p.id] ?? 0}
                 </Typography>
-                <FileDownloadRoundedIcon
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onExportPdf(p)
-                  }}
-                  titleAccess="导出此 PDF（含批注与卡片）"
-                  sx={{
-                    fontSize: 15,
-                    color: "text.disabled",
-                    cursor: "pointer",
-                    flexShrink: 0,
-                    "&:hover": { color: "primary.main" }
-                  }}
-                />
               </Box>
             ))}
           </Well>
@@ -412,15 +395,13 @@ export default function SidebarFilters({
   onTodoFilterChange,
   onOpenPdfClick,
   onOpenPdf,
-  onExportPdf,
   onOutlineClick,
   children,
   onReviewDateClick,
   onWidthChange,
   onNewProjectClick,
-  onToggleBackup,
-  onToggleBackupAll,
-  onExportBackup,
+  backupScope,
+  onBackupScopeChange,
   onImportBackup,
   onUploadSync,
   onDownloadSync
@@ -531,87 +512,60 @@ export default function SidebarFilters({
             /* Backup & Sync tab content */
             <Box sx={{ py: 1 }}>
               <Well>
-                <Box sx={{ mb: 1 }}>
+                <Box sx={{ mb: 0.5 }}>
                   <SectionLabel>本地备份</SectionLabel>
                 </Box>
                 <Box
-                  onClick={onToggleBackupAll}
+                  onClick={() => onBackupScopeChange("projects")}
                   sx={{
                     display: "flex",
                     alignItems: "center",
-                    gap: 0.75,
+                    gap: 1,
                     px: 1,
-                    py: 0.25,
+                    py: 0.5,
+                    borderRadius: 1,
                     cursor: "pointer",
-                    borderRadius: 0.5,
+                    bgcolor:
+                      backupScope === "projects" ? "action.selected" : "transparent",
+                    color:
+                      backupScope === "projects" ? "text.primary" : "text.secondary",
                     "&:hover": { bgcolor: "action.hover" }
                   }}>
-                  <Checkbox
-                    size="small"
-                    sx={{ p: 0.5 }}
-                    checked={
-                      backupSelectedIds.length === projects.length &&
-                      projects.length > 0
-                    }
-                    indeterminate={
-                      backupSelectedIds.length > 0 &&
-                      backupSelectedIds.length < projects.length
-                    }
-                    onChange={onToggleBackupAll}
-                  />
-                  <Typography variant="body2" noWrap sx={{ fontSize: "0.8rem" }}>
-                    全选（{projects.length} 个项目）
+                  <FolderOpenRoundedIcon sx={{ fontSize: 16 }} />
+                  <Typography variant="body2" sx={{ fontSize: "0.8rem", flex: 1 }}>
+                    项目
                   </Typography>
                 </Box>
-                <Box sx={{ maxHeight: 180, overflowY: "auto", mb: 1.5 }}>
-                  {projects.map((p) => (
-                    <Box
-                      key={p.id}
-                      onClick={() => onToggleBackup(p.id)}
-                      sx={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 0.75,
-                        px: 1,
-                        py: 0.25,
-                        cursor: "pointer",
-                        borderRadius: 0.5,
-                        "&:hover": { bgcolor: "action.hover" }
-                      }}>
-                      <Checkbox
-                        size="small"
-                        sx={{ p: 0.5 }}
-                        checked={backupSelectedIds.includes(p.id)}
-                        onChange={() => onToggleBackup(p.id)}
-                      />
-                      <Typography
-                        variant="body2"
-                        noWrap
-                        sx={{ fontSize: "0.8rem" }}>
-                        {p.name}
-                      </Typography>
-                    </Box>
-                  ))}
+                <Box
+                  onClick={() => onBackupScopeChange("pdfs")}
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1,
+                    px: 1,
+                    py: 0.5,
+                    borderRadius: 1,
+                    cursor: "pointer",
+                    bgcolor:
+                      backupScope === "pdfs" ? "action.selected" : "transparent",
+                    color:
+                      backupScope === "pdfs" ? "text.primary" : "text.secondary",
+                    "&:hover": { bgcolor: "action.hover" }
+                  }}>
+                  <PictureAsPdfRoundedIcon sx={{ fontSize: 16 }} />
+                  <Typography variant="body2" sx={{ fontSize: "0.8rem", flex: 1 }}>
+                    PDF
+                  </Typography>
                 </Box>
-                <Stack direction="row" spacing={1} sx={{ mb: 0.5 }}>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    startIcon={<FileDownloadRoundedIcon />}
-                    disabled={backupSelectedIds.length === 0}
-                    onClick={onExportBackup}
-                    fullWidth>
-                    导出备份
-                  </Button>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    startIcon={<FileUploadRoundedIcon />}
-                    onClick={onImportBackup}
-                    fullWidth>
-                    导入备份
-                  </Button>
-                </Stack>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<FileUploadRoundedIcon />}
+                  onClick={onImportBackup}
+                  fullWidth
+                  sx={{ mt: 1 }}>
+                  导入备份
+                </Button>
               </Well>
 
               <Box sx={{ height: 1.5 }} />
@@ -712,7 +666,6 @@ export default function SidebarFilters({
               onOutlineClick={onOutlineClick}
               onOpenPdfClick={onOpenPdfClick}
               onOpenPdf={onOpenPdf}
-              onExportPdf={onExportPdf}
             />
           ) : (
             /* Project tab content: tree + actions */
