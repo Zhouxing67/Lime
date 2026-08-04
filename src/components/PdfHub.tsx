@@ -1,8 +1,10 @@
 import AddRoundedIcon from "@mui/icons-material/AddRounded"
+import CheckRoundedIcon from "@mui/icons-material/CheckRounded"
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
 import FileDownloadRoundedIcon from "@mui/icons-material/FileDownloadRounded"
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
 import { Box, Button, IconButton, Paper, Stack, Typography } from "@mui/material"
+import { alpha } from "@mui/material/styles"
 
 import type { PdfFile } from "../types"
 import EmptyState from "./EmptyState"
@@ -23,6 +25,10 @@ interface PdfHubProps {
   onNewPdf: () => void
   onDeletePdf: (pdf: PdfFile) => void
   onExportPdf: (pdf: PdfFile) => void
+  /** Read-only multi-select mode (backup view): click toggles selection. */
+  selectable?: boolean
+  selected?: (id: string) => boolean
+  onToggleSelect?: (id: string) => void
 }
 
 export default function PdfHub({
@@ -31,7 +37,10 @@ export default function PdfHub({
   onOpenPdf,
   onNewPdf,
   onDeletePdf,
-  onExportPdf
+  onExportPdf,
+  selectable,
+  selected,
+  onToggleSelect
 }: PdfHubProps) {
   const sorted = [...pdfs].sort(
     (a, b) =>
@@ -47,16 +56,20 @@ export default function PdfHub({
             sx={{ fontSize: 80, mb: 3 }}
           />
         }
-        title="还没有 PDF"
-        subtitle="打开一个本地 PDF，开始批注与摘录"
+        title={selectable ? "没有可备份的 PDF" : "还没有 PDF"}
+        subtitle={
+          selectable ? "本地没有 PDF，先去 PDF 视图打开一个" : "打开一个本地 PDF，开始批注与摘录"
+        }
         action={
-          <Button
-            variant="contained"
-            startIcon={<AddRoundedIcon />}
-            onClick={onNewPdf}
-            sx={{ borderRadius: 1 }}>
-            打开 PDF
-          </Button>
+          !selectable ? (
+            <Button
+              variant="contained"
+              startIcon={<AddRoundedIcon />}
+              onClick={onNewPdf}
+              sx={{ borderRadius: 1 }}>
+              打开 PDF
+            </Button>
+          ) : undefined
         }
       />
     )
@@ -69,7 +82,7 @@ export default function PdfHub({
         gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
         gap: 1.5
       }}>
-      {/* dashed 打开 PDF tile */}
+      {!selectable && (
       <Paper
         elevation={0}
         onClick={onNewPdf}
@@ -98,46 +111,78 @@ export default function PdfHub({
           打开 PDF
         </Typography>
       </Paper>
-      {sorted.map((p) => (
+      )}
+      {sorted.map((p) => {
+        const isSelected = selectable ? selected?.(p.id) ?? false : false
+        return (
         <Paper
           key={p.id}
           elevation={0}
-          onClick={() => onOpenPdf(p.id)}
+          onClick={() => (selectable ? onToggleSelect?.(p.id) : onOpenPdf(p.id))}
           sx={(theme) => ({
             p: 2,
             borderRadius: 1,
             border: "1px solid",
-            borderColor: "divider",
+            borderColor: isSelected ? "primary.main" : "divider",
             cursor: "pointer",
             position: "relative",
+            bgcolor: isSelected
+              ? alpha(theme.palette.primary.main, 0.06)
+              : "transparent",
             transition: "all 0.2s",
             "&:hover": {
               boxShadow: theme.custom.cardShadowHover,
               transform: "translateY(-1px)",
-              borderColor: theme.custom.borderStrong,
+              borderColor: isSelected ? "primary.main" : theme.custom.borderStrong,
               ".hub-delete": { opacity: 1 },
-              ".hub-export": { opacity: 1 }
+              ".hub-export": { opacity: 1 },
+              ".hub-check": { opacity: 1 }
             }
           })}>
-          <IconButton
-            className="hub-delete"
-            size="small"
-            onClick={(e) => {
-              e.stopPropagation()
-              onDeletePdf(p)
-            }}
-            sx={{
-              position: "absolute",
-              top: 4,
-              right: 4,
-              p: 0.5,
-              opacity: 0,
-              color: "text.disabled",
-              transition: "opacity 0.15s",
-              "&:hover": { color: "error.main", bgcolor: "transparent" }
-            }}>
-            <DeleteOutlineRoundedIcon sx={{ fontSize: 16 }} />
-          </IconButton>
+          {selectable ? (
+            <Box
+              className="hub-check"
+              sx={{
+                position: "absolute",
+                top: 4,
+                right: 4,
+                p: 0.25,
+                opacity: 1,
+                width: 22,
+                height: 22,
+                borderRadius: "50%",
+                border: "1.5px solid",
+                borderColor: isSelected ? "primary.main" : "text.disabled",
+                bgcolor: isSelected ? "primary.main" : "transparent",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center"
+              }}>
+              {isSelected && (
+                <CheckRoundedIcon sx={{ fontSize: 14, color: "#fff" }} />
+              )}
+            </Box>
+          ) : (
+            <IconButton
+              className="hub-delete"
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation()
+                onDeletePdf(p)
+              }}
+              sx={{
+                position: "absolute",
+                top: 4,
+                right: 4,
+                p: 0.5,
+                opacity: 0,
+                color: "text.disabled",
+                transition: "opacity 0.15s",
+                "&:hover": { color: "error.main", bgcolor: "transparent" }
+              }}>
+              <DeleteOutlineRoundedIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          )}
           <Stack direction="row" spacing={1.5} alignItems="center">
             <Box
               sx={{
@@ -170,27 +215,30 @@ export default function PdfHub({
               </Typography>
             </Box>
           </Stack>
-          <IconButton
-            className="hub-export"
-            size="small"
-            onClick={(e) => {
-              e.stopPropagation()
-              onExportPdf(p)
-            }}
-            sx={{
-              position: "absolute",
-              bottom: 4,
-              right: 4,
-              p: 0.5,
-              opacity: 0,
-              color: "text.disabled",
-              transition: "opacity 0.15s",
-              "&:hover": { color: "primary.main", bgcolor: "transparent" }
-            }}>
-            <FileDownloadRoundedIcon sx={{ fontSize: 16 }} />
-          </IconButton>
+          {!selectable && (
+            <IconButton
+              className="hub-export"
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation()
+                onExportPdf(p)
+              }}
+              sx={{
+                position: "absolute",
+                bottom: 4,
+                right: 4,
+                p: 0.5,
+                opacity: 0,
+                color: "text.disabled",
+                transition: "opacity 0.15s",
+                "&:hover": { color: "primary.main", bgcolor: "transparent" }
+              }}>
+              <FileDownloadRoundedIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          )}
         </Paper>
-      ))}
+        )
+      })}
     </Box>
   )
 }

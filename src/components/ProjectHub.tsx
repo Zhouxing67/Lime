@@ -1,8 +1,10 @@
 import AddRoundedIcon from "@mui/icons-material/AddRounded"
+import CheckRoundedIcon from "@mui/icons-material/CheckRounded"
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
 import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded"
 import SearchOffRoundedIcon from "@mui/icons-material/SearchOffRounded"
 import { Box, Button, IconButton, Paper, Stack, Typography } from "@mui/material"
+import { alpha } from "@mui/material/styles"
 
 import type { Project } from "../types"
 import EmptyState from "./EmptyState"
@@ -14,6 +16,10 @@ interface ProjectHubProps {
   onOpenProject: (id: string) => void
   onNewProject: () => void
   onDeleteProject: (id: string) => void
+  /** Read-only multi-select mode (backup view): click toggles selection. */
+  selectable?: boolean
+  selected?: (id: string) => boolean
+  onToggleSelect?: (id: string) => void
 }
 
 // Deterministic soft hue per project name (works on light + dark surfaces).
@@ -49,7 +55,10 @@ export default function ProjectHub({
   keyword,
   onOpenProject,
   onNewProject,
-  onDeleteProject
+  onDeleteProject,
+  selectable,
+  selected,
+  onToggleSelect
 }: ProjectHubProps) {
   const filtered = projects
     .filter((p) => {
@@ -74,16 +83,20 @@ export default function ProjectHub({
             sx={{ fontSize: 80, mb: 3 }}
           />
         }
-        title="还没有项目"
-        subtitle="新建一个项目，开始整理你的摘录"
+        title={selectable ? "没有可备份的项目" : "还没有项目"}
+        subtitle={
+          selectable ? "本地没有项目，先去项目视图新建一个" : "新建一个项目，开始整理你的摘录"
+        }
         action={
-          <Button
-            variant="contained"
-            startIcon={<AddRoundedIcon />}
-            onClick={onNewProject}
-            sx={{ borderRadius: 1 }}>
-            新建项目
-          </Button>
+          !selectable ? (
+            <Button
+              variant="contained"
+              startIcon={<AddRoundedIcon />}
+              onClick={onNewProject}
+              sx={{ borderRadius: 1 }}>
+              新建项目
+            </Button>
+          ) : undefined
         }
       />
     )
@@ -96,26 +109,86 @@ export default function ProjectHub({
         gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
         gap: 1.5
       }}>
-      {filtered.map((p) => (
+      {!selectable && (
+        <Paper
+          elevation={0}
+          onClick={onNewProject}
+          sx={(theme) => ({
+            p: 2,
+            borderRadius: 1,
+            border: "1.5px dashed",
+            borderColor: theme.custom.borderStrong,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 1,
+            minHeight: 104,
+            color: "text.secondary",
+            cursor: "pointer",
+            transition: "all 0.2s",
+            "&:hover": {
+              borderColor: "primary.main",
+              color: "primary.main",
+              boxShadow: theme.custom.cardShadowHover
+            }
+          })}>
+          <AddRoundedIcon sx={{ fontSize: 26 }} />
+          <Typography variant="body2" sx={{ fontSize: "0.85rem" }}>
+            新建项目
+          </Typography>
+        </Paper>
+      )}
+      {filtered.map((p) => {
+        const isSelected = selectable ? selected?.(p.id) ?? false : false
+        return (
         <Paper
           key={p.id}
           elevation={0}
-          onClick={() => onOpenProject(p.id)}
+          onClick={() => (selectable ? onToggleSelect?.(p.id) : onOpenProject(p.id))}
           sx={(theme) => ({
             p: 2,
             borderRadius: 1,
             border: "1px solid",
-            borderColor: "divider",
+            borderColor: isSelected ? "primary.main" : "divider",
             cursor: "pointer",
             position: "relative",
+            bgcolor: isSelected
+              ? alpha(theme.palette.primary.main, 0.06)
+              : "transparent",
             transition: "all 0.2s",
             "&:hover": {
               boxShadow: theme.custom.cardShadowHover,
               transform: "translateY(-1px)",
-              borderColor: theme.custom.borderStrong,
-              ".hub-delete": { opacity: 1 }
+              borderColor: isSelected ? "primary.main" : theme.custom.borderStrong,
+              ".hub-delete": { opacity: 1 },
+              ".hub-check": { opacity: 1 }
             }
           })}>
+          {selectable ? (
+            <Box
+              className="hub-check"
+              sx={{
+                position: "absolute",
+                top: 4,
+                right: 4,
+                p: 0.25,
+                opacity: 1,
+                width: 22,
+                height: 22,
+                borderRadius: "50%",
+                border: "1.5px solid",
+                borderColor: isSelected ? "primary.main" : "text.disabled",
+                bgcolor: isSelected ? "primary.main" : "transparent",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center"
+              }}>
+              {isSelected && (
+                <CheckRoundedIcon sx={{ fontSize: 14, color: "#fff" }} />
+              )}
+            </Box>
+          ) : (
           <IconButton
             className="hub-delete"
             size="small"
@@ -131,13 +204,12 @@ export default function ProjectHub({
               opacity: 0,
               color: "text.disabled",
               transition: "opacity 0.15s",
-              "&:hover": {
-                color: "error.main",
-                bgcolor: "transparent"
-              }
+              "&:hover": { color: "error.main", bgcolor: "transparent" }
             }}>
             <DeleteOutlineRoundedIcon sx={{ fontSize: 16 }} />
           </IconButton>
+          )}
+
           <Stack direction="row" spacing={1.5} alignItems="center">
             <Box
               sx={{
@@ -204,49 +276,8 @@ export default function ProjectHub({
             </Typography>
           </Box>
         </Paper>
-      ))}
-
-      {/* New project tile */}
-      <Paper
-        elevation={0}
-        onClick={onNewProject}
-        sx={{
-          p: 2,
-          borderRadius: 1,
-          border: "1px dashed",
-          borderColor: "divider",
-          cursor: "pointer",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 0.5,
-          minHeight: 96,
-          color: "text.secondary",
-          transition: "all 0.2s",
-          "&:hover": {
-            borderColor: "primary.main",
-            color: "primary.main"
-          }
-        }}>
-        <Box
-          sx={{
-            width: 36,
-            height: 36,
-            borderRadius: "50%",
-            border: "1px dashed",
-            borderColor: "divider",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center"
-          }}>
-          <AddRoundedIcon sx={{ fontSize: 20 }} />
-        </Box>
-        <Typography variant="body2" sx={{ fontSize: "0.8rem" }}>
-          新建项目
-        </Typography>
-      </Paper>
-
+        )
+      })}
       {keyword && filtered.length === 0 && (
         <Box sx={{ gridColumn: "1 / -1" }}>
           <EmptyState

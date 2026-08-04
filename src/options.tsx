@@ -144,6 +144,10 @@ export default function OptionsPage() {
   const [batchCopyOpen, setBatchCopyOpen] = useState(false)
   const [snackbarMsg, setSnackbarMsg] = useState("")
   const [backupSelectedIds, setBackupSelectedIds] = useState<string[]>([])
+  const [backupScope, setBackupScope] = useState<"projects" | "pdfs">(
+    "projects"
+  )
+  const [backupSelectedPdfIds, setBackupSelectedPdfIds] = useState<string[]>([])
   const [syncStatus, setSyncStatus] = useState("")
   const [reviewItemIds, setReviewItemIds] = useState<Set<string>>(new Set())
   const [reviewSrsMap, setReviewSrsMap] = useState<Map<string, SrsData>>(
