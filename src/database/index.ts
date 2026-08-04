@@ -1347,3 +1347,25 @@ export async function applyPdfSync(
     }
   })
 }
+
+/** Change an annotation's mark type (e.g. underline → highlight). The 1:1 card
+ *  is untouched — only the overlay style re-renders via the _dbpdf broadcast. */
+export async function updateAnnotationType(
+  id: string,
+  type: PdfMark
+): Promise<void> {
+  return withStore("pdfAnnotations", "readwrite", async (store) => {
+    const ann = await new Promise<PdfAnnotation | undefined>((resolve, reject) => {
+      const r = store.get(id)
+      r.onsuccess = () => resolve(r.result as PdfAnnotation | undefined)
+      r.onerror = () => reject(r.error)
+    })
+    if (!ann) return
+    ann.type = type
+    await new Promise<void>((resolve, reject) => {
+      const r = store.put(ann)
+      r.onsuccess = () => resolve()
+      r.onerror = () => reject(r.error)
+    })
+  })
+}

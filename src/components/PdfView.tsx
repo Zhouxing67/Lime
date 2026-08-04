@@ -12,6 +12,7 @@ import {
   Menu,
   MenuItem,
   Paper,
+  Popover,
   TextField,
   Typography
 } from "@mui/material"
@@ -22,9 +23,11 @@ import * as pdfjsLib from "pdfjs-dist"
 import {
   createRegionAnnotationCard,
   createTextAnnotationCard,
+  deleteAnnotationWithCard,
   deletePdfCard,
   getAnnotationsByPdf,
   getItemsByPdf,
+  updateAnnotationType,
   updateItem
 } from "../database"
 import type { Item, PdfAnnotation, PdfMark } from "../types"
@@ -91,6 +94,11 @@ export default function PdfView({
   const [expandedCards, setExpandedCards] = useState<Set<string>>(
     () => new Set()
   )
+  const [clickedAnn, setClickedAnn] = useState<{
+    ann: PdfAnnotation
+    pos: { x: number; y: number }
+  } | null>(null)
+  const [cardHighlightId, setCardHighlightId] = useState<string | null>(null)
   const [frameMode, setFrameMode] = useState(false)
   const [canGoBack, setCanGoBack] = useState(false)
   const currentPageRef = useRef(1)
@@ -251,6 +259,47 @@ export default function PdfView({
       return next
     })
   }, [])
+
+  // ---- annotation click → jump to card + actions popover ----
+  const jumpToCard = useCallback((cardId: string) => {
+    setCardHighlightId(cardId)
+    requestAnimationFrame(() => {
+      document
+        .querySelector(`[data-card-id="${cardId}"]`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" })
+    })
+    window.setTimeout(() => {
+      setCardHighlightId((cur) => (cur === cardId ? null : cur))
+    }, 1500)
+  }, [])
+
+  const handleAnnotationClick = useCallback(
+    (annId: string, pos: { x: number; y: number }) => {
+      const ann = annotations.find((a) => a.id === annId)
+      if (!ann) return
+      setClickedAnn({ ann, pos })
+      if (ann.itemId) jumpToCard(ann.itemId)
+    },
+    [annotations, jumpToCard]
+  )
+
+  const handleAnnotationTypeChange = useCallback(
+    async (type: Exclude<PdfMark, "frame">) => {
+      if (!clickedAnn) return
+      await updateAnnotationType(clickedAnn.ann.id, type)
+      setClickedAnn((cur) =>
+        cur ? { ...cur, ann: { ...cur.ann, type } } : cur
+      )
+    },
+    [clickedAnn]
+  )
+
+  const handleAnnotationDelete = useCallback(async () => {
+    if (!clickedAnn) return
+    await deleteAnnotationWithCard(clickedAnn.ann.id)
+    setClickedAnn(null)
+    setCardHighlightId(null)
+  }, [clickedAnn])
 
   const handleSaveIdea = useCallback(
     async (idea: string) => {
@@ -652,6 +701,7 @@ export default function PdfView({
             onFrameRegion={handleFrameRegion}
             searchFlash={searchFlash}
             onVisiblePageChange={handleVisiblePageChange}
+            onAnnotationClick={handleAnnotationClick}
           />
         ) : (
           <Box
@@ -726,24 +776,34 @@ export default function PdfView({
               return (
                 <Paper
                   key={card.id}
+                  data-card-id={card.id}
                   elevation={0}
                   onClick={() => handleCardClick(card)}
-                  sx={(theme) => ({
+                  sx={(theme) => {
+                    const highlighted = cardHighlightId === card.id
+                    return {
                     p: 1.5,
                     mb: 1,
                     borderRadius: 1,
                     border: "1px solid",
-                    borderColor: "divider",
+                    borderColor: highlighted ? "primary.main" : "divider",
                     cursor: "pointer",
-                    boxShadow: theme.custom.cardShadow,
+                    boxShadow: highlighted
+                      ? `0 0 0 2px ${theme.palette.primary.main}`
+                      : theme.custom.cardShadow,
                     transition: "all 0.2s",
                     "&:hover": {
-                      boxShadow: theme.custom.cardShadowHover,
+                      boxShadow: highlighted
+                        ? `0 0 0 2px ${theme.palette.primary.main}`
+                        : theme.custom.cardShadowHover,
                       transform: "translateY(-1px)",
-                      borderColor: theme.custom.borderStrong,
+                      borderColor: highlighted
+                        ? "primary.main"
+                        : theme.custom.borderStrong,
                       ".pdf-card-ops": { opacity: 1 }
                     }
-                  })}>
+                  }
+                  }}>
                   <Box
                     sx={{
                       display: "flex",
@@ -841,6 +901,54 @@ export default function PdfView({
         onClose={() => setEditCard(null)}
         onSave={handleSaveIdea}
       />
+      <Popover
+        open={Boolean(clickedAnn)}
+        anchorReference="anchorPosition"
+        anchorPosition={{
+          top: clickedAnn?.pos.y ?? 0,
+          left: clickedAnn?.pos.x ?? 0
+        }}
+        onClose={() => setClickedAnn(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+        slotProps={{ paper: { sx: { py: 0.5, borderRadius: 1, minWidth: 168 } } }}>
+        {clickedAnn?.ann.kind === "text" && (
+          <>
+            <Typography
+              sx={{
+                fontSize: "0.68rem",
+                color: "text.disabled",
+                px: 1.5,
+                pt: 0.5,
+                pb: 0.25
+              }}>
+              标记类型
+            </Typography>
+            {TEXT_TOOLS.map((t) => (
+              <MenuItem
+                key={t}
+                selected={clickedAnn.ann.type === t}
+                onClick={() => handleAnnotationTypeChange(t)}
+                sx={{ gap: 1, fontSize: "0.8rem" }}>
+                <Box
+                  sx={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: 1,
+                    background: MARK_DOT[t]
+                  }}
+                />
+                {MARK_LABEL[t]}
+              </MenuItem>
+            ))}
+          </>
+        )}
+        <MenuItem
+          onClick={handleAnnotationDelete}
+          sx={{ gap: 1, fontSize: "0.8rem", color: "error.main" }}>
+          <DeleteOutlineRoundedIcon sx={{ fontSize: 15 }} />
+          删除批注
+        </MenuItem>
+      </Popover>
     </Box>
   )
 }

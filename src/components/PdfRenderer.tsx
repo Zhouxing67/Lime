@@ -14,10 +14,13 @@ const EMPTY_ANNOTATIONS: PdfAnnotation[] = []
 function drawAnnotation(
   overlay: HTMLElement,
   type: PdfMark,
-  rect: PdfRect
+  rect: PdfRect,
+  annId: string
 ): void {
   const el = document.createElement("div")
-  el.style.cssText = `position:absolute;left:${rect.x}px;top:${rect.y}px;width:${rect.w}px;height:${rect.h}px;pointer-events:none;`
+  el.className = "pdf-ann"
+  el.dataset.annId = annId
+  el.style.cssText = `position:absolute;left:${rect.x}px;top:${rect.y}px;width:${rect.w}px;height:${rect.h}px;`
   if (type === "highlight") {
     el.style.background = MARK_COLOR.highlight
     el.style.borderRadius = "2px"
@@ -65,14 +68,14 @@ function drawPageAnnotations(
       const rects = textLayerRects(textLayer, holder, ann.startOffset, ann.endOffset)
       for (const r of rects) {
         if (ann.id === flashAnnId) appendFlash(overlay, r)
-        drawAnnotation(overlay, ann.type, r)
+        drawAnnotation(overlay, ann.type, r, ann.id)
       }
     } else if (ann.kind === "region") {
       // Frame rects are stored normalized (0-1 fractions of the page box).
       for (const r of ann.rects ?? []) {
         const rect = { x: r.x * hw, y: r.y * hh, w: r.w * hw, h: r.h * hh }
         if (ann.id === flashAnnId) appendFlash(overlay, rect)
-        drawAnnotation(overlay, ann.type, rect)
+        drawAnnotation(overlay, ann.type, rect, ann.id)
       }
     }
   }
@@ -135,6 +138,12 @@ const TEXT_LAYER_CSS = `
   0% { opacity: 1; }
   100% { opacity: 0; }
 }
+.pdf-annotations { pointer-events: none; }
+.pdf-ann {
+  pointer-events: auto;
+  cursor: pointer;
+}
+.pdf-ann:hover { filter: brightness(0.92); }
 `
 
 /** Render one page lazily (IntersectionObserver) at DPR crispness + text layer.
@@ -149,7 +158,8 @@ function PageView({
   annotations,
   flashAnnId,
   onFlashDone,
-  searchFlash
+  searchFlash,
+  onAnnotationClick
 }: {
   doc: pdfjsLib.PDFDocumentProxy
   pageNumber: number
@@ -158,12 +168,31 @@ function PageView({
   flashAnnId?: string | null
   onFlashDone?: () => void
   searchFlash?: { page: number; start: number; end: number } | null
+  onAnnotationClick?: (annId: string, pos: { x: number; y: number }) => void
 }) {
   const holderRef = useRef<HTMLDivElement>(null)
   const [wh, setWh] = useState<{ w: number; h: number } | null>(null)
   const [scale, setScale] = useState(1)
   const flashDoneRef = useRef(onFlashDone)
   flashDoneRef.current = onFlashDone
+  const onAnnotationClickRef = useRef(onAnnotationClick)
+  onAnnotationClickRef.current = onAnnotationClick
+
+  // Click an annotation → jump to its card + open the annotation actions popover.
+  useEffect(() => {
+    const overlay = holderRef.current?.querySelector(".pdf-annotations")
+    if (!overlay) return
+    const onClick = (e: MouseEvent) => {
+      const target = (e.target as HTMLElement).closest("[data-ann-id]")
+      if (!target) return
+      onAnnotationClickRef.current?.(
+        target.getAttribute("data-ann-id")!,
+        { x: e.clientX, y: e.clientY }
+      )
+    }
+    overlay.addEventListener("click", onClick)
+    return () => overlay.removeEventListener("click", onClick)
+  }, [])
   const placeholderH = paneW > 0 ? Math.floor(paneW * 1.414) : 0
 
   useEffect(() => {
@@ -306,7 +335,8 @@ export default function PdfRenderer({
   frameMode,
   onFrameRegion,
   searchFlash,
-  onVisiblePageChange
+  onVisiblePageChange,
+  onAnnotationClick
 }: {
   doc: pdfjsLib.PDFDocumentProxy
   pageCount: number
@@ -322,6 +352,7 @@ export default function PdfRenderer({
   }) => void
   searchFlash?: { page: number; start: number; end: number } | null
   onVisiblePageChange?: (page: number) => void
+  onAnnotationClick?: (annId: string, pos: { x: number; y: number }) => void
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [paneW, setPaneW] = useState(0)
@@ -524,6 +555,7 @@ export default function PdfRenderer({
             flashAnnId={flashPage === n ? flashAnnId : null}
             onFlashDone={onFlashDone}
             searchFlash={searchFlash?.page === n ? searchFlash : null}
+            onAnnotationClick={onAnnotationClick}
           />
         ))}
       {dragRect && (

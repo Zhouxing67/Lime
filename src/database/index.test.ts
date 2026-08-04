@@ -9,6 +9,7 @@ import type {
 } from "../types"
 import {
   addAnnotation,
+  updateAnnotationType,
   addPdf,
   applyPdfSync,
   createRegionAnnotationCard,
@@ -906,5 +907,17 @@ describe("pdf content-hash id + notes-only sync", () => {
     expect((await getAnnotation("ra1"))?.text).toBe("x")
     expect(await getAnnotation("la1")).toBeUndefined()
     expect((await getPdf("pdf-s"))?.bytes).toBeNull()
+  })
+})
+
+describe("updateAnnotationType", () => {
+  it("changes the mark type and persists it", async () => {
+    const ann: PdfAnnotation = {
+      id: "t-ann", pdfId: "pdf-t", page: 1, kind: "text", type: "underline",
+      startOffset: 0, endOffset: 1, text: "x", createdAt: 1
+    }
+    await addAnnotation(ann)
+    await updateAnnotationType("t-ann", "highlight")
+    expect((await getAnnotation("t-ann"))?.type).toBe("highlight")
   })
 })
