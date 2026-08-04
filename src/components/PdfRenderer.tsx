@@ -253,8 +253,10 @@ function PageView({
             computeSize().catch((e) => console.warn("[pdf] page size:", e))
           } else {
             render().catch((e) => {
-              // Cancelled renders are expected on scroll/re-render, not errors.
+              // Cancelled renders are expected on scroll/re-render, not errors
+              // (canvas → RenderingCancelledException, TextLayer → AbortException).
               if (e instanceof pdfjsLib.RenderingCancelledException) return
+              if (e instanceof pdfjsLib.AbortException) return
               console.warn("[pdf] page render:", e)
             })
           }

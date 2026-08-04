@@ -170,9 +170,12 @@ export default function PdfView({
     }
   }, [])
 
-  // Report the outline up so the sidebar can render the TOC.
+  // Report the outline up so the sidebar can render the TOC. On unmount/close
+  // (or a pdf switch) the cleanup clears it, so the sidebar never keeps a
+  // stale/incomplete TOC after the PDF is gone.
   useEffect(() => {
     onOutlineLoaded?.(loaded ? (loaded.outline as PdfOutlineItem[]) : null)
+    return () => onOutlineLoaded?.(null)
   }, [loaded, onOutlineLoaded])
 
   // Resolve a sidebar TOC click into a scroll target.
