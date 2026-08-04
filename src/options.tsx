@@ -128,7 +128,16 @@ export default function OptionsPage() {
   const [topicDeleteTarget, setTopicDeleteTarget] = useState<string | null>(
     null
   )
-  const [pdfOutline, setPdfOutline] = useState<PdfOutlineItem[] | null>(null)
+  const [openPdfIds, setOpenPdfIds] = useState<string[]>([])
+  const [pdfTocOpen, setPdfTocOpen] = useState(true)
+  const [pdfOutlineByPdf, setPdfOutlineByPdf] = useState<
+    Record<string, PdfOutlineItem[] | null>
+  >({})
+  const pdfOutline = activePdfId
+    ? (pdfOutlineByPdf[activePdfId] ?? null)
+    : null
+  const activePdfIdRef = useRef<string | null>(null)
+  activePdfIdRef.current = activePdfId
   const [pdfOutlineDest, setPdfOutlineDest] = useState<PdfOutlineItem | null>(
     null
   )
@@ -963,7 +972,7 @@ export default function OptionsPage() {
           addedAt: Date.now()
         }
         const id = await addPdf(pdf)
-        setActivePdfId(id)
+        openPdf(id)
         // Opening the file that matches a synced placeholder attaches its notes.
         const annotations = await getAnnotationsByPdf(id)
         if (annotations.length > 0) {
@@ -975,13 +984,40 @@ export default function OptionsPage() {
     },
     []
   )
-  const handleOpenPdf = useCallback((id: string) => {
+  const MAX_OPEN_PDFS = 4
+  const openPdf = useCallback((id: string) => {
     touchPdf(id)
+    setOpenPdfIds((prev) => {
+      if (prev.includes(id)) return prev
+      const next = [...prev, id]
+      if (next.length > MAX_OPEN_PDFS) {
+        // LRU: evict the oldest-open PDF when the limit is exceeded.
+        const evicted = next[0]
+        setPdfOutlineByPdf((o) => {
+          const c = { ...o }
+          delete c[evicted]
+          return c
+        })
+        return next.slice(1)
+      }
+      return next
+    })
     setActivePdfId(id)
   }, [])
-  const handleClosePdf = useCallback(() => {
-    setActivePdfId(null)
-    setPdfOutline(null)
+  const handleOpenPdf = openPdf
+  const handleClosePdf = useCallback((id: string) => {
+    setOpenPdfIds((prev) => {
+      const next = prev.filter((x) => x !== id)
+      setPdfOutlineByPdf((o) => {
+        const c = { ...o }
+        delete c[id]
+        return c
+      })
+      if (activePdfIdRef.current === id) {
+        setActivePdfId(next.length > 0 ? next[next.length - 1] : null)
+      }
+      return next
+    })
     setPdfOutlineDest(null)
   }, [])
 
@@ -1022,10 +1058,13 @@ export default function OptionsPage() {
   const confirmDeletePdf = useCallback(async () => {
     if (!pdfDeleteTarget) return
     await deletePdf(pdfDeleteTarget.id)
-    if (activePdfId === pdfDeleteTarget.id) {
-      setActivePdfId(null)
-      setPdfOutline(null)
-    }
+    setOpenPdfIds((prev) => prev.filter((x) => x !== pdfDeleteTarget.id))
+    setPdfOutlineByPdf((o) => {
+      const c = { ...o }
+      delete c[pdfDeleteTarget.id]
+      return c
+    })
+    if (activePdfId === pdfDeleteTarget.id) setActivePdfId(null)
     setPdfDeleteTarget(null)
   }, [pdfDeleteTarget, activePdfId])
 
@@ -1470,6 +1509,8 @@ export default function OptionsPage() {
           countByPdf={countByPdf}
           activePdfId={activePdfId}
           pdfOutline={pdfOutline}
+          tocOpen={pdfTocOpen}
+          onToggleToc={setPdfTocOpen}
           onTodoFilterChange={setTodoFilter}
           onOpenPdfClick={() => pdfFileInputRef.current?.click()}
           onOpenPdf={handleOpenPdf}
@@ -1545,7 +1586,11 @@ export default function OptionsPage() {
               reviewProgress={
                 sidebarTab === "review" ? reviewProgress : undefined
               }
-              activeProjectName={activeProject?.name}>
+              activeProjectName={
+                sidebarTab === "pdf" && activePdfId
+                  ? (pdfs.find((p) => p.id === activePdfId)?.name ?? null)
+                  : (activeProject?.name ?? null)
+              }>
               {sidebarTab === "review" ? (
                 <Tooltip title="退出复习">
                   <IconButton
@@ -1563,7 +1608,7 @@ export default function OptionsPage() {
                 <Tooltip title="关闭 PDF">
                   <IconButton
                     size="small"
-                    onClick={handleClosePdf}
+                    onClick={() => handleClosePdf(activePdfId!)}
                     sx={{
                       color: "text.secondary",
                       "&:hover": { color: "error.main" },
@@ -1809,12 +1854,26 @@ export default function OptionsPage() {
               bgcolor: (t) => t.custom.surface2
             }}>
             {sidebarTab === "pdf" ? (
-              activePdfId ? (
-                <PdfView
-                  pdfId={activePdfId}
-                  onOutlineLoaded={setPdfOutline}
-                  outlineDest={pdfOutlineDest}
-                />
+              openPdfIds.length > 0 ? (
+                <Box sx={{ position: "relative", height: "100%", minHeight: 0 }}>
+                  {openPdfIds.map((id) => (
+                    <Box
+                      key={id}
+                      sx={{
+                        display: id === activePdfId ? "block" : "none",
+                        height: "100%",
+                        minHeight: 0
+                      }}>
+                      <PdfView
+                        pdfId={id}
+                        onOutlineLoaded={(o) =>
+                          setPdfOutlineByPdf((prev) => ({ ...prev, [id]: o }))
+                        }
+                        outlineDest={pdfOutlineDest}
+                      />
+                    </Box>
+                  ))}
+                </Box>
               ) : (
                 <Box
                   sx={{

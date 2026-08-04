@@ -1,5 +1,7 @@
 import AddRoundedIcon from "@mui/icons-material/AddRounded"
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded"
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded"
+import MenuRoundedIcon from "@mui/icons-material/MenuRounded"
 import CloudDownloadRoundedIcon from "@mui/icons-material/CloudDownloadRounded"
 import CloudUploadRoundedIcon from "@mui/icons-material/CloudUploadRounded"
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded"
@@ -40,6 +42,8 @@ interface SidebarFiltersProps {
   countByPdf: Record<string, number>
   activePdfId: string | null
   pdfOutline: PdfOutlineItem[] | null
+  tocOpen: boolean
+  onToggleToc: (open: boolean) => void
   onTodoFilterChange: (filter: TodoFilter) => void
   onOpenPdfClick: () => void
   onOpenPdf: (id: string) => void
@@ -204,6 +208,8 @@ function collectTocKeys(items: PdfOutlineItem[]): string[] {
 function PdfTab({
   activePdfId,
   pdfOutline,
+  tocOpen,
+  onToggleToc,
   pdfs,
   countByPdf,
   onOutlineClick,
@@ -212,6 +218,8 @@ function PdfTab({
 }: {
   activePdfId: string | null
   pdfOutline: PdfOutlineItem[] | null
+  tocOpen: boolean
+  onToggleToc: (open: boolean) => void
   pdfs: PdfFile[]
   countByPdf: Record<string, number>
   onOutlineClick: (item: PdfOutlineItem) => void
@@ -228,20 +236,39 @@ function PdfTab({
       else next.add(key)
       return next
     })
-  const ordered = [...pdfs].sort(
-    (a, b) =>
-      (b.lastOpened ?? 0) - (a.lastOpened ?? 0) || b.addedAt - a.addedAt
-  )
+  // Active PDF pins to the top (like the project tree's active project).
+  const ordered = [...pdfs].sort((a, b) => {
+    if (a.id === activePdfId) return -1
+    if (b.id === activePdfId) return 1
+    return (b.lastOpened ?? 0) - (a.lastOpened ?? 0) || b.addedAt - a.addedAt
+  })
   const visible = showAll ? ordered : ordered.slice(0, RECENT_TOTAL)
   const hiddenCount = ordered.length - visible.length
 
   return (
     <Box sx={{ py: 1 }}>
-      {activePdfId && pdfOutline && pdfOutline.length > 0 ? (
+      {activePdfId && tocOpen && pdfOutline && pdfOutline.length > 0 ? (
         <Well>
           <Box sx={{ display: "flex", alignItems: "center", mb: 0.5 }}>
             <SectionLabel>目录</SectionLabel>
             <Box sx={{ flex: 1 }} />
+            <Box
+              onClick={() => onToggleToc(false)}
+              title="关闭目录，显示 PDF 列表"
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 0.25,
+                fontSize: "0.68rem",
+                color: "text.disabled",
+                cursor: "pointer",
+                px: 0.5,
+                mr: 0.5,
+                "&:hover": { color: "text.primary" }
+              }}>
+              <CloseRoundedIcon sx={{ fontSize: 14 }} />
+              关闭目录
+            </Box>
             <Box
               onClick={() =>
                 collapsedKeys.size > 0
@@ -280,6 +307,26 @@ function PdfTab({
         </Well>
       ) : (
         <>
+          {activePdfId && (
+            <Box
+              onClick={() => onToggleToc(true)}
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 0.5,
+                fontSize: "0.72rem",
+                color: "text.secondary",
+                cursor: "pointer",
+                px: 1,
+                py: 0.5,
+                borderRadius: 1,
+                mb: 0.5,
+                "&:hover": { bgcolor: "action.hover", color: "primary.main" }
+              }}>
+              <MenuRoundedIcon sx={{ fontSize: 15 }} />
+              显示目录
+            </Box>
+          )}
           <Well>
             <Box sx={{ display: "flex", alignItems: "center", mb: 0.5 }}>
               <SectionLabel>最近</SectionLabel>
@@ -300,6 +347,7 @@ function PdfTab({
             </Box>
             {visible.map((p) => {
               const isPlaceholder = !p.bytes
+              const isActive = p.id === activePdfId
               return (
               <Box
                 key={p.id}
@@ -312,13 +360,18 @@ function PdfTab({
                   py: 0.5,
                   borderRadius: 1,
                   cursor: "pointer",
-                  color: "text.secondary",
+                  bgcolor: isActive ? "action.selected" : "transparent",
+                  color: isActive ? "text.primary" : "text.secondary",
                   "&:hover": { bgcolor: "action.hover", color: "text.primary" }
                 }}>
                 <PictureAsPdfRoundedIcon
                   sx={{
                     fontSize: 15,
-                    color: isPlaceholder ? "primary.main" : "text.disabled",
+                    color: isActive
+                      ? "primary.main"
+                      : isPlaceholder
+                        ? "primary.main"
+                        : "text.disabled",
                     flexShrink: 0
                   }}
                 />
@@ -326,6 +379,8 @@ function PdfTab({
                   variant="body2"
                   sx={{
                     fontSize: "0.8rem",
+                    fontWeight: isActive ? 600 : 400,
+                    color: isActive ? "primary.main" : "inherit",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                     whiteSpace: "nowrap",
@@ -404,6 +459,8 @@ export default function SidebarFilters({
   countByPdf,
   activePdfId,
   pdfOutline,
+  tocOpen,
+  onToggleToc,
   onTodoFilterChange,
   onOpenPdfClick,
   onOpenPdf,
@@ -686,6 +743,8 @@ export default function SidebarFilters({
               key={activePdfId ?? "none"}
               activePdfId={activePdfId}
               pdfOutline={pdfOutline}
+              tocOpen={tocOpen}
+              onToggleToc={onToggleToc}
               pdfs={pdfs}
               countByPdf={countByPdf}
               onOutlineClick={onOutlineClick}

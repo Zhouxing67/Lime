@@ -490,20 +490,7 @@ export default function PdfView({
             borderColor: "divider",
             bgcolor: "background.paper"
           }}>
-          <Typography
-            variant="body2"
-            sx={{
-              fontWeight: 600,
-              fontSize: "0.82rem",
-              color: "text.secondary",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-              maxWidth: 120
-            }}>
-            {loaded?.file.name ?? "PDF"}
-          </Typography>
-          {/* search — inline, flexes (near-left, matches project view's left search) */}
+          {/* search — far left, fixed comfortable width (PDF name moved to the AppHeader) */}
           <SearchField
             placeholder="搜索 PDF 全文…"
             defaultValue={searchState.query}
@@ -512,20 +499,20 @@ export default function PdfView({
                 handleSearch((e.target as HTMLInputElement).value)
               }
             }}
-            sx={{ flex: 1, minWidth: 120, ml: 1 }}
+            sx={{ width: 260 }}
             endAdornment={(
-                <>
-                  {searchState.loading ? (
-                    <Box
-                      sx={{
-                        fontSize: "0.7rem",
-                        color: "text.disabled",
-                        whiteSpace: "nowrap",
-                        mr: 0.5
-                      }}>
-                      搜索中…
-                    </Box>
-                  ) : searchState.matches.length > 0 ? (
+              <>
+                {searchState.loading ? (
+                  <Box
+                    sx={{
+                      fontSize: "0.7rem",
+                      color: "text.disabled",
+                      whiteSpace: "nowrap",
+                      mr: 0.5
+                    }}>
+                    搜索中…
+                  </Box>
+                ) : searchState.matches.length > 0 ? (
                     <Box
                       sx={{
                         display: "flex",
