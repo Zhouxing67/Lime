@@ -1917,6 +1917,9 @@ export default function OptionsPage() {
                 </Box>
               </Fade>
 
+              </Container>
+             )}
+
               <ItemDialog
                 item={dialogItem}
                 open={Boolean(dialogItem)}
@@ -2160,8 +2163,6 @@ export default function OptionsPage() {
                  accept=".zip"
                  onChange={handleImportBackupFile}
                />
-              </Container>
-             )}
              <input
                ref={pdfFileInputRef}
                type="file"
