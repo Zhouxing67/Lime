@@ -79,6 +79,7 @@ import {
   listPdfs,
   renamePdfTopic,
   clearPdfTopic,
+  updatePdfTopic,
   touchPdf,
   removeReview,
   searchItems,
@@ -933,6 +934,11 @@ export default function OptionsPage() {
 
   const handleDeleteTopic = useCallback((topic: string) => {
     setTopicDeleteTarget(topic)
+  }, [])
+
+  const handleMovePdf = useCallback(async (pdfId: string, topic?: string) => {
+    await updatePdfTopic(pdfId, topic)
+    // The _dbpdf broadcast reloads the PDF library.
   }, [])
 
   const confirmDeleteTopic = useCallback(async () => {
@@ -1818,6 +1824,7 @@ export default function OptionsPage() {
                   }}>
                   <Container sx={{ py: 4 }} maxWidth="xl">
                     <PdfHub
+                      key={topics.join("|")}
                       pdfs={pdfs}
                       countByPdf={countByPdf}
                       onOpenPdf={handleOpenPdf}
@@ -1827,6 +1834,7 @@ export default function OptionsPage() {
                       onNewTopic={handleNewTopic}
                       onRenameTopic={handleRenameTopic}
                       onDeleteTopic={handleDeleteTopic}
+                      onMovePdf={handleMovePdf}
                     />
                   </Container>
                 </Box>

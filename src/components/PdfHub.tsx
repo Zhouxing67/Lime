@@ -2,18 +2,21 @@ import AddRoundedIcon from "@mui/icons-material/AddRounded"
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded"
 import CheckRoundedIcon from "@mui/icons-material/CheckRounded"
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
+import DriveFileMoveRoundedIcon from "@mui/icons-material/DriveFileMoveRounded"
 import FolderRoundedIcon from "@mui/icons-material/FolderRounded"
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
 import {
   Box,
   Button,
   IconButton,
+  Menu,
+  MenuItem,
   Paper,
   Stack,
   TextField,
   Typography
 } from "@mui/material"
-import { alpha } from "@mui/material/styles"
+import { alpha, type Theme } from "@mui/material/styles"
 import { useState } from "react"
 
 import type { PdfFile } from "../types"
@@ -46,6 +49,7 @@ interface PdfHubProps {
   onNewTopic?: (name: string) => void
   onRenameTopic?: (oldName: string, newName: string) => void
   onDeleteTopic?: (topic: string) => void
+  onMovePdf?: (pdfId: string, topic: string | undefined) => void
 }
 
 export default function PdfHub({
@@ -61,7 +65,8 @@ export default function PdfHub({
   topics = [],
   onNewTopic,
   onRenameTopic,
-  onDeleteTopic
+  onDeleteTopic,
+  onMovePdf
 }: PdfHubProps) {
   const [topicView, setTopicView] = useState<"topics" | "all" | string>(
     "topics"
@@ -70,6 +75,10 @@ export default function PdfHub({
   const [newTopicName, setNewTopicName] = useState("")
   const [renamingTopic, setRenamingTopic] = useState<string | null>(null)
   const [renamingName, setRenamingName] = useState("")
+  const [moveMenu, setMoveMenu] = useState<{
+    pdfId: string
+    anchor: HTMLElement
+  } | null>(null)
 
   const topicCounts = new Map<string, number>()
   let unclassified = 0
@@ -127,7 +136,7 @@ export default function PdfHub({
 
   // ---- topic tile layer (PDF view only) ----
   if (!selectable && topicView === "topics") {
-    const tileSx = (theme: any) => ({
+    const tileSx = (theme: Theme) => ({
       p: 2,
       borderRadius: 1,
       border: "1px solid",
@@ -166,7 +175,7 @@ export default function PdfHub({
             sx={{
               fontWeight: 600,
               fontSize: "0.95rem",
-              fontFamily: (t: any) => t.custom.serif
+              fontFamily: (t: Theme) => t.custom.serif
             }}>
             全部 PDF
           </Typography>
@@ -212,7 +221,7 @@ export default function PdfHub({
                   sx={{
                     fontWeight: 600,
                     fontSize: "0.95rem",
-                    fontFamily: (th: any) => th.custom.serif
+                    fontFamily: (t: Theme) => t.custom.serif
                   }}>
                   {t}
                 </Typography>
@@ -266,7 +275,7 @@ export default function PdfHub({
             sx={{
               fontWeight: 600,
               fontSize: "0.95rem",
-              fontFamily: (t: any) => t.custom.serif
+              fontFamily: (t: Theme) => t.custom.serif
             }}>
             未分类
           </Typography>
@@ -363,7 +372,7 @@ export default function PdfHub({
             sx={{
               fontWeight: 600,
               fontSize: "1.05rem",
-              fontFamily: (t: any) => t.custom.serif
+              fontFamily: (t: Theme) => t.custom.serif
             }}>
             {topicView === "all"
               ? "全部 PDF"
@@ -462,25 +471,47 @@ export default function PdfHub({
                 />
               )}
               {!selectable && (
-                <IconButton
-                  className="hub-delete"
-                  size="small"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onDeletePdf(p)
-                  }}
-                  sx={{
-                    position: "absolute",
-                    top: 4,
-                    right: 4,
-                    p: 0.5,
-                    opacity: 0,
-                    color: "text.disabled",
-                    transition: "opacity 0.15s",
-                    "&:hover": { color: "error.main", bgcolor: "transparent" }
-                  }}>
-                  <DeleteOutlineRoundedIcon sx={{ fontSize: 16 }} />
-                </IconButton>
+                <>
+                  <IconButton
+                    className="hub-delete"
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onDeletePdf(p)
+                    }}
+                    sx={{
+                      position: "absolute",
+                      top: 4,
+                      right: 4,
+                      p: 0.5,
+                      opacity: 0,
+                      color: "text.disabled",
+                      transition: "opacity 0.15s",
+                      "&:hover": { color: "error.main", bgcolor: "transparent" }
+                    }}>
+                    <DeleteOutlineRoundedIcon sx={{ fontSize: 16 }} />
+                  </IconButton>
+                  <IconButton
+                    className="hub-delete"
+                    size="small"
+                    title="移动到主题"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setMoveMenu({ pdfId: p.id, anchor: e.currentTarget })
+                    }}
+                    sx={{
+                      position: "absolute",
+                      top: 4,
+                      right: 26,
+                      p: 0.5,
+                      opacity: 0,
+                      color: "text.disabled",
+                      transition: "opacity 0.15s",
+                      "&:hover": { color: "primary.main", bgcolor: "transparent" }
+                    }}>
+                    <DriveFileMoveRoundedIcon sx={{ fontSize: 16 }} />
+                  </IconButton>
+                </>
               )}
               <Stack direction="row" spacing={1.5} alignItems="center">
                 <Box
@@ -504,7 +535,7 @@ export default function PdfHub({
                     sx={{
                       fontWeight: 600,
                       fontSize: "0.95rem",
-                      fontFamily: (t: any) => t.custom.serif
+                      fontFamily: (t: Theme) => t.custom.serif
                     }}>
                     {p.name}
                   </Typography>
@@ -527,6 +558,45 @@ export default function PdfHub({
           )
         })}
       </Box>
+      {!selectable && (
+        <Menu
+          anchorEl={moveMenu?.anchor}
+          open={Boolean(moveMenu)}
+          onClose={() => setMoveMenu(null)}
+          slotProps={{ paper: { sx: { py: 0.5, borderRadius: 1, minWidth: 160 } } }}>
+          <Typography
+            sx={{
+              fontSize: "0.68rem",
+              color: "text.disabled",
+              px: 1.5,
+              pt: 0.5,
+              pb: 0.25
+            }}>
+            移动到主题
+          </Typography>
+          <MenuItem
+            onClick={() => {
+              if (moveMenu) onMovePdf?.(moveMenu.pdfId, undefined)
+              setMoveMenu(null)
+            }}
+            sx={{ fontSize: "0.8rem", gap: 1 }}>
+            <FolderRoundedIcon sx={{ fontSize: 15 }} />
+            未分类
+          </MenuItem>
+          {topics.map((t) => (
+            <MenuItem
+              key={t}
+              onClick={() => {
+                if (moveMenu) onMovePdf?.(moveMenu.pdfId, t)
+                setMoveMenu(null)
+              }}
+              sx={{ fontSize: "0.8rem", gap: 1 }}>
+              <FolderRoundedIcon sx={{ fontSize: 15 }} />
+              {t}
+            </MenuItem>
+          ))}
+        </Menu>
+      )}
     </Box>
   )
 }
