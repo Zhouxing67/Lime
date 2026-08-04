@@ -4,12 +4,15 @@ import EditRoundedIcon from "@mui/icons-material/EditRounded"
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded"
 import UndoRoundedIcon from "@mui/icons-material/UndoRounded"
+import UnfoldLessRoundedIcon from "@mui/icons-material/UnfoldLessRounded"
+import UnfoldMoreRoundedIcon from "@mui/icons-material/UnfoldMoreRounded"
 import {
   Box,
   CircularProgress,
   IconButton,
   Menu,
   MenuItem,
+  Paper,
   TextField,
   Typography
 } from "@mui/material"
@@ -88,6 +91,9 @@ export default function PdfView({
   const [annotations, setAnnotations] = useState<PdfAnnotation[]>([])
   const [pdfCards, setPdfCards] = useState<Item[]>([])
   const [editCard, setEditCard] = useState<Item | null>(null)
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(
+    () => new Set()
+  )
   const [frameMode, setFrameMode] = useState(false)
   const [canGoBack, setCanGoBack] = useState(false)
   const currentPageRef = useRef(1)
@@ -235,6 +241,15 @@ export default function PdfView({
 
   const handleCardEdit = useCallback((card: Item) => {
     setEditCard(card)
+  }, [])
+
+  const toggleExpand = useCallback((id: string) => {
+    setExpandedCards((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   }, [])
 
   const handleSaveIdea = useCallback(
@@ -705,69 +720,122 @@ export default function PdfView({
             </Typography>
           </Box>
         ) : (
-          sortedCards.map((card) => {
-            const ann = annotations.find(
-              (x) => x.id === card.pdfRef?.annotationId
-            )
-            return (
-              <Box
-                key={card.id}
-                onClick={() => handleCardClick(card)}
-                sx={{
-                  px: 1.5,
-                  py: 0.75,
-                  cursor: "pointer",
-                  borderBottom: "1px solid",
-                  borderColor: "divider",
-                  "&:hover": { bgcolor: "action.hover" }
-                }}>
-                <Box
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 1,
-                    mb: 0.25
-                  }}>
-                  <Typography
-                    variant="caption"
+          <Box sx={{ p: 1 }}>
+            {sortedCards.map((card) => {
+              const ann = annotations.find(
+                (x) => x.id === card.pdfRef?.annotationId
+              )
+              const expanded = expandedCards.has(card.id)
+              return (
+                <Paper
+                  key={card.id}
+                  elevation={0}
+                  onClick={() => handleCardClick(card)}
+                  sx={(theme) => ({
+                    p: 1.5,
+                    mb: 1,
+                    borderRadius: 1,
+                    border: "1px solid",
+                    borderColor: "divider",
+                    cursor: "pointer",
+                    boxShadow: theme.custom.cardShadow,
+                    transition: "all 0.2s",
+                    "&:hover": {
+                      boxShadow: theme.custom.cardShadowHover,
+                      transform: "translateY(-1px)",
+                      borderColor: theme.custom.borderStrong,
+                      ".pdf-card-ops": { opacity: 1 }
+                    }
+                  })}>
+                  <Box
                     sx={{
-                      fontSize: "0.68rem",
-                      color: "text.disabled",
-                      flexShrink: 0
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 1,
+                      mb: 0.5
                     }}>
-                    P{card.pdfRef?.page}
-                  </Typography>
-                  {ann && (
-                    <Typography
-                      variant="caption"
-                      sx={{ fontSize: "0.68rem", color: "text.secondary" }}>
-                      {MARK_LABEL[ann.type]}
-                    </Typography>
-                  )}
-                  <Box sx={{ flex: 1 }} />
-                  <IconButton
-                    size="small"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleCardEdit(card)
-                    }}
-                    sx={{ p: 0.25, color: "text.disabled" }}>
-                    <EditRoundedIcon sx={{ fontSize: 14 }} />
-                  </IconButton>
-                  <IconButton
-                    size="small"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleCardDelete(card)
-                    }}
-                    sx={{ p: 0.25, color: "text.disabled" }}>
-                    <DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />
-                  </IconButton>
-                </Box>
-                <PdfCardBody item={card} maxLines={4} />
-              </Box>
-            )
-          })
+                    <Box
+                      sx={{
+                        px: 0.5,
+                        py: 0.1,
+                        borderRadius: 0.5,
+                        bgcolor: "action.hover",
+                        fontSize: "0.66rem",
+                        color: "text.secondary",
+                        flexShrink: 0
+                      }}>
+                      P{card.pdfRef?.page}
+                    </Box>
+                    {ann && (
+                      <Box
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 0.4,
+                          fontSize: "0.68rem",
+                          color: "text.secondary"
+                        }}>
+                        <Box
+                          sx={{
+                            width: 7,
+                            height: 7,
+                            borderRadius: 1,
+                            background: MARK_DOT[ann.type]
+                          }}
+                        />
+                        {MARK_LABEL[ann.type]}
+                      </Box>
+                    )}
+                    <Box sx={{ flex: 1 }} />
+                    <Box
+                      className="pdf-card-ops"
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        opacity: 0,
+                        transition: "opacity 0.15s"
+                      }}>
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          toggleExpand(card.id)
+                        }}
+                        sx={{ p: 0.25, color: "text.disabled" }}>
+                        {expanded ? (
+                          <UnfoldLessRoundedIcon sx={{ fontSize: 14 }} />
+                        ) : (
+                          <UnfoldMoreRoundedIcon sx={{ fontSize: 14 }} />
+                        )}
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleCardEdit(card)
+                        }}
+                        sx={{ p: 0.25, color: "text.disabled" }}>
+                        <EditRoundedIcon sx={{ fontSize: 14 }} />
+                      </IconButton>
+                    </Box>
+                    <IconButton
+                      size="small"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleCardDelete(card)
+                      }}
+                      sx={{ p: 0.25, color: "text.disabled" }}>
+                      <DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />
+                    </IconButton>
+                  </Box>
+                  <PdfCardBody
+                    item={card}
+                    maxLines={expanded ? undefined : 4}
+                  />
+                </Paper>
+              )
+            })}
+          </Box>
         )}
       </Box>
       <PdfEditDialog

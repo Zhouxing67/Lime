@@ -55,7 +55,8 @@ export default function PdfCardBody({
       )}
       {showIdea && (
         <Box sx={{ mt: item.type === "image" ? 1.5 : 0 }}>
-          <MarkdownRenderer content={item.idea!} maxLines={maxLines} />
+          {/* The note is the user's own content — always fully visible. */}
+          <MarkdownRenderer content={item.idea!} />
         </Box>
       )}
     </Box>
