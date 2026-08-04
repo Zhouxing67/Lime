@@ -10,7 +10,8 @@ import {
   listProjects,
   searchItems
 } from "../database"
-import type { Item, PdfFile, ReviewEntry } from "../types"
+import type { Item, PdfAnnotation, PdfFile, ReviewEntry } from "../types"
+import { sha256Bytes } from "../utils"
 import { toJsonZip } from "../utils/zip"
 import { importFromZip } from "./jsonImport"
 
@@ -306,5 +307,48 @@ describe("pdf backup round-trip", () => {
     const cards = await getItemsByPdf(pdfId)
     expect(cards).toHaveLength(1)
     expect(cards[0].id).toBe(card.id)
+  })
+})
+
+describe("import remap + source-less cards", () => {
+  it("remaps legacy uuid pdf ids to the content-hash id (annotations + cards)", async () => {
+    const uuid = "legacy-uuid-pdf"
+    const bytes = new Blob(["legacy"], { type: "application/pdf" })
+    const pdf: PdfFile = { id: uuid, name: "old.pdf", bytes, pageCount: 0, addedAt: 1 }
+    const ann: PdfAnnotation = {
+      id: "legacy-ann", pdfId: uuid, page: 1, kind: "text", type: "highlight",
+      startOffset: 0, endOffset: 1, text: "x", createdAt: 1
+    }
+    // a card referencing the legacy uuid pdf id
+    const card: Item = {
+      id: "legacy-card", type: "text", content: "x", createdAt: 1, projectId: undefined,
+      pdfRef: { pdfId: uuid, page: 1, annotationId: "legacy-ann" },
+      pdfRefPdfId: uuid
+    }
+    const blob = await toJsonZip([card], [], [], [pdf], [ann])
+    await importFromZip(blob as File)
+
+    // the imported pdf got the content-hash id
+    const actualId = await sha256Bytes(bytes)
+    const restored = await getPdf(actualId)
+    expect(restored?.name).toBe("old.pdf")
+    expect(await getPdf(uuid)).toBeUndefined()
+    // the annotation + card were remapped onto it
+    expect((await getAnnotation("legacy-ann"))?.pdfId).toBe(actualId)
+    const cards = await getItemsByPdf(actualId)
+    expect(cards).toHaveLength(1)
+    expect(cards[0].id).toBe("legacy-card")
+  })
+
+  it("imports a source-less 自建卡片", async () => {
+    const card: Item = {
+      id: "local-card", type: "text", title: "本地笔记", content: "正文",
+      createdAt: 1, projectId: "p-import"
+    }
+    const project = { id: "p-import", name: "P", createdAt: 1, sections: [] }
+    const blob = await toJsonZip([card], [project])
+    const result = await importFromZip(blob as File)
+    expect(result.imported).toBe(1)
+    expect((await searchItems({})).some((i) => i.id === "local-card")).toBe(true)
   })
 })

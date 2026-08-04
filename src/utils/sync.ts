@@ -88,7 +88,9 @@ async function downloadSyncFile(
   if (!res.ok) throw new Error(`下载失败：HTTP ${res.status}`)
   try {
     const payload = JSON.parse(res.body) as SyncPayload
-    if (payload.version !== 4)
+    // Read v3 (legacy cloud data) and v4; older/newer → prompt to upgrade.
+    // The next upload writes v4, upgrading the cloud file automatically.
+    if (payload.version < 3 || payload.version > 4)
       throw new Error("云端数据版本不兼容，请升级扩展后重试")
     if (!Array.isArray(payload.items))
       throw new Error("数据格式异常：缺少 items 字段")

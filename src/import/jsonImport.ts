@@ -51,14 +51,9 @@ function validateItem(
     obj.source && typeof obj.source === "object"
       ? (obj.source as Record<string, unknown>)
       : undefined
-
-  if (
-    obj.type !== "todo" &&
-    !obj.pdfRef &&
-    (!source || typeof source.url !== "string" || source.url.length === 0)
-  ) {
-    return { error: "source 缺失或不是对象" }
-  }
+  // source is OPTIONAL — 自建卡片 (created via the new-card tile) has no
+  // origin webpage. Only its shape is validated when present; missing source
+  // imports as undefined instead of being rejected.
 
   // Spread the raw record first so NEW fields survive without a parallel
   // import patch ("一次修改，一直有效"); only the critical + known fields
@@ -337,10 +332,41 @@ export async function importFromZip(
     }
   }
 
+  // ---- PDFs import FIRST: the exported pdf id may be a legacy uuid; addPdf
+  // recomputes the content-hash id, so we remap cards/annotations onto it. ----
+  const pdfIdSet = new Set<string>()
+  const pdfIdMap = new Map<string, string>()
+  const pdfMetaByName = new Map<string, { id: string; name: string; addedAt: number }>()
+  for (const meta of importedPdfMeta) pdfMetaByName.set(meta.id, meta)
+  for (const zipPath of Object.keys(zip.files)) {
+    if (!zipPath.startsWith("pdfs/") || !zipPath.endsWith(".pdf")) continue
+    const id = zipPath.slice("pdfs/".length, -".pdf".length)
+    try {
+      const bytes = await zip.files[zipPath].async("blob")
+      const meta = pdfMetaByName.get(id)
+      const actualId = await addPdf({
+        id,
+        name: meta?.name ?? "",
+        bytes,
+        pageCount: 0,
+        addedAt: meta?.addedAt ?? Date.now()
+      })
+      pdfIdSet.add(actualId)
+      if (actualId !== id) pdfIdMap.set(id, actualId)
+    } catch {
+      result.errors.push({ index: -1, reason: "PDF 文件导入失败" })
+    }
+  }
+
   for (const item of validItems) {
     if (projectIds && !item.projectId) {
       result.skipped++
       continue
+    }
+    // Remap PDF cards' pdfRef onto the imported content-hash id.
+    if (item.pdfRef && pdfIdMap.has(item.pdfRef.pdfId)) {
+      item.pdfRef = { ...item.pdfRef, pdfId: pdfIdMap.get(item.pdfRef.pdfId)! }
+      item.pdfRefPdfId = item.pdfRef.pdfId
     }
     try {
       if (
@@ -355,7 +381,11 @@ export async function importFromZip(
       } else {
         result.skipped++
       }
-    } catch {
+    } catch (e) {
+      result.errors.push({
+        index: -1,
+        reason: `导入异常（${item.type}）: ${(e as Error)?.message ?? e}`
+      })
       result.skipped++
     }
   }
@@ -387,36 +417,16 @@ export async function importFromZip(
     }
   }
 
-  // ---- PDFs + annotations import (local-only domain) ----
-  const pdfIdSet = new Set<string>()
-  const pdfMetaByName = new Map<string, { id: string; name: string; addedAt: number }>()
-  for (const meta of importedPdfMeta) pdfMetaByName.set(meta.id, meta)
-  for (const zipPath of Object.keys(zip.files)) {
-    if (!zipPath.startsWith("pdfs/") || !zipPath.endsWith(".pdf")) continue
-    const id = zipPath.slice("pdfs/".length, -".pdf".length)
-    try {
-      const bytes = await zip.files[zipPath].async("blob")
-      const meta = pdfMetaByName.get(id)
-      await addPdf({
-        id,
-        name: meta?.name ?? "",
-        bytes,
-        pageCount: 0,
-        addedAt: meta?.addedAt ?? Date.now()
-      })
-      pdfIdSet.add(id)
-    } catch {
-      result.errors.push({ index: -1, reason: "PDF 文件导入失败" })
-    }
-  }
-
+  // ---- annotations import (local-only domain) ----
   const existingAnnotationIds = new Set(
     (await getAllAnnotations()).map((a) => a.id)
   )
   for (const ann of importedAnnotations) {
+    const mappedId = pdfIdMap.get(ann.pdfId) ?? ann.pdfId
     // Drop orphans (pdf not imported) and duplicates (id unique index).
-    if (!pdfIdSet.has(ann.pdfId)) continue
+    if (!pdfIdSet.has(mappedId)) continue
     if (existingAnnotationIds.has(ann.id)) continue
+    ann.pdfId = mappedId
     try {
       await addAnnotation(ann)
       existingAnnotationIds.add(ann.id)

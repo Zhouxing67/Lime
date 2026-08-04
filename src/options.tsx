@@ -745,11 +745,12 @@ export default function OptionsPage() {
       const msg = `导入完成：成功 ${result.imported} 条`
       const skipMsg = result.skipped > 0 ? `，跳过 ${result.skipped} 条` : ""
       if (result.errors.length > 0) {
-        console.warn("导入跳过/失败的条目：", result.errors)
+        console.warn("[lime] 导入跳过/失败的条目：", result.errors)
       }
       setSnackbarMsg(msg + skipMsg)
       await refreshAllData()
     } catch (err) {
+      console.error("[lime] 导入失败：", err)
       setSnackbarMsg(`导入失败：${err}`)
     } finally {
       if (backupFileInputRef.current) {
