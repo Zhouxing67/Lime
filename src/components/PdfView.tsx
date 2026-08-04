@@ -99,6 +99,8 @@ export default function PdfView({
     pos: { x: number; y: number }
   } | null>(null)
   const [cardHighlightId, setCardHighlightId] = useState<string | null>(null)
+  const cardsScrollRef = useRef<HTMLDivElement>(null)
+  const jumpTimerRef = useRef<number | null>(null)
   const [frameMode, setFrameMode] = useState(false)
   const [canGoBack, setCanGoBack] = useState(false)
   const currentPageRef = useRef(1)
@@ -121,6 +123,12 @@ export default function PdfView({
   const dragRef = useRef<{ startX: number; startPct: number } | null>(null)
   const dragCleanupRef = useRef<(() => void) | null>(null)
   useEffect(() => () => dragCleanupRef.current?.(), [])
+  useEffect(
+    () => () => {
+      if (jumpTimerRef.current) window.clearTimeout(jumpTimerRef.current)
+    },
+    []
+  )
   const searchAbortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
@@ -263,13 +271,17 @@ export default function PdfView({
   // ---- annotation click → jump to card + actions popover ----
   const jumpToCard = useCallback((cardId: string) => {
     setCardHighlightId(cardId)
+    if (jumpTimerRef.current) window.clearTimeout(jumpTimerRef.current)
     requestAnimationFrame(() => {
-      document
-        .querySelector(`[data-card-id="${cardId}"]`)
+      // Scoped to the cards column — never a global query (CardGrid shares the
+      // same data-card-id selector).
+      cardsScrollRef.current
+        ?.querySelector(`[data-card-id="${cardId}"]`)
         ?.scrollIntoView({ behavior: "smooth", block: "center" })
     })
-    window.setTimeout(() => {
+    jumpTimerRef.current = window.setTimeout(() => {
       setCardHighlightId((cur) => (cur === cardId ? null : cur))
+      jumpTimerRef.current = null
     }, 1500)
   }, [])
 
@@ -286,19 +298,27 @@ export default function PdfView({
   const handleAnnotationTypeChange = useCallback(
     async (type: Exclude<PdfMark, "frame">) => {
       if (!clickedAnn) return
-      await updateAnnotationType(clickedAnn.ann.id, type)
-      setClickedAnn((cur) =>
-        cur ? { ...cur, ann: { ...cur.ann, type } } : cur
-      )
+      try {
+        await updateAnnotationType(clickedAnn.ann.id, type)
+        setClickedAnn((cur) =>
+          cur ? { ...cur, ann: { ...cur.ann, type } } : cur
+        )
+      } catch (e) {
+        console.warn("[lime] update annotation type failed:", e)
+      }
     },
     [clickedAnn]
   )
 
   const handleAnnotationDelete = useCallback(async () => {
     if (!clickedAnn) return
-    await deleteAnnotationWithCard(clickedAnn.ann.id)
-    setClickedAnn(null)
-    setCardHighlightId(null)
+    try {
+      await deleteAnnotationWithCard(clickedAnn.ann.id)
+      setClickedAnn(null)
+      setCardHighlightId(null)
+    } catch (e) {
+      console.warn("[lime] delete annotation failed:", e)
+    }
   }, [clickedAnn])
 
   const handleSaveIdea = useCallback(
@@ -730,6 +750,7 @@ export default function PdfView({
 
       {/* Right: this PDF's cards, ordered by original position */}
       <Box
+        ref={cardsScrollRef}
         sx={{
           flex: 1,
           minWidth: 0,
