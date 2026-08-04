@@ -1,7 +1,15 @@
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded"
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
+import EditRoundedIcon from "@mui/icons-material/EditRounded"
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
-import { Box, CircularProgress, IconButton, Typography } from "@mui/material"
+import {
+  Box,
+  CircularProgress,
+  IconButton,
+  Menu,
+  MenuItem,
+  Typography
+} from "@mui/material"
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import * as pdfjsLib from "pdfjs-dist"
@@ -74,6 +82,10 @@ export default function PdfView({
   const [annotations, setAnnotations] = useState<PdfAnnotation[]>([])
   const [pdfCards, setPdfCards] = useState<Item[]>([])
   const [frameMode, setFrameMode] = useState(false)
+  const [annotMenuAnchor, setAnnotMenuAnchor] = useState<HTMLElement | null>(
+    null
+  )
+  const capturedRangeRef = useRef<Range | null>(null)
   const [searchFlash, setSearchFlash] = useState<{
     page: number
     start: number
@@ -212,6 +224,36 @@ export default function PdfView({
     [jumpToSearchMatch]
   )
 
+  // ---- annotation menu (批注 → 5 tools) ----
+  const openAnnotMenu = (e: React.MouseEvent<HTMLElement>) => {
+    // Capture the selection BEFORE the mousedown clears it.
+    const sel = window.getSelection()
+    if (sel && !sel.isCollapsed && sel.rangeCount > 0) {
+      capturedRangeRef.current = sel.getRangeAt(0).cloneRange()
+    } else {
+      capturedRangeRef.current = null
+    }
+    setAnnotMenuAnchor(e.currentTarget)
+  }
+
+  const handleAnnotTool = useCallback(
+    (type: Exclude<PdfMark, "frame">) => {
+      if (capturedRangeRef.current) {
+        const sel = window.getSelection()
+        sel?.removeAllRanges()
+        sel?.addRange(capturedRangeRef.current)
+      }
+      setAnnotMenuAnchor(null)
+      handleTool(type)
+    },
+    [handleTool]
+  )
+
+  const handleAnnotFrame = useCallback(() => {
+    setAnnotMenuAnchor(null)
+    setFrameMode((f) => !f)
+  }, [])
+
   // 框选 release → crop image → frame annotation + image card.
   const handleFrameRegion = useCallback(
     async (result: {
@@ -312,47 +354,10 @@ export default function PdfView({
             {loaded?.file.name ?? "PDF"}
           </Typography>
           <Box sx={{ flex: 1 }} />
-          {/* text annotation tools */}
-          {TEXT_TOOLS.map((t) => (
-            <Box
-              key={t}
-              // mousedown + preventDefault: clicking a toolbar button would
-              // otherwise clear the text selection before the handler runs.
-              onMouseDown={(e) => {
-                e.preventDefault()
-                handleTool(t)
-              }}
-              title={`选中文字后点此：${MARK_LABEL[t]}`}
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: 0.5,
-                px: 0.75,
-                py: 0.25,
-                borderRadius: 1,
-                cursor: "pointer",
-                color: "text.secondary",
-                fontSize: "0.72rem",
-                "&:hover": {
-                  bgcolor: "action.hover",
-                  color: "text.primary"
-                }
-              }}>
-              <Box
-                sx={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: 1,
-                  background: MARK_DOT[t]
-                }}
-              />
-              {MARK_LABEL[t]}
-            </Box>
-          ))}
-          {/* 框选 */}
+          {/* 批注 menu (二级) */}
           <Box
-            onClick={() => setFrameMode((f) => !f)}
-            title="框选区域（公式/图表）→ 图片卡"
+            onClick={openAnnotMenu}
+            title="批注"
             sx={{
               display: "flex",
               alignItems: "center",
@@ -366,49 +371,61 @@ export default function PdfView({
               color: frameMode ? "text.primary" : "text.secondary",
               "&:hover": { bgcolor: "action.hover" }
             }}>
-            <Box
-              sx={{
-                width: 8,
-                height: 8,
-                borderRadius: 1,
-                background: MARK_DOT.frame
-              }}
-            />
-            {MARK_LABEL.frame}
+            <EditRoundedIcon sx={{ fontSize: 14 }} />
+            批注
           </Box>
-          {/* jump to page */}
+          <Menu
+            anchorEl={annotMenuAnchor}
+            open={!!annotMenuAnchor}
+            onClose={() => setAnnotMenuAnchor(null)}
+            slotProps={{ paper: { sx: { minWidth: 148 } } }}>
+            {TEXT_TOOLS.map((t) => (
+              <MenuItem
+                key={t}
+                onClick={() => handleAnnotTool(t)}
+                sx={{ gap: 1, fontSize: "0.82rem" }}>
+                <Box
+                  sx={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: 1,
+                    background: MARK_DOT[t]
+                  }}
+                />
+                {MARK_LABEL[t]}
+              </MenuItem>
+            ))}
+            <MenuItem
+              onClick={handleAnnotFrame}
+              sx={{ gap: 1, fontSize: "0.82rem" }}>
+              <Box
+                sx={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: 1,
+                  background: MARK_DOT.frame
+                }}
+              />
+              {MARK_LABEL.frame}
+              {frameMode && <Box sx={{ flex: 1 }} />}
+              {frameMode && <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "primary.main" }} />}
+            </MenuItem>
+          </Menu>
+        </Box>
+        {/* second row: search + jump-to-page */}
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 0.75,
+            px: 1,
+            minHeight: 38,
+            borderBottom: "1px solid",
+            borderColor: "divider",
+            bgcolor: (t) => t.custom.surface2
+          }}>
           <input
-            type="number"
-            min={1}
-            max={loaded?.pageCount}
-            placeholder="页码"
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                const n = Number((e.target as HTMLInputElement).value)
-                if (
-                  Number.isInteger(n) &&
-                  n >= 1 &&
-                  n <= (loaded?.pageCount ?? Infinity)
-                ) {
-                  setScrollPage(n)
-                }
-                ;(e.target as HTMLInputElement).value = ""
-              }
-            }}
-            style={{
-              width: 44,
-              marginLeft: 4,
-              padding: "3px 6px",
-              fontSize: "0.72rem",
-              border: "1px solid",
-              borderColor: "rgba(0,0,0,0.12)",
-              borderRadius: 4,
-              outline: "none"
-            }}
-          />
-          {/* search */}
-          <input
-            placeholder="搜索"
+            placeholder="搜索 PDF 全文…"
             defaultValue={searchState.query}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
@@ -416,10 +433,10 @@ export default function PdfView({
               }
             }}
             style={{
-              width: 64,
-              marginLeft: 6,
-              padding: "3px 6px",
-              fontSize: "0.72rem",
+              flex: 1,
+              minWidth: 0,
+              padding: "5px 8px",
+              fontSize: "0.78rem",
               border: "1px solid",
               borderColor: "rgba(0,0,0,0.12)",
               borderRadius: 4,
@@ -429,9 +446,8 @@ export default function PdfView({
           {searchState.loading ? (
             <Box
               sx={{
-                fontSize: "0.68rem",
+                fontSize: "0.7rem",
                 color: "text.disabled",
-                px: 0.5,
                 whiteSpace: "nowrap"
               }}>
               搜索中…
@@ -452,7 +468,7 @@ export default function PdfView({
               </Box>
               <Box
                 sx={{
-                  fontSize: "0.68rem",
+                  fontSize: "0.7rem",
                   color: "text.disabled",
                   whiteSpace: "nowrap"
                 }}>
@@ -474,14 +490,41 @@ export default function PdfView({
           ) : searchState.query ? (
             <Box
               sx={{
-                fontSize: "0.68rem",
+                fontSize: "0.7rem",
                 color: "text.disabled",
-                px: 0.5,
                 whiteSpace: "nowrap"
               }}>
               无结果
             </Box>
           ) : null}
+          <input
+            type="number"
+            min={1}
+            max={loaded?.pageCount}
+            placeholder="跳转页码"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                const n = Number((e.target as HTMLInputElement).value)
+                if (
+                  Number.isInteger(n) &&
+                  n >= 1 &&
+                  n <= (loaded?.pageCount ?? Infinity)
+                ) {
+                  setScrollPage(n)
+                }
+                ;(e.target as HTMLInputElement).value = ""
+              }
+            }}
+            style={{
+              width: 92,
+              padding: "5px 8px",
+              fontSize: "0.78rem",
+              border: "1px solid",
+              borderColor: "rgba(0,0,0,0.12)",
+              borderRadius: 4,
+              outline: "none"
+            }}
+          />
         </Box>
         {error ? (
           <Box sx={{ p: 3, color: "error.main", fontSize: "0.85rem" }}>

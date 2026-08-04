@@ -5,6 +5,8 @@ import CloudUploadRoundedIcon from "@mui/icons-material/CloudUploadRounded"
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded"
 import FileDownloadRoundedIcon from "@mui/icons-material/FileDownloadRounded"
 import FileUploadRoundedIcon from "@mui/icons-material/FileUploadRounded"
+import UnfoldLessRoundedIcon from "@mui/icons-material/UnfoldLessRounded"
+import UnfoldMoreRoundedIcon from "@mui/icons-material/UnfoldMoreRounded"
 import {
   Box,
   Button,
@@ -229,26 +231,28 @@ function PdfTab({
             <SectionLabel>目录</SectionLabel>
             <Box sx={{ flex: 1 }} />
             <Box
-              onClick={() => setCollapsedKeys(new Set(collectTocKeys(pdfOutline)))}
+              onClick={() =>
+                collapsedKeys.size > 0
+                  ? setCollapsedKeys(new Set())
+                  : setCollapsedKeys(new Set(collectTocKeys(pdfOutline)))
+              }
+              title={collapsedKeys.size > 0 ? "全部展开" : "全部折叠"}
               sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 0.25,
                 fontSize: "0.68rem",
                 color: "text.disabled",
                 cursor: "pointer",
                 px: 0.5,
                 "&:hover": { color: "text.primary" }
               }}>
-              全部折叠
-            </Box>
-            <Box
-              onClick={() => setCollapsedKeys(new Set())}
-              sx={{
-                fontSize: "0.68rem",
-                color: "text.disabled",
-                cursor: "pointer",
-                px: 0.5,
-                "&:hover": { color: "text.primary" }
-              }}>
-              全部展开
+              {collapsedKeys.size > 0 ? (
+                <UnfoldMoreRoundedIcon sx={{ fontSize: 15 }} />
+              ) : (
+                <UnfoldLessRoundedIcon sx={{ fontSize: 15 }} />
+              )}
+              {collapsedKeys.size > 0 ? "展开" : "折叠"}
             </Box>
           </Box>
           {pdfOutline.map((item) => (
