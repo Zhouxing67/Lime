@@ -303,7 +303,8 @@ export default function PdfRenderer({
   onFlashDone,
   frameMode,
   onFrameRegion,
-  searchFlash
+  searchFlash,
+  onVisiblePageChange
 }: {
   doc: pdfjsLib.PDFDocumentProxy
   pageCount: number
@@ -318,6 +319,7 @@ export default function PdfRenderer({
     imageDataUrl: string
   }) => void
   searchFlash?: { page: number; start: number; end: number } | null
+  onVisiblePageChange?: (page: number) => void
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [paneW, setPaneW] = useState(0)
@@ -366,6 +368,40 @@ export default function PdfRenderer({
     )
     el?.scrollIntoView({ behavior: "auto", block: "start" })
   }, [scrollTarget])
+
+  // Track the current visible page (rAF-throttled) for the 回跳 history.
+  useEffect(() => {
+    const c = containerRef.current
+    if (!c) return
+    let raf = 0
+    let last = -1
+    const report = () => {
+      raf = 0
+      const ref = c.scrollTop + c.clientHeight * 0.15
+      let current = 1
+      for (const el of c.querySelectorAll<HTMLElement>("[data-page]")) {
+        const top = el.offsetTop
+        const h = el.offsetHeight || 1
+        if (top <= ref && ref < top + h) {
+          current = Number(el.getAttribute("data-page")) || 1
+          break
+        }
+      }
+      if (current !== last) {
+        last = current
+        onVisiblePageChange?.(current)
+      }
+    }
+    const onScroll = () => {
+      if (!raf) raf = requestAnimationFrame(report)
+    }
+    c.addEventListener("scroll", onScroll, { passive: true })
+    report()
+    return () => {
+      c.removeEventListener("scroll", onScroll)
+      if (raf) cancelAnimationFrame(raf)
+    }
+  }, [onVisiblePageChange])
 
   // Only the page holding the flash target re-renders (avoids re-rendering
   // every page's canvas when a card is clicked).

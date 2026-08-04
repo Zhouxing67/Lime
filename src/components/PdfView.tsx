@@ -3,6 +3,7 @@ import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
 import EditRoundedIcon from "@mui/icons-material/EditRounded"
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded"
+import UndoRoundedIcon from "@mui/icons-material/UndoRounded"
 import {
   Box,
   CircularProgress,
@@ -84,6 +85,9 @@ export default function PdfView({
   const [annotations, setAnnotations] = useState<PdfAnnotation[]>([])
   const [pdfCards, setPdfCards] = useState<Item[]>([])
   const [frameMode, setFrameMode] = useState(false)
+  const [canGoBack, setCanGoBack] = useState(false)
+  const currentPageRef = useRef(1)
+  const navHistoryRef = useRef<number[]>([])
   const [annotMenuAnchor, setAnnotMenuAnchor] = useState<HTMLElement | null>(
     null
   )
@@ -127,6 +131,28 @@ export default function PdfView({
     return () => chrome.storage.onChanged.removeListener(onChange)
   }, [reloadPdfData])
 
+  // ---- 回跳 (back) history ----
+  const handleVisiblePageChange = useCallback((page: number) => {
+    currentPageRef.current = page
+  }, [])
+
+  const navigateTo = useCallback((page: number) => {
+    const prev = currentPageRef.current
+    if (prev && prev !== page) {
+      navHistoryRef.current.push(prev)
+      setCanGoBack(true)
+    }
+    setScrollPage(page)
+  }, [])
+
+  const handleGoBack = useCallback(() => {
+    const prev = navHistoryRef.current.pop()
+    if (prev) {
+      setScrollPage(prev)
+      setCanGoBack(navHistoryRef.current.length > 0)
+    }
+  }, [])
+
   // Report the outline up so the sidebar can render the TOC.
   useEffect(() => {
     onOutlineLoaded?.(loaded ? (loaded.outline as PdfOutlineItem[]) : null)
@@ -137,12 +163,12 @@ export default function PdfView({
     if (!outlineDest || !loaded) return
     let cancelled = false
     outlinePageNumber(loaded.doc, outlineDest).then((page) => {
-      if (!cancelled && page) setScrollPage(page)
+      if (!cancelled && page) navigateTo(page)
     })
     return () => {
       cancelled = true
     }
-  }, [outlineDest, loaded])
+  }, [outlineDest, loaded, navigateTo])
 
   // Apply an annotation tool to the current text selection → auto-card.
   const handleTool = useCallback(
@@ -179,11 +205,14 @@ export default function PdfView({
     [pdfId, reloadPdfData]
   )
 
-  const handleCardClick = useCallback((card: Item) => {
-    if (!card.pdfRef) return
-    setScrollPage(card.pdfRef.page)
-    setFlashAnnId(card.pdfRef.annotationId)
-  }, [])
+  const handleCardClick = useCallback(
+    (card: Item) => {
+      if (!card.pdfRef) return
+      navigateTo(card.pdfRef.page)
+      setFlashAnnId(card.pdfRef.annotationId)
+    },
+    [navigateTo]
+  )
 
   const handleCardDelete = useCallback(async (card: Item) => {
     await deletePdfCard(card)
@@ -195,10 +224,10 @@ export default function PdfView({
     (matches: PdfSearchMatch[], index: number) => {
       const m = matches[index]
       if (!m) return
-      setScrollPage(m.page)
+      navigateTo(m.page)
       setSearchFlash({ page: m.page, start: m.start, end: m.end })
     },
-    []
+    [navigateTo]
   )
 
   const handleSearch = useCallback(
@@ -272,7 +301,7 @@ export default function PdfView({
           imageDataUrl: result.imageDataUrl
         })
         setFrameMode(false)
-        setScrollPage(result.page)
+        navigateTo(result.page)
         // The write broadcasts _dbpdf → the storage listener reloads.
       } catch (e) {
         console.warn("[pdf] create region annotation failed:", e)
@@ -463,7 +492,7 @@ export default function PdfView({
                   n >= 1 &&
                   n <= (loaded?.pageCount ?? Infinity)
                 ) {
-                  setScrollPage(n)
+                  navigateTo(n)
                 }
                 ;(e.target as HTMLInputElement).value = ""
               }
@@ -476,6 +505,20 @@ export default function PdfView({
               }
             }}
           />
+          {/* 回跳 */}
+          <IconButton
+            size="small"
+            onClick={handleGoBack}
+            disabled={!canGoBack}
+            title="回跳到上一页"
+            sx={{
+              p: 0.5,
+              color: "text.secondary",
+              "&:hover": { color: "primary.main" },
+              "&.Mui-disabled": { color: "text.disabled", opacity: 0.35 }
+            }}>
+            <UndoRoundedIcon sx={{ fontSize: 17 }} />
+          </IconButton>
           {/* 批注 menu (二级) */}
           <Box
             onClick={openAnnotMenu}
@@ -558,6 +601,7 @@ export default function PdfView({
             frameMode={frameMode}
             onFrameRegion={handleFrameRegion}
             searchFlash={searchFlash}
+            onVisiblePageChange={handleVisiblePageChange}
           />
         ) : (
           <Box
