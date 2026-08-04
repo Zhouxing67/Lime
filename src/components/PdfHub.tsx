@@ -23,6 +23,7 @@ interface PdfHubProps {
   onOpenPdf: (id: string) => void
   onNewPdf: () => void
   onDeletePdf: (pdf: PdfFile) => void
+  keyword?: string
   /** Read-only multi-select mode (backup view): click toggles selection. */
   selectable?: boolean
   selected?: (id: string) => boolean
@@ -35,14 +36,20 @@ export default function PdfHub({
   onOpenPdf,
   onNewPdf,
   onDeletePdf,
+  keyword = "",
   selectable,
   selected,
   onToggleSelect
 }: PdfHubProps) {
-  const sorted = [...pdfs].sort(
-    (a, b) =>
-      (b.lastOpened ?? 0) - (a.lastOpened ?? 0) || b.addedAt - a.addedAt
-  )
+  const sorted = [...pdfs]
+    .sort(
+      (a, b) =>
+        (b.lastOpened ?? 0) - (a.lastOpened ?? 0) || b.addedAt - a.addedAt
+    )
+    .filter((p) => {
+      if (!keyword.trim()) return true
+      return p.name.toLowerCase().includes(keyword.trim().toLowerCase())
+    })
 
   if (pdfs.length === 0) {
     return (
@@ -120,45 +127,42 @@ export default function PdfHub({
             p: 2,
             borderRadius: 1,
             border: "1px solid",
-            borderColor: isSelected ? "primary.main" : "divider",
+            borderColor: selectable
+              ? "primary.main"
+              : isSelected
+                ? "primary.main"
+                : "divider",
             cursor: "pointer",
             position: "relative",
-            bgcolor: isSelected
-              ? alpha(theme.palette.primary.main, 0.06)
-              : "transparent",
+            // Align with ItemCard's selectMode look: uniform primary tint in
+            // selectable mode, paper background otherwise (never transparent).
+            bgcolor: selectable
+              ? alpha(theme.palette.primary.main, 0.04)
+              : isSelected
+                ? alpha(theme.palette.primary.main, 0.04)
+                : "background.paper",
             transition: "all 0.2s",
             "&:hover": {
               boxShadow: theme.custom.cardShadowHover,
               transform: "translateY(-1px)",
-              borderColor: isSelected ? "primary.main" : theme.custom.borderStrong,
-              ".hub-delete": { opacity: 1 },
-              ".hub-check": { opacity: 1 }
+              borderColor: selectable
+                ? "primary.main"
+                : theme.custom.borderStrong,
+              ".hub-delete": { opacity: 1 }
             }
           })}>
-          {selectable ? (
-            <Box
-              className="hub-check"
+          {selectable && isSelected && (
+            <CheckRoundedIcon
               sx={{
                 position: "absolute",
                 top: 4,
                 right: 4,
-                p: 0.25,
-                opacity: 1,
-                width: 22,
-                height: 22,
-                borderRadius: "50%",
-                border: "1.5px solid",
-                borderColor: isSelected ? "primary.main" : "text.disabled",
-                bgcolor: isSelected ? "primary.main" : "transparent",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center"
-              }}>
-              {isSelected && (
-                <CheckRoundedIcon sx={{ fontSize: 14, color: "#fff" }} />
-              )}
-            </Box>
-          ) : (
+                fontSize: 16,
+                color: "primary.main"
+              }}
+            />
+          )}
+          {!selectable && (
             <IconButton
               className="hub-delete"
               size="small"

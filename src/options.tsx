@@ -34,6 +34,10 @@ import {
 
 import AppHeader from "./components/AppHeader"
 import BatchToolbar from "./components/BatchToolbar"
+import DeleteSweepRoundedIcon from "@mui/icons-material/DeleteSweepRounded"
+import FileCopyOutlinedIcon from "@mui/icons-material/FileCopyOutlined"
+import FileDownloadRoundedIcon from "@mui/icons-material/FileDownloadRounded"
+import MergeTypeRoundedIcon from "@mui/icons-material/MergeTypeRounded"
 import CardGrid from "./components/CardGrid"
 import DateRangeFilter from "./components/DateRangeFilter"
 import DeleteConfirmDialog from "./components/DeleteConfirmDialog"
@@ -145,6 +149,7 @@ export default function OptionsPage() {
   const [backupScope, setBackupScope] = useState<"projects" | "pdfs">(
     "projects"
   )
+  const [backupKeyword, setBackupKeyword] = useState("")
   const [backupSelectedPdfIds, setBackupSelectedPdfIds] = useState<string[]>([])
   const [syncStatus, setSyncStatus] = useState("")
   const [reviewItemIds, setReviewItemIds] = useState<Set<string>>(new Set())
@@ -1523,14 +1528,57 @@ export default function OptionsPage() {
               sidebarTab !== "todo" &&
               sidebarTab !== "pdf" && (
               <FilterChips
-                keyword={keyword}
-                onKeywordChange={setKeyword}
+                keyword={sidebarTab === "backup" ? backupKeyword : keyword}
+                onKeywordChange={
+                  sidebarTab === "backup" ? setBackupKeyword : setKeyword
+                }
                 placeholder={
-                  activeProjectId ? "搜索当前项目中的卡片…" : "搜索项目…"
+                  sidebarTab === "backup"
+                    ? backupScope === "projects"
+                      ? "搜索项目…"
+                      : "搜索 PDF…"
+                    : activeProjectId
+                      ? "搜索当前项目中的卡片…"
+                      : "搜索项目…"
                 }>
-                {selectMode && (
+                {sidebarTab === "backup" ? (
                   <BatchToolbar
-                    selectedIds={selectedIds}
+                    selectedCount={
+                      backupScope === "projects"
+                        ? backupSelectedIds.length
+                        : backupSelectedPdfIds.length
+                    }
+                    allSelected={
+                      backupScope === "projects"
+                        ? backupSelectedIds.length > 0 &&
+                          backupSelectedIds.length === projects.length
+                        : backupSelectedPdfIds.length > 0 &&
+                          backupSelectedPdfIds.length === pdfs.length
+                    }
+                    countLabel={
+                      backupScope === "projects" ? "个项目" : "个 PDF"
+                    }
+                    onSelectAll={handleBackupSelectAll}
+                    actions={[
+                      {
+                        label: "导出备份",
+                        icon: (
+                          <FileDownloadRoundedIcon
+                            sx={{ fontSize: 16, mr: 0.5 }}
+                          />
+                        ),
+                        onClick: handleExportBackup,
+                        disabled:
+                          (backupScope === "projects"
+                            ? backupSelectedIds.length
+                            : backupSelectedPdfIds.length) === 0,
+                        variant: "contained"
+                      }
+                    ]}
+                  />
+                ) : selectMode ? (
+                  <BatchToolbar
+                    selectedCount={selectedIds.length}
                     allSelected={
                       selectedIds.length > 0 &&
                       selectedIds.length === viewItems.length
@@ -1542,11 +1590,40 @@ export default function OptionsPage() {
                         setSelectedIds(viewItems.map((i) => i.id))
                       }
                     }}
-                    onBatchDelete={handleBatchDelete}
-                    onBatchCopy={handleBatchCopy}
-                    onBatchMerge={handleBatchMerge}
+                    actions={[
+                      {
+                        label: "复制到",
+                        icon: (
+                          <FileCopyOutlinedIcon
+                            sx={{ fontSize: 16, mr: 0.5 }}
+                          />
+                        ),
+                        onClick: handleBatchCopy,
+                        dividerBefore: true,
+                        disabled: selectedIds.length === 0
+                      },
+                      {
+                        label: "合并",
+                        icon: (
+                          <MergeTypeRoundedIcon sx={{ fontSize: 16, mr: 0.5 }} />
+                        ),
+                        onClick: handleBatchMerge,
+                        disabled: selectedIds.length < 2
+                      },
+                      {
+                        label: "删除选中",
+                        icon: (
+                          <DeleteSweepRoundedIcon sx={{ fontSize: 16, mr: 0.5 }} />
+                        ),
+                        onClick: handleBatchDelete,
+                        dividerBefore: true,
+                        disabled: selectedIds.length === 0,
+                        variant: "contained",
+                        color: "error"
+                      }
+                    ]}
                   />
-                )}
+                ) : null}
               </FilterChips>
             )}
           </Box>
@@ -1684,14 +1761,13 @@ export default function OptionsPage() {
                       pdfs={pdfs}
                       countByProject={countByProject}
                       countByPdf={countByPdf}
+                      keyword={backupKeyword}
                       selectedIds={
                         backupScope === "projects"
                           ? backupSelectedIds
                           : backupSelectedPdfIds
                       }
                       onToggleSelect={handleBackupToggleSelect}
-                      onSelectAll={handleBackupSelectAll}
-                      onExport={handleExportBackup}
                     />
                   ) : sidebarTab === "todo" ? (
                     <TodoView

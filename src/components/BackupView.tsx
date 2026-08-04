@@ -1,6 +1,9 @@
-import { Box, Button, Typography } from "@mui/material"
+import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded"
+import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
+import { Box } from "@mui/material"
 
 import type { PdfFile, Project } from "../types"
+import EmptyState from "./EmptyState"
 import PdfHub from "./PdfHub"
 import ProjectHub from "./ProjectHub"
 
@@ -10,88 +13,94 @@ interface BackupViewProps {
   pdfs: PdfFile[]
   countByProject: Record<string, number>
   countByPdf: Record<string, number>
+  keyword: string
   /** The current scope's selected ids (projects or pdfs). */
   selectedIds: string[]
   onToggleSelect: (id: string) => void
-  onSelectAll: () => void
-  onExport: () => void
 }
 
-/** Backup main area: top action bar + read-only multi-select tiles. */
+/** Backup main area: read-only multi-select tiles (filtered by keyword). */
 export default function BackupView({
   scope,
   projects,
   pdfs,
   countByProject,
   countByPdf,
+  keyword,
   selectedIds,
-  onToggleSelect,
-  onSelectAll,
-  onExport
+  onToggleSelect
 }: BackupViewProps) {
-  const total = scope === "projects" ? projects.length : pdfs.length
-  const allSelected = total > 0 && selectedIds.length === total
+  const filteredCount =
+    scope === "projects"
+      ? projects.filter((p) =>
+          keyword.trim()
+            ? p.name.toLowerCase().includes(keyword.trim().toLowerCase()) ||
+              (p.note ?? "").toLowerCase().includes(keyword.trim().toLowerCase())
+            : true
+        ).length
+      : pdfs.filter((p) =>
+          keyword.trim()
+            ? p.name.toLowerCase().includes(keyword.trim().toLowerCase())
+            : true
+        ).length
+
+  if (filteredCount === 0) {
+    return (
+      <EmptyState
+        icon={
+          scope === "projects" ? (
+            <FolderOpenRoundedIcon
+              className="empty-icon"
+              sx={{ fontSize: 80, mb: 3 }}
+            />
+          ) : (
+            <PictureAsPdfRoundedIcon
+              className="empty-icon"
+              sx={{ fontSize: 80, mb: 3 }}
+            />
+          )
+        }
+        title={
+          keyword.trim()
+            ? "没有匹配的结果"
+            : `没有可备份的${scope === "projects" ? "项目" : "PDF"}`
+        }
+        subtitle={
+          keyword.trim()
+            ? "试试其他关键词"
+            : `先去${scope === "projects" ? "项目" : "PDF"}视图创建一些`
+        }
+      />
+    )
+  }
+
   return (
-    <>
-      <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: 1,
-          px: 2,
-          py: 1,
-          borderBottom: "1px solid",
-          borderColor: "divider",
-          bgcolor: "background.paper"
-        }}>
-        <Button
-          size="small"
-          onClick={onSelectAll}
-          disabled={total === 0}
-          sx={{ borderRadius: 1 }}>
-          {allSelected ? "取消全选" : `全选（${total}）`}
-        </Button>
-        <Typography
-          variant="body2"
-          sx={{ fontSize: "0.8rem", color: "text.secondary" }}>
-          已选 {selectedIds.length}
-        </Typography>
-        <Box sx={{ flex: 1 }} />
-        <Button
-          size="small"
-          variant="contained"
-          disabled={selectedIds.length === 0}
-          onClick={onExport}
-          sx={{ borderRadius: 1 }}>
-          导出备份
-        </Button>
-      </Box>
-      <Box sx={{ py: 3 }}>
-        {scope === "projects" ? (
-          <ProjectHub
-            projects={projects}
-            countByProject={countByProject}
-            keyword=""
-            selectable
-            selected={(id) => selectedIds.includes(id)}
-            onToggleSelect={onToggleSelect}
-            onOpenProject={() => {}}
-            onNewProject={() => {}}
-            onDeleteProject={() => {}}
-          />
-        ) : (
-          <PdfHub
-            pdfs={pdfs}
-            countByPdf={countByPdf}
-            selectable
-            selected={(id) => selectedIds.includes(id)}
-            onToggleSelect={onToggleSelect}
-            onOpenPdf={() => {}}
-            onNewPdf={() => {}}
-            onDeletePdf={() => {}}
-          />
-        )}
-      </Box>
-    </>
+    <Box sx={{ py: 3 }}>
+      {scope === "projects" ? (
+        <ProjectHub
+          projects={projects}
+          countByProject={countByProject}
+          keyword={keyword}
+          selectable
+          selected={(id) => selectedIds.includes(id)}
+          onToggleSelect={onToggleSelect}
+          onOpenProject={() => {}}
+          onNewProject={() => {}}
+          onDeleteProject={() => {}}
+        />
+      ) : (
+        <PdfHub
+          pdfs={pdfs}
+          countByPdf={countByPdf}
+          keyword={keyword}
+          selectable
+          selected={(id) => selectedIds.includes(id)}
+          onToggleSelect={onToggleSelect}
+          onOpenPdf={() => {}}
+          onNewPdf={() => {}}
+          onDeletePdf={() => {}}
+        />
+      )}
+    </Box>
   )
 }
