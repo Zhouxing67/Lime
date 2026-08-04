@@ -41,6 +41,7 @@ interface SidebarFiltersProps {
   onTodoFilterChange: (filter: TodoFilter) => void
   onOpenPdfClick: () => void
   onOpenPdf: (id: string) => void
+  onExportPdf: (pdf: PdfFile) => void
   onOutlineClick: (item: PdfOutlineItem) => void
   children?: ReactNode
   onReviewDateClick: (dateKey: string | null) => void
@@ -206,7 +207,8 @@ function PdfTab({
   pdfs,
   onOutlineClick,
   onOpenPdfClick,
-  onOpenPdf
+  onOpenPdf,
+  onExportPdf
 }: {
   activePdfId: string | null
   pdfOutline: PdfOutlineItem[] | null
@@ -214,6 +216,7 @@ function PdfTab({
   onOutlineClick: (item: PdfOutlineItem) => void
   onOpenPdfClick: () => void
   onOpenPdf: (id: string) => void
+  onExportPdf: (pdf: PdfFile) => void
 }) {
   const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(new Set())
   const toggleKey = (key: string) =>
@@ -317,6 +320,20 @@ function PdfTab({
                       }}>
                       {p.name}
                     </Typography>
+                    <FileDownloadRoundedIcon
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onExportPdf(p)
+                      }}
+                      titleAccess="导出此 PDF（含批注与卡片）"
+                      sx={{
+                        fontSize: 15,
+                        color: "text.disabled",
+                        cursor: "pointer",
+                        flexShrink: 0,
+                        "&:hover": { color: "primary.main" }
+                      }}
+                    />
                   </Box>
                 ))}
               </Well>
@@ -345,6 +362,7 @@ export default function SidebarFilters({
   onTodoFilterChange,
   onOpenPdfClick,
   onOpenPdf,
+  onExportPdf,
   onOutlineClick,
   children,
   onReviewDateClick,
@@ -643,6 +661,7 @@ export default function SidebarFilters({
               onOutlineClick={onOutlineClick}
               onOpenPdfClick={onOpenPdfClick}
               onOpenPdf={onOpenPdf}
+              onExportPdf={onExportPdf}
             />
           ) : (
             /* Project tab content: tree + actions */

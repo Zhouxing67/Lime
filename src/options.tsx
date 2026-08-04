@@ -68,6 +68,8 @@ import {
   getDueReviews,
   ensureItemOrder,
   addPdf,
+  getAnnotationsByPdf,
+  getItemsByPdf,
   listPdfs,
   removeReview,
   searchItems,
@@ -84,6 +86,7 @@ import { createReviewEntry, dayKey, rateSrs } from "./hooks/useSrs"
 import { importFromZip } from "./import"
 import { createAppTheme } from "./theme"
 import { buildProjectMarkdown, buildScopeData } from "./utils/export"
+import { toJsonZip } from "./utils/zip"
 import type { Item, MergeSeparator, PdfFile, PresetName, Project, SearchQuery, SrsData, TodoFilter } from "./types"
 import { sendMessage } from "./types/messages"
 import { DAY_MS, RATING_META, buildMergedContent, cloneItem, compareCards, createItem, dueStatus, isTodoComplete, toggleMarkdownTask, todayLocalDate } from "./utils"
@@ -896,6 +899,25 @@ export default function OptionsPage() {
   const handleOpenPdf = useCallback((id: string) => setActivePdfId(id), [])
   const handleClosePdf = useCallback(() => setActivePdfId(null), [])
 
+  const handleExportPdf = useCallback(async (pdf: PdfFile) => {
+    try {
+      const [items, annotations] = await Promise.all([
+        getItemsByPdf(pdf.id),
+        getAnnotationsByPdf(pdf.id)
+      ])
+      const blob = await toJsonZip(items, [], [], [pdf], annotations)
+      const url = URL.createObjectURL(blob)
+      const name = pdf.name.replace(/[\\/:*?"<>|]/g, "-").slice(0, 60)
+      await chrome.downloads.download({
+        url,
+        filename: `lime-pdf-${name || "export"}.zip`
+      })
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      console.warn("[lime] export pdf failed:", e)
+    }
+  }, [])
+
   // Subscribe to database changes via storage broadcast
   const refreshRef = useRef(refreshAllData)
   refreshRef.current = refreshAllData
@@ -1316,6 +1338,7 @@ export default function OptionsPage() {
           onTodoFilterChange={setTodoFilter}
           onOpenPdfClick={() => pdfFileInputRef.current?.click()}
           onOpenPdf={handleOpenPdf}
+          onExportPdf={handleExportPdf}
           onOutlineClick={setPdfOutlineDest}
           onWidthChange={(w) => setDrawerWidth(w)}
           onNewProjectClick={() => setCreateDialogOpen(true)}
