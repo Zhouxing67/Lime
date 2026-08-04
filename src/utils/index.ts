@@ -375,3 +375,13 @@ export async function blobToUint8(blob: Blob): Promise<Uint8Array> {
   })
   return new Uint8Array(buf)
 }
+
+/** Relative time ("今天"/"昨天"/"N 天前") — shared by the project/PDF hubs. */
+export function relativeTime(ts?: number): string {
+  if (!ts) return ""
+  const diff = Date.now() - ts
+  const day = 86400000
+  if (diff < day) return "今天"
+  if (diff < 2 * day) return "昨天"
+  return `${Math.floor(diff / day)} 天前`
+}

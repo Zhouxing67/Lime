@@ -3,6 +3,7 @@ import { Box, Paper, Typography } from "@mui/material"
 
 import type { Item } from "../types"
 import TodoCard from "./TodoCard"
+import DashedTile from "./DashedTile"
 
 interface TodoViewProps {
   items: Item[]
@@ -44,49 +45,15 @@ export default function TodoView({
         gap: 1.5,
         alignItems: "start"
       }}>
-      <Paper
-        elevation={0}
+      <DashedTile
+        icon={<AddRoundedIcon sx={{ fontSize: 20 }} />}
+        label="新增待办"
         onClick={onNewTodo}
-        sx={(theme) => ({
-          p: 2,
-          borderRadius: 1,
-          border: "1.5px dashed",
-          borderColor: theme.custom.borderStrong,
-          minHeight: 140,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 1,
-          cursor: "pointer",
-          color: "text.secondary",
-          bgcolor: "background.paper",
-          boxShadow: theme.custom.cardShadow,
-          transition: "all 0.2s",
-          "&:hover": {
-            borderColor: "primary.main",
-            color: "primary.main",
-            boxShadow: theme.custom.cardShadowHover,
-            transform: "translateY(-1px)"
-          }
-        })}>
-        <Box
-          sx={{
-            width: 36,
-            height: 36,
-            borderRadius: "50%",
-            border: "1.5px dashed",
-            borderColor: "divider",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center"
-          }}>
-          <AddRoundedIcon sx={{ fontSize: 20 }} />
-        </Box>
-        <Typography variant="body2" sx={{ fontSize: "0.8rem" }}>
-          新增待办
-        </Typography>
-      </Paper>
+        variant="card"
+        circleIcon
+        minHeight={140}
+        labelSize="0.8rem"
+      />
 
       {editingId === "__new__" && (
         <TodoCard

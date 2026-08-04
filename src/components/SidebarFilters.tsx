@@ -24,6 +24,7 @@ import type { SxProps, Theme } from "@mui/material"
 import type { PdfFile, Project, TodoFilter, TodoStats } from "../types"
 import type { PdfOutlineItem } from "./PdfView"
 import type { SidebarTab } from "./NavRail"
+import { RECENT_TOTAL as RECENT_TOTAL_SHARED } from "../constants"
 
 interface SidebarFiltersProps {
   open: boolean
@@ -219,7 +220,7 @@ function PdfTab({
 }) {
   const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(new Set())
   const [showAll, setShowAll] = useState(false)
-  const RECENT_TOTAL = 7
+  const RECENT_TOTAL = RECENT_TOTAL_SHARED
   const toggleKey = (key: string) =>
     setCollapsedKeys((prev) => {
       const next = new Set(prev)

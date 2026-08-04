@@ -18,6 +18,7 @@ import {
 import { useCallback, useMemo, useState } from "react"
 
 import type { Project, Section } from "../types"
+import { RECENT_TOTAL as RECENT_TOTAL_SHARED } from "../constants"
 
 type DropPos = "before" | "after"
 
@@ -91,7 +92,7 @@ export default function ProjectTree({
   // Active project pinned first, then others by most-recently-opened, so the
   // sidebar never drowns under a long project list. The rest collapse behind
   // a "全部项目" toggle.
-  const RECENT_TOTAL = 7
+  const RECENT_TOTAL = RECENT_TOTAL_SHARED
   const orderedProjects = useMemo(() => {
     const sorted = [...projects].sort(
       (a, b) =>

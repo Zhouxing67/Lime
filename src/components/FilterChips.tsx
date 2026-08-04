@@ -1,6 +1,6 @@
-import SearchRoundedIcon from "@mui/icons-material/SearchRounded"
-import { Box, Chip, Stack, TextField } from "@mui/material"
+import { Box, Chip, Stack } from "@mui/material"
 import type { ReactNode } from "react"
+import SearchField from "./SearchField"
 
 interface FilterChipsProps {
   keyword: string
@@ -30,26 +30,10 @@ export default function FilterChips({
         alignItems="center"
         flexWrap="wrap"
         useFlexGap>
-        <TextField
-          size="small"
+        <SearchField
           placeholder={placeholder}
           value={keyword}
-          onChange={(e) => onKeywordChange(e.target.value)}
-          variant="outlined"
-          sx={{
-            minWidth: 200,
-            "& .MuiOutlinedInput-root": {
-              borderRadius: 1,
-              fontSize: "0.8rem"
-            }
-          }}
-          InputProps={{
-            startAdornment: (
-              <SearchRoundedIcon
-                sx={{ fontSize: 16, mr: 0.5, color: "text.disabled" }}
-              />
-            )
-          }}
+          onChange={onKeywordChange}
         />
         {keyword && (
           <Chip

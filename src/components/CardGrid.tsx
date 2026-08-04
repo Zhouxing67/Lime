@@ -13,6 +13,7 @@ import { useLayoutEffect, useRef } from "react"
 import type { CardDropState } from "../hooks/useCardDragReorder"
 import type { Item } from "../types"
 import ItemCard from "./ItemCard"
+import DashedTile from "./DashedTile"
 
 interface CardGridProps {
   items: Item[]
@@ -215,49 +216,15 @@ export default function CardGrid({
             )
           })}
           {ci === items.length % cols && onNewCard && items.length > 0 && (
-            <Paper
-              elevation={0}
+            <DashedTile
+              icon={<AddRoundedIcon sx={{ fontSize: 20 }} />}
+              label="新建卡片"
               onClick={onNewCard}
-              sx={(theme) => ({
-                borderRadius: 1,
-                border: "1px dashed",
-                borderColor: "divider",
-                minHeight: 220,
-                p: 2,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 1,
-                cursor: "pointer",
-                color: "text.secondary",
-                bgcolor: "background.paper",
-                boxShadow: theme.custom.cardShadow,
-                transition: "all 0.2s",
-                "&:hover": {
-                  borderColor: "primary.main",
-                  color: "primary.main",
-                  boxShadow: theme.custom.cardShadowHover,
-                  transform: "translateY(-1px)"
-                }
-              })}>
-              <Box
-                sx={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: "50%",
-                  border: "1px dashed",
-                  borderColor: "divider",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center"
-                }}>
-                <AddRoundedIcon sx={{ fontSize: 20 }} />
-              </Box>
-              <Typography variant="body2" sx={{ fontSize: "0.8rem" }}>
-                新建卡片
-              </Typography>
-            </Paper>
+              variant="card"
+              circleIcon
+              minHeight={220}
+              labelSize="0.8rem"
+            />
           )}
         </Box>
       ))}

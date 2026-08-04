@@ -8,6 +8,8 @@ import { alpha } from "@mui/material/styles"
 
 import type { Project } from "../types"
 import EmptyState from "./EmptyState"
+import { relativeTime } from "../utils"
+import DashedTile from "./DashedTile"
 
 interface ProjectHubProps {
   projects: Project[]
@@ -40,14 +42,6 @@ function avatarColor(name: string): string {
   return AVATAR_COLORS[h % AVATAR_COLORS.length]
 }
 
-function relativeTime(ts?: number): string {
-  if (!ts) return ""
-  const diff = Date.now() - ts
-  const day = 86400000
-  if (diff < day) return "今天"
-  if (diff < 2 * day) return "昨天"
-  return `${Math.floor(diff / day)} 天前`
-}
 
 export default function ProjectHub({
   projects,
@@ -110,34 +104,11 @@ export default function ProjectHub({
         gap: 1.5
       }}>
       {!selectable && (
-        <Paper
-          elevation={0}
+        <DashedTile
+          icon={<AddRoundedIcon sx={{ fontSize: 26 }} />}
+          label="新建项目"
           onClick={onNewProject}
-          sx={(theme) => ({
-            p: 2,
-            borderRadius: 1,
-            border: "1.5px dashed",
-            borderColor: theme.custom.borderStrong,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 1,
-            minHeight: 104,
-            color: "text.secondary",
-            cursor: "pointer",
-            transition: "all 0.2s",
-            "&:hover": {
-              borderColor: "primary.main",
-              color: "primary.main",
-              boxShadow: theme.custom.cardShadowHover
-            }
-          })}>
-          <AddRoundedIcon sx={{ fontSize: 26 }} />
-          <Typography variant="body2" sx={{ fontSize: "0.85rem" }}>
-            新建项目
-          </Typography>
-        </Paper>
+        />
       )}
       {filtered.map((p) => {
         const isSelected = selectable ? selected?.(p.id) ?? false : false

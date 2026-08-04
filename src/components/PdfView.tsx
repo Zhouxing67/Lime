@@ -1,7 +1,6 @@
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
 import EditRoundedIcon from "@mui/icons-material/EditRounded"
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
-import SearchRoundedIcon from "@mui/icons-material/SearchRounded"
 import UndoRoundedIcon from "@mui/icons-material/UndoRounded"
 import UnfoldLessRoundedIcon from "@mui/icons-material/UnfoldLessRounded"
 import UnfoldMoreRoundedIcon from "@mui/icons-material/UnfoldMoreRounded"
@@ -39,6 +38,7 @@ import type { PdfSearchMatch } from "./pdfText"
 import PdfCardBody from "./PdfCardBody"
 import PdfEditDialog from "./PdfEditDialog"
 import PdfRenderer from "./PdfRenderer"
+import SearchField from "./SearchField"
 
 export type PdfOutlineItem = {
   title: string
@@ -504,9 +504,7 @@ export default function PdfView({
             {loaded?.file.name ?? "PDF"}
           </Typography>
           {/* search — inline, flexes (near-left, matches project view's left search) */}
-          <TextField
-            size="small"
-            variant="outlined"
+          <SearchField
             placeholder="搜索 PDF 全文…"
             defaultValue={searchState.query}
             onKeyDown={(e) => {
@@ -514,22 +512,8 @@ export default function PdfView({
                 handleSearch((e.target as HTMLInputElement).value)
               }
             }}
-            sx={{
-              flex: 1,
-              minWidth: 120,
-              ml: 1,
-              "& .MuiOutlinedInput-root": {
-                borderRadius: 1,
-                fontSize: "0.8rem"
-              }
-            }}
-            InputProps={{
-              startAdornment: (
-                <SearchRoundedIcon
-                  sx={{ fontSize: 16, mr: 0.5, color: "text.disabled" }}
-                />
-              ),
-              endAdornment: (
+            sx={{ flex: 1, minWidth: 120, ml: 1 }}
+            endAdornment={(
                 <>
                   {searchState.loading ? (
                     <Box
@@ -590,13 +574,12 @@ export default function PdfView({
                         whiteSpace: "nowrap",
                         mr: 0.5
                       }}>
-                      无结果
+                       无结果
                     </Box>
                   ) : null}
                 </>
-              )
-            }}
-          />
+              )}
+            />
           {/* jump to page */}
           <TextField
             size="small"
