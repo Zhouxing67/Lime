@@ -26,7 +26,6 @@ export type PdfOutlineItem = {
   items?: PdfOutlineItem[]
 }
 
-type PdfTool = "select" | "frame" | Exclude<PdfMark, "frame">
 const TEXT_TOOLS: Exclude<PdfMark, "frame">[] = [
   "highlight",
   "underline",
@@ -73,7 +72,7 @@ export default function PdfView({
   const [flashAnnId, setFlashAnnId] = useState<string | null>(null)
   const [annotations, setAnnotations] = useState<PdfAnnotation[]>([])
   const [pdfCards, setPdfCards] = useState<Item[]>([])
-  const [activeTool, setActiveTool] = useState<PdfTool>("select")
+  const [frameMode, setFrameMode] = useState(false)
   const dragRef = useRef<{ startX: number; startPct: number } | null>(null)
 
   // Load this PDF's annotations + cards.
@@ -180,7 +179,7 @@ export default function PdfView({
           rects: result.rects,
           imageDataUrl: result.imageDataUrl
         })
-        setActiveTool("select")
+        setFrameMode(false)
         setScrollPage(result.page)
         // The write broadcasts _dbpdf → the storage listener reloads.
       } catch (e) {
@@ -265,28 +264,6 @@ export default function PdfView({
             {loaded?.file.name ?? "PDF"}
           </Typography>
           <Box sx={{ flex: 1 }} />
-          {/* 选择 */}
-          <Box
-            onClick={() => {
-              setActiveTool("select")
-              window.getSelection()?.removeAllRanges()
-            }}
-            title="选择文字"
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 0.5,
-              px: 0.75,
-              py: 0.25,
-              borderRadius: 1,
-              cursor: "pointer",
-              fontSize: "0.72rem",
-              bgcolor: activeTool === "select" ? "action.selected" : "transparent",
-              color: activeTool === "select" ? "text.primary" : "text.secondary",
-              "&:hover": { bgcolor: "action.hover" }
-            }}>
-            选择
-          </Box>
           {/* text annotation tools */}
           {TEXT_TOOLS.map((t) => (
             <Box
@@ -326,7 +303,7 @@ export default function PdfView({
           ))}
           {/* 框选 */}
           <Box
-            onClick={() => setActiveTool(activeTool === "frame" ? "select" : "frame")}
+            onClick={() => setFrameMode((f) => !f)}
             title="框选区域（公式/图表）→ 图片卡"
             sx={{
               display: "flex",
@@ -337,8 +314,8 @@ export default function PdfView({
               borderRadius: 1,
               cursor: "pointer",
               fontSize: "0.72rem",
-              bgcolor: activeTool === "frame" ? "action.selected" : "transparent",
-              color: activeTool === "frame" ? "text.primary" : "text.secondary",
+              bgcolor: frameMode ? "action.selected" : "transparent",
+              color: frameMode ? "text.primary" : "text.secondary",
               "&:hover": { bgcolor: "action.hover" }
             }}>
             <Box
@@ -364,7 +341,7 @@ export default function PdfView({
             annotations={annotations}
             flashAnnId={flashAnnId}
             onFlashDone={() => setFlashAnnId(null)}
-            frameMode={activeTool === "frame"}
+            frameMode={frameMode}
             onFrameRegion={handleFrameRegion}
           />
         ) : (
