@@ -182,60 +182,82 @@ async function migratePdfIdsIfNeeded(db: IDBDatabase): Promise<void> {
       }
     }
     if (remap.size > 0) {
-      await tx(
-        { pdfs: "readwrite", pdfAnnotations: "readwrite", items: "readwrite" },
-        async (stores) => {
-          for (const [oldId, newId] of remap) {
-            const existing = await new Promise<PdfFile | undefined>(
-              (resolve, reject) => {
-                const r = stores.pdfs.get(newId)
-                r.onsuccess = () => resolve(r.result as PdfFile | undefined)
-                r.onerror = () => reject(r.error)
+      // Use the ALREADY-OPEN db — never `tx()`/`withStore()` here, they call
+      // openDb() again → migration → recursion → every DB op hangs.
+      await new Promise<void>((resolve, reject) => {
+        const idbTx = db.transaction(
+          ["pdfs", "pdfAnnotations", "items"],
+          "readwrite"
+        )
+        const pdfStore = idbTx.objectStore("pdfs")
+        const annStore = idbTx.objectStore("pdfAnnotations")
+        const itemStore = idbTx.objectStore("items")
+        const errors: DOMException[] = []
+        idbTx.onerror = () => reject(idbTx.error)
+        idbTx.onabort = () => reject(idbTx.error)
+        idbTx.oncomplete = () =>
+          errors.length ? reject(errors[0]) : resolve()
+
+        const step = (i: number) => {
+          if (i >= remap.size) return
+          const [oldId, newId] = [...remap.entries()][i]
+          const existingReq = pdfStore.get(newId)
+          existingReq.onerror = () => {
+            errors.push(existingReq.error as DOMException)
+            step(i + 1)
+          }
+          existingReq.onsuccess = () => {
+            const existing = existingReq.result as PdfFile | undefined
+            const oldReq = pdfStore.get(oldId)
+            oldReq.onsuccess = () => {
+              const old = oldReq.result as PdfFile | undefined
+              if (old && !existing?.bytes) {
+                pdfStore.put({ ...old, id: newId })
               }
-            )
-            const old = await new Promise<PdfFile | undefined>(
-              (resolve, reject) => {
-                const r = stores.pdfs.get(oldId)
-                r.onsuccess = () => resolve(r.result as PdfFile | undefined)
-                r.onerror = () => reject(r.error)
-              }
-            )
-            if (old && !existing?.bytes) stores.pdfs.put({ ...old, id: newId })
-            stores.pdfs.delete(oldId)
-            await new Promise<void>((resolve, reject) => {
-              const r = stores.pdfAnnotations
+              pdfStore.delete(oldId)
+              // rewrite annotations.pdfId
+              const annReq = annStore
                 .index("pdfId")
                 .openCursor(IDBKeyRange.only(oldId))
-              r.onsuccess = () => {
-                const c = r.result
+              annReq.onerror = () => {
+                errors.push(annReq.error as DOMException)
+                step(i + 1)
+              }
+              annReq.onsuccess = () => {
+                const c = annReq.result
                 if (c) {
                   const ann = c.value as PdfAnnotation
                   ann.pdfId = newId
                   c.update(ann)
                   c.continue()
-                } else resolve()
+                } else {
+                  // rewrite items.pdfRef.pdfId + pdfRefPdfId
+                  const itemReq = itemStore
+                    .index("pdfRefPdfId")
+                    .openCursor(IDBKeyRange.only(oldId))
+                  itemReq.onerror = () => {
+                    errors.push(itemReq.error as DOMException)
+                    step(i + 1)
+                  }
+                  itemReq.onsuccess = () => {
+                    const c2 = itemReq.result
+                    if (c2) {
+                      const item = c2.value as Item
+                      item.pdfRef = { ...item.pdfRef!, pdfId: newId }
+                      item.pdfRefPdfId = newId
+                      c2.update(item)
+                      c2.continue()
+                    } else {
+                      step(i + 1)
+                    }
+                  }
+                }
               }
-              r.onerror = () => reject(r.error)
-            })
-            await new Promise<void>((resolve, reject) => {
-              const r = stores.items
-                .index("pdfRefPdfId")
-                .openCursor(IDBKeyRange.only(oldId))
-              r.onsuccess = () => {
-                const c = r.result
-                if (c) {
-                  const item = c.value as Item
-                  item.pdfRef = { ...item.pdfRef!, pdfId: newId }
-                  item.pdfRefPdfId = newId
-                  c.update(item)
-                  c.continue()
-                } else resolve()
-              }
-              r.onerror = () => reject(r.error)
-            })
+            }
           }
         }
-      )
+        step(0)
+      })
     }
     await chrome.storage.local.set({ _pdfIdMigrated: Date.now() })
   } catch (e) {
