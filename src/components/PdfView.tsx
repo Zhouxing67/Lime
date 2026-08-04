@@ -355,7 +355,127 @@ export default function PdfView({
             }}>
             {loaded?.file.name ?? "PDF"}
           </Typography>
-          <Box sx={{ flex: 1 }} />
+          {/* search — inline, flexes (near-left, matches project view's left search) */}
+          <TextField
+            size="small"
+            variant="outlined"
+            placeholder="搜索 PDF 全文…"
+            defaultValue={searchState.query}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                handleSearch((e.target as HTMLInputElement).value)
+              }
+            }}
+            sx={{
+              flex: 1,
+              minWidth: 120,
+              ml: 1,
+              "& .MuiOutlinedInput-root": {
+                borderRadius: 1,
+                fontSize: "0.8rem"
+              }
+            }}
+            InputProps={{
+              startAdornment: (
+                <SearchRoundedIcon
+                  sx={{ fontSize: 16, mr: 0.5, color: "text.disabled" }}
+                />
+              ),
+              endAdornment: (
+                <>
+                  {searchState.loading ? (
+                    <Box
+                      sx={{
+                        fontSize: "0.7rem",
+                        color: "text.disabled",
+                        whiteSpace: "nowrap",
+                        mr: 0.5
+                      }}>
+                      搜索中…
+                    </Box>
+                  ) : searchState.matches.length > 0 ? (
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 0.25,
+                        ml: 0.5
+                      }}>
+                      <Box
+                        onClick={() => handleSearchNav(-1)}
+                        title="上一个匹配"
+                        sx={{
+                          fontSize: "0.75rem",
+                          color: "text.secondary",
+                          cursor: "pointer",
+                          px: 0.5,
+                          "&:hover": { color: "primary.main" }
+                        }}>
+                        ◀
+                      </Box>
+                      <Box
+                        sx={{
+                          fontSize: "0.7rem",
+                          color: "text.disabled",
+                          whiteSpace: "nowrap"
+                        }}>
+                        {searchState.index + 1}/{searchState.matches.length}
+                      </Box>
+                      <Box
+                        onClick={() => handleSearchNav(1)}
+                        title="下一个匹配"
+                        sx={{
+                          fontSize: "0.75rem",
+                          color: "text.secondary",
+                          cursor: "pointer",
+                          px: 0.5,
+                          "&:hover": { color: "primary.main" }
+                        }}>
+                        ▶
+                      </Box>
+                    </Box>
+                  ) : searchState.query ? (
+                    <Box
+                      sx={{
+                        fontSize: "0.7rem",
+                        color: "text.disabled",
+                        whiteSpace: "nowrap",
+                        mr: 0.5
+                      }}>
+                      无结果
+                    </Box>
+                  ) : null}
+                </>
+              )
+            }}
+          />
+          {/* jump to page */}
+          <TextField
+            size="small"
+            variant="outlined"
+            type="number"
+            placeholder="跳转页码"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                const n = Number((e.target as HTMLInputElement).value)
+                if (
+                  Number.isInteger(n) &&
+                  n >= 1 &&
+                  n <= (loaded?.pageCount ?? Infinity)
+                ) {
+                  setScrollPage(n)
+                }
+                ;(e.target as HTMLInputElement).value = ""
+              }
+            }}
+            sx={{
+              width: 100,
+              "& .MuiOutlinedInput-root": {
+                borderRadius: 1,
+                fontSize: "0.8rem"
+              }
+            }}
+          />
           {/* 批注 menu (二级) */}
           <Box
             onClick={openAnnotMenu}
@@ -410,128 +530,18 @@ export default function PdfView({
               />
               {MARK_LABEL.frame}
               {frameMode && <Box sx={{ flex: 1 }} />}
-              {frameMode && <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "primary.main" }} />}
+              {frameMode && (
+                <Box
+                  sx={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: "50%",
+                    bgcolor: "primary.main"
+                  }}
+                />
+              )}
             </MenuItem>
           </Menu>
-        </Box>
-        {/* second row: search + jump-to-page (align with FilterChips style) */}
-        <Box
-          sx={{
-            py: 1,
-            px: 2,
-            bgcolor: "background.paper",
-            borderBottom: "1px solid",
-            borderColor: "divider",
-            display: "flex",
-            alignItems: "center",
-            gap: 1
-          }}>
-          <TextField
-            size="small"
-            variant="outlined"
-            placeholder="搜索 PDF 全文…"
-            defaultValue={searchState.query}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                handleSearch((e.target as HTMLInputElement).value)
-              }
-            }}
-            sx={{
-              flex: 1,
-              minWidth: 0,
-              "& .MuiOutlinedInput-root": {
-                borderRadius: 1,
-                fontSize: "0.8rem"
-              }
-            }}
-            InputProps={{
-              startAdornment: (
-                <SearchRoundedIcon
-                  sx={{ fontSize: 16, mr: 0.5, color: "text.disabled" }}
-                />
-              )
-            }}
-          />
-          {searchState.loading ? (
-            <Box
-              sx={{
-                fontSize: "0.72rem",
-                color: "text.disabled",
-                whiteSpace: "nowrap"
-              }}>
-              搜索中…
-            </Box>
-          ) : searchState.matches.length > 0 ? (
-            <>
-              <Box
-                onClick={() => handleSearchNav(-1)}
-                title="上一个匹配"
-                sx={{
-                  fontSize: "0.75rem",
-                  color: "text.secondary",
-                  cursor: "pointer",
-                  px: 0.5,
-                  "&:hover": { color: "primary.main" }
-                }}>
-                ◀
-              </Box>
-              <Box
-                sx={{
-                  fontSize: "0.72rem",
-                  color: "text.disabled",
-                  whiteSpace: "nowrap"
-                }}>
-                {searchState.index + 1}/{searchState.matches.length}
-              </Box>
-              <Box
-                onClick={() => handleSearchNav(1)}
-                title="下一个匹配"
-                sx={{
-                  fontSize: "0.75rem",
-                  color: "text.secondary",
-                  cursor: "pointer",
-                  px: 0.5,
-                  "&:hover": { color: "primary.main" }
-                }}>
-                ▶
-              </Box>
-            </>
-          ) : searchState.query ? (
-            <Box
-              sx={{
-                fontSize: "0.72rem",
-                color: "text.disabled",
-                whiteSpace: "nowrap"
-              }}>
-              无结果
-            </Box>
-          ) : null}
-          <TextField
-            size="small"
-            variant="outlined"
-            type="number"
-            placeholder="跳转页码"
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                const n = Number((e.target as HTMLInputElement).value)
-                if (
-                  Number.isInteger(n) &&
-                  n >= 1 &&
-                  n <= (loaded?.pageCount ?? Infinity)
-                ) {
-                  setScrollPage(n)
-                }
-                ;(e.target as HTMLInputElement).value = ""
-              }
-            }}
-            sx={{
-              width: 110,
-              "& .MuiOutlinedInput-root": {
-                borderRadius: 1,
-                fontSize: "0.8rem"
-              }
-            }}
-          />
         </Box>
         {error ? (
           <Box sx={{ p: 3, color: "error.main", fontSize: "0.85rem" }}>
