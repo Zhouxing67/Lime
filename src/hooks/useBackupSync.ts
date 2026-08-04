@@ -1,6 +1,7 @@
 import { useRef } from "react"
 
 import {
+  addPdf,
   applyPdfSync,
   bulkReplace,
   getAllAnnotations,
@@ -8,7 +9,13 @@ import {
   listPdfs
 } from "../database"
 import type { Item, PdfFile, Project } from "../types"
-import { downloadRemote, runSync, type SyncCredentials } from "../utils/sync"
+import {
+  downloadPdfFiles,
+  downloadRemote,
+  runSync,
+  uploadPdfFiles,
+  type SyncCredentials
+} from "../utils/sync"
 import { toJsonZip } from "../utils/zip"
 
 export function useBackupSync(options: {
@@ -97,7 +104,8 @@ export function useBackupSync(options: {
       }
       const reviews = await getAllReviews()
       const annotations = await getAllAnnotations()
-      const pdfMeta = (await listPdfs()).map((p) => ({
+      const localPdfs = await listPdfs()
+      const pdfMeta = localPdfs.map((p) => ({
         id: p.id,
         name: p.name,
         pageCount: p.pageCount,
@@ -113,7 +121,11 @@ export function useBackupSync(options: {
         pdfMeta,
         setSyncStatus
       )
-      if (result.success) chrome.storage.local.set({ lastSyncTime: Date.now() })
+      if (result.success) {
+        // PDF file layer: upload every local file the remote /pdfs/ lacks.
+        await uploadPdfFiles(cred, localPdfs, setSyncStatus)
+        chrome.storage.local.set({ lastSyncTime: Date.now() })
+      }
       setSyncStatus(result.message)
     } catch (e) {
       setSnackbarMsg(`同步失败：${e}`)
@@ -173,6 +185,23 @@ export function useBackupSync(options: {
           localPdfs,
           annotations
         )
+        // PDF file layer: download the files the remote has that we lack.
+        const fetched = await downloadPdfFiles(
+          cred,
+          remote.payload.pdfs ?? [],
+          localPdfs,
+          setSyncStatus
+        )
+        for (const { meta, bytes } of fetched) {
+          await addPdf({
+            id: meta.id,
+            name: meta.name,
+            bytes,
+            pageCount: meta.pageCount,
+            addedAt: meta.addedAt,
+            lastOpened: meta.lastOpened
+          })
+        }
         chrome.storage.local.set({ lastSyncTime: Date.now() })
         const msg = remote.message || "从云端同步"
         setSyncStatus(msg)

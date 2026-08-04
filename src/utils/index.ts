@@ -361,3 +361,17 @@ export function base64ToBytes(base64: string): Uint8Array {
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
   return bytes
 }
+
+/** Blob → Uint8Array with a FileReader fallback (older jsdom/Blob lacks .arrayBuffer). */
+export async function blobToUint8(blob: Blob): Promise<Uint8Array> {
+  if (typeof (blob as Blob).arrayBuffer === "function") {
+    return new Uint8Array(await (blob as Blob).arrayBuffer())
+  }
+  const buf = await new Promise<ArrayBuffer>((resolve, reject) => {
+    const fr = new FileReader()
+    fr.onload = () => resolve(fr.result as ArrayBuffer)
+    fr.onerror = () => reject(fr.error)
+    fr.readAsArrayBuffer(blob)
+  })
+  return new Uint8Array(buf)
+}

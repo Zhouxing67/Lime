@@ -1,6 +1,6 @@
 import type { Item, PdfAnnotation, PdfFile, Project, ReviewEntry } from "../types"
 import { sendMessage } from "../types/messages"
-import { computeItemHash } from "./index"
+import { base64ToBytes, blobToUint8, bytesToBase64, computeItemHash } from "./index"
 
 const SYNC_PATH = "/Apps/lime/lime-sync.json"
 const BASE_URL = "https://dav.jianguoyun.com/dav"
@@ -46,6 +46,100 @@ async function bgFetch(
     body: options.body,
     contentType: options.contentType
   })
+}
+
+// ---- PDF file sync (multi-file layer under lime-sync.json) ----
+
+/** Binary fetch: upload body is base64, response body is base64. */
+async function bgFetchBinary(
+  cred: SyncCredentials,
+  path: string,
+  options: { method?: string; bodyBase64?: string } = {}
+): Promise<{ ok: boolean; status: number; body: string }> {
+  const authBase64 = btoa(`${cred.username}:${cred.appPassword}`)
+  return sendMessage<{ ok: boolean; status: number; body: string }>({
+    kind: "webdav",
+    url: `${BASE_URL}${path}`,
+    method: options.method ?? "GET",
+    authBase64,
+    body: options.bodyBase64,
+    contentType: "application/pdf",
+    binary: true
+  })
+}
+
+/** Enumerate the remote /pdfs/ folder → the stored "<contentHash>.pdf" names. */
+export async function listRemotePdfs(
+  cred: SyncCredentials
+): Promise<string[]> {
+  const res = await bgFetch(cred, "/Apps/lime/pdfs/", { method: "PROPFIND" })
+  if (res.status === 404) return []
+  if (!res.ok) throw new Error(`读取云端 PDF 列表失败：HTTP ${res.status}`)
+  const doc = new DOMParser().parseFromString(res.body, "application/xml")
+  const names = new Set<string>()
+  for (const el of Array.from(doc.getElementsByTagName("*"))) {
+    if (el.localName !== "href") continue
+    const m = (el.textContent ?? "").match(/\/pdfs\/([^/]+\.pdf)$/)
+    if (m) names.add(m[1])
+  }
+  return [...names]
+}
+
+/** Upload every local PDF file (with bytes) that the remote /pdfs/ folder
+ *  doesn't have yet — PDFs are immutable (content-hash id) so each is PUT once. */
+export async function uploadPdfFiles(
+  cred: SyncCredentials,
+  localPdfs: PdfFile[],
+  onStatus?: (status: string) => void
+): Promise<void> {
+  const withBytes = localPdfs.filter((p) => p.bytes)
+  if (withBytes.length === 0) return
+  await bgFetch(cred, "/Apps/lime/pdfs/", { method: "MKCOL" }).catch(() => {})
+  const remote = new Set(await listRemotePdfs(cred))
+  let done = 0
+  for (const pdf of withBytes) {
+    if (remote.has(`${pdf.id}.pdf`)) continue
+    done++
+    onStatus?.(`正在上传 PDF 文件 (${done}/${withBytes.length})…`)
+    const bytes = await blobToUint8(pdf.bytes!)
+    const res = await bgFetchBinary(cred, `/Apps/lime/pdfs/${pdf.id}.pdf`, {
+      method: "PUT",
+      bodyBase64: bytesToBase64(bytes)
+    })
+    if (!res.ok && res.status !== 405)
+      throw new Error(`PDF 上传失败：HTTP ${res.status}`)
+  }
+}
+
+/** Download the PDF files the remote has that the local lacks (or only holds
+ *  as a placeholder) — returns the fetched files for the caller to addPdf. */
+export async function downloadPdfFiles(
+  cred: SyncCredentials,
+  remotePdfs: PdfSyncMeta[],
+  localPdfs: PdfFile[],
+  onStatus?: (status: string) => void
+): Promise<{ meta: PdfSyncMeta; bytes: Blob }[]> {
+  const local = new Map(localPdfs.map((p) => [p.id, p]))
+  const remoteFiles = new Set(await listRemotePdfs(cred))
+  const toFetch = remotePdfs.filter(
+    (meta) =>
+      !local.get(meta.id)?.bytes && remoteFiles.has(`${meta.id}.pdf`)
+  )
+  const out: { meta: PdfSyncMeta; bytes: Blob }[] = []
+  let done = 0
+  for (const meta of toFetch) {
+    done++
+    onStatus?.(`正在下载 PDF 文件 (${done}/${toFetch.length})…`)
+    const res = await bgFetchBinary(cred, `/Apps/lime/pdfs/${meta.id}.pdf`, {
+      method: "GET"
+    })
+    if (!res.ok) continue
+    out.push({
+      meta,
+      bytes: new Blob([base64ToBytes(res.body)], { type: "application/pdf" })
+    })
+  }
+  return out
 }
 
 // ---- Dirty-check helpers ----
