@@ -1014,9 +1014,11 @@ export default function OptionsPage() {
   // allItems then holds every project's cards for the hub overview).
   const countByProject = useMemo(() => {
     const m: Record<string, number> = {}
-    for (const it of allItems) m[it.projectId] = (m[it.projectId] ?? 0) + 1
+    for (const it of allItemsUnfiltered) {
+      if (it.type !== "todo") m[it.projectId] = (m[it.projectId] ?? 0) + 1
+    }
     return m
-  }, [allItems])
+  }, [allItemsUnfiltered])
 
   const scopeItems = useMemo(() => {
     if (!activeSectionId) return allItems
@@ -1372,7 +1374,6 @@ export default function OptionsPage() {
           width={drawerWidth}
           projects={projects}
           sidebarTab={sidebarTab}
-          backupSelectedIds={backupSelectedIds}
           syncStatus={syncStatus}
           todoStats={todoStats}
           todoFilter={todoFilter}

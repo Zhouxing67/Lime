@@ -1,4 +1,4 @@
-import { Box, Button, Container, Typography } from "@mui/material"
+import { Box, Button, Typography } from "@mui/material"
 
 import type { PdfFile, Project } from "../types"
 import PdfHub from "./PdfHub"
@@ -66,7 +66,7 @@ export default function BackupView({
           导出备份
         </Button>
       </Box>
-      <Container sx={{ py: 3 }} maxWidth="xl">
+      <Box sx={{ py: 3 }}>
         {scope === "projects" ? (
           <ProjectHub
             projects={projects}
@@ -91,7 +91,7 @@ export default function BackupView({
             onDeletePdf={() => {}}
           />
         )}
-      </Container>
+      </Box>
     </>
   )
 }

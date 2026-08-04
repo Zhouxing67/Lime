@@ -3,7 +3,6 @@ import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded"
 import CloudDownloadRoundedIcon from "@mui/icons-material/CloudDownloadRounded"
 import CloudUploadRoundedIcon from "@mui/icons-material/CloudUploadRounded"
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded"
-import FileDownloadRoundedIcon from "@mui/icons-material/FileDownloadRounded"
 import FileUploadRoundedIcon from "@mui/icons-material/FileUploadRounded"
 import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded"
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
@@ -31,7 +30,6 @@ interface SidebarFiltersProps {
   width: number
   sidebarTab: SidebarTab
   projects: Project[]
-  backupSelectedIds: string[]
   syncStatus: string
   recentDates: { key: string; label: string; count: number }[]
   reviewDateFilter: string | null
@@ -382,7 +380,6 @@ export default function SidebarFilters({
   width,
   sidebarTab,
   projects,
-  backupSelectedIds,
   syncStatus,
   recentDates,
   reviewDateFilter,
