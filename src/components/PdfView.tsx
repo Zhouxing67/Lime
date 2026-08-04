@@ -104,6 +104,13 @@ export default function PdfView({
     loading: boolean
   }>({ query: "", matches: [], index: 0, loading: false })
   const dragRef = useRef<{ startX: number; startPct: number } | null>(null)
+  const dragCleanupRef = useRef<(() => void) | null>(null)
+  useEffect(() => () => dragCleanupRef.current?.(), [])
+  const searchAbortRef = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    return () => searchAbortRef.current?.abort()
+  }, [])
 
   // Load this PDF's annotations + cards.
   const reloadPdfData = useCallback(async () => {
@@ -142,6 +149,9 @@ export default function PdfView({
       navHistoryRef.current.push(prev)
       setCanGoBack(true)
     }
+    // Eagerly set the destination so rapid consecutive navigations (faster than
+    // a rAF scroll report) don't push the stale same page twice.
+    currentPageRef.current = page
     setScrollPage(page)
   }, [])
 
@@ -235,8 +245,12 @@ export default function PdfView({
       if (!loaded) return
       const q = query.trim()
       if (!q) return
+      searchAbortRef.current?.abort()
+      const ac = new AbortController()
+      searchAbortRef.current = ac
       setSearchState((s) => ({ ...s, query: q, loading: true }))
-      const matches = await searchPdfText(loaded.doc, q)
+      const matches = await searchPdfText(loaded.doc, q, 500, ac.signal)
+      if (ac.signal.aborted) return
       setSearchState({ query: q, matches, index: 0, loading: false })
       jumpToSearchMatch(matches, 0)
     },
@@ -337,12 +351,17 @@ export default function PdfView({
       setPdfPct(Math.max(0.55, Math.min(0.92, pct)))
     }
     const up = () => {
+      cleanup()
+      dragCleanupRef.current = null
+    }
+    const cleanup = () => {
       dragRef.current = null
       document.removeEventListener("pointermove", mv)
       document.removeEventListener("pointerup", up)
     }
     document.addEventListener("pointermove", mv)
     document.addEventListener("pointerup", up)
+    dragCleanupRef.current = cleanup
   }, [pdfPct])
 
   return (

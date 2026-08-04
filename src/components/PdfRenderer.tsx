@@ -329,6 +329,8 @@ export default function PdfRenderer({
     startY: number
     holder: HTMLElement
   } | null>(null)
+  const dragCleanupRef = useRef<(() => void) | null>(null)
+  useEffect(() => () => dragCleanupRef.current?.(), [])
 
   // Stable per-page annotation arrays — rebuilt ONLY when the annotations prop
   // changes, so unrelated re-renders (scrollPage/flashAnnId) don't trigger every
@@ -434,10 +436,14 @@ export default function PdfRenderer({
         h: Math.abs(ev.clientY - d.startY)
       })
     }
-    const up = (ev: PointerEvent) => {
+    const cleanup = () => {
       document.body.style.userSelect = ""
       document.removeEventListener("pointermove", mv)
       document.removeEventListener("pointerup", up)
+    }
+    const up = (ev: PointerEvent) => {
+      cleanup()
+      dragCleanupRef.current = null
       const d = dragState.current
       dragState.current = null
       setDragRect(null)
@@ -454,7 +460,9 @@ export default function PdfRenderer({
       const rh = Math.min(Math.abs(ev.clientY - d.startY), hr.height - ry)
       if (rw < 4 || rh < 4) return
       const canvas = d.holder.querySelector("canvas")
-      if (!canvas) return
+      // Guard: a lazy page that hasn't rendered yet has a 0-size canvas — the
+      // crop would be blank.
+      if (!canvas || canvas.width === 0 || canvas.height === 0) return
       const dpr = window.devicePixelRatio || 1
       const crop = document.createElement("canvas")
       crop.width = Math.max(1, Math.floor(rw * dpr))
@@ -487,6 +495,7 @@ export default function PdfRenderer({
     }
     document.addEventListener("pointermove", mv)
     document.addEventListener("pointerup", up)
+    dragCleanupRef.current = cleanup
   }, [frameMode, onFrameRegion])
 
   return (

@@ -82,7 +82,8 @@ export interface PdfAnnotation {
   startOffset?: number
   endOffset?: number
   text?: string
-  /** region annotations: rects in the page's CSS px at 100% zoom */
+  /** region (框选) annotations: rects are NORMALIZED 0-1 fractions of the page
+   *  box (scale-independent); render multiplies by the holder's displayed size */
   rects?: { x: number; y: number; w: number; h: number }[]
   color?: string
   /** Linked card id (annotation ↔ card are 1:1) */

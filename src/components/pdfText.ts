@@ -14,14 +14,19 @@ type TextLayer = InstanceType<typeof pdfjsLib.TextLayer>
 export async function searchPdfText(
   doc: pdfjsLib.PDFDocumentProxy,
   query: string,
-  maxMatches = 500
+  maxMatches = 500,
+  signal?: AbortSignal
 ): Promise<PdfSearchMatch[]> {
   const q = query.trim().toLowerCase()
   if (!q) return []
   const matches: PdfSearchMatch[] = []
   for (let p = 1; p <= doc.numPages; p++) {
+    if (signal?.aborted) return matches
     const page = await doc.getPage(p)
-    const tc = await page.getTextContent()
+    // disableNormalization MUST match the TextLayer's streamTextContent —
+    // otherwise ligatures/CJK substitution drift the offsets and the flash
+    // highlights the wrong text.
+    const tc = await page.getTextContent({ disableNormalization: true })
     const full = (tc.items as { str?: string }[])
       .map((i) => i.str ?? "")
       .join("")
