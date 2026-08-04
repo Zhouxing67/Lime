@@ -1,6 +1,40 @@
 import * as pdfjsLib from "pdfjs-dist"
 
+export interface PdfSearchMatch {
+  page: number
+  start: number
+  end: number
+}
+
 type TextLayer = InstanceType<typeof pdfjsLib.TextLayer>
+
+/** Case-insensitive text search across all pages. Offsets are into each page's
+ *  concatenated textContent (same coordinate space as textLayerRects), capped
+ *  at MAX_MATCHES. */
+export async function searchPdfText(
+  doc: pdfjsLib.PDFDocumentProxy,
+  query: string,
+  maxMatches = 500
+): Promise<PdfSearchMatch[]> {
+  const q = query.trim().toLowerCase()
+  if (!q) return []
+  const matches: PdfSearchMatch[] = []
+  for (let p = 1; p <= doc.numPages; p++) {
+    const page = await doc.getPage(p)
+    const tc = await page.getTextContent()
+    const full = (tc.items as { str?: string }[])
+      .map((i) => i.str ?? "")
+      .join("")
+    const lower = full.toLowerCase()
+    let idx = lower.indexOf(q)
+    while (idx >= 0 && matches.length < maxMatches) {
+      matches.push({ page: p, start: idx, end: idx + q.length })
+      idx = lower.indexOf(q, idx + 1)
+    }
+    if (matches.length >= maxMatches) break
+  }
+  return matches
+}
 
 export interface PdfRect {
   x: number

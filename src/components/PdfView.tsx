@@ -17,7 +17,8 @@ import type { Item, PdfAnnotation, PdfMark } from "../types"
 import { usePdfDocument } from "../hooks/usePdfDocument"
 import { MARK_DOT, MARK_LABEL } from "./pdfTheme"
 import { getTextLayer } from "./pdfRegistry"
-import { textLayerOffsets } from "./pdfText"
+import { searchPdfText, textLayerOffsets } from "./pdfText"
+import type { PdfSearchMatch } from "./pdfText"
 import PdfRenderer from "./PdfRenderer"
 
 export type PdfOutlineItem = {
@@ -73,6 +74,17 @@ export default function PdfView({
   const [annotations, setAnnotations] = useState<PdfAnnotation[]>([])
   const [pdfCards, setPdfCards] = useState<Item[]>([])
   const [frameMode, setFrameMode] = useState(false)
+  const [searchFlash, setSearchFlash] = useState<{
+    page: number
+    start: number
+    end: number
+  } | null>(null)
+  const [searchState, setSearchState] = useState<{
+    query: string
+    matches: PdfSearchMatch[]
+    index: number
+    loading: boolean
+  }>({ query: "", matches: [], index: 0, loading: false })
   const dragRef = useRef<{ startX: number; startPct: number } | null>(null)
 
   // Load this PDF's annotations + cards.
@@ -163,6 +175,42 @@ export default function PdfView({
     await deletePdfCard(card)
     // The write broadcasts _dbpdf → the storage listener reloads.
   }, [])
+
+  // ---- PDF text search ----
+  const jumpToSearchMatch = useCallback(
+    (matches: PdfSearchMatch[], index: number) => {
+      const m = matches[index]
+      if (!m) return
+      setScrollPage(m.page)
+      setSearchFlash({ page: m.page, start: m.start, end: m.end })
+    },
+    []
+  )
+
+  const handleSearch = useCallback(
+    async (query: string) => {
+      if (!loaded) return
+      const q = query.trim()
+      if (!q) return
+      setSearchState((s) => ({ ...s, query: q, loading: true }))
+      const matches = await searchPdfText(loaded.doc, q)
+      setSearchState({ query: q, matches, index: 0, loading: false })
+      jumpToSearchMatch(matches, 0)
+    },
+    [loaded, jumpToSearchMatch]
+  )
+
+  const handleSearchNav = useCallback(
+    (dir: 1 | -1) => {
+      setSearchState((s) => {
+        if (s.matches.length === 0) return s
+        const next = (s.index + dir + s.matches.length) % s.matches.length
+        jumpToSearchMatch(s.matches, next)
+        return { ...s, index: next }
+      })
+    },
+    [jumpToSearchMatch]
+  )
 
   // 框选 release → crop image → frame annotation + image card.
   const handleFrameRegion = useCallback(
@@ -358,6 +406,82 @@ export default function PdfView({
               outline: "none"
             }}
           />
+          {/* search */}
+          <input
+            placeholder="搜索"
+            defaultValue={searchState.query}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                handleSearch((e.target as HTMLInputElement).value)
+              }
+            }}
+            style={{
+              width: 64,
+              marginLeft: 6,
+              padding: "3px 6px",
+              fontSize: "0.72rem",
+              border: "1px solid",
+              borderColor: "rgba(0,0,0,0.12)",
+              borderRadius: 4,
+              outline: "none"
+            }}
+          />
+          {searchState.loading ? (
+            <Box
+              sx={{
+                fontSize: "0.68rem",
+                color: "text.disabled",
+                px: 0.5,
+                whiteSpace: "nowrap"
+              }}>
+              搜索中…
+            </Box>
+          ) : searchState.matches.length > 0 ? (
+            <>
+              <Box
+                onClick={() => handleSearchNav(-1)}
+                title="上一个匹配"
+                sx={{
+                  fontSize: "0.72rem",
+                  color: "text.secondary",
+                  cursor: "pointer",
+                  px: 0.5,
+                  "&:hover": { color: "primary.main" }
+                }}>
+                ◀
+              </Box>
+              <Box
+                sx={{
+                  fontSize: "0.68rem",
+                  color: "text.disabled",
+                  whiteSpace: "nowrap"
+                }}>
+                {searchState.index + 1}/{searchState.matches.length}
+              </Box>
+              <Box
+                onClick={() => handleSearchNav(1)}
+                title="下一个匹配"
+                sx={{
+                  fontSize: "0.72rem",
+                  color: "text.secondary",
+                  cursor: "pointer",
+                  px: 0.5,
+                  "&:hover": { color: "primary.main" }
+                }}>
+                ▶
+              </Box>
+            </>
+          ) : searchState.query ? (
+            <Box
+              sx={{
+                fontSize: "0.68rem",
+                color: "text.disabled",
+                px: 0.5,
+                whiteSpace: "nowrap"
+              }}>
+              无结果
+            </Box>
+          ) : null}
         </Box>
         {error ? (
           <Box sx={{ p: 3, color: "error.main", fontSize: "0.85rem" }}>
@@ -373,6 +497,7 @@ export default function PdfView({
             onFlashDone={() => setFlashAnnId(null)}
             frameMode={frameMode}
             onFrameRegion={handleFrameRegion}
+            searchFlash={searchFlash}
           />
         ) : (
           <Box

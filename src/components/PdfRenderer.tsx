@@ -148,7 +148,8 @@ function PageView({
   paneW,
   annotations,
   flashAnnId,
-  onFlashDone
+  onFlashDone,
+  searchFlash
 }: {
   doc: pdfjsLib.PDFDocumentProxy
   pageNumber: number
@@ -156,6 +157,7 @@ function PageView({
   annotations: PdfAnnotation[]
   flashAnnId?: string | null
   onFlashDone?: () => void
+  searchFlash?: { page: number; start: number; end: number } | null
 }) {
   const holderRef = useRef<HTMLDivElement>(null)
   const [wh, setWh] = useState<{ w: number; h: number } | null>(null)
@@ -227,6 +229,16 @@ function PageView({
           if (flashAnnId && flashTimer === null) {
             flashTimer = window.setTimeout(() => flashDoneRef.current?.(), 1500)
           }
+          // Search-match highlight (temporary, not a stored annotation).
+          if (searchFlash) {
+            const rects = textLayerRects(
+              textLayer,
+              holder,
+              searchFlash.start,
+              searchFlash.end
+            )
+            for (const r of rects) appendFlash(annDiv, r)
+          }
         }
         // Expose for the toolbar's selection→offset mapping.
         registerTextLayer(pageNumber, { holder, textLayer })
@@ -259,7 +271,7 @@ function PageView({
       if (flashTimer !== null) window.clearTimeout(flashTimer)
       unregisterTextLayer(pageNumber)
     }
-  }, [doc, pageNumber, paneW, wh, scale, annotations, flashAnnId])
+  }, [doc, pageNumber, paneW, wh, scale, annotations, flashAnnId, searchFlash])
 
   return (
     <div
@@ -290,7 +302,8 @@ export default function PdfRenderer({
   flashAnnId,
   onFlashDone,
   frameMode,
-  onFrameRegion
+  onFrameRegion,
+  searchFlash
 }: {
   doc: pdfjsLib.PDFDocumentProxy
   pageCount: number
@@ -304,6 +317,7 @@ export default function PdfRenderer({
     rects: PdfRect[]
     imageDataUrl: string
   }) => void
+  searchFlash?: { page: number; start: number; end: number } | null
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [paneW, setPaneW] = useState(0)
@@ -462,6 +476,7 @@ export default function PdfRenderer({
             annotations={pageAnnMap.get(n) ?? EMPTY_ANNOTATIONS}
             flashAnnId={flashPage === n ? flashAnnId : null}
             onFlashDone={onFlashDone}
+            searchFlash={searchFlash?.page === n ? searchFlash : null}
           />
         ))}
       {dragRect && (
