@@ -1020,6 +1020,50 @@ export async function createTextAnnotationCard(input: {
   return { card, annotation }
 }
 
+/** Create a region (框选) annotation + its image card in ONE transaction.
+ *  `rects` are normalized 0-1 fractions of the page box (scale-independent). */
+export async function createRegionAnnotationCard(input: {
+  pdfId: string
+  page: number
+  rects: { x: number; y: number; w: number; h: number }[]
+  imageDataUrl: string
+}): Promise<{ card: Item; annotation: PdfAnnotation }> {
+  const annotation: PdfAnnotation = {
+    id: crypto.randomUUID(),
+    pdfId: input.pdfId,
+    page: input.page,
+    kind: "region",
+    type: "frame",
+    rects: input.rects,
+    createdAt: Date.now()
+  }
+  const card = createItem({
+    type: "image",
+    content: input.imageDataUrl,
+    pdfRef: {
+      pdfId: input.pdfId,
+      page: input.page,
+      annotationId: annotation.id
+    }
+  })
+  annotation.itemId = card.id
+  await tx(
+    { items: "readwrite", pdfAnnotations: "readwrite" },
+    async (stores) => {
+      await new Promise<void>((resolve, reject) => {
+        const r1 = stores.items.put(card)
+        r1.onsuccess = () => {
+          const r2 = stores.pdfAnnotations.put(annotation)
+          r2.onsuccess = () => resolve()
+          r2.onerror = () => reject(r2.error)
+        }
+        r1.onerror = () => reject(r1.error)
+      })
+    }
+  )
+  return { card, annotation }
+}
+
 /** Delete an annotation + its linked card together (1:1 coupling). */
 export async function deleteAnnotationWithCard(
   annotationId: string

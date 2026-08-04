@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import * as pdfjsLib from "pdfjs-dist"
 
 import {
+  createRegionAnnotationCard,
   createTextAnnotationCard,
   deletePdfCard,
   getAnnotationsByPdf,
@@ -14,6 +15,7 @@ import {
 } from "../database"
 import type { Item, PdfAnnotation, PdfMark } from "../types"
 import { usePdfDocument } from "../hooks/usePdfDocument"
+import { MARK_DOT, MARK_LABEL } from "./pdfTheme"
 import { getTextLayer } from "./pdfRegistry"
 import { textLayerOffsets } from "./pdfText"
 import PdfRenderer from "./PdfRenderer"
@@ -24,12 +26,13 @@ export type PdfOutlineItem = {
   items?: PdfOutlineItem[]
 }
 
-const MARK_LABEL: Record<string, string> = {
-  highlight: "高亮",
-  underline: "下划线",
-  wavy: "波浪线",
-  strike: "删除线"
-}
+type PdfTool = "select" | "frame" | Exclude<PdfMark, "frame">
+const TEXT_TOOLS: Exclude<PdfMark, "frame">[] = [
+  "highlight",
+  "underline",
+  "wavy",
+  "strike"
+]
 
 /** Resolve an outline item's `.dest` to a 1-based page number. Only named
  *  (string) dests need `getDestination`; array dests carry the page ref already. */
@@ -70,6 +73,7 @@ export default function PdfView({
   const [flashAnnId, setFlashAnnId] = useState<string | null>(null)
   const [annotations, setAnnotations] = useState<PdfAnnotation[]>([])
   const [pdfCards, setPdfCards] = useState<Item[]>([])
+  const [activeTool, setActiveTool] = useState<PdfTool>("select")
   const dragRef = useRef<{ startX: number; startPct: number } | null>(null)
 
   // Load this PDF's annotations + cards.
@@ -161,6 +165,31 @@ export default function PdfView({
     // The write broadcasts _dbpdf → the storage listener reloads.
   }, [])
 
+  // 框选 release → crop image → frame annotation + image card.
+  const handleFrameRegion = useCallback(
+    async (result: {
+      page: number
+      rects: { x: number; y: number; w: number; h: number }[]
+      imageDataUrl: string
+    }) => {
+      if (!pdfId) return
+      try {
+        await createRegionAnnotationCard({
+          pdfId,
+          page: result.page,
+          rects: result.rects,
+          imageDataUrl: result.imageDataUrl
+        })
+        setActiveTool("select")
+        setScrollPage(result.page)
+        // The write broadcasts _dbpdf → the storage listener reloads.
+      } catch (e) {
+        console.warn("[pdf] create region annotation failed:", e)
+      }
+    },
+    [pdfId]
+  )
+
   // Cards sorted by original position (page + annotation startOffset).
   const sortedCards = [...pdfCards].sort((a, b) => {
     const pa = a.pdfRef?.page ?? 0
@@ -236,51 +265,92 @@ export default function PdfView({
             {loaded?.file.name ?? "PDF"}
           </Typography>
           <Box sx={{ flex: 1 }} />
-          {(["highlight", "underline", "wavy", "strike"] as const).map(
-            (t) => (
+          {/* 选择 */}
+          <Box
+            onClick={() => {
+              setActiveTool("select")
+              window.getSelection()?.removeAllRanges()
+            }}
+            title="选择文字"
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 0.5,
+              px: 0.75,
+              py: 0.25,
+              borderRadius: 1,
+              cursor: "pointer",
+              fontSize: "0.72rem",
+              bgcolor: activeTool === "select" ? "action.selected" : "transparent",
+              color: activeTool === "select" ? "text.primary" : "text.secondary",
+              "&:hover": { bgcolor: "action.hover" }
+            }}>
+            选择
+          </Box>
+          {/* text annotation tools */}
+          {TEXT_TOOLS.map((t) => (
+            <Box
+              key={t}
+              // mousedown + preventDefault: clicking a toolbar button would
+              // otherwise clear the text selection before the handler runs.
+              onMouseDown={(e) => {
+                e.preventDefault()
+                handleTool(t)
+              }}
+              title={`选中文字后点此：${MARK_LABEL[t]}`}
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 0.5,
+                px: 0.75,
+                py: 0.25,
+                borderRadius: 1,
+                cursor: "pointer",
+                color: "text.secondary",
+                fontSize: "0.72rem",
+                "&:hover": {
+                  bgcolor: "action.hover",
+                  color: "text.primary"
+                }
+              }}>
               <Box
-                key={t}
-                // mousedown + preventDefault: clicking a toolbar button would
-                // otherwise clear the text selection before the handler runs.
-                onMouseDown={(e) => {
-                  e.preventDefault()
-                  handleTool(t)
-                }}
-                title={`选中文字后点此：${MARK_LABEL[t]}`}
                 sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 0.5,
-                  px: 0.75,
-                  py: 0.25,
+                  width: 8,
+                  height: 8,
                   borderRadius: 1,
-                  cursor: "pointer",
-                  color: "text.secondary",
-                  fontSize: "0.72rem",
-                  "&:hover": {
-                    bgcolor: "action.hover",
-                    color: "text.primary"
-                  }
-                }}>
-                <Box
-                  sx={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: 1,
-                    background:
-                      t === "highlight"
-                        ? "rgba(183,149,91,0.6)"
-                        : t === "underline"
-                          ? "#6f9476"
-                          : t === "wavy"
-                            ? "#b2705a"
-                            : "rgba(45,52,54,0.5)"
-                  }}
-                />
-                {MARK_LABEL[t]}
-              </Box>
-            )
-          )}
+                  background: MARK_DOT[t]
+                }}
+              />
+              {MARK_LABEL[t]}
+            </Box>
+          ))}
+          {/* 框选 */}
+          <Box
+            onClick={() => setActiveTool(activeTool === "frame" ? "select" : "frame")}
+            title="框选区域（公式/图表）→ 图片卡"
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 0.5,
+              px: 0.75,
+              py: 0.25,
+              borderRadius: 1,
+              cursor: "pointer",
+              fontSize: "0.72rem",
+              bgcolor: activeTool === "frame" ? "action.selected" : "transparent",
+              color: activeTool === "frame" ? "text.primary" : "text.secondary",
+              "&:hover": { bgcolor: "action.hover" }
+            }}>
+            <Box
+              sx={{
+                width: 8,
+                height: 8,
+                borderRadius: 1,
+                background: MARK_DOT.frame
+              }}
+            />
+            {MARK_LABEL.frame}
+          </Box>
         </Box>
         {error ? (
           <Box sx={{ p: 3, color: "error.main", fontSize: "0.85rem" }}>
@@ -294,6 +364,8 @@ export default function PdfView({
             annotations={annotations}
             flashAnnId={flashAnnId}
             onFlashDone={() => setFlashAnnId(null)}
+            frameMode={activeTool === "frame"}
+            onFrameRegion={handleFrameRegion}
           />
         ) : (
           <Box
@@ -409,19 +481,35 @@ export default function PdfView({
                     <DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />
                   </IconButton>
                 </Box>
-                <Typography
-                  variant="body2"
-                  sx={{
-                    fontSize: "0.8rem",
-                    lineHeight: 1.5,
-                    display: "-webkit-box",
-                    WebkitLineClamp: 3,
-                    WebkitBoxOrient: "vertical",
-                    overflow: "hidden",
-                    color: "text.primary"
-                  }}>
-                  {card.content}
-                </Typography>
+                {card.type === "image" ? (
+                  <Box
+                    component="img"
+                    src={card.content}
+                    alt=""
+                    sx={{
+                      display: "block",
+                      maxWidth: "100%",
+                      maxHeight: 140,
+                      borderRadius: 1,
+                      objectFit: "contain",
+                      bgcolor: "#f5f4f2"
+                    }}
+                  />
+                ) : (
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      fontSize: "0.8rem",
+                      lineHeight: 1.5,
+                      display: "-webkit-box",
+                      WebkitLineClamp: 3,
+                      WebkitBoxOrient: "vertical",
+                      overflow: "hidden",
+                      color: "text.primary"
+                    }}>
+                    {card.content}
+                  </Typography>
+                )}
               </Box>
             )
           })

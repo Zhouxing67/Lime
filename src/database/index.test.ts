@@ -9,6 +9,7 @@ import type {
 } from "../types"
 import {
   addAnnotation,
+  createRegionAnnotationCard,
   createTextAnnotationCard,
   deleteAnnotationWithCard,
   deletePdfCard,
@@ -801,5 +802,27 @@ describe("pdf annotations ↔ cards", () => {
     await deletePdfCard(c2)
     expect(await getItemsByPdf("pdf-c")).toHaveLength(0)
     expect(await getAnnotation(a2.id)).toBeUndefined()
+  })
+})
+
+describe("pdf region annotations (框选)", () => {
+  it("creates a frame annotation + image card atomically", async () => {
+    const { card, annotation } = await createRegionAnnotationCard({
+      pdfId: "pdf-region",
+      page: 2,
+      rects: [{ x: 0.1, y: 0.2, w: 0.5, h: 0.3 }],
+      imageDataUrl: "data:image/png;base64,AAAA"
+    })
+    expect(card.type).toBe("image")
+    expect(card.content).toBe("data:image/png;base64,AAAA")
+    expect(card.pdfRefPdfId).toBe("pdf-region")
+    expect(annotation.kind).toBe("region")
+    expect(annotation.type).toBe("frame")
+    expect(annotation.rects?.[0]).toEqual({ x: 0.1, y: 0.2, w: 0.5, h: 0.3 })
+    expect(annotation.itemId).toBe(card.id)
+
+    const items = await getItemsByPdf("pdf-region")
+    expect(items).toHaveLength(1)
+    expect(items[0].type).toBe("image")
   })
 })

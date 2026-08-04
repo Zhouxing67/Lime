@@ -1,21 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import * as pdfjsLib from "pdfjs-dist"
 
 import type { PdfAnnotation, PdfMark } from "../types"
+import { MARK_COLOR } from "./pdfTheme"
 import { registerTextLayer, unregisterTextLayer } from "./pdfRegistry"
 import { textLayerRects } from "./pdfText"
 import type { PdfRect } from "./pdfText"
 
 // Low-saturation annotation colors (align with the app's RATING_META family).
 const EMPTY_ANNOTATIONS: PdfAnnotation[] = []
-const MARK_COLOR: Record<PdfMark, string> = {
-  highlight: "rgba(183,149,91,0.26)",
-  underline: "#6f9476",
-  wavy: "#b2705a",
-  strike: "rgba(45,52,54,0.45)",
-  frame: "rgba(99,102,241,0.35)"
-}
 
 function drawAnnotation(
   overlay: HTMLElement,
@@ -62,20 +56,33 @@ function drawPageAnnotations(
   flashAnnId: string | null
 ): void {
   overlay.replaceChildren()
+  const holderRect = holder.getBoundingClientRect()
+  const hw = holderRect.width || 1
+  const hh = holderRect.height || 1
   for (const ann of annotations) {
-    if (ann.kind !== "text" || ann.startOffset == null || ann.endOffset == null)
-      continue
-    const rects = textLayerRects(textLayer, holder, ann.startOffset, ann.endOffset)
-    for (const r of rects) {
-      if (ann.id === flashAnnId) {
-        const flash = document.createElement("div")
-        flash.className = "pdf-ann-flash"
-        flash.style.cssText = `position:absolute;left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;pointer-events:none;`
-        overlay.appendChild(flash)
+    if (ann.kind === "text") {
+      if (ann.startOffset == null || ann.endOffset == null) continue
+      const rects = textLayerRects(textLayer, holder, ann.startOffset, ann.endOffset)
+      for (const r of rects) {
+        if (ann.id === flashAnnId) appendFlash(overlay, r)
+        drawAnnotation(overlay, ann.type, r)
       }
-      drawAnnotation(overlay, ann.type, r)
+    } else if (ann.kind === "region") {
+      // Frame rects are stored normalized (0-1 fractions of the page box).
+      for (const r of ann.rects ?? []) {
+        const rect = { x: r.x * hw, y: r.y * hh, w: r.w * hw, h: r.h * hh }
+        if (ann.id === flashAnnId) appendFlash(overlay, rect)
+        drawAnnotation(overlay, ann.type, rect)
+      }
     }
   }
+}
+
+function appendFlash(overlay: HTMLElement, r: PdfRect): void {
+  const flash = document.createElement("div")
+  flash.className = "pdf-ann-flash"
+  flash.style.cssText = `position:absolute;left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;pointer-events:none;`
+  overlay.appendChild(flash)
 }
 
 const TEXT_LAYER_CSS = `
@@ -281,7 +288,9 @@ export default function PdfRenderer({
   scrollTarget,
   annotations,
   flashAnnId,
-  onFlashDone
+  onFlashDone,
+  frameMode,
+  onFrameRegion
 }: {
   doc: pdfjsLib.PDFDocumentProxy
   pageCount: number
@@ -289,9 +298,21 @@ export default function PdfRenderer({
   annotations?: PdfAnnotation[]
   flashAnnId?: string | null
   onFlashDone?: () => void
+  frameMode?: boolean
+  onFrameRegion?: (result: {
+    page: number
+    rects: PdfRect[]
+    imageDataUrl: string
+  }) => void
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [paneW, setPaneW] = useState(0)
+  const [dragRect, setDragRect] = useState<PdfRect | null>(null)
+  const dragState = useRef<{
+    startX: number
+    startY: number
+    holder: HTMLElement
+  } | null>(null)
 
   // Stable per-page annotation arrays — rebuilt ONLY when the annotations prop
   // changes, so unrelated re-renders (scrollPage/flashAnnId) don't trigger every
@@ -338,16 +359,98 @@ export default function PdfRenderer({
     ? annotations?.find((a) => a.id === flashAnnId)?.page ?? null
     : null
 
+  // 框选 mode: pointer-drag a rectangle over a page → crop → frame annotation.
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    if (!frameMode) return
+    const holder = (e.target as HTMLElement).closest(
+      "[data-page]"
+    ) as HTMLElement | null
+    if (!holder) return
+    e.preventDefault()
+    dragState.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      holder
+    }
+    setDragRect({ x: e.clientX, y: e.clientY, w: 0, h: 0 })
+    document.body.style.userSelect = "none"
+    const mv = (ev: PointerEvent) => {
+      const d = dragState.current
+      if (!d) return
+      setDragRect({
+        x: Math.min(d.startX, ev.clientX),
+        y: Math.min(d.startY, ev.clientY),
+        w: Math.abs(ev.clientX - d.startX),
+        h: Math.abs(ev.clientY - d.startY)
+      })
+    }
+    const up = (ev: PointerEvent) => {
+      document.body.style.userSelect = ""
+      document.removeEventListener("pointermove", mv)
+      document.removeEventListener("pointerup", up)
+      const d = dragState.current
+      dragState.current = null
+      setDragRect(null)
+      if (
+        !d ||
+        Math.abs(ev.clientX - d.startX) < 6 ||
+        Math.abs(ev.clientY - d.startY) < 6
+      )
+        return
+      const hr = d.holder.getBoundingClientRect()
+      const rx = Math.max(0, Math.min(Math.min(d.startX, ev.clientX) - hr.left, hr.width))
+      const ry = Math.max(0, Math.min(Math.min(d.startY, ev.clientY) - hr.top, hr.height))
+      const rw = Math.min(Math.abs(ev.clientX - d.startX), hr.width - rx)
+      const rh = Math.min(Math.abs(ev.clientY - d.startY), hr.height - ry)
+      if (rw < 4 || rh < 4) return
+      const canvas = d.holder.querySelector("canvas")
+      if (!canvas) return
+      const dpr = window.devicePixelRatio || 1
+      const crop = document.createElement("canvas")
+      crop.width = Math.max(1, Math.floor(rw * dpr))
+      crop.height = Math.max(1, Math.floor(rh * dpr))
+      const ctx = crop.getContext("2d")
+      if (!ctx) return
+      ctx.drawImage(
+        canvas,
+        rx * dpr,
+        ry * dpr,
+        rw * dpr,
+        rh * dpr,
+        0,
+        0,
+        crop.width,
+        crop.height
+      )
+      onFrameRegion?.({
+        page: Number(d.holder.getAttribute("data-page")),
+        rects: [
+          {
+            x: rx / hr.width,
+            y: ry / hr.height,
+            w: rw / hr.width,
+            h: rh / hr.height
+          }
+        ],
+        imageDataUrl: crop.toDataURL("image/png")
+      })
+    }
+    document.addEventListener("pointermove", mv)
+    document.addEventListener("pointerup", up)
+  }, [frameMode, onFrameRegion])
+
   return (
     <div
       ref={containerRef}
+      onPointerDown={handlePointerDown}
       style={{
         flex: 1,
         minHeight: 0,
         overflowY: "auto",
         overflowX: "hidden",
         background: "#f0efec",
-        padding: "16px 0"
+        padding: "16px 0",
+        cursor: frameMode ? "crosshair" : "default"
       }}>
       {paneW > 0 &&
         Array.from({ length: pageCount }, (_, i) => i + 1).map((n) => (
@@ -361,6 +464,21 @@ export default function PdfRenderer({
             onFlashDone={onFlashDone}
           />
         ))}
+      {dragRect && (
+        <div
+          style={{
+            position: "fixed",
+            left: dragRect.x,
+            top: dragRect.y,
+            width: dragRect.w,
+            height: dragRect.h,
+            border: "1.5px dashed rgba(99,102,241,0.6)",
+            background: "rgba(99,102,241,0.08)",
+            pointerEvents: "none",
+            zIndex: 20
+          }}
+        />
+      )}
     </div>
   )
 }
