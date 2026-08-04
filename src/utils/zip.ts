@@ -34,11 +34,25 @@ export async function toJsonZip(
 
   // PDF files are stored as blobs (local-only domain; not in WebDAV sync).
   // Metadata-only placeholders (synced without the file) are skipped.
-  const pdfMeta: { id: string; name: string; addedAt: number }[] = []
+  const pdfMeta: {
+    id: string
+    name: string
+    pageCount: number
+    addedAt: number
+    lastOpened?: number
+    topic?: string
+  }[] = []
   for (const pdf of pdfs ?? []) {
     if (!pdf.bytes) continue
     zip.file(`pdfs/${pdf.id}.pdf`, pdf.bytes)
-    pdfMeta.push({ id: pdf.id, name: pdf.name, addedAt: pdf.addedAt })
+    pdfMeta.push({
+      id: pdf.id,
+      name: pdf.name,
+      pageCount: pdf.pageCount,
+      addedAt: pdf.addedAt,
+      lastOpened: pdf.lastOpened,
+      topic: pdf.topic
+    })
   }
 
   const payload: {
@@ -46,7 +60,14 @@ export async function toJsonZip(
     projects?: Project[]
     reviews?: ReviewEntry[]
     pdfAnnotations?: PdfAnnotation[]
-    pdfs?: { id: string; name: string; addedAt: number }[]
+    pdfs?: {
+      id: string
+      name: string
+      pageCount: number
+      addedAt: number
+      lastOpened?: number
+      topic?: string
+    }[]
   } = { items }
   if (projects && projects.length > 0) {
     // Spread projects so new fields (e.g. lastOpened) survive backups without

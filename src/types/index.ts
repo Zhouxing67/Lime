@@ -74,6 +74,8 @@ export interface PdfFile {
   addedAt: number
   /** Last time the PDF was opened (for recent-first ordering / hub tiles). */
   lastOpened?: number
+  /** Optional topic grouping (a plain string tag; PDFs with no topic are 未分类). */
+  topic?: string
 }
 
 export interface PdfAnnotation {

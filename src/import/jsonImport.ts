@@ -243,7 +243,14 @@ export async function importFromZip(
   let importedProjects: Project[] = []
   let importedReviews: ReviewEntry[] = []
   let importedAnnotations: PdfAnnotation[] = []
-  let importedPdfMeta: { id: string; name: string; addedAt: number }[] = []
+  let importedPdfMeta: {
+    id: string
+    name: string
+    pageCount: number
+    addedAt: number
+    lastOpened?: number
+    topic?: string
+  }[] = []
   try {
     const parsed = JSON.parse(rawJson)
     if (Array.isArray(parsed)) {
@@ -277,7 +284,7 @@ export async function importFromZip(
         }
       }
       if (Array.isArray(obj.pdfs)) {
-        importedPdfMeta = obj.pdfs as { id: string; name: string; addedAt: number }[]
+        importedPdfMeta = (obj.pdfs as { id: string; name: string; pageCount: number; addedAt: number; lastOpened?: number; topic?: string }[]) ?? []
       }
     } else {
       return {
@@ -336,7 +343,10 @@ export async function importFromZip(
   // recomputes the content-hash id, so we remap cards/annotations onto it. ----
   const pdfIdSet = new Set<string>()
   const pdfIdMap = new Map<string, string>()
-  const pdfMetaByName = new Map<string, { id: string; name: string; addedAt: number }>()
+  const pdfMetaByName = new Map<
+    string,
+    { id: string; name: string; pageCount: number; addedAt: number; lastOpened?: number; topic?: string }
+  >()
   for (const meta of importedPdfMeta) pdfMetaByName.set(meta.id, meta)
   for (const zipPath of Object.keys(zip.files)) {
     if (!zipPath.startsWith("pdfs/") || !zipPath.endsWith(".pdf")) continue
@@ -348,8 +358,10 @@ export async function importFromZip(
         id,
         name: meta?.name ?? "",
         bytes,
-        pageCount: 0,
-        addedAt: meta?.addedAt ?? Date.now()
+        pageCount: meta?.pageCount ?? 0,
+        addedAt: meta?.addedAt ?? Date.now(),
+        lastOpened: meta?.lastOpened,
+        topic: meta?.topic
       })
       pdfIdSet.add(actualId)
       if (actualId !== id) pdfIdMap.set(id, actualId)

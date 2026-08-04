@@ -1018,6 +1018,28 @@ export async function touchPdf(id: string): Promise<void> {
   })
 }
 
+/** Set a PDF's topic (undefined → 未分类). Broadcasts _dbpdf → the library reloads. */
+export async function updatePdfTopic(
+  id: string,
+  topic: string | undefined
+): Promise<void> {
+  return withStore("pdfs", "readwrite", async (store) => {
+    const pdf = await new Promise<PdfFile | undefined>((resolve, reject) => {
+      const r = store.get(id)
+      r.onsuccess = () => resolve(r.result as PdfFile | undefined)
+      r.onerror = () => reject(r.error)
+    })
+    if (!pdf) return
+    if (topic) pdf.topic = topic
+    else delete pdf.topic
+    await new Promise<void>((resolve, reject) => {
+      const r = store.put(pdf)
+      r.onsuccess = () => resolve()
+      r.onerror = () => reject(r.error)
+    })
+  })
+}
+
 export async function getPdf(id: string): Promise<PdfFile | undefined> {
   return withStore("pdfs", "readonly", (store) => {
     return new Promise((resolve, reject) => {

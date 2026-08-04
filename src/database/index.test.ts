@@ -11,6 +11,7 @@ import {
   addAnnotation,
   updateAnnotationType,
   addPdf,
+  updatePdfTopic,
   applyPdfSync,
   createRegionAnnotationCard,
   createTextAnnotationCard,
@@ -919,5 +920,16 @@ describe("updateAnnotationType", () => {
     await addAnnotation(ann)
     await updateAnnotationType("t-ann", "highlight")
     expect((await getAnnotation("t-ann"))?.type).toBe("highlight")
+  })
+})
+
+describe("updatePdfTopic", () => {
+  it("sets / clears a PDF's topic", async () => {
+    const pdf = { id: "t-pdf", name: "a.pdf", bytes: new Blob(["x"]), pageCount: 1, addedAt: 1 }
+    const id = await addPdf(pdf)
+    await updatePdfTopic(id, "深度学习")
+    expect((await getPdf(id))?.topic).toBe("深度学习")
+    await updatePdfTopic(id, undefined)
+    expect((await getPdf(id))?.topic).toBeUndefined()
   })
 })

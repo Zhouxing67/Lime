@@ -352,3 +352,21 @@ describe("import remap + source-less cards", () => {
     expect((await searchItems({})).some((i) => i.id === "local-card")).toBe(true)
   })
 })
+
+describe("pdf topic round-trip", () => {
+  it("survives export → import (topic + pageCount + lastOpened)", async () => {
+    const pdf: PdfFile = {
+      id: "topic-pdf", name: "paper.pdf",
+      bytes: new Blob(["t"], { type: "application/pdf" }),
+      pageCount: 5, addedAt: 123, lastOpened: 456, topic: "深度学习"
+    }
+    const blob = await toJsonZip([], [], [], [pdf], [])
+    await importFromZip(blob as File)
+    // addPdf recomputes the content-hash id, so look the restored file up by it.
+    const actualId = await sha256Bytes(pdf.bytes)
+    const restored = await getPdf(actualId)
+    expect(restored?.topic).toBe("深度学习")
+    expect(restored?.pageCount).toBe(5)
+    expect(restored?.lastOpened).toBe(456)
+  })
+})
