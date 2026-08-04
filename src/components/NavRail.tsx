@@ -31,16 +31,16 @@ const BUTTONS: {
     badgeFor: null
   },
   {
+    tab: "pdf",
+    label: "PDF 阅读",
+    icon: <PictureAsPdfRoundedIcon sx={{ fontSize: 22 }} />,
+    badgeFor: null
+  },
+  {
     tab: "review",
     label: "间隔复习",
     icon: <SchoolRoundedIcon sx={{ fontSize: 22 }} />,
     badgeFor: "review"
-  },
-  {
-    tab: "backup",
-    label: "备份与同步",
-    icon: <BackupRoundedIcon sx={{ fontSize: 22 }} />,
-    badgeFor: null
   },
   {
     tab: "todo",
@@ -49,9 +49,9 @@ const BUTTONS: {
     badgeFor: "todo"
   },
   {
-    tab: "pdf",
-    label: "PDF 阅读",
-    icon: <PictureAsPdfRoundedIcon sx={{ fontSize: 22 }} />,
+    tab: "backup",
+    label: "备份与同步",
+    icon: <BackupRoundedIcon sx={{ fontSize: 22 }} />,
     badgeFor: null
   }
 ]

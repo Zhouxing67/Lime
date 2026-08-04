@@ -1,4 +1,3 @@
-import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded"
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
 import EditRoundedIcon from "@mui/icons-material/EditRounded"
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
@@ -75,12 +74,10 @@ export async function outlinePageNumber(
 /** Main-area PDF view: left = the PDF + annotation toolbar, right = its cards. */
 export default function PdfView({
   pdfId,
-  onClose,
   onOutlineLoaded,
   outlineDest
 }: {
   pdfId: string | null
-  onClose: () => void
   onOutlineLoaded?: (outline: PdfOutlineItem[] | null) => void
   outlineDest?: PdfOutlineItem | null
 }) {
@@ -421,9 +418,6 @@ export default function PdfView({
             borderColor: "divider",
             bgcolor: "background.paper"
           }}>
-          <IconButton size="small" onClick={onClose} title="退出 PDF 视图">
-            <ArrowBackRoundedIcon sx={{ fontSize: 18 }} />
-          </IconButton>
           <Typography
             variant="body2"
             sx={{

@@ -924,7 +924,11 @@ export default function OptionsPage() {
     touchPdf(id)
     setActivePdfId(id)
   }, [])
-  const handleClosePdf = useCallback(() => setActivePdfId(null), [])
+  const handleClosePdf = useCallback(() => {
+    setActivePdfId(null)
+    setPdfOutline(null)
+    setPdfOutlineDest(null)
+  }, [])
 
   const handleBackupToggleSelect = useCallback(
     (id: string) => {
@@ -1487,7 +1491,7 @@ export default function OptionsPage() {
                   </IconButton>
                 </Tooltip>
               ) : sidebarTab === "pdf" && activePdfId ? (
-                <Tooltip title="关闭当前 PDF">
+                <Tooltip title="关闭 PDF">
                   <IconButton
                     size="small"
                     onClick={handleClosePdf}
@@ -1739,7 +1743,6 @@ export default function OptionsPage() {
               activePdfId ? (
                 <PdfView
                   pdfId={activePdfId}
-                  onClose={handleClosePdf}
                   onOutlineLoaded={setPdfOutline}
                   outlineDest={pdfOutlineDest}
                 />
