@@ -243,7 +243,12 @@ export default function PdfView({
             (t) => (
               <Box
                 key={t}
-                onClick={() => handleTool(t)}
+                // mousedown + preventDefault: clicking a toolbar button would
+                // otherwise clear the text selection before the handler runs.
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  handleTool(t)
+                }}
                 title={`选中文字后点此：${MARK_LABEL[t]}`}
                 sx={{
                   display: "flex",
