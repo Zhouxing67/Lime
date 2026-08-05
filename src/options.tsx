@@ -138,6 +138,8 @@ export default function OptionsPage() {
     : null
   const activePdfIdRef = useRef<string | null>(null)
   activePdfIdRef.current = activePdfId
+  const openPdfIdsRef = useRef<string[]>([])
+  openPdfIdsRef.current = openPdfIds
   const [pdfOutlineDest, setPdfOutlineDest] = useState<PdfOutlineItem | null>(
     null
   )
@@ -958,6 +960,40 @@ export default function OptionsPage() {
   }, [topicDeleteTarget, extraTopics, saveExtraTopics])
 
   const pdfFileInputRef = useRef<HTMLInputElement>(null)
+  const MAX_OPEN_PDFS = 4
+  const openPdf = useCallback((id: string) => {
+    touchPdf(id)
+    const cur = openPdfIdsRef.current
+    const next = cur.includes(id) ? cur : [...cur, id]
+    let trimmed = next
+    if (next.length > MAX_OPEN_PDFS) {
+      // LRU: evict the oldest-open PDF when the limit is exceeded.
+      const evicted = next[0]
+      setPdfOutlineByPdf((o) => {
+        const c = { ...o }
+        delete c[evicted]
+        return c
+      })
+      trimmed = next.slice(1)
+    }
+    setOpenPdfIds(trimmed)
+    setActivePdfId(id)
+  }, [])
+  const handleOpenPdf = openPdf
+  const handleClosePdf = useCallback((id: string) => {
+    const next = openPdfIdsRef.current.filter((x) => x !== id)
+    setPdfOutlineByPdf((o) => {
+      const c = { ...o }
+      delete c[id]
+      return c
+    })
+    setOpenPdfIds(next)
+    if (activePdfIdRef.current === id) {
+      setActivePdfId(next.length > 0 ? next[next.length - 1] : null)
+    }
+    setPdfOutlineDest(null)
+  }, [])
+
   const handleOpenPdfFile = useCallback(
     async (file: File) => {
       try {
@@ -982,44 +1018,8 @@ export default function OptionsPage() {
         console.warn("[lime] open pdf failed:", e)
       }
     },
-    []
+    [openPdf]
   )
-  const MAX_OPEN_PDFS = 4
-  const openPdf = useCallback((id: string) => {
-    touchPdf(id)
-    setOpenPdfIds((prev) => {
-      if (prev.includes(id)) return prev
-      const next = [...prev, id]
-      if (next.length > MAX_OPEN_PDFS) {
-        // LRU: evict the oldest-open PDF when the limit is exceeded.
-        const evicted = next[0]
-        setPdfOutlineByPdf((o) => {
-          const c = { ...o }
-          delete c[evicted]
-          return c
-        })
-        return next.slice(1)
-      }
-      return next
-    })
-    setActivePdfId(id)
-  }, [])
-  const handleOpenPdf = openPdf
-  const handleClosePdf = useCallback((id: string) => {
-    setOpenPdfIds((prev) => {
-      const next = prev.filter((x) => x !== id)
-      setPdfOutlineByPdf((o) => {
-        const c = { ...o }
-        delete c[id]
-        return c
-      })
-      if (activePdfIdRef.current === id) {
-        setActivePdfId(next.length > 0 ? next[next.length - 1] : null)
-      }
-      return next
-    })
-    setPdfOutlineDest(null)
-  }, [])
 
   const handleBackupToggleSelect = useCallback(
     (id: string) => {
