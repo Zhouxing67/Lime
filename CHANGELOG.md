@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 4.3.1 — 修复
+
+### 修复
+- 备份视图 PDF 范围不显示瓦片（PdfHub 的 selectable 模式仍应用主题过滤，默认 topicView="topics" 匹配空）——备份模式显示全部 PDF，主题过滤仅属 PDF 视图导航
+
 ## 4.3.0 — PDF 卡片置入项目 + 双 order 模型 + 存储层优化
 
 ### 新增能力
