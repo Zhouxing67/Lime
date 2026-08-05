@@ -1298,10 +1298,12 @@ describe("searchProjectCards resolves placed cards' PDF quotes", () => {
     })
     await addProject({ id: "proj-search", name: "S", createdAt: 1 })
     await placePdfCards([pdfCard.id], "proj-search")
+    const placed = (await getPdfCards("p-search"))[0]
+    expect(placed.projectCardId).toBeDefined()
     const hits = await searchProjectCards({
       keyword: "UNIQUE QUOTE",
       projectId: "proj-search"
     })
-    expect(hits.map((c) => c.id)).toContain(pdfCard.projectCardId)
+    expect(hits.map((c) => c.id)).toContain(placed.projectCardId)
   })
 })
