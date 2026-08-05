@@ -73,8 +73,6 @@ export default function PdfCardsPanel({
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const [batchMode, setBatchMode] = useState(false)
   const [mainAreaW, setMainAreaW] = useState(0)
-  const mainAreaWRef = useRef(0)
-  mainAreaWRef.current = mainAreaW
   const maxPanelWRef = useRef(0)
   const [placeMenu, setPlaceMenu] = useState<{
     anchor: HTMLElement
@@ -253,28 +251,6 @@ export default function PdfCardsPanel({
         const next = Math.max(
           240,
           Math.min(maxPanelWRef.current, d.startW - (ev.clientX - d.startX))
-        )
-        const panelRect = rootRef.current?.getBoundingClientRect()
-        const mainRect = rootRef.current?.previousElementSibling?.getBoundingClientRect()
-        console.log(
-          "[lime:drag] mainArea",
-          mainAreaWRef.current,
-          "width",
-          d.startW,
-          "→",
-          next,
-          "maxPanelW",
-          maxPanelW,
-          "panelLeft",
-          panelRect ? Math.round(panelRect.left) : "?",
-          "mainRight",
-          mainRect ? Math.round(mainRect.right) : "?",
-          "overlap",
-          panelRect && mainRect
-            ? panelRect.left < mainRect.right
-              ? "YES"
-              : "no"
-            : "?"
         )
         onWidthChange(next)
       }
