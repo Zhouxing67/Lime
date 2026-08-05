@@ -420,7 +420,7 @@ export default function PdfHub({
                   : isSelected
                     ? alpha(theme.palette.primary.main, 0.04)
                     : "background.paper",
-                transition: "all 0.2s",
+                transition: "all 0.2s ease",
                 "&:hover": {
                   boxShadow: theme.custom.cardShadowHover,
                   transform: "translateY(-1px)",

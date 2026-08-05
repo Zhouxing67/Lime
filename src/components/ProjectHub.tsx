@@ -66,7 +66,6 @@ export default function ProjectHub({
         icon={
           <FolderOpenRoundedIcon
             className="empty-icon"
-            sx={{ fontSize: 80, mb: 3 }}
           />
         }
         title={selectable ? "没有可备份的项目" : "还没有项目"}
@@ -178,7 +177,10 @@ export default function ProjectHub({
                 height: 36,
                 borderRadius: "50%",
                 bgcolor: (t) => avatarColor(t.custom.avatarPalette, p.name),
-                color: (t) => t.palette.getContrastText(t.custom.avatarPalette[0]),
+                color: (t) =>
+                  t.palette.getContrastText(
+                    avatarColor(t.custom.avatarPalette, p.name)
+                  ),
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -245,7 +247,7 @@ export default function ProjectHub({
             icon={
               <SearchOffRoundedIcon
                 className="empty-icon"
-                sx={{ fontSize: 80, mb: 3 }}
+                
               />
             }
             title="没有匹配的项目"

@@ -248,8 +248,7 @@ export default function ReviewSession({
               opacity: flipped ? 0 : 1,
               pointerEvents: flipped ? "none" : "auto",
               transition: "opacity 0.15s",
-              bgcolor: (theme) =>
-                theme.palette.mode === "light" ? "#fcfcf9" : "#2a2a2a",
+              bgcolor: (t) => t.custom.surface2,
               border: "1px solid",
               borderColor: "divider",
               borderRadius: 1,
@@ -270,8 +269,7 @@ export default function ReviewSession({
               opacity: flipped ? 1 : 0,
               pointerEvents: flipped ? "auto" : "none",
               transition: "opacity 0.15s",
-              bgcolor: (theme) =>
-                theme.palette.mode === "light" ? "#fcfcf9" : "#2a2a2a",
+              bgcolor: (t) => t.custom.surface2,
               border: "1px solid",
               borderColor: "divider",
               borderRadius: 1,

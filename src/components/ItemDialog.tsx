@@ -257,7 +257,7 @@ export default function ItemDialog({
           flex: 1,
           overflowY: "auto",
           px: 3,
-          py: 1,
+          py: 3,
           display: "flex",
           flexDirection: "column",
           bgcolor: "background.paper",

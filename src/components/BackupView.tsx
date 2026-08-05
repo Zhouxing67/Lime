@@ -51,12 +51,10 @@ export default function BackupView({
           scope === "projects" ? (
             <FolderOpenRoundedIcon
               className="empty-icon"
-              sx={{ fontSize: 80, mb: 3 }}
             />
           ) : (
             <PictureAsPdfRoundedIcon
               className="empty-icon"
-              sx={{ fontSize: 80, mb: 3 }}
             />
           )
         }

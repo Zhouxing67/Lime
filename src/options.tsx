@@ -2384,7 +2384,7 @@ export default function OptionsPage() {
                             icon={
                               <SearchOffRoundedIcon
                                 className="empty-icon"
-                                sx={{ fontSize: 80, mb: 3 }}
+                                
                               />
                             }
                             title="没有找到匹配的卡片"
@@ -2395,7 +2395,7 @@ export default function OptionsPage() {
                             icon={
                               <SearchOffRoundedIcon
                                 className="empty-icon"
-                                sx={{ fontSize: 80, mb: 3 }}
+                                
                               />
                             }
                             title="该时间段内无相关卡片"
@@ -2406,7 +2406,7 @@ export default function OptionsPage() {
                             icon={
                               <NoteAddRoundedIcon
                                 className="empty-icon"
-                                sx={{ fontSize: 80, mb: 3 }}
+                                
                               />
                             }
                             title="此项目暂无卡片"
@@ -2423,7 +2423,7 @@ export default function OptionsPage() {
                             icon={
                               <NoteAddRoundedIcon
                                 className="empty-icon"
-                                sx={{ fontSize: 80, mb: 3 }}
+                                
                               />
                             }
                             title="此章节暂无卡片"
