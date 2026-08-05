@@ -568,6 +568,7 @@ export default function PdfView({
               )}
             />
           {/* jump to page */}
+          <Box sx={{ flex: 1 }} />
           <TextField
             size="small"
             variant="outlined"
