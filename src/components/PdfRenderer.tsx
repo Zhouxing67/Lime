@@ -279,6 +279,10 @@ function PageView({
     paneW > 0
       ? Math.floor(paneW * PAGE_RATIO * zoom * pageAspect)
       : 0
+  // Tracks the size inputs a page was LAST sized/render for. A loaded page
+  // (wh set) would otherwise render with stale scale/wh when zoom or paneW
+  // changes — the "zoom only affects unloaded pages" bug.
+  const sizeKeyRef = useRef("")
 
   useEffect(() => {
     const holder = holderRef.current
@@ -365,7 +369,9 @@ function PageView({
       (entries) => {
         if (entries[0].isIntersecting) {
           obs.disconnect()
-          if (!wh) {
+          const key = `${paneW}x${zoom}`
+          if (!wh || sizeKeyRef.current !== key) {
+            sizeKeyRef.current = key
             computeSize().catch((e) => console.warn("[pdf] page size:", e))
           } else {
             render().catch((e) => {
