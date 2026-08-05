@@ -82,6 +82,7 @@ function drawPageAnnotations(
 }
 
 function appendFlash(overlay: HTMLElement, r: PdfRect): void {
+  console.log("[lime:jump] flash drawn:", r)
   const flash = document.createElement("div")
   flash.className = "pdf-ann-flash"
   flash.style.cssText = `position:absolute;left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;pointer-events:none;`
@@ -375,7 +376,7 @@ function PageView({
           }
         }
       },
-      { rootMargin: "800px 0px" }
+      { rootMargin: "1600px 0px" }
     )
     obs.observe(holder)
     return () => {
@@ -531,6 +532,7 @@ export default function PdfRenderer({
     const scroll = () => {
       const target = el()
       if (target) {
+        console.log("[lime:jump] scrolling to page holder:", scrollTarget)
         target.scrollIntoView({ behavior: "auto", block: "start" })
         return true
       }

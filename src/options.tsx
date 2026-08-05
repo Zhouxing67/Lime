@@ -1059,6 +1059,11 @@ export default function OptionsPage() {
   // Card source / panel click → open the PDF (if needed) + flash the annotation.
   const handlePanelCardClick = useCallback((card: Item) => {
     if (!card.pdfRef) return
+    console.log("[lime:jump] source clicked:", card.id, card.pdfRef)
+    // Switch to the PDF view first — openPdf alone activates the PDF but the
+    // main area stays on the current tab, so the PdfView never mounts.
+    setSidebarTab("pdf")
+    setDrawerOpen(true)
     openPdf(card.pdfRef.pdfId)
     pdfFlashToken.current += 1
     setPdfFlashTarget({
@@ -1066,6 +1071,7 @@ export default function OptionsPage() {
       annId: card.pdfRef.annotationId,
       token: pdfFlashToken.current
     })
+    console.log("[lime:jump] flash target set:", card.pdfRef)
   }, [])
 
   // PdfView annotation popover "跳转卡片" → scroll the panel to that card.
