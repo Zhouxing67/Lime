@@ -1,3 +1,4 @@
+import AddRoundedIcon from "@mui/icons-material/AddRounded"
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded"
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
 import DriveFileMoveRoundedIcon from "@mui/icons-material/DriveFileMoveRounded"
@@ -14,6 +15,7 @@ import {
   Menu,
   MenuItem,
   Paper,
+  TextField,
   Typography
 } from "@mui/material"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -40,6 +42,8 @@ interface PdfCardsPanelProps {
   projects: Project[]
   onPlace: (cardIds: string[], projectId: string) => void
   onUnplace: (cardIds: string[]) => void
+  /** Create a project + place the cards into it (returns success). */
+  onCreateProject?: (name: string, cardIds: string[]) => Promise<boolean>
   /** Placed card's project chip click → jump to that project. */
   onJumpToProject?: (card: Item) => void
 }
@@ -56,6 +60,7 @@ export default function PdfCardsPanel({
   projects,
   onPlace,
   onUnplace,
+  onCreateProject,
   onJumpToProject
 }: PdfCardsPanelProps) {
   const [expandedCards, setExpandedCards] = useState<Set<string>>(
@@ -71,6 +76,10 @@ export default function PdfCardsPanel({
     anchor: HTMLElement
     cardIds: string[]
   } | null>(null)
+  const [newProjectOpen, setNewProjectOpen] = useState(false)
+  const [newProjectName, setNewProjectName] = useState("")
+  const [showAllProjects, setShowAllProjects] = useState(false)
+  const [creatingProject, setCreatingProject] = useState(false)
   const listRef = useRef<HTMLDivElement>(null)
   const jumpTimerRef = useRef<number | null>(null)
   const dragRef = useRef<{ startX: number; startW: number } | null>(null)
@@ -83,6 +92,32 @@ export default function PdfCardsPanel({
     },
     []
   )
+
+  const sortedProjects = useMemo(
+    () =>
+      [...projects].sort(
+        (a, b) => (b.lastOpened ?? 0) - (a.lastOpened ?? 0)
+      ),
+    [projects]
+  )
+  const visibleProjects = showAllProjects
+    ? sortedProjects
+    : sortedProjects.slice(0, 7)
+  const hiddenProjects = sortedProjects.length - visibleProjects.length
+
+  const handleCreateProjectPlace = useCallback(async () => {
+    const name = newProjectName.trim()
+    if (!name || !placeMenu || !onCreateProject) return
+    setCreatingProject(true)
+    const ok = await onCreateProject(name, placeMenu.cardIds)
+    setCreatingProject(false)
+    if (ok) {
+      setNewProjectName("")
+      setNewProjectOpen(false)
+      setPlaceMenu(null)
+      setShowAllProjects(false)
+    }
+  }, [newProjectName, placeMenu, onCreateProject])
 
   const sortedCards = useMemo(
     () =>
@@ -562,9 +597,14 @@ export default function PdfCardsPanel({
       <Menu
         anchorEl={placeMenu?.anchor}
         open={Boolean(placeMenu)}
-        onClose={() => setPlaceMenu(null)}
+        onClose={() => {
+          setPlaceMenu(null)
+          setNewProjectOpen(false)
+          setNewProjectName("")
+          setShowAllProjects(false)
+        }}
         slotProps={{
-          paper: { sx: { py: 0.5, borderRadius: 1, minWidth: 160 } }
+          paper: { sx: { py: 0.5, borderRadius: 1, minWidth: 200 } }
         }}>
         <Typography
           sx={{
@@ -576,18 +616,62 @@ export default function PdfCardsPanel({
           }}>
           置入项目（未分类）
         </Typography>
-        {projects.map((p) => (
+        {visibleProjects.map((p) => (
           <MenuItem
             key={p.id}
             onClick={() => {
               if (placeMenu) onPlace(placeMenu.cardIds, p.id)
               setPlaceMenu(null)
             }}
-            sx={{ gap: 1, fontSize: "0.8rem" }}>
+            title={p.name}
+            sx={{ gap: 1, fontSize: "0.8rem", maxWidth: 240 }}>
             <FolderRoundedIcon sx={{ fontSize: 15 }} />
-            {p.name}
+            <Box
+              component="span"
+              sx={{
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap"
+              }}>
+              {p.name}
+            </Box>
           </MenuItem>
         ))}
+        {hiddenProjects > 0 && (
+          <MenuItem
+            onClick={() => setShowAllProjects((s) => !s)}
+            sx={{ gap: 1, fontSize: "0.75rem", color: "text.secondary" }}>
+            {showAllProjects
+              ? "收起"
+              : `全部项目（${sortedProjects.length}）`}
+          </MenuItem>
+        )}
+        <Box sx={{ borderTop: "1px solid", borderColor: "divider", my: 0.5 }} />
+        {newProjectOpen ? (
+          <Box sx={{ px: 1, py: 0.5 }}>
+            <TextField
+              autoFocus
+              size="small"
+              fullWidth
+              placeholder="项目名称"
+              value={newProjectName}
+              disabled={creatingProject}
+              onChange={(e) => setNewProjectName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleCreateProjectPlace()
+                if (e.key === "Escape") setNewProjectOpen(false)
+              }}
+              sx={{ "& .MuiInputBase-input": { fontSize: "0.8rem" } }}
+            />
+          </Box>
+        ) : (
+          <MenuItem
+            onClick={() => setNewProjectOpen(true)}
+            sx={{ gap: 1, fontSize: "0.8rem" }}>
+            <AddRoundedIcon sx={{ fontSize: 15 }} />
+            新建项目
+          </MenuItem>
+        )}
       </Menu>
     </Box>
   )

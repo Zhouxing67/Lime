@@ -85,6 +85,8 @@ import {
   updatePdfTopic,
   placePdfCard,
   unplacePdfCard,
+  addProject,
+  getProjectByName,
   touchPdf,
   removeReview,
   searchItems,
@@ -1061,9 +1063,35 @@ export default function OptionsPage() {
   // Place PDF-sourced cards into a project (未分类) / unplace back to PDF-only.
   const handlePlaceCards = useCallback(
     async (cardIds: string[], projectId: string) => {
+      const project = projects.find((p) => p.id === projectId)
       for (const id of cardIds) await placePdfCard(id, projectId)
+      setSnackbarMsg(
+        `已置入 ${cardIds.length} 张卡片到「${project?.name ?? ""}」`
+      )
     },
-    []
+    [projects]
+  )
+
+  const handleCreateProjectAndPlace = useCallback(
+    async (name: string, cardIds: string[]) => {
+      const existing = await getProjectByName(name)
+      if (existing) {
+        setSnackbarMsg("项目名已存在")
+        return false
+      }
+      await addProject({
+        id: crypto.randomUUID(),
+        name,
+        createdAt: Date.now()
+      })
+      const created = await getProjectByName(name)
+      if (!created) return false
+      for (const id of cardIds) await placePdfCard(id, created.id)
+      setSnackbarMsg(`已新建项目「${name}」并置入 ${cardIds.length} 张卡片`)
+      loadProjects()
+      return true
+    },
+    [loadProjects]
   )
   const handleUnplaceCards = useCallback(async (cardIds: string[]) => {
     for (const id of cardIds) await unplacePdfCard(id)
@@ -2032,6 +2060,7 @@ export default function OptionsPage() {
                     projects={projects}
                     onPlace={handlePlaceCards}
                     onUnplace={handleUnplaceCards}
+                    onCreateProject={handleCreateProjectAndPlace}
                     onJumpToProject={handleJumpToProject}
                   />
                 </Box>

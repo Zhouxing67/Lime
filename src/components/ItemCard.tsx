@@ -212,6 +212,21 @@ export default function ItemCard({
               }}>
               {hostnameOf(item.source.url)}
             </Link>
+          ) : item.pdfRef ? (
+            <Typography
+              variant="caption"
+              onClick={(e) => {
+                e.stopPropagation()
+                onOpenPdfSource?.(item)
+              }}
+              sx={{
+                color: "text.secondary",
+                fontSize: "0.72rem",
+                cursor: "pointer",
+                "&:hover": { color: "primary.main" }
+              }}>
+              PDF · 第 {item.pdfRef.page} 页
+            </Typography>
           ) : (
             <Typography
               variant="caption"
