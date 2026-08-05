@@ -378,15 +378,24 @@ function PageView({
       }
     }
 
+    const scrollRoot = holder.closest("[data-pdf-scroll]")
     const obs = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
           obs.disconnect()
+          const below = scrollRoot
+            ? Math.round(
+                holder.getBoundingClientRect().top -
+                  scrollRoot.getBoundingClientRect().bottom
+              )
+            : 0
           console.log(
             "[lime:flash] page",
             pageNumber,
             "observer →",
             wh ? "render" : "computeSize",
+            "belowVisible",
+            below,
             "placeholderH",
             placeholderH
           )
@@ -403,7 +412,7 @@ function PageView({
           }
         }
       },
-      { rootMargin: "3000px 0px" }
+      { root: (scrollRoot as Element) ?? undefined, rootMargin: "3000px 0px" }
     )
     obs.observe(holder)
     return () => {
@@ -707,6 +716,7 @@ export default function PdfRenderer({
   return (
     <div
       ref={containerRef}
+      data-pdf-scroll=""
       onPointerDown={handlePointerDown}
       style={{
         flex: 1,
