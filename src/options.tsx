@@ -77,6 +77,7 @@ import {
   ensureItemOrder,
   addPdf,
   deletePdf,
+  getItemById,
   getItemsByPdf,
   getAnnotationsByPdf,
   listPdfs,
@@ -123,6 +124,7 @@ export default function OptionsPage() {
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [deleteTargetIsPdf, setDeleteTargetIsPdf] = useState(false)
   const [confirmBatchDelete, setConfirmBatchDelete] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [preset, setPreset] = useState<PresetName>("classic")
@@ -468,11 +470,22 @@ export default function OptionsPage() {
 
   const onDelete = (id: string) => {
     setConfirmDeleteId(id)
+    getItemById(id).then((item) =>
+      setDeleteTargetIsPdf(Boolean(item?.pdfRef))
+    )
   }
 
   const handleConfirmDelete = async () => {
     if (!confirmDeleteId) return
-    await deleteItem(confirmDeleteId)
+    // A placed PDF-sourced card is ALSO the PDF annotation card — deleting it
+    // from the project must only remove the membership (the annotation stays).
+    const item = await getItemById(confirmDeleteId)
+    if (item?.pdfRef) {
+      await unplacePdfCard(confirmDeleteId)
+      setSnackbarMsg("已从项目移出（PDF 批注保留）")
+    } else {
+      await deleteItem(confirmDeleteId)
+    }
     setConfirmDeleteId(null)
     onSearch()
   }
@@ -1043,9 +1056,10 @@ export default function OptionsPage() {
     setPdfOutlineDest(null)
   }, [])
 
-  // Panel card click → flash the annotation in the (active) PdfView.
+  // Card source / panel click → open the PDF (if needed) + flash the annotation.
   const handlePanelCardClick = useCallback((card: Item) => {
     if (!card.pdfRef) return
+    openPdf(card.pdfRef.pdfId)
     pdfFlashToken.current += 1
     setPdfFlashTarget({
       page: card.pdfRef.page,
@@ -1095,6 +1109,7 @@ export default function OptionsPage() {
   )
   const handleUnplaceCards = useCallback(async (cardIds: string[]) => {
     for (const id of cardIds) await unplacePdfCard(id)
+    setSnackbarMsg(`已移出 ${cardIds.length} 张卡片（PDF 批注保留）`)
   }, [])
 
   // Placed card's project chip → jump to the project (未分类) + highlight it.
@@ -1208,6 +1223,7 @@ export default function OptionsPage() {
       changes: Record<string, chrome.storage.StorageChange>
     ) => {
       if (changes._dbi || changes._dbp) {
+        loadPdfPanelData()
         if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current)
         refreshTimerRef.current = window.setTimeout(() => {
           refreshTimerRef.current = null
@@ -2013,56 +2029,32 @@ export default function OptionsPage() {
               openPdfIds.length > 0 ? (
                 <Box
                   sx={{
-                    display: "flex",
                     height: "100%",
                     minHeight: 0,
-                    position: "relative"
+                    overflow: "hidden"
                   }}>
-                  <Box
-                    sx={{
-                      flex: 1,
-                      minWidth: 400,
-                      height: "100%",
-                      overflow: "hidden"
-                    }}>
-                    {openPdfIds.map((id) => (
-                      <Box
-                        key={id}
-                        sx={{
-                          display: id === activePdfId ? "block" : "none",
-                          height: "100%",
-                          minHeight: 0
-                        }}>
-                        <PdfView
-                          pdfId={id}
-                          onOutlineLoaded={(o) =>
-                            setPdfOutlineByPdf((prev) => ({
-                              ...prev,
-                              [id]: o
-                            }))
-                          }
-                          outlineDest={pdfOutlineDest}
-                          flashTarget={pdfFlashTarget}
-                          onJumpInPanel={handleJumpInPanel}
-                        />
-                      </Box>
-                    ))}
-                  </Box>
-                  <PdfCardsPanel
-                    open={pdfCardsOpen}
-                    width={pdfCardsWidth}
-                    onWidthChange={setPdfCardsWidth}
-                    onCollapse={() => setPdfCardsOpen(false)}
-                    cards={pdfPanelCards}
-                    annotations={pdfPanelAnnotations}
-                    onCardClick={handlePanelCardClick}
-                    scrollTarget={pdfScrollTarget}
-                    projects={projects}
-                    onPlace={handlePlaceCards}
-                    onUnplace={handleUnplaceCards}
-                    onCreateProject={handleCreateProjectAndPlace}
-                    onJumpToProject={handleJumpToProject}
-                  />
+                  {openPdfIds.map((id) => (
+                    <Box
+                      key={id}
+                      sx={{
+                        display: id === activePdfId ? "block" : "none",
+                        height: "100%",
+                        minHeight: 0
+                      }}>
+                      <PdfView
+                        pdfId={id}
+                        onOutlineLoaded={(o) =>
+                          setPdfOutlineByPdf((prev) => ({
+                            ...prev,
+                            [id]: o
+                          }))
+                        }
+                        outlineDest={pdfOutlineDest}
+                        flashTarget={pdfFlashTarget}
+                        onJumpInPanel={handleJumpInPanel}
+                      />
+                    </Box>
+                  ))}
                 </Box>
               ) : (
                 <Box
@@ -2540,6 +2532,11 @@ export default function OptionsPage() {
                 open={Boolean(confirmDeleteId) || confirmBatchDelete}
                 batch={confirmBatchDelete}
                 count={selectedIds.length}
+                message={
+                  !confirmBatchDelete && deleteTargetIsPdf
+                    ? "这张卡片来自 PDF 批注，删除将从项目移出（PDF 批注保留）。"
+                    : undefined
+                }
                 onCancel={() => {
                   setConfirmDeleteId(null)
                   setConfirmBatchDelete(false)
@@ -2689,6 +2686,21 @@ export default function OptionsPage() {
             }
           />
         </Box>
+        <PdfCardsPanel
+          open={pdfCardsOpen && sidebarTab === "pdf" && Boolean(activePdfId)}
+          width={pdfCardsWidth}
+          onWidthChange={setPdfCardsWidth}
+          onCollapse={() => setPdfCardsOpen(false)}
+          cards={pdfPanelCards}
+          annotations={pdfPanelAnnotations}
+          onCardClick={handlePanelCardClick}
+          scrollTarget={pdfScrollTarget}
+          projects={projects}
+          onPlace={handlePlaceCards}
+          onUnplace={handleUnplaceCards}
+          onCreateProject={handleCreateProjectAndPlace}
+          onJumpToProject={handleJumpToProject}
+        />
       </Box>
     </ThemeProvider>
   )

@@ -462,7 +462,7 @@ export default function CardRenderer({
         }}>
         <Box sx={{ marginTop: "auto", marginBottom: "auto", width: "100%" }}>
           <OriginalBlock item={item} />
-          {item.source?.url && (
+          {(item.source?.url || item.pdfRef) && (
             <Box
               sx={{
                 mt: 2.5,
@@ -472,18 +472,24 @@ export default function CardRenderer({
               }}>
               <Typography
                 variant="body2"
-                component="a"
-                href={item.source.url}
-                target="_blank"
-                onClick={(e) => e.stopPropagation()}
+                component={item.pdfRef ? "span" : "a"}
+                href={item.pdfRef ? undefined : item.source?.url}
+                target={item.pdfRef ? undefined : "_blank"}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (item.pdfRef) onOpenPdfSource?.(item)
+                }}
                 sx={{
                   color: "primary.main",
                   textDecoration: "none",
                   "&:hover": { textDecoration: "underline" },
                   fontSize: "0.8rem",
-                  wordBreak: "break-word"
+                  wordBreak: "break-word",
+                  cursor: item.pdfRef ? "pointer" : "pointer"
                 }}>
-                ↗ {item.source.title || prettyUrl(item.source.url)}
+                {item.pdfRef
+                  ? `PDF · 第 ${item.pdfRef.page} 页`
+                  : `↗ ${item.source?.title || prettyUrl(item.source?.url ?? "")}`}
               </Typography>
             </Box>
           )}
@@ -540,7 +546,8 @@ export default function CardRenderer({
               letterSpacing: "0.03em"
             }}>
             {item.type.toUpperCase()}
-            {!item.source && " · 自建卡片"}
+            {!item.source && !item.pdfRef && " · 自建卡片"}
+            {item.pdfRef && ` · PDF · 第 ${item.pdfRef.page} 页`}
             {" · "}
             {new Date(item.createdAt).toLocaleDateString("zh-CN", {
               year: "numeric",
@@ -581,7 +588,7 @@ export default function CardRenderer({
         </Box>
       )}
 
-      {item.source?.url && (
+      {(item.source?.url || item.pdfRef) && (
         <>
           <Box
             sx={{
@@ -593,6 +600,14 @@ export default function CardRenderer({
           />
           <Typography
             variant="caption"
+            onClick={
+              item.pdfRef
+                ? (e) => {
+                    e.stopPropagation()
+                    onOpenPdfSource?.(item)
+                  }
+                : undefined
+            }
             sx={{
               color: "text.disabled",
               fontSize: "0.7rem",
@@ -600,9 +615,14 @@ export default function CardRenderer({
               display: "block",
               overflow: "hidden",
               textOverflow: "ellipsis",
-              whiteSpace: "nowrap"
+              whiteSpace: "nowrap",
+              ...(item.pdfRef
+                ? { cursor: "pointer", "&:hover": { color: "primary.main" } }
+                : {})
             }}>
-            ↗ {item.source.title || prettyUrl(item.source.url)}
+            {item.pdfRef
+              ? `PDF · 第 ${item.pdfRef.page} 页`
+              : `↗ ${item.source?.title || prettyUrl(item.source?.url ?? "")}`}
           </Typography>
         </>
       )}

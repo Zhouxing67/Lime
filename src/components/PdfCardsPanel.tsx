@@ -22,6 +22,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import type { Item, PdfAnnotation, Project } from "../types"
 import { deletePdfCard, updateItem } from "../database"
+import DeleteConfirmDialog from "./DeleteConfirmDialog"
 import PdfCardBody from "./PdfCardBody"
 import PdfEditDialog from "./PdfEditDialog"
 import { MARK_DOT, MARK_LABEL } from "./pdfTheme"
@@ -70,17 +71,19 @@ export default function PdfCardsPanel({
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const [batchMode, setBatchMode] = useState(false)
-  const [dragging, setDragging] = useState(false)
   const [parentW, setParentW] = useState(0)
   const [placeMenu, setPlaceMenu] = useState<{
     anchor: HTMLElement
     cardIds: string[]
   } | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<Item | null>(null)
+  const [batchDeleteOpen, setBatchDeleteOpen] = useState(false)
   const [newProjectOpen, setNewProjectOpen] = useState(false)
   const [newProjectName, setNewProjectName] = useState("")
   const [showAllProjects, setShowAllProjects] = useState(false)
   const [creatingProject, setCreatingProject] = useState(false)
   const listRef = useRef<HTMLDivElement>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
   const jumpTimerRef = useRef<number | null>(null)
   const dragRef = useRef<{ startX: number; startW: number } | null>(null)
   const dragCleanupRef = useRef<(() => void) | null>(null)
@@ -154,24 +157,28 @@ export default function PdfCardsPanel({
     [editCard]
   )
 
-  const handleCardDelete = useCallback(
-    async (card: Item) => {
-      await deletePdfCard(card)
-      setSelected((prev) => {
-        if (!prev.has(card.id)) return prev
-        const next = new Set(prev)
-        next.delete(card.id)
-        return next
-      })
-    },
-    []
-  )
+  const handleCardDelete = useCallback((card: Item) => {
+    setDeleteTarget(card)
+  }, [])
+
+  const confirmDelete = useCallback(async () => {
+    if (!deleteTarget) return
+    await deletePdfCard(deleteTarget)
+    setSelected((prev) => {
+      if (!prev.has(deleteTarget.id)) return prev
+      const next = new Set(prev)
+      next.delete(deleteTarget.id)
+      return next
+    })
+    setDeleteTarget(null)
+  }, [deleteTarget])
 
   const handleBatchDelete = useCallback(async () => {
     const batch = sortedCards.filter((c) => selected.has(c.id))
     for (const c of batch) await deletePdfCard(c)
     setSelected(new Set())
     setBatchMode(false)
+    setBatchDeleteOpen(false)
   }, [sortedCards, selected])
 
   const toggleSelect = useCallback((id: string) => {
@@ -209,7 +216,7 @@ export default function PdfCardsPanel({
   const maxPanelW = parentW > 0 ? Math.max(240, Math.min(520, parentW - 400)) : 520
 
   useEffect(() => {
-    const el = listRef.current?.parentElement
+    const el = rootRef.current?.parentElement
     if (!el) return
     const ro = new ResizeObserver((entries) => {
       setParentW(Math.floor(entries[0].contentRect.width))
@@ -225,7 +232,6 @@ export default function PdfCardsPanel({
   const startDrag = useCallback(
     (e: React.PointerEvent) => {
       e.preventDefault()
-      setDragging(true)
       dragRef.current = { startX: e.clientX, startW: width }
       const mv = (ev: PointerEvent) => {
         const d = dragRef.current
@@ -236,7 +242,6 @@ export default function PdfCardsPanel({
       }
       const up = () => {
         dragRef.current = null
-        setDragging(false)
         document.removeEventListener("pointermove", mv)
         document.removeEventListener("pointerup", up)
       }
@@ -249,6 +254,7 @@ export default function PdfCardsPanel({
 
   return (
     <Box
+      ref={rootRef}
       sx={{
         width: open ? width : 0,
         flexShrink: 0,
@@ -259,8 +265,7 @@ export default function PdfCardsPanel({
         display: "flex",
         flexDirection: "column",
         minHeight: 0,
-        position: "relative",
-        transition: dragging ? "none" : "width 0.25s ease-out"
+        position: "relative"
       }}>
       {/* Drag handle (the panel's left edge — right-anchored: drag left widens) */}
       <Box
@@ -343,7 +348,7 @@ export default function PdfCardsPanel({
               size="small"
               title="删除选中"
               disabled={selected.size === 0}
-              onClick={handleBatchDelete}
+              onClick={() => setBatchDeleteOpen(true)}
               sx={{ p: 0.25, color: "text.disabled" }}>
               <DeleteOutlineRoundedIcon sx={{ fontSize: 15 }} />
             </IconButton>
@@ -593,6 +598,23 @@ export default function PdfCardsPanel({
         open={Boolean(editCard)}
         onClose={() => setEditCard(null)}
         onSave={handleSaveIdea}
+      />
+      <DeleteConfirmDialog
+        open={Boolean(deleteTarget)}
+        batch={false}
+        count={1}
+        itemLabel="这个批注"
+        message="将删除该批注及其摘录卡片。"
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+      />
+      <DeleteConfirmDialog
+        open={batchDeleteOpen}
+        batch
+        count={selected.size}
+        itemLabel="批注"
+        onCancel={() => setBatchDeleteOpen(false)}
+        onConfirm={handleBatchDelete}
       />
       <Menu
         anchorEl={placeMenu?.anchor}
