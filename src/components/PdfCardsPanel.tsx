@@ -11,6 +11,7 @@ import UnfoldMoreRoundedIcon from "@mui/icons-material/UnfoldMoreRounded"
 import {
   Box,
   Checkbox,
+  Divider,
   IconButton,
   Menu,
   MenuItem,
@@ -304,9 +305,7 @@ export default function PdfCardsPanel({
           gap: 0.75,
           px: 2,
           py: 1,
-          borderBottom: "1px solid",
-          borderColor: "divider",
-          minHeight: 40
+          minHeight: 52
         }}>
         <Box
           sx={{
@@ -319,7 +318,7 @@ export default function PdfCardsPanel({
         />
         <Typography
           sx={{
-            fontSize: "0.75rem",
+            fontSize: "0.8rem",
             fontWeight: 600,
             color: "text.secondary"
           }}>
@@ -385,6 +384,7 @@ export default function PdfCardsPanel({
           </Box>
         )}
       </Box>
+      <Divider sx={{ mx: 1 }} />
       {/* Card list */}
       <Box ref={listRef} sx={{ flex: 1, overflowY: "auto", p: 2, minHeight: 0 }}>
         {sortedCards.length === 0 ? (

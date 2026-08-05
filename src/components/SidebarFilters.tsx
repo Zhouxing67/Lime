@@ -539,11 +539,11 @@ export default function SidebarFilters({
             }
           }}
         />
-        <Stack spacing={1.5} sx={{ p: 2, pt: 2.5 }}>
+        <Stack spacing={1.5} sx={{ p: 2, pt: 2.75 }}>
           {/* Top: current view title */}
           <SectionLabel>{TAB_TITLES[sidebarTab]}</SectionLabel>
 
-          <Divider sx={{ mx: 0.5 }} />
+          <Divider sx={{ mx: 1 }} />
 
           {sidebarTab === "review" ? (
             /* Review tab content */
