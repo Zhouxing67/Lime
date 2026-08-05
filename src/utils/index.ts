@@ -169,7 +169,6 @@ export function markdownCompletedCount(content: string): number {
   return markdownTasks(content).filter((t) => t.checked).length
 }
 
-/** A todo is complete when it has at least one task and all are checked. */
 /** Set the extension toolbar badge (due + incomplete todos). Shared by the
  *  background SW (closed-options context) + the options page (open context +
  *  time-passed-due freshness). */
