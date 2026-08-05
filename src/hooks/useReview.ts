@@ -3,11 +3,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { SidebarTab } from "../components/NavRail"
 import {
   searchItems as dbSearch,
-  getAllReviews,
-  getDueReviews,
-  getReviewStatsByStore
+  getDueReviews
 } from "../database"
-import type { Item } from "../types"
+import type { Item, ReviewEntry } from "../types"
 import { DAY_MS } from "../utils"
 import { dayKey, getRecentItems as getRecentItemsBySrs } from "./useSrs"
 import type { ReviewStats } from "./useSrs"
@@ -32,8 +30,9 @@ interface UseReviewOptions {
   setReviewItems: (items: Item[]) => void
   reviewDateFilter: string | null
   setReviewDateFilter: (key: string | null) => void
-  /** Bumped on `_dbr` broadcasts so review stats reload without refreshAllData. */
-  reviewsVersion: number
+  /** All reviews, loaded once by the options composition root and passed in —
+   *  the stats/ratings/streak derive from this in memory (no per-hook DB reads). */
+  reviews: ReviewEntry[]
 }
 
 export function useReview(options: UseReviewOptions) {
@@ -47,7 +46,7 @@ export function useReview(options: UseReviewOptions) {
     reviewDateFilter,
     setReviewDateFilter,
     setReviewItems,
-    reviewsVersion
+    reviews
   } = options
 
   const [dueCount, setDueCount] = useState(0)
@@ -68,47 +67,50 @@ export function useReview(options: UseReviewOptions) {
   allItemsRef.current = allItemsUnfiltered
 
   useEffect(() => {
-    getReviewStatsByStore().then((s) => {
-      setDueCount(s.dueCount)
-      setReviewStats({
-        masteredCount: s.masteredCount,
-        dueCount: s.dueCount,
-        activeCount: s.activeCount
-      })
-    })
-    getRecentItemsBySrs(allItemsUnfiltered).then(setRecentItems)
-    getAllReviews().then((reviews) => {
-      const todayKey = dayKey(Date.now())
-      const allDateKeys = new Set<string>()
-      const counts: [number, number, number] = [0, 0, 0]
-      for (const r of reviews) {
-        if (!r.srs.reviewHistory) continue
-        let foundToday = false
-        for (const h of r.srs.reviewHistory) {
-          allDateKeys.add(dayKey(h.date))
-          if (dayKey(h.date) === todayKey && !foundToday) {
-            foundToday = true
-            // 1=不认识, 2=模糊, 3=认识; legacy 4 maps to 认识 (index 2).
-            if (h.rating >= 1 && h.rating <= 4) {
-              const idx = h.rating >= 3 ? 2 : h.rating - 1
-              counts[idx]++
-            }
+    const now = Date.now()
+    let dueCount = 0
+    let activeCount = 0
+    let masteredCount = 0
+    for (const r of reviews) {
+      if (r.status === "active") {
+        activeCount++
+        if (r.dueDate <= now) dueCount++
+      }
+      if (r.status === "mastered") masteredCount++
+    }
+    setDueCount(dueCount)
+    setReviewStats({ masteredCount, dueCount, activeCount })
+    setRecentItems(getRecentItemsBySrs(allItemsUnfiltered, reviews))
+    const todayKey = dayKey(now)
+    const allDateKeys = new Set<string>()
+    const counts: [number, number, number] = [0, 0, 0]
+    for (const r of reviews) {
+      if (!r.srs.reviewHistory) continue
+      let foundToday = false
+      for (const h of r.srs.reviewHistory) {
+        allDateKeys.add(dayKey(h.date))
+        if (dayKey(h.date) === todayKey && !foundToday) {
+          foundToday = true
+          // 1=不认识, 2=模糊, 3=认识; legacy 4 maps to 认识 (index 2).
+          if (h.rating >= 1 && h.rating <= 4) {
+            const idx = h.rating >= 3 ? 2 : h.rating - 1
+            counts[idx]++
           }
         }
       }
-      setTodayRatings(counts)
-      const sorted = Array.from(allDateKeys).sort().reverse()
-      const now = new Date()
-      let streak = 0
-      for (let i = 0; i < sorted.length; i++) {
-        const d = new Date(now)
-        d.setDate(now.getDate() - i)
-        if (sorted[i] === dayKey(d.getTime())) streak++
-        else break
-      }
-      setStreakDays(streak)
-    })
-  }, [allItemsUnfiltered, reviewsVersion])
+    }
+    setTodayRatings(counts)
+    const sorted = Array.from(allDateKeys).sort().reverse()
+    const day = new Date()
+    let streak = 0
+    for (let i = 0; i < sorted.length; i++) {
+      const d = new Date(day)
+      d.setDate(day.getDate() - i)
+      if (sorted[i] === dayKey(d.getTime())) streak++
+      else break
+    }
+    setStreakDays(streak)
+  }, [allItemsUnfiltered, reviews])
 
   // Load due cards every time the user enters review tab (always from DB)
   // allItemsUnfiltered NOT in deps to prevent refreshAllData from racing with rating timeout

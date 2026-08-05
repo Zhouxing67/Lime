@@ -1,4 +1,3 @@
-import { getAllReviews } from "../database"
 import type { Item, ReviewEntry, SrsData } from "../types"
 import { DAY_MS } from "../utils"
 
@@ -85,12 +84,12 @@ export function dayKey(ts: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
 }
 
-export async function getRecentItems(
+export function getRecentItems(
   allItems: Item[],
+  reviews: ReviewEntry[],
   days = 3
-): Promise<{ date: string; items: Item[] }[]> {
+): { date: string; items: Item[] }[] {
   const cutoff = Date.now() - days * DAY_MS
-  const reviews = await getAllReviews()
   const itemMap = new Map(allItems.map((i) => [i.id, i]))
 
   // Group by each reviewHistory entry's day (not lastReviewDate, which would

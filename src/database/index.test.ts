@@ -704,7 +704,8 @@ describe("database", () => {
         })
       )
 
-      const groups = await getRecentItems([i1, i2], 3)
+      const reviews = await getAllReviews()
+      const groups = getRecentItems([i1, i2], reviews, 3)
       expect(groups).toHaveLength(2)
       const todayGroup = groups.find((g) => g.date === dayKey(today))
       const yesterdayGroup = groups.find((g) => g.date === dayKey(yesterday))

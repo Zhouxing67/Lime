@@ -106,7 +106,7 @@ import { createReviewEntry, dayKey, rateSrs } from "./hooks/useSrs"
 import { importFromZip } from "./import"
 import { createAppTheme } from "./theme"
 import { buildProjectMarkdown, buildScopeData } from "./utils/export"
-import type { Item, MergeSeparator, PdfAnnotation, PdfFile, PresetName, Project, SearchQuery, SrsData, TodoFilter } from "./types"
+import type { Item, MergeSeparator, PdfAnnotation, PdfFile, PresetName, Project, ReviewEntry, SearchQuery, SrsData, TodoFilter } from "./types"
 import { sendMessage } from "./types/messages"
 import { DAY_MS, RATING_META, applyBadge, buildMergedContent, cloneItem, compareCards, createItem, dueStatus, isTodoComplete, toggleMarkdownTask, todayLocalDate } from "./utils"
 
@@ -229,6 +229,7 @@ export default function OptionsPage() {
   /** Bumped by `_dbr` broadcasts → triggers a lightweight review-state reload
    * (no full refreshAllData) so the session stays in sync with review writes. */
   const [reviewsVersion, setReviewsVersion] = useState(0)
+  const [allReviews, setAllReviews] = useState<ReviewEntry[]>([])
   const [expandedNav, setExpandedNav] = useState<Set<string>>(new Set())
   const [navOpen, setNavOpen] = useState(false)
   const [activeSectionByProject, setActiveSectionByProject] = useState<
@@ -352,7 +353,7 @@ export default function OptionsPage() {
     setReviewItems,
     reviewDateFilter,
     setReviewDateFilter,
-    reviewsVersion
+    reviews: allReviews
   })
 
   const cardFirstRating = useMemo(() => {
@@ -390,6 +391,7 @@ export default function OptionsPage() {
   // Load review states (refresh when items or review data change)
   useEffect(() => {
     getAllReviews().then((reviews) => {
+      setAllReviews(reviews)
       setReviewItemIds(new Set(reviews.map((r) => r.itemId)))
       setReviewSrsMap(new Map(reviews.map((r) => [r.itemId, r.srs])))
       setMasteredItemIds(
