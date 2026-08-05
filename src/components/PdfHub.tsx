@@ -94,6 +94,9 @@ export default function PdfHub({
         if (!p.name.toLowerCase().includes(keyword.trim().toLowerCase()))
           return false
       }
+      // Backup (selectable) mode shows ALL PDFs — the topic layer is a PDF-view
+      // navigation only and its topicView ("topics") would filter everything out.
+      if (selectable) return true
       if (topicView === "all") return true
       if (topicView === UNCLASSIFIED) return !p.topic
       if (typeof topicView === "string") return p.topic === topicView
