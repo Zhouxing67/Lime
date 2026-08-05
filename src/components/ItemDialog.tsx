@@ -46,20 +46,24 @@ export default function ItemDialog({
   const [editing, setEditing] = useState(false)
   const [draftTitle, setDraftTitle] = useState(item.title ?? "")
   const [draftContent, setDraftContent] = useState(item.content)
+  const [draftIdea, setDraftIdea] = useState(item.idea ?? "")
 
   useEffect(() => {
     setEditing(false)
     setDraftTitle(item.title ?? "")
     setDraftContent(item.content)
+    setDraftIdea(item.idea ?? "")
   }, [item.id])
 
   const [animDir, setAnimDir] = useState<"prev" | "next" | null>(null)
 
   const handleSave = async () => {
+    const isImage = item.type === "image"
     const updated: Item = {
       ...item,
       title: draftTitle.trim() || undefined,
-      content: draftContent
+      content: isImage ? item.content : draftContent,
+      idea: isImage ? draftIdea.trim() || undefined : item.idea
     }
     if (onSave) await onSave(updated)
     setEditing(false)
@@ -68,6 +72,7 @@ export default function ItemDialog({
   const handleCancel = () => {
     setDraftTitle(item.title ?? "")
     setDraftContent(item.content)
+    setDraftIdea(item.idea ?? "")
     setEditing(false)
   }
 
@@ -290,8 +295,11 @@ export default function ItemDialog({
             <DialogEditMode
               draftTitle={draftTitle}
               draftContent={draftContent}
+              draftIdea={draftIdea}
+              imageOnly={item.type === "image"}
               onTitleChange={setDraftTitle}
               onContentChange={setDraftContent}
+              onIdeaChange={setDraftIdea}
             />
           ) : (
             <Box

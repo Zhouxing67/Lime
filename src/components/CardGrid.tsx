@@ -35,6 +35,8 @@ interface CardGridProps {
   onToggleReview?: (id: string) => void
   onReReview?: (id: string) => void
   onCopyToProject?: (id: string) => void
+  onOpenPdfSource?: (item: Item) => void
+  highlightedId?: string | null
 }
 
 function roundRobinCols<T>(items: T[], cols: number): T[][] {
@@ -60,6 +62,8 @@ export default function CardGrid({
   onToggleReview,
   onReReview,
   onCopyToProject,
+  onOpenPdfSource,
+  highlightedId,
   reviewItemIds,
   masteredItemIds,
   onNewCard
@@ -211,6 +215,8 @@ export default function CardGrid({
                   onToggleReview={onToggleReview}
                   onReReview={onReReview}
                   onCopyToProject={onCopyToProject}
+                  onOpenPdfSource={onOpenPdfSource}
+                  highlighted={highlightedId === it.id}
                 />
               </Box>
             )

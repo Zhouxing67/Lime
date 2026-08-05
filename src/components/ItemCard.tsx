@@ -20,7 +20,9 @@ export default function ItemCard({
   onClick,
   onToggleReview,
   onReReview,
-  onCopyToProject
+  onCopyToProject,
+  onOpenPdfSource,
+  highlighted
 }: {
   item: Item
   firstRating?: 1 | 2 | 3
@@ -35,6 +37,8 @@ export default function ItemCard({
   onToggleReview?: (id: string) => void
   onReReview?: (id: string) => void
   onCopyToProject?: (id: string) => void
+  onOpenPdfSource?: (item: Item) => void
+  highlighted?: boolean
 }) {
   const [hovered, setHovered] = useState(false)
 
@@ -53,9 +57,11 @@ export default function ItemCard({
         bgcolor: selectMode
           ? alpha(theme.palette.primary.main, 0.04)
           : "background.paper",
-        boxShadow: theme.custom.cardShadow,
+        boxShadow: highlighted
+          ? `0 0 0 2px ${theme.palette.primary.main}`
+          : theme.custom.cardShadow,
         border: "1px solid",
-        borderColor: selectMode ? "primary.main" : "divider",
+        borderColor: selectMode || highlighted ? "primary.main" : "divider",
         transition:
           "box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease",
         "&:hover": {
@@ -153,7 +159,12 @@ export default function ItemCard({
       </Stack>
 
       <Box sx={{ mb: 1.5 }}>
-        <CardRenderer item={item} mode="preview" truncateTo={160} />
+        <CardRenderer
+          item={item}
+          mode="preview"
+          truncateTo={160}
+          onOpenPdfSource={onOpenPdfSource}
+        />
       </Box>
 
       <Box

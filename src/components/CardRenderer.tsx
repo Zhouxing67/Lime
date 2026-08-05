@@ -14,6 +14,8 @@ interface CardRendererProps {
   mode: "front" | "back" | "full" | "preview"
   truncateTo?: number
   contentAlign?: "top" | "center"
+  /** PDF-sourced project card: the source footer click jumps to the PDF. */
+  onOpenPdfSource?: (item: Item) => void
 }
 
 const TYPE_LABEL: Record<string, string> = {
@@ -215,7 +217,8 @@ export default function CardRenderer({
   item,
   mode,
   truncateTo,
-  contentAlign
+  contentAlign,
+  onOpenPdfSource
 }: CardRendererProps) {
   if (mode === "preview") {
     // Cover thumbnails: images embedded in content as Markdown, plus legacy
@@ -393,7 +396,7 @@ export default function CardRenderer({
             )}
           </Box>
         </Box>
-        {item.source?.url && (
+        {(item.source?.url || item.pdfRef) && (
           <>
             <Box
               sx={{
@@ -405,6 +408,14 @@ export default function CardRenderer({
             />
             <Typography
               variant="caption"
+              onClick={
+                item.pdfRef
+                  ? (e) => {
+                      e.stopPropagation()
+                      onOpenPdfSource?.(item)
+                    }
+                  : undefined
+              }
               sx={{
                 color: "text.disabled",
                 fontSize: "0.7rem",
@@ -413,9 +424,14 @@ export default function CardRenderer({
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
-                flexShrink: 0
+                flexShrink: 0,
+                ...(item.pdfRef
+                  ? { cursor: "pointer", "&:hover": { color: "primary.main" } }
+                  : {})
               }}>
-              ↗ {item.source.title || prettyUrl(item.source.url)}
+              {item.pdfRef
+                ? `PDF · 第 ${item.pdfRef.page} 页`
+                : `↗ ${item.source.title || prettyUrl(item.source.url)}`}
             </Typography>
           </>
         )}

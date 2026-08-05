@@ -143,6 +143,10 @@ export default function OptionsPage() {
     cardId: string
     token: number
   } | null>(null)
+  const [projectCardHighlightId, setProjectCardHighlightId] = useState<
+    string | null
+  >(null)
+  const projectCardHighlightTimer = useRef<number | null>(null)
   const pdfFlashToken = useRef(0)
   const pdfScrollToken = useRef(0)
   const [activePdfId, setActivePdfId] = useState<string | null>(null)
@@ -1065,6 +1069,24 @@ export default function OptionsPage() {
     for (const id of cardIds) await unplacePdfCard(id)
   }, [])
 
+  // Placed card's project chip → jump to the project (未分类) + highlight it.
+  const handleJumpToProject = useCallback((card: Item) => {
+    if (!card.projectId) return
+    setSidebarTab("projects")
+    setActiveProjectId(card.projectId)
+    setActiveSectionByProject((prev) => ({
+      ...prev,
+      [card.projectId!]: null
+    }))
+    setProjectCardHighlightId(card.id)
+    if (projectCardHighlightTimer.current)
+      window.clearTimeout(projectCardHighlightTimer.current)
+    projectCardHighlightTimer.current = window.setTimeout(() => {
+      setProjectCardHighlightId(null)
+      projectCardHighlightTimer.current = null
+    }, 2000)
+  }, [])
+
   const handleOpenPdfFile = useCallback(
     async (file: File) => {
       try {
@@ -1556,7 +1578,9 @@ export default function OptionsPage() {
     onOpenDialog: setDialogItem,
     onToggleReview: handleToggleReview,
     onReReview: handleReReview,
-    onCopyToProject: setCopyCardId
+    onCopyToProject: setCopyCardId,
+    onOpenPdfSource: handlePanelCardClick,
+    highlightedId: projectCardHighlightId
   }
 
   return (
@@ -2008,6 +2032,7 @@ export default function OptionsPage() {
                     projects={projects}
                     onPlace={handlePlaceCards}
                     onUnplace={handleUnplaceCards}
+                    onJumpToProject={handleJumpToProject}
                   />
                 </Box>
               ) : (
