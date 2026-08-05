@@ -277,7 +277,9 @@ function PageView({
     }
   }, [])
   const placeholderH =
-    paneW > 0 ? Math.floor(paneW * pageAspect) : 0
+    paneW > 0
+      ? Math.floor(paneW * PAGE_RATIO * zoom * pageAspect)
+      : 0
 
   useEffect(() => {
     const holder = holderRef.current
@@ -460,12 +462,16 @@ export default function PdfRenderer({
       const aspects = new Map<number, number>()
       for (let p = 1; p <= pageCount; p++) {
         const page = await doc.getPage(p)
+        if (cancelled) return
         const vp = page.getViewport({ scale: 1 })
         aspects.set(p, vp.height / vp.width)
       }
       if (!cancelled) setPageAspects(aspects)
     }
-    run()
+    run().catch(() => {
+      // The doc may be destroyed (PDF closed / LRU-evicted) mid-precompute —
+      // getPage rejects with "Transport destroyed"; fall back gracefully.
+    })
     return () => {
       cancelled = true
     }

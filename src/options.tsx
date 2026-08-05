@@ -1575,6 +1575,31 @@ export default function OptionsPage() {
   // todo icon's number (review has its own due-count badge on the 复习 button).
   const todoCount = todoStats.incomplete
 
+  // A card becomes due by TIME (its dueDate passes) with no DB write — no
+  // broadcast fires, so the review/todo icons stay stale. Recompute the review
+  // stats on an interval + when the tab regains focus.
+  useEffect(() => {
+    const bump = () => setReviewsVersion((v) => v + 1)
+    const onVisible = () => {
+      if (!document.hidden) bump()
+    }
+    bump()
+    const t = window.setInterval(bump, 60000)
+    document.addEventListener("visibilitychange", onVisible)
+    window.addEventListener("focus", bump)
+    return () => {
+      window.clearInterval(t)
+      document.removeEventListener("visibilitychange", onVisible)
+      window.removeEventListener("focus", bump)
+    }
+  }, [])
+
+  // Keep the toolbar badge in sync with the NavRail icons (due + incomplete).
+  useEffect(() => {
+    const total = dueCount + todoCount
+    chrome.action?.setBadgeText({ text: total > 0 ? String(total) : "" })
+  }, [dueCount, todoCount])
+
   const handleNewTodo = useCallback(() => {
     setFocusNewTaskId(null)
     setTodoFilter("incomplete")
