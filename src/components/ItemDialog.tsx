@@ -59,12 +59,14 @@ export default function ItemDialog({
   const [animDir, setAnimDir] = useState<"prev" | "next" | null>(null)
 
   const handleSave = async () => {
-    const isImage = item.type === "image"
+    // PDF-sourced cards keep their content read-only (the PDF original);
+    // only the idea (备注) is editable. Same for image captures.
+    const readOnlyContent = item.type === "image" || !!item.pdfRef
     const updated: Item = {
       ...item,
       title: draftTitle.trim() || undefined,
-      content: isImage ? item.content : draftContent,
-      idea: isImage ? draftIdea.trim() || undefined : item.idea
+      content: readOnlyContent ? item.content : draftContent,
+      idea: readOnlyContent ? draftIdea.trim() || undefined : item.idea
     }
     if (onSave) await onSave(updated)
     setEditing(false)
@@ -291,7 +293,8 @@ export default function ItemDialog({
               draftTitle={draftTitle}
               draftContent={draftContent}
               draftIdea={draftIdea}
-              imageOnly={item.type === "image"}
+              readOnlyContent={item.type === "image" || !!item.pdfRef}
+              isImage={item.type === "image"}
               onTitleChange={setDraftTitle}
               onContentChange={setDraftContent}
               onIdeaChange={setDraftIdea}

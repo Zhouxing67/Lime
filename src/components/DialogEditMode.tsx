@@ -6,7 +6,8 @@ export default function DialogEditMode({
   draftTitle,
   draftContent,
   draftIdea,
-  imageOnly,
+  readOnlyContent,
+  isImage,
   onTitleChange,
   onContentChange,
   onIdeaChange
@@ -14,9 +15,11 @@ export default function DialogEditMode({
   draftTitle: string
   draftContent: string
   draftIdea: string
-  /** Image cards (web/PDF capture): content is a data-URL — show it read-only
-   *  and edit the idea (备注) instead of raw base64 text. */
-  imageOnly?: boolean
+  /** Content is read-only (PDF-sourced cards): render it read-only and edit the
+   *  idea (备注) instead — content is the PDF original (text quote or frame). */
+  readOnlyContent?: boolean
+  /** The read-only content is a data-URL image (web/PDF image captures). */
+  isImage?: boolean
   onTitleChange: (v: string) => void
   onContentChange: (v: string) => void
   onIdeaChange: (v: string) => void
@@ -45,7 +48,7 @@ export default function DialogEditMode({
           }
         }}
       />
-      {imageOnly ? (
+      {readOnlyContent && isImage ? (
         <>
           <Box
             sx={{
@@ -65,6 +68,46 @@ export default function DialogEditMode({
             variant="caption"
             sx={{ color: "text.secondary", mb: 0.5, display: "block" }}>
             补充说明（支持 Markdown）
+          </Typography>
+          <TextField
+            multiline
+            minRows={4}
+            fullWidth
+            value={draftIdea}
+            onChange={(e) => onIdeaChange(e.target.value)}
+            sx={{
+              "& .MuiOutlinedInput-root": {
+                borderRadius: 1,
+                fontSize: "1rem",
+                bgcolor: "background.paper"
+              }
+            }}
+          />
+        </>
+      ) : readOnlyContent ? (
+        <>
+          <Box
+            sx={{
+              mb: 2,
+              borderLeft: "3px solid",
+              borderLeftColor: "primary.main",
+              bgcolor: (t) => `rgba(${t.palette.primary.main}, 0.04)`,
+              borderRadius: 1,
+              px: 2,
+              py: 1.5,
+              maxHeight: 240,
+              overflowY: "auto",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+              fontSize: "0.9rem",
+              color: "text.primary"
+            }}>
+            {draftContent}
+          </Box>
+          <Typography
+            variant="caption"
+            sx={{ color: "text.secondary", mb: 0.5, display: "block" }}>
+            原文引用（只读）· 补充说明（支持 Markdown）
           </Typography>
           <TextField
             multiline
