@@ -1,4 +1,4 @@
-import { Box, Paper, Typography } from "@mui/material"
+import { alpha, Box, Paper, Typography } from "@mui/material"
 import type { ReactNode } from "react"
 
 /** The app's one dashed "add" tile (新建项目 / 打开 PDF / 新建主题 / 新增待办 /
@@ -14,6 +14,10 @@ interface DashedTileProps {
   /** Render the icon inside a 36px dashed circle (todo/card tiles). */
   circleIcon?: boolean
   labelSize?: string
+  /** Marks this tile as a card-drag drop target (the "move to last" zone). */
+  dropTarget?: boolean
+  /** Drop-indicator highlight while a card drag hovers this tile. */
+  highlighted?: boolean
 }
 
 export default function DashedTile({
@@ -23,17 +27,20 @@ export default function DashedTile({
   minHeight = 104,
   variant = "simple",
   circleIcon = false,
-  labelSize = "0.85rem"
+  labelSize = "0.85rem",
+  dropTarget = false,
+  highlighted = false
 }: DashedTileProps) {
   return (
     <Paper
       elevation={0}
+      data-card-drop-end={dropTarget ? "true" : undefined}
       onClick={onClick}
       sx={(theme) => ({
         p: 2,
         borderRadius: 1,
         border: "1.5px dashed",
-        borderColor: theme.custom.borderStrong,
+        borderColor: highlighted ? "primary.main" : theme.custom.borderStrong,
         minHeight,
         display: "flex",
         flexDirection: "column",
@@ -41,7 +48,10 @@ export default function DashedTile({
         justifyContent: "center",
         gap: 1,
         cursor: "pointer",
-        color: "text.secondary",
+        color: highlighted ? "primary.main" : "text.secondary",
+        ...(highlighted
+          ? { bgcolor: alpha(theme.palette.primary.main, 0.04) }
+          : {}),
         ...(variant === "card"
           ? { bgcolor: "background.paper", boxShadow: theme.custom.cardShadow }
           : {}),

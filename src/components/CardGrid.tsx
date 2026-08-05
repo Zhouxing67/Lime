@@ -1,5 +1,4 @@
 import AddRoundedIcon from "@mui/icons-material/AddRounded"
-import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded"
 import {
   Box,
   Checkbox,
@@ -230,36 +229,13 @@ export default function CardGrid({
               circleIcon
               minHeight={220}
               labelSize="0.8rem"
+              dropTarget
+              highlighted={dropIndicator?.id === "__end__"}
             />
           )}
         </Box>
       ))}
       </Box>
-      {draggable && draggedId && (
-        <Box
-          data-card-drop-end="true"
-          sx={{
-            mt: 2,
-            border: "1.5px dashed",
-            borderColor:
-              dropIndicator?.id === "__end__" ? "primary.main" : "divider",
-            borderRadius: 1,
-            py: 1.5,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 1,
-            color:
-              dropIndicator?.id === "__end__" ? "primary.main" : "text.disabled",
-            fontSize: "0.8rem",
-            transition: "all 0.15s",
-            bgcolor:
-              dropIndicator?.id === "__end__" ? "action.selected" : "transparent"
-          }}>
-          <ExpandMoreRoundedIcon sx={{ fontSize: 16 }} />
-          放到末尾
-        </Box>
-      )}
     </Box>
   )
 }
