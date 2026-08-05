@@ -1207,6 +1207,24 @@ export default function OptionsPage() {
   // Subscribe to database changes via storage broadcast
   const refreshRef = useRef(refreshAllData)
   refreshRef.current = refreshAllData
+  const sidebarTabRef = useRef(sidebarTab)
+  sidebarTabRef.current = sidebarTab
+  const pdfPanelTimerRef = useRef<number | null>(null)
+  const schedulePdfPanelReload = useCallback(() => {
+    if (pdfPanelTimerRef.current)
+      window.clearTimeout(pdfPanelTimerRef.current)
+    pdfPanelTimerRef.current = window.setTimeout(() => {
+      pdfPanelTimerRef.current = null
+      loadPdfPanelData()
+    }, 100)
+  }, [loadPdfPanelData])
+  useEffect(
+    () => () => {
+      if (pdfPanelTimerRef.current)
+        window.clearTimeout(pdfPanelTimerRef.current)
+    },
+    []
+  )
 
   // Coalesce burst writes: a batch/annotation/toggle sequence fires many _dbi
   // broadcasts within ~150ms — debounce them into ONE refreshAllData instead of
@@ -1223,12 +1241,18 @@ export default function OptionsPage() {
       changes: Record<string, chrome.storage.StorageChange>
     ) => {
       if (changes._dbi || changes._dbp) {
-        loadPdfPanelData()
-        if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current)
-        refreshTimerRef.current = window.setTimeout(() => {
-          refreshTimerRef.current = null
-          refreshRef.current()
-        }, 150)
+        schedulePdfPanelReload()
+        // In the PDF view the sidebar shows the TOC/library — the full
+        // refreshAllData (5 store scans + full re-render) is wasted work on
+        // every card write; other views get the coalesced full reload.
+        if (sidebarTabRef.current !== "pdf") {
+          if (refreshTimerRef.current)
+            window.clearTimeout(refreshTimerRef.current)
+          refreshTimerRef.current = window.setTimeout(() => {
+            refreshTimerRef.current = null
+            refreshRef.current()
+          }, 150)
+        }
       }
       // Review writes broadcast `_dbr`: reload only review state (light),
       // never the full refreshAllData chain.
@@ -1238,12 +1262,12 @@ export default function OptionsPage() {
       // PDF writes broadcast `_dbpdf`: refresh the PDF library + the cards panel.
       if (changes._dbpdf) {
         loadPdfs()
-        loadPdfPanelData()
+        schedulePdfPanelReload()
       }
     }
     chrome.storage.onChanged.addListener(onChange)
     return () => chrome.storage.onChanged.removeListener(onChange)
-  }, [loadPdfs, loadPdfPanelData])
+  }, [loadPdfs, loadPdfPanelData, schedulePdfPanelReload])
 
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null
 
@@ -1379,6 +1403,9 @@ export default function OptionsPage() {
       if (tab === sidebarTab) {
         setDrawerOpen((prev) => !prev)
       } else {
+        // Leaving the PDF view: the full reload was skipped while in it, so
+        // refresh once so the card grid / counts reflect any writes.
+        if (sidebarTabRef.current === "pdf") refreshRef.current()
         setSidebarTab(tab)
         setDrawerOpen(true)
       }

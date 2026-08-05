@@ -1,6 +1,6 @@
 import AddRoundedIcon from "@mui/icons-material/AddRounded"
-import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded"
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
+import DoneAllRoundedIcon from "@mui/icons-material/DoneAllRounded"
 import DriveFileMoveRoundedIcon from "@mui/icons-material/DriveFileMoveRounded"
 import FolderRoundedIcon from "@mui/icons-material/FolderRounded"
 import EditRoundedIcon from "@mui/icons-material/EditRounded"
@@ -287,20 +287,22 @@ export default function PdfCardsPanel({
         sx={{
           display: "flex",
           alignItems: "center",
-          gap: 0.5,
-          px: 1.5,
+          gap: 0.75,
+          px: 2,
           py: 1,
           borderBottom: "1px solid",
           borderColor: "divider",
           minHeight: 40
         }}>
-        <IconButton
-          size="small"
-          onClick={onCollapse}
-          title="折叠面板"
-          sx={{ p: 0.25, color: "text.disabled" }}>
-          <ChevronRightRoundedIcon sx={{ fontSize: 16 }} />
-        </IconButton>
+        <Box
+          sx={{
+            width: 3,
+            height: 14,
+            borderRadius: 1,
+            bgcolor: "primary.main",
+            flexShrink: 0
+          }}
+        />
         <Typography
           sx={{
             fontSize: "0.75rem",
@@ -311,17 +313,13 @@ export default function PdfCardsPanel({
         </Typography>
         <Box sx={{ flex: 1 }} />
         {!batchMode ? (
-          <Box
+          <IconButton
+            size="small"
+            title="批量选择"
             onClick={() => setBatchMode(true)}
-            sx={{
-              fontSize: "0.72rem",
-              color: "text.disabled",
-              cursor: "pointer",
-              px: 0.5,
-              "&:hover": { color: "primary.main" }
-            }}>
-            批量
-          </Box>
+            sx={{ p: 0.25, color: "text.secondary" }}>
+            <DoneAllRoundedIcon sx={{ fontSize: 18 }} />
+          </IconButton>
         ) : (
           <Box
             sx={{
@@ -374,7 +372,7 @@ export default function PdfCardsPanel({
         )}
       </Box>
       {/* Card list */}
-      <Box ref={listRef} sx={{ flex: 1, overflowY: "auto", p: 1, minHeight: 0 }}>
+      <Box ref={listRef} sx={{ flex: 1, overflowY: "auto", p: 2, minHeight: 0 }}>
         {sortedCards.length === 0 ? (
           <Box
             sx={{

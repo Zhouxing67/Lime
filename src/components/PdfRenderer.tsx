@@ -181,6 +181,7 @@ function PageView({
   pageNumber,
   paneW,
   zoom,
+  pageAspect,
   annotations,
   flashAnnId,
   onFlashDone,
@@ -191,6 +192,7 @@ function PageView({
   pageNumber: number
   paneW: number
   zoom: number
+  pageAspect: number
   annotations: PdfAnnotation[]
   flashAnnId?: string | null
   onFlashDone?: () => void
@@ -273,7 +275,8 @@ function PageView({
       holder.querySelector(".pdf-selection")?.replaceChildren()
     }
   }, [])
-  const placeholderH = paneW > 0 ? Math.floor(paneW * 1.414) : 0
+  const placeholderH =
+    paneW > 0 ? Math.floor(paneW * pageAspect) : 0
 
   useEffect(() => {
     const holder = holderRef.current
@@ -444,6 +447,28 @@ export default function PdfRenderer({
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [paneW, setPaneW] = useState(0)
+  const [pageAspects, setPageAspects] = useState<Map<number, number> | null>(
+    null
+  )
+  // Precompute every page's height/width ratio up front (cheap getViewport, no
+  // render) so unrendered placeholders match the real page — no layout jump /
+  // flash when a new page scrolls in.
+  useEffect(() => {
+    let cancelled = false
+    const run = async () => {
+      const aspects = new Map<number, number>()
+      for (let p = 1; p <= pageCount; p++) {
+        const page = await doc.getPage(p)
+        const vp = page.getViewport({ scale: 1 })
+        aspects.set(p, vp.height / vp.width)
+      }
+      if (!cancelled) setPageAspects(aspects)
+    }
+    run()
+    return () => {
+      cancelled = true
+    }
+  }, [doc, pageCount])
   const [dragRect, setDragRect] = useState<PdfRect | null>(null)
   const dragState = useRef<{
     startX: number
@@ -496,13 +521,27 @@ export default function PdfRenderer({
   }, [])
 
   // Scroll to a requested page (TOC navigation) — instant, positions are
-  // accurate because every holder already carries its real page height.
+  // accurate because every holder already carries its real page height. Pages
+  // mount lazily, so a far target may not exist yet: retry until it appears.
   useEffect(() => {
     if (!scrollTarget) return
-    const el = containerRef.current?.querySelector(
-      `[data-page="${scrollTarget}"]`
-    )
-    el?.scrollIntoView({ behavior: "auto", block: "start" })
+    let tries = 0
+    const el = () =>
+      containerRef.current?.querySelector(`[data-page="${scrollTarget}"]`)
+    const scroll = () => {
+      const target = el()
+      if (target) {
+        target.scrollIntoView({ behavior: "auto", block: "start" })
+        return true
+      }
+      return false
+    }
+    if (scroll()) return
+    const timer = window.setInterval(() => {
+      tries++
+      if (scroll() || tries > 30) window.clearInterval(timer)
+    }, 150)
+    return () => window.clearInterval(timer)
   }, [scrollTarget])
 
   // Track the current visible page (rAF-throttled) for the 回跳 history.
@@ -653,6 +692,7 @@ export default function PdfRenderer({
             pageNumber={n}
             paneW={paneW}
             zoom={zoom ?? 1}
+            pageAspect={pageAspects?.get(n) ?? 1.414}
             annotations={pageAnnMap.get(n) ?? EMPTY_ANNOTATIONS}
             flashAnnId={flashPage === n ? flashAnnId : null}
             onFlashDone={onFlashDone}

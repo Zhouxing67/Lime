@@ -1374,6 +1374,9 @@ export async function placePdfCard(
       r.onerror = () => reject(r.error)
     })
   })
+  // The panel's data reloads on `_dbpdf` (the cards changed) — item writes
+  // alone broadcast `_dbi` which wouldn't refresh it.
+  await broadcastDbChange("pdfs")
 }
 
 /** Remove a PDF-sourced card from its project (back to PDF-only). */
@@ -1396,6 +1399,7 @@ export async function unplacePdfCard(itemId: string): Promise<void> {
       r.onerror = () => reject(r.error)
     })
   })
+  await broadcastDbChange("pdfs")
 }
 
 /** All annotations across every PDF (for backup). */

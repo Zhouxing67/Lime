@@ -487,7 +487,6 @@ export default function SidebarFilters({
         open={open}
         sx={{
           width: open ? width : 0,
-          transition: "width 0.2s ease",
           position: "relative",
           overflow: "hidden",
           "& .MuiDrawer-paper": {
