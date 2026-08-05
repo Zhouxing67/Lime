@@ -1413,12 +1413,16 @@ export async function placePdfCards(
   })
   if (items.length === 0) return
   const maxOrder = await getMaxOrderInSection(undefined)
-  let assigned = 0
+  // Sequential order assignment: preserved orders advance the running max, so
+  // fresh cards still land AFTER them (parity with the old per-card behavior).
+  let runningMax = maxOrder
   const nextItems = items.map((item) => {
     const next: Item = { ...item, projectId, sectionId: undefined }
     if (item.order === undefined) {
-      next.order = maxOrder + 1 + assigned
-      assigned++
+      next.order = runningMax + 1
+      runningMax = next.order
+    } else if (item.order > runningMax) {
+      runningMax = item.order
     }
     return next
   })
