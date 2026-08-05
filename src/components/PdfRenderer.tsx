@@ -317,6 +317,7 @@ function PageView({
       if (cancelled) return
       const canvas = holder.querySelector("canvas")
       if (!canvas) return
+      const renderStart = performance.now()
       // DPR crispness: physical canvas = logical × dpr, CSS = logical.
       canvas.width = Math.floor(wh.w * dpr)
       canvas.height = Math.floor(wh.h * dpr)
@@ -328,7 +329,12 @@ function PageView({
       })
       await renderTask.promise
       if (cancelled) return
-      console.log("[lime:flash] page", pageNumber, "render done — canvas drawn")
+      console.log(
+        "[lime:flash] page",
+        pageNumber,
+        "render done",
+        (performance.now() - renderStart).toFixed(0) + "ms"
+      )
       // Text layer (selection) aligned over the canvas at the logical viewport.
       const layerDiv = holder.querySelector<HTMLDivElement>(".pdf-textlayer")
       if (layerDiv) {
@@ -397,7 +403,7 @@ function PageView({
           }
         }
       },
-      { rootMargin: "1600px 0px" }
+      { rootMargin: "3000px 0px" }
     )
     obs.observe(holder)
     return () => {
