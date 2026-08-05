@@ -89,6 +89,7 @@ import {
   placePdfCards,
   unplacePdfCards,
   addProject,
+  deleteProject,
   getProjectByName,
   touchPdf,
   removeReview,
@@ -956,22 +957,25 @@ export default function OptionsPage() {
   // The cards panel's data (the active PDF's annotations + cards) is loaded
   // centrally here — the panel is a peer surface, not a PdfView sub-component.
   const loadPdfPanelData = useCallback(async () => {
-    if (!activePdfId) {
+    // Read the CURRENT active pdf via the ref — a debounced reload scheduled
+    // for PDF A must not overwrite the panel after a switch to PDF B.
+    const id = activePdfIdRef.current
+    if (!id) {
       setPdfPanelAnnotations([])
       setPdfPanelCards([])
       return
     }
     const [ann, cards] = await Promise.all([
-      getAnnotationsByPdf(activePdfId),
-      getItemsByPdf(activePdfId)
+      getAnnotationsByPdf(id),
+      getItemsByPdf(id)
     ])
     setPdfPanelAnnotations(ann)
     setPdfPanelCards(cards)
-  }, [activePdfId])
+  }, [])
 
   useEffect(() => {
     loadPdfPanelData()
-  }, [loadPdfPanelData])
+  }, [activePdfId, loadPdfPanelData])
 
   useEffect(() => {
     loadPdfs()
@@ -1086,10 +1090,15 @@ export default function OptionsPage() {
   const handlePlaceCards = useCallback(
     async (cardIds: string[], projectId: string) => {
       const project = projects.find((p) => p.id === projectId)
-      await placePdfCards(cardIds, projectId)
-      setSnackbarMsg(
-        `已置入 ${cardIds.length} 张卡片到「${project?.name ?? ""}」`
-      )
+      try {
+        await placePdfCards(cardIds, projectId)
+        setSnackbarMsg(
+          `已置入 ${cardIds.length} 张卡片到「${project?.name ?? ""}」`
+        )
+      } catch (e) {
+        console.warn("[lime] place failed:", e)
+        setSnackbarMsg("置入失败，请重试")
+      }
     },
     [projects]
   )
@@ -1101,23 +1110,33 @@ export default function OptionsPage() {
         setSnackbarMsg("项目名已存在")
         return false
       }
-      await addProject({
-        id: crypto.randomUUID(),
-        name,
-        createdAt: Date.now()
-      })
-      const created = await getProjectByName(name)
-      if (!created) return false
-      await placePdfCards(cardIds, created.id)
-      setSnackbarMsg(`已新建项目「${name}」并置入 ${cardIds.length} 张卡片`)
-      loadProjects()
-      return true
+      const projectId = crypto.randomUUID()
+      try {
+        await addProject({ id: projectId, name, createdAt: Date.now() })
+        await placePdfCards(cardIds, projectId)
+        setSnackbarMsg(`已新建项目「${name}」并置入 ${cardIds.length} 张卡片`)
+        loadProjects()
+        return true
+      } catch (e) {
+        console.warn("[lime] create+place failed:", e)
+        // Roll back the half-created project so no empty project is left behind.
+        try {
+          await deleteProject(projectId)
+        } catch {}
+        setSnackbarMsg("新建项目失败，请重试")
+        return false
+      }
     },
     [loadProjects]
   )
   const handleUnplaceCards = useCallback(async (cardIds: string[]) => {
-    await unplacePdfCards(cardIds)
-    setSnackbarMsg(`已移出 ${cardIds.length} 张卡片（PDF 批注保留）`)
+    try {
+      await unplacePdfCards(cardIds)
+      setSnackbarMsg(`已移出 ${cardIds.length} 张卡片（PDF 批注保留）`)
+    } catch (e) {
+      console.warn("[lime] unplace failed:", e)
+      setSnackbarMsg("移出失败，请重试")
+    }
   }, [])
 
   // Placed card's project chip → jump to the project (未分类) + highlight it.
@@ -2191,11 +2210,9 @@ export default function OptionsPage() {
                     <Box>
                       {ratingFilter && filteredDateItems.length === 0 ? (
                         <EmptyState
+                          iconSize={64}
                           icon={
-                            <SearchOffRoundedIcon
-                              className="empty-icon"
-                              sx={{ fontSize: 64, mb: 2 }}
-                            />
+                            <SearchOffRoundedIcon className="empty-icon" />
                           }
                           title="该评分下无卡片"
                           subtitle="切换评分或清除筛选试试"

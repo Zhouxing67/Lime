@@ -105,10 +105,7 @@ export default function PdfHub({
     return (
       <EmptyState
         icon={
-          <PictureAsPdfRoundedIcon
-            className="empty-icon"
-            sx={{ fontSize: 80, mb: 3 }}
-          />
+          <PictureAsPdfRoundedIcon className="empty-icon" />
         }
         title={selectable ? "没有可备份的 PDF" : "还没有 PDF"}
         subtitle={

@@ -45,7 +45,8 @@ import {
   searchItems,
   touchPdf,
   updateItem,
-  updateReviewSrs
+  updateReviewSrs,
+  getReviewByItemId
 } from "./index"
 
 // Helper to create a test item
@@ -1031,5 +1032,29 @@ describe("placePdfCards / unplacePdfCards (batch)", () => {
     await unplacePdfCards([c1.card.id, c2.card.id])
     expect((await getItemById(c1.card.id))?.projectId).toBeUndefined()
     expect((await getItemById(c2.card.id))?.projectId).toBeUndefined()
+  })
+})
+
+describe("PDF delete cascades reviews (no orphans)", () => {
+  it("deletePdfCard removes the card's review too", async () => {
+    const c = await createTextAnnotationCard({
+      pdfId: "p-or1",
+      page: 1,
+      type: "highlight",
+      startOffset: 0,
+      endOffset: 1,
+      text: "x"
+    })
+    await addReview({
+      id: "rev-or1",
+      itemId: c.card.id,
+      projectId: "",
+      status: "active",
+      dueDate: Date.now(),
+      addedAt: Date.now(),
+      srs: { dueDate: Date.now(), interval: 0, easeFactor: 2.5, reviewCount: 0, lastReviewDate: 0 }
+    })
+    await deletePdfCard(c.card)
+    expect(await getReviewByItemId(c.card.id)).toBeUndefined()
   })
 })

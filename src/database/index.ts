@@ -1109,7 +1109,12 @@ export async function listPdfs(): Promise<PdfFile[]> {
 /** Delete a PDF + its annotations + its PDF cards together (no orphans). */
 export async function deletePdf(id: string): Promise<void> {
   await tx(
-    { items: "readwrite", pdfAnnotations: "readwrite", pdfs: "readwrite" },
+    {
+      items: "readwrite",
+      pdfAnnotations: "readwrite",
+      pdfs: "readwrite",
+      reviews: "readwrite"
+    },
     async (stores) => {
       const annotations = await new Promise<PdfAnnotation[]>((resolve, reject) => {
         const results: PdfAnnotation[] = []
@@ -1127,6 +1132,9 @@ export async function deletePdf(id: string): Promise<void> {
         }
         req.onerror = () => reject(req.error)
       })
+      // Cascade the reviews of every deleted PDF card (a card that was added
+      // to review must not leave an orphan "due" entry behind).
+      const cardIds: string[] = []
       await new Promise<void>((resolve, reject) => {
         const r = stores.items
           .index("pdfRefPdfId")
@@ -1134,6 +1142,7 @@ export async function deletePdf(id: string): Promise<void> {
         r.onsuccess = () => {
           const cursor = r.result
           if (cursor) {
+            cardIds.push((cursor.value as Item).id)
             cursor.delete()
             cursor.continue()
           } else {
@@ -1142,6 +1151,12 @@ export async function deletePdf(id: string): Promise<void> {
         }
         r.onerror = () => reject(r.error)
       })
+      for (const cardId of cardIds) {
+        const r = stores.reviews.index("itemId").getKey(cardId)
+        r.onsuccess = () => {
+          if (r.result) stores.reviews.delete(r.result as string)
+        }
+      }
       for (const ann of annotations) {
         stores.pdfAnnotations.delete(ann.id)
       }
@@ -1343,16 +1358,33 @@ export async function deleteAnnotationWithCard(
 
 /** Delete a card + its linked annotation (the reverse of the above). */
 export async function deletePdfCard(card: Item): Promise<void> {
+  await deletePdfCards([card])
+}
+
+/** Delete PDF cards + their linked annotations + their reviews in ONE
+ *  transaction + a single broadcast (batch delete was N × 2-store txs). */
+export async function deletePdfCards(cards: Item[]): Promise<void> {
+  if (cards.length === 0) return
   await tx(
-    { items: "readwrite", pdfAnnotations: "readwrite" },
+    { items: "readwrite", pdfAnnotations: "readwrite", reviews: "readwrite" },
     async (stores) => {
       await new Promise<void>((resolve, reject) => {
-        if (card.pdfRef?.annotationId) {
-          stores.pdfAnnotations.delete(card.pdfRef.annotationId)
+        let remaining = cards.length
+        for (const card of cards) {
+          if (card.pdfRef?.annotationId) {
+            stores.pdfAnnotations.delete(card.pdfRef.annotationId)
+          }
+          const r = stores.reviews.index("itemId").getKey(card.id)
+          r.onsuccess = () => {
+            if (r.result) stores.reviews.delete(r.result as string)
+            const d = stores.items.delete(card.id)
+            d.onsuccess = () => {
+              if (--remaining === 0) resolve()
+            }
+            d.onerror = () => reject(d.error)
+          }
+          r.onerror = () => reject(r.error)
         }
-        const r = stores.items.delete(card.id)
-        r.onsuccess = () => resolve()
-        r.onerror = () => reject(r.error)
       })
     }
   )
@@ -1360,26 +1392,53 @@ export async function deletePdfCard(card: Item): Promise<void> {
 
 /** Place PDF-sourced cards into a project (未分类) in ONE transaction + a
  *  single `_dbpdf` broadcast. Cards keep their PDF source (multi-home). */
+/** Parallel get by keys inside one transaction (resolve on all requests done). */
+function getByKeys(store: IDBObjectStore, ids: string[]): Promise<Item[]> {
+  return new Promise<Item[]>((resolve, reject) => {
+    const results: Item[] = []
+    let remaining = ids.length
+    if (remaining === 0) {
+      resolve(results)
+      return
+    }
+    for (const id of ids) {
+      const r = store.get(id)
+      r.onsuccess = () => {
+        const it = r.result as Item | undefined
+        if (it) results.push(it)
+        if (--remaining === 0) resolve(results)
+      }
+      r.onerror = () => reject(r.error)
+    }
+  })
+}
+
+/** Parallel put inside one transaction (resolve when all are committed). */
+function putAll(store: IDBObjectStore, items: Item[]): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    let remaining = items.length
+    if (remaining === 0) {
+      resolve()
+      return
+    }
+    for (const it of items) {
+      const r = store.put(it)
+      r.onsuccess = () => {
+        if (--remaining === 0) resolve()
+      }
+      r.onerror = () => reject(r.error)
+    }
+  })
+}
+
 export async function placePdfCards(
   cardIds: string[],
   projectId: string
 ): Promise<void> {
   if (cardIds.length === 0) return
-  const items = await withStore("items", "readonly", (store) => {
-    return new Promise<Item[]>((resolve, reject) => {
-      const results: Item[] = []
-      let remaining = cardIds.length
-      for (const id of cardIds) {
-        const r = store.get(id)
-        r.onsuccess = () => {
-          const it = r.result as Item | undefined
-          if (it) results.push(it)
-          if (--remaining === 0) resolve(results)
-        }
-        r.onerror = () => reject(r.error)
-      }
-    })
-  })
+  const items = await withStore("items", "readonly", (store) =>
+    getByKeys(store, cardIds)
+  )
   if (items.length === 0) return
   const maxOrder = await getMaxOrderInSection(undefined)
   // Sequential order assignment: preserved orders advance the running max, so
@@ -1395,18 +1454,7 @@ export async function placePdfCards(
     }
     return next
   })
-  await withStore("items", "readwrite", (store) => {
-    return new Promise<void>((resolve, reject) => {
-      let remaining = nextItems.length
-      for (const next of nextItems) {
-        const r = store.put(next)
-        r.onsuccess = () => {
-          if (--remaining === 0) resolve()
-        }
-        r.onerror = () => reject(r.error)
-      }
-    })
-  })
+  await withStore("items", "readwrite", (store) => putAll(store, nextItems))
   // The panel's data reloads on `_dbpdf` (the cards changed).
   await broadcastDbChange("pdfs")
 }
@@ -1423,21 +1471,9 @@ export async function placePdfCard(
  *  transaction + a single `_dbpdf` broadcast. */
 export async function unplacePdfCards(cardIds: string[]): Promise<void> {
   if (cardIds.length === 0) return
-  const items = await withStore("items", "readonly", (store) => {
-    return new Promise<Item[]>((resolve, reject) => {
-      const results: Item[] = []
-      let remaining = cardIds.length
-      for (const id of cardIds) {
-        const r = store.get(id)
-        r.onsuccess = () => {
-          const it = r.result as Item | undefined
-          if (it) results.push(it)
-          if (--remaining === 0) resolve(results)
-        }
-        r.onerror = () => reject(r.error)
-      }
-    })
-  })
+  const items = await withStore("items", "readonly", (store) =>
+    getByKeys(store, cardIds)
+  )
   if (items.length === 0) return
   const nextItems = items.map((item) => {
     const next: Item = { ...item }
@@ -1445,18 +1481,7 @@ export async function unplacePdfCards(cardIds: string[]): Promise<void> {
     delete next.sectionId
     return next
   })
-  await withStore("items", "readwrite", (store) => {
-    return new Promise<void>((resolve, reject) => {
-      let remaining = nextItems.length
-      for (const next of nextItems) {
-        const r = store.put(next)
-        r.onsuccess = () => {
-          if (--remaining === 0) resolve()
-        }
-        r.onerror = () => reject(r.error)
-      }
-    })
-  })
+  await withStore("items", "readwrite", (store) => putAll(store, nextItems))
   await broadcastDbChange("pdfs")
 }
 

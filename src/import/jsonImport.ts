@@ -328,11 +328,11 @@ export async function importFromZip(
       // remap projectId
       if (item.projectId && projectIdMap.has(item.projectId)) {
         item.projectId = projectIdMap.get(item.projectId)!
-      } else if (
-        item.projectId &&
-        importedProjects.some((p) => p.id === item.projectId)
-      ) {
-        // project was in the export but mapping failed -> set to undefined
+      } else if (item.projectId) {
+        // The project is not part of this import — either the mapping failed or
+        // the project never came along (e.g. a PDF-scope backup has no projects
+        // array). Drop the membership so the card lands in 未分类 instead of
+        // pointing at a nonexistent project (unreachable card).
         item.projectId = undefined
       }
       validItems.push(item)

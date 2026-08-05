@@ -22,7 +22,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import type { Item, PdfAnnotation, Project } from "../types"
-import { deletePdfCard, updateItem } from "../database"
+import { deletePdfCard, deletePdfCards, updateItem } from "../database"
 import { byRecency } from "../utils"
 import DeleteConfirmDialog from "./DeleteConfirmDialog"
 import EmptyState from "./EmptyState"
@@ -182,7 +182,7 @@ export default function PdfCardsPanel({
 
   const handleBatchDelete = useCallback(async () => {
     const batch = sortedCards.filter((c) => selected.has(c.id))
-    for (const c of batch) await deletePdfCard(c)
+    await deletePdfCards(batch)
     setSelected(new Set())
     setBatchMode(false)
     setBatchDeleteOpen(false)
@@ -426,12 +426,12 @@ export default function PdfCardsPanel({
                       : "divider",
                   cursor: "pointer",
                   boxShadow: highlighted
-                    ? `0 0 0 2px ${theme.palette.primary.main}`
+                    ? theme.custom.focusRing
                     : theme.custom.cardShadow,
                   transition: "all 0.2s",
                   "&:hover": {
                     boxShadow: highlighted
-                      ? `0 0 0 2px ${theme.palette.primary.main}`
+                      ? theme.custom.focusRing
                       : theme.custom.cardShadowHover,
                     transform: "translateY(-1px)",
                     borderColor: highlighted
