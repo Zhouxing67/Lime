@@ -61,7 +61,7 @@ export default function MergeConfirmDialog({
       title={`合并 ${items.length} 张卡片`}
       maxWidth="sm"
       actions={
-        <DialogActions sx={{ px: 3, py: 2.5 }}>
+        <DialogActions sx={{ px: 3, py: 2 }}>
           <Button onClick={handleClose}>取消</Button>
           <Button
             variant="contained"
@@ -104,7 +104,7 @@ export default function MergeConfirmDialog({
           <ToggleButton
             key={opt.value}
             value={opt.value}
-            sx={{ borderRadius: 0.5, fontSize: "0.75rem" }}>
+            sx={{ borderRadius: 1, fontSize: "0.75rem" }}>
             {opt.label}
           </ToggleButton>
         ))}

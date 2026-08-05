@@ -2,6 +2,7 @@ import AddRoundedIcon from "@mui/icons-material/AddRounded"
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded"
 import CheckRoundedIcon from "@mui/icons-material/CheckRounded"
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
+import EditRoundedIcon from "@mui/icons-material/EditRounded"
 import DriveFileMoveRoundedIcon from "@mui/icons-material/DriveFileMoveRounded"
 import FolderRoundedIcon from "@mui/icons-material/FolderRounded"
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
@@ -242,7 +243,7 @@ export default function PdfHub({
                       setRenamingName(t)
                     }}
                     sx={{ p: 0.5, color: "text.disabled" }}>
-                    <Typography sx={{ fontSize: "0.68rem" }}>✎</Typography>
+                    <EditRoundedIcon sx={{ fontSize: 15 }} />
                   </IconButton>
                   <IconButton
                     size="small"
@@ -359,20 +360,20 @@ export default function PdfHub({
       shownPdfs.length === 0 &&
       topicView !== "all" &&
       topicView !== "topics" ? (
-        <Box sx={{ py: 6, textAlign: "center" }}>
-          <Typography
-            variant="body2"
-            sx={{ color: "text.secondary", fontSize: "0.85rem", mb: 1.5 }}>
-            此主题下暂无 PDF
-          </Typography>
-          <Button
-            size="small"
-            variant="outlined"
-            onClick={() => setTopicView("topics")}
-            sx={{ borderRadius: 1, fontSize: "0.75rem", textTransform: "none" }}>
-            返回全部主题
-          </Button>
-        </Box>
+        <EmptyState
+          icon={<PictureAsPdfRoundedIcon />}
+          iconSize={56}
+          title="此主题下暂无 PDF"
+          action={
+            <Button
+              size="small"
+              variant="contained"
+              onClick={() => setTopicView("topics")}
+              sx={{ borderRadius: 1, fontSize: "0.75rem", textTransform: "none" }}>
+              返回全部主题
+            </Button>
+          }
+        />
       ) : (
       <Box
         sx={{
@@ -413,6 +414,7 @@ export default function PdfHub({
                       : "divider",
                 cursor: "pointer",
                 position: "relative",
+                boxShadow: theme.custom.cardShadow,
                 bgcolor: selectable
                   ? alpha(theme.palette.primary.main, 0.04)
                   : isSelected
@@ -488,7 +490,7 @@ export default function PdfHub({
                     width: 36,
                     height: 36,
                     borderRadius: 1,
-                    bgcolor: "#f0efec",
+                    bgcolor: (t) => t.custom.surface2,
                     color: "text.secondary",
                     display: "flex",
                     alignItems: "center",

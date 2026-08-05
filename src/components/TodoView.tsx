@@ -1,9 +1,11 @@
 import AddRoundedIcon from "@mui/icons-material/AddRounded"
+import CheckCircleOutlineRoundedIcon from "@mui/icons-material/CheckCircleOutlineRounded"
 import { Box, Paper, Typography } from "@mui/material"
 
 import type { Item } from "../types"
 import TodoCard from "./TodoCard"
 import DashedTile from "./DashedTile"
+import EmptyState from "./EmptyState"
 
 interface TodoViewProps {
   items: Item[]
@@ -67,6 +69,15 @@ export default function TodoView({
           onSave={(t, c, d) => onSave(NEW_TODO, t, c, d)}
           onDelete={() => {}}
           onQuickAdd={() => {}}
+        />
+      )}
+
+      {items.length === 0 && editingId !== "__new__" && (
+        <EmptyState
+          icon={<CheckCircleOutlineRoundedIcon />}
+          iconSize={48}
+          title="还没有待办"
+          subtitle="点击上方「新增待办」开始记录"
         />
       )}
 

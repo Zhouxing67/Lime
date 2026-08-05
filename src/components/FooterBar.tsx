@@ -50,7 +50,7 @@ export default function FooterBar({
             待办{" "}
             <Box
               component="span"
-              sx={{ fontWeight: 700, color: "primary.main" }}>
+              sx={{ fontWeight: 700, color: "text.primary" }}>
               {todoStats.incomplete}
             </Box>
             /{todoStats.total}
@@ -59,7 +59,7 @@ export default function FooterBar({
             sx={{
               width: 56,
               height: 3,
-              borderRadius: 1.5,
+              borderRadius: 1,
               bgcolor: "action.hover",
               overflow: "hidden"
             }}>
@@ -69,7 +69,7 @@ export default function FooterBar({
                 height: "100%",
                 bgcolor:
                   pct === 100 ? "success.main" : "primary.main",
-                transition: "width 0.3s"
+                transition: "width 0.15s"
               }}
             />
           </Box>
@@ -125,7 +125,7 @@ export default function FooterBar({
             <>
               <Box
                 component="span"
-                sx={{ fontWeight: 700, color: "primary.main" }}>
+                sx={{ fontWeight: 700, color: "text.primary" }}>
                 {activeProjectItemCount ?? 0}
               </Box>{" "}
               收藏 · {activeProjectName}
@@ -134,14 +134,14 @@ export default function FooterBar({
               </Box>
             </>
           ) : null}
-          <Box component="span" sx={{ fontWeight: 700, color: "primary.main" }}>
+          <Box component="span" sx={{ fontWeight: 700, color: "text.primary" }}>
             {totalItems}
           </Box>{" "}
           收藏
           <Box component="span" sx={{ mx: 0.75, color: "text.disabled" }}>
             ·
           </Box>
-          <Box component="span" sx={{ fontWeight: 700, color: "primary.main" }}>
+          <Box component="span" sx={{ fontWeight: 700, color: "text.primary" }}>
             {totalProjects}
           </Box>{" "}
           项目

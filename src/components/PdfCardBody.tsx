@@ -20,7 +20,7 @@ export default function PdfCardBody({
         <Box
           sx={{
             borderRadius: 1,
-            bgcolor: "#f5f4f2",
+            bgcolor: (t) => t.custom.surface2,
             display: "flex",
             justifyContent: "center",
             p: 0.5,
@@ -45,7 +45,7 @@ export default function PdfCardBody({
             borderLeft: "3px solid",
             borderColor: "primary.main",
             bgcolor: (t) => alpha(t.palette.primary.main, 0.04),
-            borderRadius: 0.5,
+            borderRadius: 1,
             px: 1.5,
             py: 1,
             mb: showIdea ? 1.5 : 0

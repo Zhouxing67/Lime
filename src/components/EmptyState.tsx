@@ -1,4 +1,5 @@
 import { Box, Typography } from "@mui/material"
+import { cloneElement } from "react"
 import type { ReactElement } from "react"
 
 interface EmptyStateProps {
@@ -6,13 +7,16 @@ interface EmptyStateProps {
   title: string
   subtitle?: string
   action?: ReactElement
+  /** Default icon size — callers no longer hand-roll `fontSize`/`mb`. */
+  iconSize?: number
 }
 
 export default function EmptyState({
   icon,
   title,
   subtitle,
-  action
+  action,
+  iconSize = 80
 }: EmptyStateProps) {
   return (
     <Box
@@ -25,7 +29,9 @@ export default function EmptyState({
         color: "text.secondary",
         userSelect: "none"
       }}>
-      {icon}
+      {cloneElement(icon, {
+        sx: { fontSize: iconSize, mb: 2, ...(icon.props.sx ?? {}) }
+      })}
       <Typography variant="body1" sx={{ opacity: 0.7 }}>
         {title}
       </Typography>

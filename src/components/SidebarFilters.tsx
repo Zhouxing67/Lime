@@ -27,6 +27,7 @@ import type { PdfFile, Project, TodoFilter, TodoStats } from "../types"
 import type { PdfOutlineItem } from "./PdfView"
 import type { SidebarTab } from "./NavRail"
 import { RECENT_TOTAL as RECENT_TOTAL_SHARED } from "../constants"
+import Well from "./Well"
 import { byRecency } from "../utils"
 
 interface SidebarFiltersProps {
@@ -169,27 +170,7 @@ function OutlineTree({
   )
 }
 
-function Well({
-  children,
-  sx
-}: {
-  children: React.ReactNode
-  sx?: SxProps<Theme>
-}) {
-  return (
-    <Box
-      sx={{
-        bgcolor: "background.default",
-        borderRadius: 1,
-        border: "1px solid",
-        borderColor: "divider",
-        p: 0.75,
-        ...sx
-      }}>
-      {children}
-    </Box>
-  )
-}
+
 
 function collectTocKeys(items: PdfOutlineItem[]): string[] {
   const keys: string[] = []
@@ -515,7 +496,7 @@ export default function SidebarFilters({
             width: 4,
             cursor: "col-resize",
             zIndex: 1200,
-            "&:hover": { bgcolor: "primary.main", opacity: 0.5 },
+            "&:hover": { bgcolor: "primary.light" },
             bgcolor: "transparent",
             transition: "background-color 0.15s"
           }}
@@ -570,7 +551,7 @@ export default function SidebarFilters({
                             borderRadius: 1,
                             cursor: "pointer",
                             bgcolor: active ? "action.selected" : "transparent",
-                            color: active ? "text.primary" : "text.secondary",
+                            color: active ? "primary.main" : "text.secondary",
                             "&:hover": { bgcolor: "action.hover" }
                           }}>
                           <Typography
@@ -611,7 +592,7 @@ export default function SidebarFilters({
                     bgcolor:
                       backupScope === "projects" ? "action.selected" : "transparent",
                     color:
-                      backupScope === "projects" ? "text.primary" : "text.secondary",
+                      backupScope === "projects" ? "primary.main" : "text.secondary",
                     "&:hover": { bgcolor: "action.hover" }
                   }}>
                   <FolderOpenRoundedIcon sx={{ fontSize: 16 }} />
@@ -632,7 +613,7 @@ export default function SidebarFilters({
                     bgcolor:
                       backupScope === "pdfs" ? "action.selected" : "transparent",
                     color:
-                      backupScope === "pdfs" ? "text.primary" : "text.secondary",
+                      backupScope === "pdfs" ? "primary.main" : "text.secondary",
                     "&:hover": { bgcolor: "action.hover" }
                   }}>
                   <PictureAsPdfRoundedIcon sx={{ fontSize: 16 }} />
@@ -717,7 +698,7 @@ export default function SidebarFilters({
                         todoFilter === key ? "action.selected" : "transparent",
                       color:
                         todoFilter === key
-                          ? "text.primary"
+                          ? "primary.main"
                           : "text.secondary",
                       "&:hover": { bgcolor: "action.hover" }
                     }}>

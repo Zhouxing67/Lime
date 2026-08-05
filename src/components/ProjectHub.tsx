@@ -24,22 +24,12 @@ interface ProjectHubProps {
   onToggleSelect?: (id: string) => void
 }
 
-// Deterministic soft hue per project name (works on light + dark surfaces).
-const AVATAR_COLORS = [
-  "#5b7f9e",
-  "#7a8f5f",
-  "#9e7a5b",
-  "#8a6ba8",
-  "#a8686b",
-  "#5f9e8f",
-  "#b28a4e",
-  "#6b86a8"
-]
-
-function avatarColor(name: string): string {
+// Deterministic soft hue per project name — the palette comes from the theme's
+// custom.avatarPalette token (light/dark aware), not hardcoded hex.
+function avatarColor(palette: string[], name: string): string {
   let h = 0
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0
-  return AVATAR_COLORS[h % AVATAR_COLORS.length]
+  return palette[h % palette.length]
 }
 
 
@@ -130,6 +120,7 @@ export default function ProjectHub({
                 : "divider",
             cursor: "pointer",
             position: "relative",
+            boxShadow: theme.custom.cardShadow,
             // Align with ItemCard's selectMode look: uniform primary tint in
             // selectable mode, paper background otherwise (never transparent).
             bgcolor: selectable
@@ -186,8 +177,8 @@ export default function ProjectHub({
                 width: 36,
                 height: 36,
                 borderRadius: "50%",
-                bgcolor: avatarColor(p.name),
-                color: "#fff",
+                bgcolor: (t) => avatarColor(t.custom.avatarPalette, p.name),
+                color: (t) => t.palette.getContrastText(t.custom.avatarPalette[0]),
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",

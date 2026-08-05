@@ -13,7 +13,8 @@ import {
   IconButton,
   Stack,
   Tooltip,
-  Typography
+  Typography,
+  alpha
 } from "@mui/material"
 import { useCallback, useEffect, useState } from "react"
 
@@ -256,12 +257,12 @@ export default function ItemDialog({
           flex: 1,
           overflowY: "auto",
           px: 3,
-          py: 3,
+          py: 1,
           display: "flex",
           flexDirection: "column",
           bgcolor: "background.paper",
           animation: animDir
-            ? `dialogSlideOut${animDir === "next" ? "Left" : "Right"} 0.2s ease-in forwards`
+            ? `dialogSlideOut${animDir === "next" ? "Left" : "Right"} 0.25s ease-out forwards`
             : "none",
           "&::-webkit-scrollbar": {
             width: "8px"
@@ -270,16 +271,10 @@ export default function ItemDialog({
             bgcolor: "transparent"
           },
           "&::-webkit-scrollbar-thumb": {
-            bgcolor: (theme) =>
-              theme.palette.mode === "light"
-                ? "rgba(45, 52, 54, 0.2)"
-                : "rgba(232, 230, 227, 0.2)",
-            borderRadius: "8px",
+            bgcolor: (theme) => alpha(theme.palette.text.primary, 0.2),
+            borderRadius: 1,
             "&:hover": {
-              bgcolor: (theme) =>
-                theme.palette.mode === "light"
-                  ? "rgba(45, 52, 54, 0.3)"
-                  : "rgba(232, 230, 227, 0.3)"
+              bgcolor: (theme) => alpha(theme.palette.text.primary, 0.3)
             }
           }
         }}>

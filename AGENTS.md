@@ -150,7 +150,7 @@ Layout is three columns: **NavRail | Sidebar | Main**.
 
 **复用优先**（新 UI 必须复用，禁止手写 inline）：
 - 空态 → `EmptyState`；弹窗 → `DialogShell`；操作栏 → `BatchToolbar`（可配置 actions + countLabel）
-- 侧栏列表行 → 轻量行模式（active = `action.selected` + `text.primary`，hover = `action.hover`）——**禁止用 MUI `Button outlined/contained` 做筛选行**
+- 侧栏列表行 → 轻量行模式（active = `action.selected` + `primary.main` 文字，hover = `action.hover`）——**禁止用 MUI `Button outlined/contained` 做筛选行**
 - 瓦片/虚线瓦片 → 复用 `ProjectHub`/`PdfHub` 的 Paper 卡片 + `1.5px dashed borderStrong` 虚线
 - 卡片 hover → `cardShadowHover` + `translateY(-1px)` + `borderStrong`；hover 操作渐显 `opacity 0.15s`，破坏性操作常显
 - 类型/状态指示 → 色点 + 标签（复用 `RATING_META`/`MARK_DOT`），不另造样式
@@ -159,6 +159,17 @@ Layout is three columns: **NavRail | Sidebar | Main**.
 - 圆角：卡片/按钮/瓦片/chip 一律 `1`（不自定义 0.5/0.75）
 - 过渡：hover `0.2s ease`；入场/页面切换 `0.25s ease-out`；micro 动效 `0.15s`
 - 硬编码 hex 仅限例外：PDF 纸张 `#fff`/`#f0efec`、浮动面板主题、批注色（`pdfTheme`）——其余一律用 `t.custom.*`/palette
+
+**UI Review 准则**（每次 UI review 按六条基准线执行，P1 割裂 → P2 不一致 → P3 可选）：
+
+1. **Token 档位**：`borderRadius` 一律 `1`；过渡只用三档（hover `0.2s ease` / 入场 `0.25s ease-out` / micro `0.15s`）；阴影只用 `cardShadow`/`cardShadowHover`——`0.5/1.5/2/4` 圆角、`0.3s/0.35s/cubic-bezier` 过渡、原始 `boxShadow: N` elevation 都是违规
+2. **颜色语义**：只用 `t.custom.*`/palette；primary 只在 active/hover/link（不用作静态数字/默认强调色）；hover 操作渐显 + 破坏性常显
+3. **间距节奏**：同层级表面 `px/py` 一致；分割线缩进/Y 轴统一；卡片 hover = `cardShadowHover` + `translateY(-1px)` + `borderStrong`
+4. **文字排版**：serif（阅读体）/ sans（UI chrome）栈；同角色字号一致（次要文字统一 `0.75rem`，标题 600/700 不混）
+5. **状态反馈**：激活行 = `action.selected` 底 + `primary.main` 文字；hover = `action.hover`；选中 = primary 边框 + tint
+6. **复用遵守**：空态 → `EmptyState`；弹窗 → `DialogShell`；操作栏 → `BatchToolbar`；虚线瓦片 → `DashedTile`；Well/OriginalBlock 抽共享组件；菜单纸面统一 `slotProps { py: 0.5, borderRadius: 1 }`；筛选行禁止 `Button outlined/contained`；UI 控件用 MUI 图标（禁 `✎`/`◀▶` 字形）
+
+**例外清单**（刻意保留，不视为违规）：PDF 纸张/浮动面板/批注色；窄侧栏空态（260px 内用内联 caption 而非 EmptyState）；复习统计卡（`ReviewEmptyStats` 自定义卡面）；TodoCard 任务添加行的 `1px dashed`。
 
 ## Code Review Checklist
 

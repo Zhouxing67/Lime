@@ -25,6 +25,7 @@ import type { Item, PdfAnnotation, Project } from "../types"
 import { deletePdfCard, updateItem } from "../database"
 import { byRecency } from "../utils"
 import DeleteConfirmDialog from "./DeleteConfirmDialog"
+import EmptyState from "./EmptyState"
 import PdfCardBody from "./PdfCardBody"
 import PdfEditDialog from "./PdfEditDialog"
 import { MARK_DOT, MARK_LABEL } from "./pdfTheme"
@@ -388,21 +389,12 @@ export default function PdfCardsPanel({
       {/* Card list */}
       <Box ref={listRef} sx={{ flex: 1, overflowY: "auto", p: 2, minHeight: 0 }}>
         {sortedCards.length === 0 ? (
-          <Box
-            sx={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 1,
-              py: 6,
-              color: "text.disabled"
-            }}>
-            <PictureAsPdfRoundedIcon sx={{ fontSize: 40, opacity: 0.4 }} />
-            <Typography variant="body2" sx={{ fontSize: "0.82rem" }}>
-              在左侧选中文字后点标记，自动生成卡片
-            </Typography>
-          </Box>
+          <EmptyState
+            icon={<PictureAsPdfRoundedIcon />}
+            iconSize={40}
+            title="还没有摘录卡片"
+            subtitle="在左侧选中文字后点标记，自动生成卡片"
+          />
         ) : (
           sortedCards.map((card) => {
             const ann = annotations.find(

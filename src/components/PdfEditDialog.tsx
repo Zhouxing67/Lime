@@ -33,7 +33,7 @@ export default function PdfEditDialog({
       confirmLabel="保存"
       onConfirm={() => onSave(idea.trim())}
       confirmDisabled={unchanged}>
-      <Box sx={{ px: 3, pt: 2.5 }}>
+      <Box sx={{ pt: 1 }}>
         {item && <PdfCardBody item={item} />}
         <Typography
           variant="caption"

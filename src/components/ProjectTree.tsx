@@ -745,7 +745,8 @@ function ProjectNode({
               open={Boolean(menuAnchor)}
               onClose={() => setMenuAnchor(null)}
               anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-              transformOrigin={{ vertical: "top", horizontal: "right" }}>
+              transformOrigin={{ vertical: "top", horizontal: "right" }}
+          slotProps={{ paper: { sx: { py: 0.5, borderRadius: 1 } } }}>
               <MenuItem
                 sx={{ fontSize: "0.8rem" }}
                 onClick={() => {
@@ -905,7 +906,8 @@ function SectionNode({
           open={Boolean(menuAnchor)}
           onClose={() => setMenuAnchor(null)}
           anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-          transformOrigin={{ vertical: "top", horizontal: "right" }}>
+          transformOrigin={{ vertical: "top", horizontal: "right" }}
+          slotProps={{ paper: { sx: { py: 0.5, borderRadius: 1 } } }}>
           <MenuItem
             sx={{ fontSize: "0.8rem" }}
             onClick={() => {

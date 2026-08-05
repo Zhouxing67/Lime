@@ -45,7 +45,7 @@ export default function AppHeader({
             onClick={onToggleDrawer}
             sx={{
               color: drawerOpen ? "primary.main" : "text.secondary",
-              transition: "color 0.2s",
+              transition: "color 0.2s ease",
               "&:hover": { color: "primary.main" }
             }}>
             {drawerOpen ? (

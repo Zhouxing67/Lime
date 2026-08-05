@@ -125,7 +125,7 @@ export default function ReviewEmptyStats({
           <Box
             sx={{
               height: 8,
-              borderRadius: 4,
+              borderRadius: 1,
               bgcolor: "action.hover",
               overflow: "hidden",
               display: "flex",
@@ -189,7 +189,7 @@ export default function ReviewEmptyStats({
             <Typography
               variant="body2"
               sx={{ mt: 2, color: "text.secondary" }}>
-              🔥 连续打卡 {streakDays} 天
+              连续打卡 {streakDays} 天
             </Typography>
           )}
         </StatCard>

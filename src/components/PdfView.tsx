@@ -1,5 +1,7 @@
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
 import AddRoundedIcon from "@mui/icons-material/AddRounded"
+import ChevronLeftRoundedIcon from "@mui/icons-material/ChevronLeftRounded"
+import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded"
 import EditRoundedIcon from "@mui/icons-material/EditRounded"
 import RemoveRoundedIcon from "@mui/icons-material/RemoveRounded"
 import UndoRoundedIcon from "@mui/icons-material/UndoRounded"
@@ -418,13 +420,13 @@ export default function PdfView({
                         onClick={() => handleSearchNav(-1)}
                         title="上一个匹配"
                         sx={{
-                          fontSize: "0.75rem",
+                          display: "flex",
                           color: "text.secondary",
                           cursor: "pointer",
-                          px: 0.5,
+                          px: 0.25,
                           "&:hover": { color: "primary.main" }
                         }}>
-                        ◀
+                        <ChevronLeftRoundedIcon sx={{ fontSize: 18 }} />
                       </Box>
                       <Box
                         sx={{
@@ -438,13 +440,13 @@ export default function PdfView({
                         onClick={() => handleSearchNav(1)}
                         title="下一个匹配"
                         sx={{
-                          fontSize: "0.75rem",
+                          display: "flex",
                           color: "text.secondary",
                           cursor: "pointer",
-                          px: 0.5,
+                          px: 0.25,
                           "&:hover": { color: "primary.main" }
                         }}>
-                        ▶
+                        <ChevronRightRoundedIcon sx={{ fontSize: 18 }} />
                       </Box>
                     </Box>
                   ) : searchState.query ? (
@@ -566,7 +568,7 @@ export default function PdfView({
             anchorEl={annotMenuAnchor}
             open={!!annotMenuAnchor}
             onClose={() => setAnnotMenuAnchor(null)}
-            slotProps={{ paper: { sx: { minWidth: 148 } } }}>
+            slotProps={{ paper: { sx: { py: 0.5, borderRadius: 1, minWidth: 148 } } }}>
             {TEXT_TOOLS.map((t) => (
               <MenuItem
                 key={t}

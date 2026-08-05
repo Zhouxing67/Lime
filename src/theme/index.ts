@@ -18,6 +18,8 @@ declare module "@mui/material/styles" {
       borderStrong: string
       cardShadow: string
       cardShadowHover: string
+      focusRing: string
+      avatarPalette: string[]
     }
   }
   interface ThemeOptions {
@@ -28,6 +30,8 @@ declare module "@mui/material/styles" {
       borderStrong?: string
       cardShadow?: string
       cardShadowHover?: string
+      focusRing?: string
+      avatarPalette?: string[]
     }
   }
 }
@@ -54,7 +58,11 @@ export const createAppTheme = (
         : "0 1px 2px rgba(0, 0, 0, 0.4)",
       cardShadowHover: isLight
         ? "0 2px 4px rgba(45, 52, 54, 0.06), 0 8px 20px rgba(45, 52, 54, 0.1)"
-        : "0 2px 6px rgba(0, 0, 0, 0.45), 0 10px 24px rgba(0, 0, 0, 0.5)"
+        : "0 2px 6px rgba(0, 0, 0, 0.45), 0 10px 24px rgba(0, 0, 0, 0.5)",
+      focusRing: `0 0 0 2px ${p.primary.main}`,
+      avatarPalette: isLight
+        ? ["#5b7f9e", "#7a8f5f", "#9a6b5f", "#7a6b9e", "#5f8f8f", "#8f7a5f", "#5f7a9e", "#9e6b7a"]
+        : ["#6f93b5", "#8fa876", "#b18474", "#9182b5", "#76a6a6", "#a69174", "#7691b5", "#b58291"]
     },
     palette: {
       mode,

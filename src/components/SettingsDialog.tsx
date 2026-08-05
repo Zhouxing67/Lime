@@ -98,7 +98,7 @@ export default function SettingsDialog({
         </Stack>
       }
       actions={
-        <DialogActions sx={{ px: 3, pb: 2 }}>
+        <DialogActions sx={{ px: 3, py: 2 }}>
           <Button onClick={onClose} sx={{ borderRadius: 1 }}>
             关闭
           </Button>
@@ -223,7 +223,7 @@ export default function SettingsDialog({
                       width: 28,
                       height: 28,
                       borderRadius: "50%",
-                      transition: "all 0.2s",
+                      transition: "all 0.2s ease",
                       "&:hover": { transform: "scale(1.15)" },
                       border: "2px solid",
                       borderColor:

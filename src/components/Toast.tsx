@@ -44,7 +44,7 @@ export default function Toast({ open, message, onClose }: ToastProps) {
         />
         <Typography
           variant="body2"
-          sx={{ fontSize: "0.82rem", color: "text.primary" }}>
+          sx={{ fontSize: "0.75rem", color: "text.primary" }}>
           {message}
         </Typography>
       </Box>

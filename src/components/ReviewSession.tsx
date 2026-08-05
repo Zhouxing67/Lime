@@ -128,7 +128,7 @@ export default function ReviewSession({
               width: 44,
               height: 44,
               borderRadius: "50%",
-              bgcolor: `alpha(${t.palette.success.main}, 0.08)`,
+              bgcolor: (t) => alpha(t.palette.success.main, 0.08),
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -236,8 +236,8 @@ export default function ReviewSession({
             minHeight: 520,
             cursor: "pointer",
             animation: animating
-              ? "reviewSlideOut 0.3s ease-in forwards"
-              : "reviewSlideInRight 0.35s ease-out"
+              ? "reviewSlideOut 0.25s ease-out forwards"
+              : "reviewSlideInRight 0.25s ease-out"
           }}>
           {/* Front */}
           <Box
@@ -247,13 +247,13 @@ export default function ReviewSession({
               overflow: "hidden",
               opacity: flipped ? 0 : 1,
               pointerEvents: flipped ? "none" : "auto",
-              transition: "opacity 0.3s ease",
+              transition: "opacity 0.15s",
               bgcolor: (theme) =>
                 theme.palette.mode === "light" ? "#fcfcf9" : "#2a2a2a",
               border: "1px solid",
               borderColor: "divider",
               borderRadius: 1,
-              boxShadow: 6,
+              boxShadow: (t) => t.custom.cardShadow,
               p: 3,
               display: "flex",
               flexDirection: "column"
@@ -269,13 +269,13 @@ export default function ReviewSession({
               overflow: "auto",
               opacity: flipped ? 1 : 0,
               pointerEvents: flipped ? "auto" : "none",
-              transition: "opacity 0.3s ease",
+              transition: "opacity 0.15s",
               bgcolor: (theme) =>
                 theme.palette.mode === "light" ? "#fcfcf9" : "#2a2a2a",
               border: "1px solid",
               borderColor: "divider",
               borderRadius: 1,
-              boxShadow: 6,
+              boxShadow: (t) => t.custom.cardShadow,
               p: 3,
               display: "flex",
               flexDirection: "column",
@@ -299,7 +299,7 @@ export default function ReviewSession({
           gap: 1,
           opacity: flipped ? 1 : 0,
           transform: flipped ? "translateY(0)" : "translateY(12px)",
-          transition: "all 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
+          transition: "all 0.25s ease-out",
           pointerEvents: flipped ? "auto" : "none"
         }}>
         {RATING_META.map((meta, i) => {
