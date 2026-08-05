@@ -5,7 +5,7 @@ import * as pdfjsLib from "pdfjs-dist"
 import type { PdfAnnotation, PdfMark } from "../types"
 import { MARK_COLOR } from "./pdfTheme"
 import { registerTextLayer, unregisterTextLayer } from "./pdfRegistry"
-import { textLayerRects } from "./pdfText"
+import { mergeRects, textLayerRects } from "./pdfText"
 import type { PdfRect } from "./pdfText"
 
 // Low-saturation annotation colors (align with the app's RATING_META family).
@@ -126,6 +126,19 @@ const TEXT_LAYER_CSS = `
   transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
 }
 .pdf-textlayer ::selection {
+  background: transparent;
+  border-radius: 0;
+}
+/* Custom unified selection highlight (merged rects — no per-span overlap at
+   CJK/Latin boundaries, no per-span stepping). */
+.pdf-selection {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+.pdf-selection > div {
+  position: absolute;
   background: rgba(99,102,241,0.26);
   border-radius: 2px;
 }
@@ -199,6 +212,50 @@ function PageView({
     }
     overlay.addEventListener("click", onClick)
     return () => overlay.removeEventListener("click", onClick)
+  }, [])
+
+  // Custom unified selection highlight: draw the merged selection rects on the
+  // .pdf-selection overlay instead of the native per-span ::selection (which
+  // doubles at CJK/Latin boundaries + steps span-by-span).
+  useEffect(() => {
+    const holder = holderRef.current
+    if (!holder) return
+    const draw = () => {
+      const selOverlay = holder.querySelector<HTMLElement>(".pdf-selection")
+      const layerDiv = holder.querySelector<HTMLElement>(".pdf-textlayer")
+      if (!selOverlay || !layerDiv) return
+      selOverlay.replaceChildren()
+      const sel = document.getSelection()
+      if (!sel || sel.isCollapsed || sel.rangeCount === 0) return
+      const range = sel.getRangeAt(0)
+      const inLayer =
+        layerDiv.contains(range.startContainer) &&
+        layerDiv.contains(range.endContainer)
+      if (!inLayer) return
+      const rects = mergeRects(
+        Array.from(range.getClientRects()).map((r) => ({
+          x: r.left,
+          y: r.top,
+          w: r.width,
+          h: r.height
+        })),
+        holder.getBoundingClientRect()
+      )
+      for (const r of rects) {
+        const el = document.createElement("div")
+        el.style.left = `${r.x}px`
+        el.style.top = `${r.y}px`
+        el.style.width = `${r.w}px`
+        el.style.height = `${r.h}px`
+        selOverlay.appendChild(el)
+      }
+    }
+    draw()
+    document.addEventListener("selectionchange", draw)
+    return () => {
+      document.removeEventListener("selectionchange", draw)
+      holder.querySelector(".pdf-selection")?.replaceChildren()
+    }
   }, [])
   const placeholderH = paneW > 0 ? Math.floor(paneW * 1.414) : 0
 
@@ -326,6 +383,7 @@ function PageView({
       <canvas style={{ display: "block" }} />
       <div className="pdf-annotations" />
       <div className="pdf-textlayer" />
+      <div className="pdf-selection" />
       <style>{TEXT_LAYER_CSS}</style>
     </div>
   )
