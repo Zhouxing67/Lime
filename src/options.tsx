@@ -2562,6 +2562,7 @@ export default function OptionsPage() {
                         setReviewTitlePending(null)
                         setReviewTitleDraft("")
                         const reviews = await getAllReviews()
+                        setAllReviews(reviews)
                         setReviewItemIds(new Set(reviews.map((r) => r.itemId)))
                         setSnackbarMsg(
                           alreadyInReview ? "已在复习中" : "已加入复习"

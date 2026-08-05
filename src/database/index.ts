@@ -967,37 +967,6 @@ export async function getAllReviews(): Promise<ReviewEntry[]> {
   })
 }
 
-export async function getReviewStatsByStore(): Promise<{
-  dueCount: number
-  activeCount: number
-  masteredCount: number
-}> {
-  return withStore("reviews", "readonly", (store) => {
-    return new Promise((resolve, reject) => {
-      let dueCount = 0
-      let activeCount = 0
-      let masteredCount = 0
-      const now = Date.now()
-      const req = store.openCursor()
-      req.onsuccess = () => {
-        const cursor = req.result
-        if (cursor) {
-          const entry = cursor.value as ReviewEntry
-          if (entry.status === "active") {
-            activeCount++
-            if (entry.dueDate <= now) dueCount++
-          }
-          if (entry.status === "mastered") masteredCount++
-          cursor.continue()
-        } else {
-          resolve({ dueCount, activeCount, masteredCount })
-        }
-      }
-      req.onerror = () => reject(req.error)
-    })
-  })
-}
-
 export async function updateReviewSrs(
   itemId: string,
   srs: SrsData
