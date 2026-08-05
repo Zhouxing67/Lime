@@ -1,5 +1,6 @@
 import AddRoundedIcon from "@mui/icons-material/AddRounded"
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded"
+import ViewColumnRoundedIcon from "@mui/icons-material/ViewColumnRounded"
 import DoneAllRoundedIcon from "@mui/icons-material/DoneAllRounded"
 import NoteAddRoundedIcon from "@mui/icons-material/NoteAddRounded"
 import SearchOffRoundedIcon from "@mui/icons-material/SearchOffRounded"
@@ -56,6 +57,7 @@ import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
 import ProjectHub from "./components/ProjectHub"
 import BackupView from "./components/BackupView"
 import PdfHub from "./components/PdfHub"
+import PdfCardsPanel from "./components/PdfCardsPanel"
 import PdfView from "./components/PdfView"
 import type { PdfOutlineItem } from "./components/PdfView"
 import ProjectTree from "./components/ProjectTree"
@@ -75,6 +77,7 @@ import {
   ensureItemOrder,
   addPdf,
   deletePdf,
+  getItemsByPdf,
   getAnnotationsByPdf,
   listPdfs,
   renamePdfTopic,
@@ -96,7 +99,7 @@ import { createReviewEntry, dayKey, rateSrs } from "./hooks/useSrs"
 import { importFromZip } from "./import"
 import { createAppTheme } from "./theme"
 import { buildProjectMarkdown, buildScopeData } from "./utils/export"
-import type { Item, MergeSeparator, PdfFile, PresetName, Project, SearchQuery, SrsData, TodoFilter } from "./types"
+import type { Item, MergeSeparator, PdfAnnotation, PdfFile, PresetName, Project, SearchQuery, SrsData, TodoFilter } from "./types"
 import { sendMessage } from "./types/messages"
 import { DAY_MS, RATING_META, buildMergedContent, cloneItem, compareCards, createItem, dueStatus, isTodoComplete, toggleMarkdownTask, todayLocalDate } from "./utils"
 
@@ -123,6 +126,23 @@ export default function OptionsPage() {
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>("projects")
   const [pdfs, setPdfs] = useState<PdfFile[]>([])
   const [extraTopics, setExtraTopics] = useState<string[]>([])
+  const [pdfCardsOpen, setPdfCardsOpen] = useState(true)
+  const [pdfCardsWidth, setPdfCardsWidth] = useState(320)
+  const [pdfPanelAnnotations, setPdfPanelAnnotations] = useState<
+    PdfAnnotation[]
+  >([])
+  const [pdfPanelCards, setPdfPanelCards] = useState<Item[]>([])
+  const [pdfFlashTarget, setPdfFlashTarget] = useState<{
+    page: number
+    annId: string
+    token: number
+  } | null>(null)
+  const [pdfScrollTarget, setPdfScrollTarget] = useState<{
+    cardId: string
+    token: number
+  } | null>(null)
+  const pdfFlashToken = useRef(0)
+  const pdfScrollToken = useRef(0)
   const [activePdfId, setActivePdfId] = useState<string | null>(null)
   const [pdfDeleteTarget, setPdfDeleteTarget] = useState<PdfFile | null>(null)
   const [topicDeleteTarget, setTopicDeleteTarget] = useState<string | null>(
@@ -907,6 +927,27 @@ export default function OptionsPage() {
     const list = await listPdfs()
     setPdfs(list)
   }, [])
+
+  // The cards panel's data (the active PDF's annotations + cards) is loaded
+  // centrally here — the panel is a peer surface, not a PdfView sub-component.
+  const loadPdfPanelData = useCallback(async () => {
+    if (!activePdfId) {
+      setPdfPanelAnnotations([])
+      setPdfPanelCards([])
+      return
+    }
+    const [ann, cards] = await Promise.all([
+      getAnnotationsByPdf(activePdfId),
+      getItemsByPdf(activePdfId)
+    ])
+    setPdfPanelAnnotations(ann)
+    setPdfPanelCards(cards)
+  }, [activePdfId])
+
+  useEffect(() => {
+    loadPdfPanelData()
+  }, [loadPdfPanelData])
+
   useEffect(() => {
     loadPdfs()
     // Empty user-created topics (no PDFs carry them yet) persist in storage.
@@ -992,6 +1033,23 @@ export default function OptionsPage() {
       setActivePdfId(next.length > 0 ? next[next.length - 1] : null)
     }
     setPdfOutlineDest(null)
+  }, [])
+
+  // Panel card click → flash the annotation in the (active) PdfView.
+  const handlePanelCardClick = useCallback((card: Item) => {
+    if (!card.pdfRef) return
+    pdfFlashToken.current += 1
+    setPdfFlashTarget({
+      page: card.pdfRef.page,
+      annId: card.pdfRef.annotationId,
+      token: pdfFlashToken.current
+    })
+  }, [])
+
+  // PdfView annotation popover "跳转卡片" → scroll the panel to that card.
+  const handleJumpInPanel = useCallback((cardId: string) => {
+    pdfScrollToken.current += 1
+    setPdfScrollTarget({ cardId, token: pdfScrollToken.current })
   }, [])
 
   const handleOpenPdfFile = useCallback(
@@ -1098,14 +1156,15 @@ export default function OptionsPage() {
       if (changes._dbr) {
         setReviewsVersion((v) => v + 1)
       }
-      // PDF writes broadcast `_dbpdf`: refresh the PDF library only.
+      // PDF writes broadcast `_dbpdf`: refresh the PDF library + the cards panel.
       if (changes._dbpdf) {
         loadPdfs()
+        loadPdfPanelData()
       }
     }
     chrome.storage.onChanged.addListener(onChange)
     return () => chrome.storage.onChanged.removeListener(onChange)
-  }, [loadPdfs])
+  }, [loadPdfs, loadPdfPanelData])
 
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null
 
@@ -1264,7 +1323,22 @@ export default function OptionsPage() {
         setActiveSectionByProject(nav.activeSectionByProject)
       if (typeof nav.width === "number") setDrawerWidth(nav.width)
     })
+    // Cards-panel UI state (open + width) persists per session.
+    chrome.storage.local.get("_uiPdf", (data) => {
+      const pdf = data._uiPdf as
+        | { open?: boolean; width?: number }
+        | undefined
+      if (!pdf) return
+      if (typeof pdf.open === "boolean") setPdfCardsOpen(pdf.open)
+      if (typeof pdf.width === "number") setPdfCardsWidth(pdf.width)
+    })
   }, [])
+
+  useEffect(() => {
+    chrome.storage.local.set({
+      _uiPdf: { open: pdfCardsOpen, width: pdfCardsWidth }
+    })
+  }, [pdfCardsOpen, pdfCardsWidth])
 
   useEffect(() => {
     chrome.storage.local.set({
@@ -1608,18 +1682,32 @@ export default function OptionsPage() {
                   </IconButton>
                 </Tooltip>
               ) : sidebarTab === "pdf" && activePdfId ? (
-                <Tooltip title="关闭 PDF">
-                  <IconButton
-                    size="small"
-                    onClick={() => handleClosePdf(activePdfId!)}
-                    sx={{
-                      color: "text.secondary",
-                      "&:hover": { color: "error.main" },
-                      "&.Mui-focusVisible": { outline: "none" }
-                    }}>
-                    <CloseRoundedIcon sx={{ fontSize: 20 }} />
-                  </IconButton>
-                </Tooltip>
+                <>
+                  <Tooltip title="关闭 PDF">
+                    <IconButton
+                      size="small"
+                      onClick={() => handleClosePdf(activePdfId!)}
+                      sx={{
+                        color: "text.secondary",
+                        "&:hover": { color: "error.main" },
+                        "&.Mui-focusVisible": { outline: "none" }
+                      }}>
+                      <CloseRoundedIcon sx={{ fontSize: 20 }} />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title={pdfCardsOpen ? "折叠摘录面板" : "展开摘录面板"}>
+                    <IconButton
+                      size="small"
+                      onClick={() => setPdfCardsOpen((o) => !o)}
+                      sx={{
+                        color: pdfCardsOpen ? "primary.main" : "text.secondary",
+                        "&:hover": { color: "primary.main" },
+                        "&.Mui-focusVisible": { outline: "none" }
+                      }}>
+                      <ViewColumnRoundedIcon sx={{ fontSize: 20 }} />
+                    </IconButton>
+                  </Tooltip>
+                </>
               ) : (
                 activeProject && (
                   <>
@@ -1858,24 +1946,47 @@ export default function OptionsPage() {
             }}>
             {sidebarTab === "pdf" ? (
               openPdfIds.length > 0 ? (
-                <Box sx={{ position: "relative", height: "100%", minHeight: 0 }}>
-                  {openPdfIds.map((id) => (
-                    <Box
-                      key={id}
-                      sx={{
-                        display: id === activePdfId ? "block" : "none",
-                        height: "100%",
-                        minHeight: 0
-                      }}>
-                      <PdfView
-                        pdfId={id}
-                        onOutlineLoaded={(o) =>
-                          setPdfOutlineByPdf((prev) => ({ ...prev, [id]: o }))
-                        }
-                        outlineDest={pdfOutlineDest}
-                      />
-                    </Box>
-                  ))}
+                <Box
+                  sx={{
+                    display: "flex",
+                    height: "100%",
+                    minHeight: 0,
+                    position: "relative"
+                  }}>
+                  <Box sx={{ flex: 1, minWidth: 0, height: "100%" }}>
+                    {openPdfIds.map((id) => (
+                      <Box
+                        key={id}
+                        sx={{
+                          display: id === activePdfId ? "block" : "none",
+                          height: "100%",
+                          minHeight: 0
+                        }}>
+                        <PdfView
+                          pdfId={id}
+                          onOutlineLoaded={(o) =>
+                            setPdfOutlineByPdf((prev) => ({
+                              ...prev,
+                              [id]: o
+                            }))
+                          }
+                          outlineDest={pdfOutlineDest}
+                          flashTarget={pdfFlashTarget}
+                          onJumpInPanel={handleJumpInPanel}
+                        />
+                      </Box>
+                    ))}
+                  </Box>
+                  <PdfCardsPanel
+                    open={pdfCardsOpen}
+                    width={pdfCardsWidth}
+                    onWidthChange={setPdfCardsWidth}
+                    onCollapse={() => setPdfCardsOpen(false)}
+                    cards={pdfPanelCards}
+                    annotations={pdfPanelAnnotations}
+                    onCardClick={handlePanelCardClick}
+                    scrollTarget={pdfScrollTarget}
+                  />
                 </Box>
               ) : (
                 <Box

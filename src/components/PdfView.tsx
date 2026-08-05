@@ -1,9 +1,6 @@
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
 import EditRoundedIcon from "@mui/icons-material/EditRounded"
-import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
 import UndoRoundedIcon from "@mui/icons-material/UndoRounded"
-import UnfoldLessRoundedIcon from "@mui/icons-material/UnfoldLessRounded"
-import UnfoldMoreRoundedIcon from "@mui/icons-material/UnfoldMoreRounded"
 import {
   Box,
   CircularProgress,
@@ -23,11 +20,8 @@ import {
   createRegionAnnotationCard,
   createTextAnnotationCard,
   deleteAnnotationWithCard,
-  deletePdfCard,
   getAnnotationsByPdf,
-  getItemsByPdf,
   updateAnnotationType,
-  updateItem
 } from "../database"
 import type { Item, PdfAnnotation, PdfMark } from "../types"
 import { usePdfDocument } from "../hooks/usePdfDocument"
@@ -35,8 +29,6 @@ import { MARK_DOT, MARK_LABEL } from "./pdfTheme"
 import { getTextLayer } from "./pdfRegistry"
 import { searchPdfText, textLayerOffsets } from "./pdfText"
 import type { PdfSearchMatch } from "./pdfText"
-import PdfCardBody from "./PdfCardBody"
-import PdfEditDialog from "./PdfEditDialog"
 import PdfRenderer from "./PdfRenderer"
 import SearchField from "./SearchField"
 
@@ -78,29 +70,26 @@ export async function outlinePageNumber(
 export default function PdfView({
   pdfId,
   onOutlineLoaded,
-  outlineDest
+  outlineDest,
+  flashTarget,
+  onJumpInPanel
 }: {
   pdfId: string | null
   onOutlineLoaded?: (outline: PdfOutlineItem[] | null) => void
   outlineDest?: PdfOutlineItem | null
+  /** External card-click → navigate + flash (the cards panel). */
+  flashTarget?: { page: number; annId: string; token: number } | null
+  /** Annotation popover "跳转卡片" → scroll the cards panel. */
+  onJumpInPanel?: (cardId: string) => void
 }) {
   const { loaded, error } = usePdfDocument(pdfId)
-  const [pdfPct, setPdfPct] = useState(0.78)
   const [scrollPage, setScrollPage] = useState<number | null>(null)
   const [flashAnnId, setFlashAnnId] = useState<string | null>(null)
   const [annotations, setAnnotations] = useState<PdfAnnotation[]>([])
-  const [pdfCards, setPdfCards] = useState<Item[]>([])
-  const [editCard, setEditCard] = useState<Item | null>(null)
-  const [expandedCards, setExpandedCards] = useState<Set<string>>(
-    () => new Set()
-  )
   const [clickedAnn, setClickedAnn] = useState<{
     ann: PdfAnnotation
     pos: { x: number; y: number }
   } | null>(null)
-  const [cardHighlightId, setCardHighlightId] = useState<string | null>(null)
-  const cardsScrollRef = useRef<HTMLDivElement>(null)
-  const jumpTimerRef = useRef<number | null>(null)
   const [frameMode, setFrameMode] = useState(false)
   const [canGoBack, setCanGoBack] = useState(false)
   const currentPageRef = useRef(1)
@@ -120,30 +109,16 @@ export default function PdfView({
     index: number
     loading: boolean
   }>({ query: "", matches: [], index: 0, loading: false })
-  const dragRef = useRef<{ startX: number; startPct: number } | null>(null)
-  const dragCleanupRef = useRef<(() => void) | null>(null)
-  useEffect(() => () => dragCleanupRef.current?.(), [])
-  useEffect(
-    () => () => {
-      if (jumpTimerRef.current) window.clearTimeout(jumpTimerRef.current)
-    },
-    []
-  )
   const searchAbortRef = useRef<AbortController | null>(null)
-
   useEffect(() => {
     return () => searchAbortRef.current?.abort()
   }, [])
 
-  // Load this PDF's annotations + cards.
+  // Load this PDF's annotations (the overlay). The cards live in the panel.
   const reloadPdfData = useCallback(async () => {
     if (!pdfId) return
-    const [ann, cards] = await Promise.all([
-      getAnnotationsByPdf(pdfId),
-      getItemsByPdf(pdfId)
-    ])
+    const ann = await getAnnotationsByPdf(pdfId)
     setAnnotations(ann)
-    setPdfCards(cards)
   }, [pdfId])
 
   useEffect(() => {
@@ -177,6 +152,14 @@ export default function PdfView({
     currentPageRef.current = page
     setScrollPage(page)
   }, [])
+
+  // External card-click (the cards panel) → navigate + flash the annotation.
+  useEffect(() => {
+    if (!flashTarget) return
+    navigateTo(flashTarget.page)
+    setFlashAnnId(flashTarget.annId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flashTarget?.token])
 
   const handleGoBack = useCallback(() => {
     const prev = navHistoryRef.current.pop()
@@ -241,58 +224,18 @@ export default function PdfView({
     [pdfId, reloadPdfData]
   )
 
-  const handleCardClick = useCallback(
-    (card: Item) => {
-      if (!card.pdfRef) return
-      navigateTo(card.pdfRef.page)
-      setFlashAnnId(card.pdfRef.annotationId)
-    },
-    [navigateTo]
-  )
-
-  const handleCardDelete = useCallback(async (card: Item) => {
-    await deletePdfCard(card)
-    // The write broadcasts _dbpdf → the storage listener reloads.
-  }, [])
-
-  const handleCardEdit = useCallback((card: Item) => {
-    setEditCard(card)
-  }, [])
-
-  const toggleExpand = useCallback((id: string) => {
-    setExpandedCards((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }, [])
-
-  // ---- annotation click → jump to card + actions popover ----
-  const jumpToCard = useCallback((cardId: string) => {
-    setCardHighlightId(cardId)
-    if (jumpTimerRef.current) window.clearTimeout(jumpTimerRef.current)
-    requestAnimationFrame(() => {
-      // Scoped to the cards column — never a global query (CardGrid shares the
-      // same data-card-id selector).
-      cardsScrollRef.current
-        ?.querySelector(`[data-card-id="${cardId}"]`)
-        ?.scrollIntoView({ behavior: "smooth", block: "center" })
-    })
-    jumpTimerRef.current = window.setTimeout(() => {
-      setCardHighlightId((cur) => (cur === cardId ? null : cur))
-      jumpTimerRef.current = null
-    }, 1500)
-  }, [])
+  // ---- annotation click → jump to card (panel) + actions popover ----
+  const onJumpInPanelRef = useRef(onJumpInPanel)
+  onJumpInPanelRef.current = onJumpInPanel
 
   const handleAnnotationClick = useCallback(
     (annId: string, pos: { x: number; y: number }) => {
       const ann = annotations.find((a) => a.id === annId)
       if (!ann) return
       setClickedAnn({ ann, pos })
-      if (ann.itemId) jumpToCard(ann.itemId)
+      if (ann.itemId) onJumpInPanelRef.current?.(ann.itemId)
     },
-    [annotations, jumpToCard]
+    [annotations]
   )
 
   const handleAnnotationTypeChange = useCallback(
@@ -315,22 +258,10 @@ export default function PdfView({
     try {
       await deleteAnnotationWithCard(clickedAnn.ann.id)
       setClickedAnn(null)
-      setCardHighlightId(null)
     } catch (e) {
       console.warn("[lime] delete annotation failed:", e)
     }
   }, [clickedAnn])
-
-  const handleSaveIdea = useCallback(
-    async (idea: string) => {
-      if (!editCard) return
-      await updateItem({ ...editCard, idea })
-      setEditCard(null)
-      // The write broadcasts _dbi → the PdfView's reload path picks it up.
-      await reloadPdfData()
-    },
-    [editCard, reloadPdfData]
-  )
 
   // ---- PDF text search ----
   const jumpToSearchMatch = useCallback(
@@ -427,52 +358,12 @@ export default function PdfView({
     [pdfId]
   )
 
-  // Cards sorted by original position (page + annotation startOffset).
-  const sortedCards = [...pdfCards].sort((a, b) => {
-    const pa = a.pdfRef?.page ?? 0
-    const pb = b.pdfRef?.page ?? 0
-    if (pa !== pb) return pa - pb
-    const annA = annotations.find(
-      (x) => x.id === a.pdfRef?.annotationId
-    )
-    const annB = annotations.find((x) => x.id === b.pdfRef?.annotationId)
-    return (annA?.startOffset ?? 0) - (annB?.startOffset ?? 0)
-  })
-
-  const startDrag = useCallback((e: React.PointerEvent) => {
-    e.preventDefault()
-    const rect = e.currentTarget.parentElement!.getBoundingClientRect()
-    dragRef.current = {
-      startX: e.clientX,
-      startPct: pdfPct
-    }
-    const mv = (ev: PointerEvent) => {
-      const d = dragRef.current
-      if (!d || rect.width === 0) return
-      // PDF pane is left-anchored: dragging the handle left narrows it.
-      const pct = d.startPct + (ev.clientX - d.startX) / rect.width
-      setPdfPct(Math.max(0.55, Math.min(0.92, pct)))
-    }
-    const up = () => {
-      cleanup()
-      dragCleanupRef.current = null
-    }
-    const cleanup = () => {
-      dragRef.current = null
-      document.removeEventListener("pointermove", mv)
-      document.removeEventListener("pointerup", up)
-    }
-    document.addEventListener("pointermove", mv)
-    document.addEventListener("pointerup", up)
-    dragCleanupRef.current = cleanup
-  }, [pdfPct])
-
   return (
     <Box sx={{ display: "flex", height: "100%", minHeight: 0 }}>
-      {/* Left: the PDF (fixed share) */}
+      {/* The PDF fills the workspace (the cards panel is a separate sibling). */}
       <Box
         sx={{
-          flex: `0 0 ${pdfPct * 100}%`,
+          flex: 1,
           minWidth: 0,
           display: "flex",
           flexDirection: "column",
@@ -706,192 +597,6 @@ export default function PdfView({
         )}
       </Box>
 
-      {/* Split handle */}
-      <Box
-        onPointerDown={startDrag}
-        sx={{
-          width: 4,
-          cursor: "col-resize",
-          bgcolor: "divider",
-          "&:hover": { bgcolor: "primary.light" },
-          flexShrink: 0
-        }}
-      />
-
-      {/* Right: this PDF's cards, ordered by original position */}
-      <Box
-        ref={cardsScrollRef}
-        sx={{
-          flex: 1,
-          minWidth: 0,
-          overflowY: "auto",
-          borderLeft: "1px solid",
-          borderColor: "divider",
-          bgcolor: "background.default"
-        }}>
-        <Box
-          sx={{
-            px: 1.5,
-            py: 1,
-            fontSize: "0.75rem",
-            fontWeight: 600,
-            color: "text.secondary",
-            borderBottom: "1px solid",
-            borderColor: "divider"
-          }}>
-          摘录卡片（{sortedCards.length}）
-        </Box>
-        {sortedCards.length === 0 ? (
-          <Box
-            sx={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 1,
-              py: 6,
-              color: "text.disabled"
-            }}>
-            <PictureAsPdfRoundedIcon sx={{ fontSize: 40, opacity: 0.4 }} />
-            <Typography variant="body2" sx={{ fontSize: "0.82rem" }}>
-              在左侧选中文字后点标记，自动生成卡片
-            </Typography>
-          </Box>
-        ) : (
-          <Box sx={{ p: 1 }}>
-            {sortedCards.map((card) => {
-              const ann = annotations.find(
-                (x) => x.id === card.pdfRef?.annotationId
-              )
-              const expanded = expandedCards.has(card.id)
-              return (
-                <Paper
-                  key={card.id}
-                  data-card-id={card.id}
-                  elevation={0}
-                  onClick={() => handleCardClick(card)}
-                  sx={(theme) => {
-                    const highlighted = cardHighlightId === card.id
-                    return {
-                    p: 1.5,
-                    mb: 1,
-                    borderRadius: 1,
-                    border: "1px solid",
-                    borderColor: highlighted ? "primary.main" : "divider",
-                    cursor: "pointer",
-                    boxShadow: highlighted
-                      ? `0 0 0 2px ${theme.palette.primary.main}`
-                      : theme.custom.cardShadow,
-                    transition: "all 0.2s",
-                    "&:hover": {
-                      boxShadow: highlighted
-                        ? `0 0 0 2px ${theme.palette.primary.main}`
-                        : theme.custom.cardShadowHover,
-                      transform: "translateY(-1px)",
-                      borderColor: highlighted
-                        ? "primary.main"
-                        : theme.custom.borderStrong,
-                      ".pdf-card-ops": { opacity: 1 }
-                    }
-                  }
-                  }}>
-                  <Box
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 1,
-                      mb: 0.5
-                    }}>
-                    <Box
-                      sx={{
-                        px: 0.5,
-                        py: 0.1,
-                        borderRadius: 1,
-                        bgcolor: "action.hover",
-                        fontSize: "0.66rem",
-                        color: "text.secondary",
-                        flexShrink: 0
-                      }}>
-                      P{card.pdfRef?.page}
-                    </Box>
-                    {ann && (
-                      <Box
-                        sx={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 0.4,
-                          fontSize: "0.68rem",
-                          color: "text.secondary"
-                        }}>
-                        <Box
-                          sx={{
-                            width: 7,
-                            height: 7,
-                            borderRadius: 1,
-                            background: MARK_DOT[ann.type]
-                          }}
-                        />
-                        {MARK_LABEL[ann.type]}
-                      </Box>
-                    )}
-                    <Box sx={{ flex: 1 }} />
-                    <Box
-                      className="pdf-card-ops"
-                      sx={{
-                        display: "flex",
-                        alignItems: "center",
-                        opacity: 0,
-                        transition: "opacity 0.15s"
-                      }}>
-                      <IconButton
-                        size="small"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          toggleExpand(card.id)
-                        }}
-                        sx={{ p: 0.25, color: "text.disabled" }}>
-                        {expanded ? (
-                          <UnfoldLessRoundedIcon sx={{ fontSize: 14 }} />
-                        ) : (
-                          <UnfoldMoreRoundedIcon sx={{ fontSize: 14 }} />
-                        )}
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleCardEdit(card)
-                        }}
-                        sx={{ p: 0.25, color: "text.disabled" }}>
-                        <EditRoundedIcon sx={{ fontSize: 14 }} />
-                      </IconButton>
-                    </Box>
-                    <IconButton
-                      size="small"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleCardDelete(card)
-                      }}
-                      sx={{ p: 0.25, color: "text.disabled" }}>
-                      <DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />
-                    </IconButton>
-                  </Box>
-                  <PdfCardBody
-                    item={card}
-                    maxLines={expanded ? undefined : 4}
-                  />
-                </Paper>
-              )
-            })}
-          </Box>
-        )}
-      </Box>
-      <PdfEditDialog
-        item={editCard}
-        open={Boolean(editCard)}
-        onClose={() => setEditCard(null)}
-        onSave={handleSaveIdea}
-      />
       <Popover
         open={Boolean(clickedAnn)}
         anchorReference="anchorPosition"
