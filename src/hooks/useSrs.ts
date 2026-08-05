@@ -1,4 +1,4 @@
-import type { Item, ReviewEntry, SrsData } from "../types"
+import type { ProjectCard, ReviewEntry, SrsData } from "../types"
 import { DAY_MS } from "../utils"
 
 /** A fresh SrsData with no review history (first review). */
@@ -85,10 +85,10 @@ export function dayKey(ts: number): string {
 }
 
 export function getRecentItems(
-  allItems: Item[],
+  allItems: ProjectCard[],
   reviews: ReviewEntry[],
   days = 3
-): { date: string; items: Item[] }[] {
+): { date: string; items: ProjectCard[] }[] {
   const cutoff = Date.now() - days * DAY_MS
   const itemMap = new Map(allItems.map((i) => [i.id, i]))
 
@@ -96,7 +96,7 @@ export function getRecentItems(
   // hide a card from earlier days once it's reviewed again later). A card
   // appears once per day; legacy data with multiple same-day ratings dedupes.
   const seen = new Set<string>()
-  const map = new Map<string, Item[]>()
+  const map = new Map<string, ProjectCard[]>()
   for (const r of reviews) {
     const item = itemMap.get(r.itemId)
     if (!item || !r.srs.reviewHistory) continue

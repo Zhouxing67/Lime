@@ -1,4 +1,4 @@
-export type ItemType = "text" | "image" | "link" | "todo"
+export type ProjectCardType = "text" | "image" | "link"
 
 export interface Section {
   id: string
@@ -23,47 +23,68 @@ export interface SrsData {
   reviewHistory?: { date: number; rating: 1 | 2 | 3 | 4 }[]
 }
 
-export interface Item {
+/** A project's card (the first-class card identity). A placed PDF card is a
+ *  ProjectCard carrying `pdfCardId` (a reference to its PdfCard source — the
+ *  placement model), so one record never mixes project and PDF identity. */
+export interface ProjectCard {
   id: string
-  type: ItemType
-  /** User's title/summary — the card's core identifier */
+  type: ProjectCardType
+  /** User's title/summary — the review gate (a card needs a title to review). */
   title?: string
   content: string
-  context?: {
-    paragraph?: string
-  }
   source?: SourceMeta
-  createdAt: number
-  projectId?: string
-  sectionId?: string
-  /** Mark as read/unread for link type */
-  read?: boolean
-  hash?: string
-  /** Derived field for indexing */
+  /** Derived from source for filtering (no index — in-memory filter). */
   sourceSite?: string
-  /** Manual ordering within a project (lower = earlier) */
-  order?: number
-  /** Last modification timestamp (for incremental sync) */
-  updatedAt?: number
-  /** Optional attached image URLs (mixed cards: text + images) */
+  /** Optional attached image URLs (mixed cards: text + images). */
   images?: string[]
-  /** Todo due date as local "YYYY-MM-DD" (day-based expiry) */
-  dueDate?: string
-  /** Link back to a local PDF annotation (card belongs to the PDF, not a project) */
-  pdfRef?: {
-    pdfId: string
-    page: number
-    annotationId: string
-  }
-  /** Denormalized pdfRef.pdfId for the IndexedDB index (deep paths aren't indexable). */
-  pdfRefPdfId?: string
-  /** The card's position in the PDF (page-major + in-page offset/rect-y) — the
-   *  PDF panel sorts by this, independent of the project `order`. */
-  pdfOrder?: number
-  /** Personal note / 补充说明 (markdown). Generic optional field — the PDF
-   *  cards' editable part (content stays read-only). */
-  idea?: string
+  projectId: string
+  sectionId?: string
+  /** Manual ordering within a section (lower = earlier); 未分类 shares one space. */
+  order?: number
+  /** Dedup hash (content + source.url + images). */
+  hash?: string
+  /** Placement reference → the PdfCard this card was placed from (placed cards
+   *  render/search via this reference; content is NOT copied). */
+  pdfCardId?: string
+  createdAt: number
+  updatedAt?: number
 }
+
+/** A PDF annotation's excerpt card (the PDF panel's data). The annotation↔card
+ *  1:1 lives here (annotationId). A placed pdfCard references its single
+ *  placement (projectCardId, 1:1) for the reverse jump. */
+export interface PdfCard {
+  id: string
+  pdfId: string
+  /** 1-based page number. */
+  page: number
+  kind: "text" | "region"
+  type: PdfMark
+  annotationId: string
+  /** The original quote (text) or the frame data-URL (region) — read-only. */
+  content: string
+  /** Personal note / 补充说明 (markdown) — the editable part, shared by both views. */
+  idea?: string
+  /** Position in the PDF (page-major + in-page offset/rect-y) — the panel sorts by this. */
+  pdfOrder: number
+  /** Placement reference → the ProjectCard placement (1:1, reverse jump). */
+  projectCardId?: string
+  createdAt: number
+}
+
+/** A todo (global, cross-project, identity-unique). */
+export interface TodoCard {
+  id: string
+  title?: string
+  /** The task list (markdown `- [ ]` / `- [x]`). */
+  content: string
+  /** Due date as local "YYYY-MM-DD" (day-based expiry). */
+  dueDate?: string
+  createdAt: number
+  updatedAt?: number
+}
+
+export type AnyCard = ProjectCard | PdfCard | TodoCard
 
 export type PdfMark = "highlight" | "underline" | "wavy" | "strike" | "frame"
 
@@ -97,15 +118,15 @@ export interface PdfAnnotation {
    *  box (scale-independent); render multiplies by the holder's displayed size */
   rects?: { x: number; y: number; w: number; h: number }[]
   color?: string
-  /** Linked card id (annotation ↔ card are 1:1) */
-  itemId?: string
+  /** Linked PdfCard id (annotation ↔ pdfCard are 1:1). */
+  cardId?: string
   createdAt: number
 }
 
 export interface SearchQuery {
   keyword?: string
   site?: string
-  type?: ItemType
+  type?: ProjectCardType
   from?: number
   to?: number
   projectId?: string

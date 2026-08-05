@@ -1,26 +1,30 @@
 import type {
-  Item,
+  PdfCard,
   PdfMark,
   PdfAnnotation,
   PdfFile,
   Project,
+  ProjectCard,
   ReviewEntry,
   SearchQuery,
-  SrsData
+  SrsData,
+  TodoCard
 } from "../types"
 import {
   byRecency,
   computeItemHash,
-  createItem,
+  createPdfCard,
   isTodoComplete,
   sha256Bytes
 } from "../utils"
 
 const DB_NAME = "pickquote-db"
-const DB_VERSION = 10
+const DB_VERSION = 12
 
 type TableNames =
-  | "items"
+  | "projectCards"
+  | "pdfCards"
+  | "todos"
   | "projects"
   | "reviews"
   | "pdfs"
@@ -38,7 +42,9 @@ async function broadcastDbChange(name: TableNames): Promise<void> {
           ? "_dbp"
           : name === "reviews"
             ? "_dbr"
-            : name === "pdfs" || name === "pdfAnnotations"
+            : name === "pdfs" ||
+                name === "pdfAnnotations" ||
+                name === "pdfCards"
               ? "_dbpdf"
               : "_dbi"
       await chrome.storage.local.set({ [key]: Date.now() })
@@ -95,7 +101,12 @@ function openDb(version?: number): Promise<IDBDatabase> {
           itemStore.openCursor().onsuccess = (e) => {
             const cursor = (e.target as IDBRequest<IDBCursorWithValue>).result
             if (cursor) {
-              const item = cursor.value as Item & { srs?: SrsData }
+              const item = cursor.value as {
+                id: string
+                projectId?: string
+                createdAt: number
+                srs?: SrsData
+              }
               if (item.srs) {
                 const review: ReviewEntry = {
                   id: crypto.randomUUID(),
@@ -142,6 +153,144 @@ function openDb(version?: number): Promise<IDBDatabase> {
             }
             cursor.continue()
           }
+        }
+      }
+      // ---- v12 migration: split the monolithic items store into three typed
+      // stores (projectCards / pdfCards / todos). A placed PDF card becomes TWO
+      // records — a pdfCard source + a projectCard placement with mutual
+      // references (pdfCardId / projectCardId). Reviews of placed items remap
+      // to the placement ids. Runs on the upgrade transaction directly (the
+      // tx() helper would re-open the DB — recursion, see the 9bd05a5 lesson).
+      if (db.objectStoreNames.contains("items")) {
+        const pc = db.createObjectStore("projectCards", { keyPath: "id" })
+        pc.createIndex("projectId", "projectId", { unique: false })
+        pc.createIndex("hash", "hash", { unique: false })
+        pc.createIndex("pdfCardId", "pdfCardId", { unique: false })
+        pc.createIndex("type", "type", { unique: false })
+        pc.createIndex("createdAt", "createdAt", { unique: false })
+        pc.createIndex("sourceSite", "sourceSite", { unique: false })
+        const td = db.createObjectStore("todos", { keyPath: "id" })
+        td.createIndex("dueDate", "dueDate", { unique: false })
+        const pd = db.createObjectStore("pdfCards", { keyPath: "id" })
+        pd.createIndex("pdfId", "pdfId", { unique: false })
+        pd.createIndex("annotationId", "annotationId", { unique: false })
+        pd.createIndex("projectCardId", "projectCardId", { unique: false })
+
+        const tx = req.transaction as IDBTransaction
+        const itemsStore = tx.objectStore("items")
+        const pcStore = tx.objectStore("projectCards")
+        const tdStore = tx.objectStore("todos")
+        const pdStore = tx.objectStore("pdfCards")
+        const annStore = tx.objectStore("pdfAnnotations")
+        const reviewStore = tx.objectStore("reviews")
+        const reviewRemap = new Map<string, string>()
+        let collected = false
+        let pending = 0
+        let done = false
+
+        const finish = () => {
+          if (done) return
+          done = true
+          // Remap reviews of placed items onto their placement ids, then drop
+          // the old monolithic store.
+          const rc = reviewStore.openCursor()
+          rc.onsuccess = (e) => {
+            const c = (e.target as IDBRequest<IDBCursorWithValue>).result
+            if (c) {
+              const r = c.value as ReviewEntry
+              const mapped = reviewRemap.get(r.itemId)
+              if (mapped) c.update({ ...r, itemId: mapped })
+              c.continue()
+            } else {
+              db.deleteObjectStore("items")
+            }
+          }
+        }
+        const maybeFinish = () => {
+          if (collected && pending === 0) finish()
+        }
+
+        const cursorReq = itemsStore.openCursor()
+        cursorReq.onsuccess = (e) => {
+          const c = (e.target as IDBRequest<IDBCursorWithValue>).result
+          if (!c) {
+            collected = true
+            maybeFinish()
+            return
+          }
+          const item = c.value
+          if (item.type === "todo") {
+            tdStore.put({
+              id: item.id,
+              title: item.title,
+              content: item.content,
+              dueDate: item.dueDate,
+              createdAt: item.createdAt,
+              updatedAt: item.updatedAt
+            })
+          } else if (item.pdfRef) {
+            pending++
+            const annReq = annStore.get(item.pdfRef.annotationId)
+            annReq.onsuccess = () => {
+              const ann = annReq.result as PdfAnnotation | undefined
+              // The pdfCard keeps the old item id so the annotation's cardId
+              // maps naturally (no id remap). The old itemId field is retired.
+              const pdfCard: PdfCard = {
+                id: item.id,
+                pdfId: item.pdfRef.pdfId,
+                page: item.pdfRef.page,
+                annotationId: item.pdfRef.annotationId,
+                kind: item.type === "image" ? "region" : "text",
+                type: ann?.type ?? "highlight",
+                content: item.content,
+                idea: item.idea,
+                pdfOrder: item.pdfOrder ?? item.pdfRef.page * 1e6,
+                createdAt: item.createdAt
+              }
+              if (ann) {
+                const updated = { ...ann, cardId: item.id } as PdfAnnotation
+                delete (updated as unknown as Record<string, unknown>).itemId
+                annStore.put(updated)
+              }
+              pdStore.put(pdfCard)
+              if (item.projectId) {
+                const placement: ProjectCard = {
+                  id: crypto.randomUUID(),
+                  type: item.type === "image" ? "image" : "text",
+                  title: item.title,
+                  content: "",
+                  projectId: item.projectId,
+                  sectionId: item.sectionId,
+                  order: item.order,
+                  pdfCardId: pdfCard.id,
+                  createdAt: item.createdAt,
+                  updatedAt: item.updatedAt
+                }
+                pcStore.put(placement)
+                pdStore.put({ ...pdfCard, projectCardId: placement.id })
+                reviewRemap.set(item.id, placement.id)
+              }
+              pending--
+              maybeFinish()
+            }
+          } else {
+            pcStore.put({
+              id: item.id,
+              type: item.type === "link" ? "link" : item.type,
+              title: item.title,
+              content: item.content,
+              source: item.source,
+              sourceSite: item.sourceSite,
+              images: item.images,
+              projectId: item.projectId,
+              sectionId: item.sectionId,
+              order: item.order,
+              hash: item.hash,
+              createdAt: item.createdAt,
+              updatedAt: item.updatedAt
+            })
+          }
+          c.continue()
         }
       }
     }
@@ -192,12 +341,12 @@ async function migratePdfIdsIfNeeded(db: IDBDatabase): Promise<void> {
       // openDb() again → migration → recursion → every DB op hangs.
       await new Promise<void>((resolve, reject) => {
         const idbTx = db.transaction(
-          ["pdfs", "pdfAnnotations", "items"],
+          ["pdfs", "pdfAnnotations", "pdfCards"],
           "readwrite"
         )
         const pdfStore = idbTx.objectStore("pdfs")
         const annStore = idbTx.objectStore("pdfAnnotations")
-        const itemStore = idbTx.objectStore("items")
+        const cardStore = idbTx.objectStore("pdfCards")
         const errors: DOMException[] = []
         idbTx.onerror = () => reject(idbTx.error)
         idbTx.onabort = () => reject(idbTx.error)
@@ -237,21 +386,20 @@ async function migratePdfIdsIfNeeded(db: IDBDatabase): Promise<void> {
                   c.update(ann)
                   c.continue()
                 } else {
-                  // rewrite items.pdfRef.pdfId + pdfRefPdfId
-                  const itemReq = itemStore
-                    .index("pdfRefPdfId")
+                  // rewrite pdfCards.pdfId (the cards carry the old pdf id)
+                  const cardReq = cardStore
+                    .index("pdfId")
                     .openCursor(IDBKeyRange.only(oldId))
-                  itemReq.onerror = () => {
-                    errors.push(itemReq.error as DOMException)
+                  cardReq.onerror = () => {
+                    errors.push(cardReq.error as DOMException)
                     step(i + 1)
                   }
-                  itemReq.onsuccess = () => {
-                    const c2 = itemReq.result
+                  cardReq.onsuccess = () => {
+                    const c2 = cardReq.result
                     if (c2) {
-                      const item = c2.value as Item
-                      item.pdfRef = { ...item.pdfRef!, pdfId: newId }
-                      item.pdfRefPdfId = newId
-                      c2.update(item)
+                      const card = c2.value as PdfCard
+                      card.pdfId = newId
+                      c2.update(card)
                       c2.continue()
                     } else {
                       step(i + 1)
@@ -354,7 +502,7 @@ export async function isDuplicate(
   projectId?: string,
   sourceUrl?: string
 ): Promise<boolean> {
-  return withStore("items", "readonly", async (store) => {
+  return withStore("projectCards", "readonly", async (store) => {
     const idx = store.index("hash")
     return new Promise<boolean>((resolve, reject) => {
       const req = idx.openCursor(IDBKeyRange.only(hash))
@@ -364,7 +512,7 @@ export async function isDuplicate(
           resolve(false)
           return
         }
-        const val = cursor.value as Item
+        const val = cursor.value as ProjectCard
         if (val.projectId === projectId && val.source?.url === sourceUrl) {
           resolve(true)
           return
@@ -384,24 +532,22 @@ function safeHostname(url: string): string | undefined {
   }
 }
 
-/** Highest `order` in a section (未分类 = no sectionId), -1 when empty. */
+/** Highest `order` in a section (未分类 = no sectionId), -1 when empty. The
+ *  projectCards store holds only project cards — the 未分类 rule is plain. */
 export async function getMaxOrderInSection(
   sectionId: string | undefined
 ): Promise<number> {
-  return withStore("items", "readonly", (store) => {
+  return withStore("projectCards", "readonly", (store) => {
     return new Promise<number>((resolve) => {
       let max = -1
       const req = store.openCursor()
       req.onsuccess = () => {
         const cursor = req.result
         if (cursor) {
-          const it = cursor.value as Item
-          // The 未分类 order space is PROJECT cards only — todos + PDF-only
-          // cards (no projectId) have their own ordering worlds and must not
-          // inflate the project order.
+          const it = cursor.value as ProjectCard
           const inSection = sectionId
             ? it.sectionId === sectionId
-            : !it.sectionId && !!it.projectId
+            : !it.sectionId
           if (
             inSection &&
             typeof it.order === "number" &&
@@ -419,35 +565,33 @@ export async function getMaxOrderInSection(
   })
 }
 
-/** Returns the item with a guaranteed `order` (section max + 1 when absent).
- *  The single source for insert order — capture, new-card, merge, import all
- *  rely on it so a fresh card never lands at the front of a reordered section. */
-export async function ensureItemOrder<T extends Item>(item: T): Promise<T> {
-  if (item.order !== undefined) return item
-  const max = await getMaxOrderInSection(item.sectionId)
-  return { ...item, order: max + 1 }
+/** Returns the card with a guaranteed `order` (section max + 1 when absent). */
+export async function ensureOrder<T extends ProjectCard>(card: T): Promise<T> {
+  if (card.order !== undefined) return card
+  const max = await getMaxOrderInSection(card.sectionId)
+  return { ...card, order: max + 1 }
 }
 
-export async function addItem(
-  item: Item,
+export async function addProjectCard(
+  card: ProjectCard,
   opts?: { skipDedup?: boolean }
 ): Promise<boolean> {
-  const normalized: Item = {
-    ...item,
-    updatedAt: item.updatedAt ?? Date.now(),
+  const normalized: ProjectCard = {
+    ...card,
+    updatedAt: card.updatedAt ?? Date.now(),
     sourceSite:
-      item.source?.site ??
-      (item.source ? safeHostname(item.source.url) : undefined),
+      card.source?.site ??
+      (card.source ? safeHostname(card.source.url) : undefined),
     hash:
-      item.hash ||
-      (item.source
-        ? await computeItemHash(item.content, item.source.url, item.images)
-        : await computeItemHash(item.content, "", item.images))
+      card.hash ||
+      (card.source
+        ? await computeItemHash(card.content, card.source.url, card.images)
+        : await computeItemHash(card.content, "", card.images))
   }
-  const ready = await ensureItemOrder(normalized)
+  const ready = await ensureOrder(normalized)
 
-  return withStore("items", "readwrite", async (store) => {
-    // Todos are intentionally unique even with identical/empty content.
+  return withStore("projectCards", "readwrite", async (store) => {
+    // Placed cards are identity-unique — the placement model, not content dedup.
     if (opts?.skipDedup) {
       await new Promise<void>((resolve, reject) => {
         const req = store.put(ready)
@@ -466,7 +610,7 @@ export async function addItem(
           resolve(true)
           return
         }
-        const existing = cursor.value as Item
+        const existing = cursor.value as ProjectCard
         if (
           existing.projectId === ready.projectId &&
           existing.source?.url === ready.source?.url
@@ -481,12 +625,61 @@ export async function addItem(
   })
 }
 
-export async function searchItems(q: SearchQuery): Promise<Item[]> {
-  return withStore("items", "readonly", async (store) => {
-    const results: Item[] = []
-    return new Promise<Item[]>((resolve, reject) => {
-      // Index-aware source selection: the most selective index first. Pure-type
-      // queries (e.g. todos) avoid scanning every card by createdAt.
+export async function addTodo(todo: TodoCard): Promise<void> {
+  const ready: TodoCard = { ...todo, updatedAt: todo.updatedAt ?? Date.now() }
+  await withStore("todos", "readwrite", async (store) => {
+    await new Promise<void>((resolve, reject) => {
+      const req = store.put(ready)
+      req.onsuccess = () => resolve()
+      req.onerror = () => reject(req.error)
+    })
+  })
+}
+
+export async function getAllTodos(): Promise<TodoCard[]> {
+  return withStore("todos", "readonly", async (store) => {
+    const all: TodoCard[] = []
+    return new Promise<TodoCard[]>((resolve, reject) => {
+      const cursorReq = store.openCursor()
+      cursorReq.onsuccess = () => {
+        const cursor = cursorReq.result
+        if (cursor) {
+          all.push(cursor.value as TodoCard)
+          cursor.continue()
+        } else {
+          resolve(all)
+        }
+      }
+      cursorReq.onerror = () => reject(cursorReq.error)
+    })
+  })
+}
+
+export async function updateTodo(todo: TodoCard): Promise<void> {
+  await withStore("todos", "readwrite", (store) => {
+    store.put({ ...todo, updatedAt: Date.now() })
+  })
+}
+
+export async function deleteTodo(id: string): Promise<void> {
+  await tx({ reviews: "readwrite", todos: "readwrite" }, async (stores) => {
+    const idx = stores.reviews.index("itemId")
+    return new Promise<void>((resolve, reject) => {
+      const req = idx.getKey(id)
+      req.onsuccess = () => {
+        if (req.result) stores.reviews.delete(req.result as string)
+        stores.todos.delete(id)
+        resolve()
+      }
+      req.onerror = () => reject(req.error)
+    })
+  })
+}
+
+export async function searchProjectCards(q: SearchQuery): Promise<ProjectCard[]> {
+  return withStore("projectCards", "readonly", async (store) => {
+    const results: ProjectCard[] = []
+    return new Promise<ProjectCard[]>((resolve, reject) => {
       let source: IDBIndex | IDBObjectStore
       let range: IDBKeyRange | null = null
       let direction: IDBCursorDirection = "next"
@@ -507,19 +700,19 @@ export async function searchItems(q: SearchQuery): Promise<Item[]> {
           resolve(results)
           return
         }
-        const item = cursor.value as Item
+        const card = cursor.value as ProjectCard
         if (
-          (!q.type || item.type === q.type) &&
-          (!q.site || item.sourceSite === q.site) &&
-          (!q.from || item.createdAt >= q.from) &&
-          (!q.to || item.createdAt < q.to) &&
-          (!q.projectId || item.projectId === q.projectId) &&
+          (!q.type || card.type === q.type) &&
+          (!q.site || card.sourceSite === q.site) &&
+          (!q.from || card.createdAt >= q.from) &&
+          (!q.to || card.createdAt < q.to) &&
+          (!q.projectId || card.projectId === q.projectId) &&
           (!q.keyword ||
-            item.content?.toLowerCase().includes(q.keyword.toLowerCase()) ||
-            item.title?.toLowerCase().includes(q.keyword.toLowerCase()) ||
-            item.source?.title?.toLowerCase().includes(q.keyword.toLowerCase()))
+            card.content?.toLowerCase().includes(q.keyword.toLowerCase()) ||
+            card.title?.toLowerCase().includes(q.keyword.toLowerCase()) ||
+            card.source?.title?.toLowerCase().includes(q.keyword.toLowerCase()))
         ) {
-          results.push(item)
+          results.push(card)
         }
         cursor.continue()
       }
@@ -528,15 +721,14 @@ export async function searchItems(q: SearchQuery): Promise<Item[]> {
   })
 }
 
-export async function deleteItem(id: string): Promise<void> {
-  // Cascade: remove associated review entry and item in one atomic transaction
-  await tx({ reviews: "readwrite", items: "readwrite" }, async (stores) => {
+export async function deleteProjectCard(id: string): Promise<void> {
+  await tx({ reviews: "readwrite", projectCards: "readwrite" }, async (stores) => {
     const idx = stores.reviews.index("itemId")
     return new Promise<void>((resolve, reject) => {
       const req = idx.getKey(id)
       req.onsuccess = () => {
         if (req.result) stores.reviews.delete(req.result as string)
-        stores.items.delete(id)
+        stores.projectCards.delete(id)
         resolve()
       }
       req.onerror = () => reject(req.error)
@@ -544,10 +736,9 @@ export async function deleteItem(id: string): Promise<void> {
   })
 }
 
-export async function deleteItems(ids: string[]): Promise<void> {
+export async function deleteProjectCards(ids: string[]): Promise<void> {
   if (ids.length === 0) return
-  // Cascade: remove associated review entries and items in one atomic transaction
-  await tx({ reviews: "readwrite", items: "readwrite" }, async (stores) => {
+  await tx({ reviews: "readwrite", projectCards: "readwrite" }, async (stores) => {
     const idx = stores.reviews.index("itemId")
     const reviewKeys = await new Promise<(IDBValidKey | null)[]>((resolve) => {
       const results: (IDBValidKey | null)[] = []
@@ -568,24 +759,26 @@ export async function deleteItems(ids: string[]): Promise<void> {
       if (key) stores.reviews.delete(key)
     }
     for (const id of ids) {
-      stores.items.delete(id)
+      stores.projectCards.delete(id)
     }
   })
 }
 
-export async function getItemById(id: string): Promise<Item | undefined> {
-  return withStore("items", "readonly", (store) => {
+export async function getProjectCardById(
+  id: string
+): Promise<ProjectCard | undefined> {
+  return withStore("projectCards", "readonly", (store) => {
     return new Promise((resolve, reject) => {
       const r = store.get(id)
-      r.onsuccess = () => resolve(r.result as Item | undefined)
+      r.onsuccess = () => resolve(r.result as ProjectCard | undefined)
       r.onerror = () => reject(r.error)
     })
   })
 }
 
-export async function updateItem(item: Item): Promise<void> {
-  await withStore("items", "readwrite", (store) => {
-    store.put({ ...item, updatedAt: Date.now() })
+export async function updateProjectCard(card: ProjectCard): Promise<void> {
+  await withStore("projectCards", "readwrite", (store) => {
+    store.put({ ...card, updatedAt: Date.now() })
   })
 }
 
@@ -649,13 +842,20 @@ export async function updateProject(project: Project): Promise<void> {
 }
 
 export async function deleteProject(id: string): Promise<void> {
-  // Atomic cascade: delete project, its items, and associated reviews in one transaction
+  // Atomic cascade: delete the project, its cards (incl. placements), and their
+  // reviews. A placed card's pdfCard survives — the placement is deleted and the
+  // pdfCard's reverse reference is cleared (it becomes a PDF-only card again).
   await tx(
-    { items: "readwrite", reviews: "readwrite", projects: "readwrite" },
+    {
+      projectCards: "readwrite",
+      pdfCards: "readwrite",
+      reviews: "readwrite",
+      projects: "readwrite"
+    },
     async (stores) => {
-      const itemIds: string[] = await new Promise((resolve, reject) => {
+      const cardIds = await new Promise<string[]>((resolve, reject) => {
         const ids: string[] = []
-        const idx = stores.items.index("projectId")
+        const idx = stores.projectCards.index("projectId")
         const req = idx.openCursor(IDBKeyRange.only(id))
         req.onsuccess = () => {
           const cursor = req.result
@@ -670,33 +870,31 @@ export async function deleteProject(id: string): Promise<void> {
       })
 
       const reviewIdx = stores.reviews.index("itemId")
-      const reviewKeys = await Promise.all(
-        itemIds.map(
-          (itemId) =>
-            new Promise<IDBValidKey | null>((resolve) => {
-              const req = reviewIdx.getKey(itemId)
-              req.onsuccess = () => resolve(req.result ?? null)
-              req.onerror = () => resolve(null)
-            })
-        )
-      )
-      for (const key of reviewKeys) {
-        if (key) stores.reviews.delete(key)
-      }
-      for (const itemId of itemIds) {
-        const item = await new Promise<Item | undefined>((resolve, reject) => {
-          const r = stores.items.get(itemId)
-          r.onsuccess = () => resolve(r.result as Item | undefined)
-          r.onerror = () => reject(r.error)
+      for (const cardId of cardIds) {
+        const k = await new Promise<IDBValidKey | null>((resolve) => {
+          const r = reviewIdx.getKey(cardId)
+          r.onsuccess = () => resolve(r.result ?? null)
+          r.onerror = () => resolve(null)
         })
-        if (item?.pdfRef) {
-          // A PDF-sourced card must NOT be deleted by its project — unplace it
-          // (clear projectId) so it survives as a PDF annotation card.
-          delete item.projectId
-          stores.items.put(item)
-        } else {
-          stores.items.delete(itemId)
+        if (k) stores.reviews.delete(k)
+      }
+      for (const cardId of cardIds) {
+        const card = await new Promise<ProjectCard | undefined>((resolve) => {
+          const r = stores.projectCards.get(cardId)
+          r.onsuccess = () => resolve(r.result as ProjectCard | undefined)
+          r.onerror = () => resolve(undefined)
+        })
+        if (card?.pdfCardId) {
+          const pdfCard = await new Promise<PdfCard | undefined>((resolve) => {
+            const r = stores.pdfCards.get(card.pdfCardId!)
+            r.onsuccess = () => resolve(r.result as PdfCard | undefined)
+            r.onerror = () => resolve(undefined)
+          })
+          if (pdfCard) {
+            stores.pdfCards.put({ ...pdfCard, projectCardId: undefined })
+          }
         }
+        stores.projectCards.delete(cardId)
       }
       stores.projects.delete(id)
     }
@@ -736,7 +934,7 @@ export async function deleteSection(
   projectId: string,
   sectionId: string
 ): Promise<void> {
-  await tx({ projects: "readwrite", items: "readwrite" }, async (stores) => {
+  await tx({ projects: "readwrite", projectCards: "readwrite" }, async (stores) => {
     const project = await new Promise<Project | undefined>((resolve) => {
       const req = stores.projects.get(projectId)
       req.onsuccess = () => resolve(req.result as Project | undefined)
@@ -758,15 +956,15 @@ export async function deleteSection(
     project.sections = sections.filter((s) => !deletedIds.has(s.id))
     stores.projects.put(project)
 
-    const idx = stores.items.index("projectId")
+    const idx = stores.projectCards.index("projectId")
     await new Promise<void>((resolve, reject) => {
       const cursorReq = idx.openCursor(IDBKeyRange.only(projectId))
       cursorReq.onsuccess = () => {
         const cursor = cursorReq.result
         if (cursor) {
-          const item = cursor.value as Item
-          if (item.sectionId && deletedIds.has(item.sectionId)) {
-            cursor.update({ ...item, sectionId: undefined })
+          const card = cursor.value as ProjectCard
+          if (card.sectionId && deletedIds.has(card.sectionId)) {
+            cursor.update({ ...card, sectionId: undefined })
           }
           cursor.continue()
         } else {
@@ -778,32 +976,28 @@ export async function deleteSection(
   })
 }
 
-/**
- * Batch update multiple items' sectionId and/or order in a single atomic transaction.
- * Only items whose id is in the updates array are touched; others are unchanged.
- */
-export async function batchUpdateItems(
+export async function batchUpdateProjectCards(
   updates: { id: string; sectionId?: string; order?: number }[]
 ): Promise<void> {
   if (updates.length === 0) return
-  await withStore("items", "readwrite", async (store) => {
-    const items = await Promise.all(
+  await withStore("projectCards", "readwrite", async (store) => {
+    const cards = await Promise.all(
       updates.map(
         (u) =>
-          new Promise<{ id: string; item?: Item }>((resolve) => {
+          new Promise<{ id: string; card?: ProjectCard }>((resolve) => {
             const req = store.get(u.id)
             req.onsuccess = () =>
-              resolve({ id: u.id, item: req.result as Item | undefined })
+              resolve({ id: u.id, card: req.result as ProjectCard | undefined })
             req.onerror = () => resolve({ id: u.id })
           })
       )
     )
-    for (let i = 0; i < items.length; i++) {
-      const { item } = items[i]
-      if (!item) continue
+    for (let i = 0; i < cards.length; i++) {
+      const { card } = cards[i]
+      if (!card) continue
       const u = updates[i]
       store.put({
-        ...item,
+        ...card,
         ...("sectionId" in u ? { sectionId: u.sectionId } : {}),
         ...("order" in u ? { order: u.order } : {}),
         updatedAt: Date.now()
@@ -830,36 +1024,50 @@ export async function getRecentProjects(limit = 3): Promise<Project[]> {
  * Upserts remote entities and deletes any local entity whose id is not in the remote set.
  */
 export async function bulkReplace(
-  remoteItems: Item[],
+  remoteProjectCards: ProjectCard[],
+  remotePdfCards: PdfCard[],
+  remoteTodos: TodoCard[],
   remoteProjects: Project[],
   remoteReviews: ReviewEntry[],
-  localItems: Item[],
+  localProjectCards: ProjectCard[],
+  localPdfCards: PdfCard[],
+  localTodos: TodoCard[],
   localProjects: Project[],
   localReviews: ReviewEntry[]
 ): Promise<void> {
-  const remoteItemIds = new Set(remoteItems.map((i) => i.id))
+  const remoteCardIds = new Set(remoteProjectCards.map((c) => c.id))
+  const remotePdfIds = new Set(remotePdfCards.map((c) => c.id))
+  const remoteTodoIds = new Set(remoteTodos.map((c) => c.id))
   const remoteProjectIds = new Set(remoteProjects.map((p) => p.id))
   const remoteReviewItemIds = new Set(remoteReviews.map((r) => r.itemId))
 
   await tx(
-    { items: "readwrite", projects: "readwrite", reviews: "readwrite" },
+    {
+      projectCards: "readwrite",
+      pdfCards: "readwrite",
+      todos: "readwrite",
+      projects: "readwrite",
+      reviews: "readwrite"
+    },
     async (stores) => {
-      // items
-      for (const item of remoteItems) stores.items.put(item)
-      for (const item of localItems) {
-        if (!remoteItemIds.has(item.id)) stores.items.delete(item.id)
+      for (const card of remoteProjectCards) stores.projectCards.put(card)
+      for (const card of localProjectCards) {
+        if (!remoteCardIds.has(card.id)) stores.projectCards.delete(card.id)
       }
-      // projects
+      for (const card of remotePdfCards) stores.pdfCards.put(card)
+      for (const card of localPdfCards) {
+        if (!remotePdfIds.has(card.id)) stores.pdfCards.delete(card.id)
+      }
+      for (const todo of remoteTodos) stores.todos.put(todo)
+      for (const todo of localTodos) {
+        if (!remoteTodoIds.has(todo.id)) stores.todos.delete(todo.id)
+      }
       for (const project of remoteProjects) stores.projects.put(project)
       for (const project of localProjects) {
         if (!remoteProjectIds.has(project.id))
           stores.projects.delete(project.id)
       }
-      // reviews: upsert remote, delete local-not-in-remote
       const idx = stores.reviews.index("itemId")
-      // Remote review ids differ across devices (each side generates its own
-      // uuid), but `itemId` is unique-indexed — delete the local review for the
-      // same itemId before put to avoid ConstraintError aborting the sync.
       for (const review of remoteReviews) {
         const req = idx.getKey(review.itemId)
         const existing = await new Promise<string | null>((resolve) => {
@@ -928,7 +1136,7 @@ export async function getDueCount(): Promise<number> {
 /** Shared light-weight incomplete-todo count (the toolbar badge's algorithm) —
  *  the NavRail todo icon uses it so it updates as fast as the badge. */
 export async function getIncompleteTodoCount(): Promise<number> {
-  const todos = await searchItems({ type: "todo" })
+  const todos = await getAllTodos()
   return todos.filter((t) => !isTodoComplete(t.content)).length
 }
 
@@ -1113,24 +1321,27 @@ export async function listPdfs(): Promise<PdfFile[]> {
 }
 
 /** Delete a PDF + its annotations + its PDF cards together (no orphans). */
+/** Delete a PDF + its pdfCards + their placements + annotations together
+ *  (no orphans anywhere). */
 export async function deletePdf(id: string): Promise<void> {
   await tx(
     {
-      items: "readwrite",
+      pdfCards: "readwrite",
       pdfAnnotations: "readwrite",
+      projectCards: "readwrite",
       pdfs: "readwrite",
       reviews: "readwrite"
     },
     async (stores) => {
-      const annotations = await new Promise<PdfAnnotation[]>((resolve, reject) => {
-        const results: PdfAnnotation[] = []
-        const req = stores.pdfAnnotations
+      const cards = await new Promise<PdfCard[]>((resolve, reject) => {
+        const results: PdfCard[] = []
+        const req = stores.pdfCards
           .index("pdfId")
           .openCursor(IDBKeyRange.only(id))
         req.onsuccess = () => {
           const cursor = req.result
           if (cursor) {
-            results.push(cursor.value as PdfAnnotation)
+            results.push(cursor.value as PdfCard)
             cursor.continue()
           } else {
             resolve(results)
@@ -1138,33 +1349,19 @@ export async function deletePdf(id: string): Promise<void> {
         }
         req.onerror = () => reject(req.error)
       })
-      // Cascade the reviews of every deleted PDF card (a card that was added
-      // to review must not leave an orphan "due" entry behind).
-      const cardIds: string[] = []
-      await new Promise<void>((resolve, reject) => {
-        const r = stores.items
-          .index("pdfRefPdfId")
-          .openCursor(IDBKeyRange.only(id))
-        r.onsuccess = () => {
-          const cursor = r.result
-          if (cursor) {
-            cardIds.push((cursor.value as Item).id)
-            cursor.delete()
-            cursor.continue()
-          } else {
-            resolve()
+      for (const card of cards) {
+        if (card.annotationId) stores.pdfAnnotations.delete(card.annotationId)
+        if (card.projectCardId) {
+          // 删父要删子 — cascade the placement + its review.
+          const r = stores.reviews
+            .index("itemId")
+            .getKey(card.projectCardId)
+          r.onsuccess = () => {
+            if (r.result) stores.reviews.delete(r.result as string)
           }
+          stores.projectCards.delete(card.projectCardId)
         }
-        r.onerror = () => reject(r.error)
-      })
-      for (const cardId of cardIds) {
-        const r = stores.reviews.index("itemId").getKey(cardId)
-        r.onsuccess = () => {
-          if (r.result) stores.reviews.delete(r.result as string)
-        }
-      }
-      for (const ann of annotations) {
-        stores.pdfAnnotations.delete(ann.id)
+        stores.pdfCards.delete(card.id)
       }
       await new Promise<void>((resolve, reject) => {
         const r = stores.pdfs.delete(id)
@@ -1175,6 +1372,324 @@ export async function deletePdf(id: string): Promise<void> {
   )
 }
 
+/** All pdfCards belonging to a PDF (via the pdfId index), unsorted. */
+export async function getPdfCards(pdfId: string): Promise<PdfCard[]> {
+  return withStore("pdfCards", "readonly", (store) => {
+    return new Promise((resolve, reject) => {
+      const idx = store.index("pdfId")
+      const req = idx.getAll(pdfId)
+      req.onsuccess = () => resolve((req.result as PdfCard[]) ?? [])
+      req.onerror = () => reject(req.error)
+    })
+  })
+}
+
+/** Page-major multiplier for a card's pdfOrder (page * BASE + in-page pos). */
+const PDF_ORDER_BASE = 1e6
+
+/** Create a text annotation + its pdfCard in ONE transaction. */
+export async function createTextAnnotationCard(input: {
+  pdfId: string
+  page: number
+  type: Exclude<PdfMark, "frame">
+  text: string
+  startOffset: number
+  endOffset: number
+  title?: string
+}): Promise<{ card: PdfCard; annotation: PdfAnnotation }> {
+  const annotation: PdfAnnotation = {
+    id: crypto.randomUUID(),
+    pdfId: input.pdfId,
+    page: input.page,
+    kind: "text",
+    type: input.type,
+    startOffset: input.startOffset,
+    endOffset: input.endOffset,
+    text: input.text,
+    createdAt: Date.now()
+  }
+  const card = createPdfCard({
+    pdfId: input.pdfId,
+    page: input.page,
+    kind: "text",
+    type: input.type,
+    annotationId: annotation.id,
+    content: input.text,
+    pdfOrder: input.page * PDF_ORDER_BASE + input.startOffset
+  })
+  annotation.cardId = card.id
+  await tx(
+    { pdfCards: "readwrite", pdfAnnotations: "readwrite" },
+    async (stores) => {
+      await new Promise<void>((resolve, reject) => {
+        const r1 = stores.pdfCards.put(card)
+        r1.onsuccess = () => {
+          const r2 = stores.pdfAnnotations.put(annotation)
+          r2.onsuccess = () => resolve()
+          r2.onerror = () => reject(r2.error)
+        }
+        r1.onerror = () => reject(r1.error)
+      })
+    }
+  )
+  return { card, annotation }
+}
+
+/** Create a region (框选) annotation + its pdfCard in ONE transaction. */
+export async function createRegionAnnotationCard(input: {
+  pdfId: string
+  page: number
+  rects: { x: number; y: number; w: number; h: number }[]
+  imageDataUrl: string
+}): Promise<{ card: PdfCard; annotation: PdfAnnotation }> {
+  const annotation: PdfAnnotation = {
+    id: crypto.randomUUID(),
+    pdfId: input.pdfId,
+    page: input.page,
+    kind: "region",
+    type: "frame",
+    rects: input.rects,
+    createdAt: Date.now()
+  }
+  const y = input.rects.length > 0 ? input.rects[0].y : 0
+  const card = createPdfCard({
+    pdfId: input.pdfId,
+    page: input.page,
+    kind: "region",
+    type: "frame",
+    annotationId: annotation.id,
+    content: input.imageDataUrl,
+    pdfOrder: input.page * PDF_ORDER_BASE + Math.round(y * 1e6)
+  })
+  annotation.cardId = card.id
+  await tx(
+    { pdfCards: "readwrite", pdfAnnotations: "readwrite" },
+    async (stores) => {
+      await new Promise<void>((resolve, reject) => {
+        const r1 = stores.pdfCards.put(card)
+        r1.onsuccess = () => {
+          const r2 = stores.pdfAnnotations.put(annotation)
+          r2.onsuccess = () => resolve()
+          r2.onerror = () => reject(r2.error)
+        }
+        r1.onerror = () => reject(r1.error)
+      })
+    }
+  )
+  return { card, annotation }
+}
+
+/** Delete an annotation + its pdfCard + any placement (1:1 coupling). */
+export async function deleteAnnotationWithCard(
+  annotationId: string
+): Promise<void> {
+  await tx(
+    {
+      pdfAnnotations: "readwrite",
+      pdfCards: "readwrite",
+      projectCards: "readwrite",
+      reviews: "readwrite"
+    },
+    async (stores) => {
+      const ann = await new Promise<PdfAnnotation | undefined>((resolve, reject) => {
+        const r = stores.pdfAnnotations.get(annotationId)
+        r.onsuccess = () => resolve(r.result as PdfAnnotation | undefined)
+        r.onerror = () => reject(r.error)
+      })
+      await new Promise<void>((resolve, reject) => {
+        if (ann?.cardId) {
+          stores.pdfCards.delete(ann.cardId)
+          const r = stores.pdfCards.index("projectCardId").getKey(ann.cardId)
+          r.onsuccess = () => {
+            if (r.result) {
+              const rr = stores.reviews.index("itemId").getKey(r.result as string)
+              rr.onsuccess = () => {
+                if (rr.result) stores.reviews.delete(rr.result as string)
+              }
+              stores.projectCards.delete(r.result as string)
+            }
+          }
+        }
+        const d = stores.pdfAnnotations.delete(annotationId)
+        d.onsuccess = () => resolve()
+        d.onerror = () => reject(d.error)
+      })
+    }
+  )
+}
+
+/** Delete PDF cards + their linked annotations + their placements' reviews in
+ *  ONE transaction (batch — pass `[card]` for a single card). A placement is
+ *  deleted alongside its pdfCard; the pdfCard is always removed. */
+export async function deletePdfCards(cards: PdfCard[]): Promise<void> {
+  if (cards.length === 0) return
+  await tx(
+    {
+      pdfCards: "readwrite",
+      pdfAnnotations: "readwrite",
+      projectCards: "readwrite",
+      reviews: "readwrite"
+    },
+    async (stores) => {
+      await new Promise<void>((resolve, reject) => {
+        let remaining = cards.length
+        for (const card of cards) {
+          if (card.annotationId) {
+            stores.pdfAnnotations.delete(card.annotationId)
+          }
+          if (card.projectCardId) {
+            const r = stores.reviews.index("itemId").getKey(card.projectCardId)
+            r.onsuccess = () => {
+              if (r.result) stores.reviews.delete(r.result as string)
+            }
+            stores.projectCards.delete(card.projectCardId)
+          }
+          const d = stores.pdfCards.delete(card.id)
+          d.onsuccess = () => {
+            if (--remaining === 0) resolve()
+          }
+          d.onerror = () => reject(d.error)
+        }
+      })
+    }
+  )
+}
+
+/** Parallel get by keys inside one transaction (resolve on all requests done). */
+function getByKeys<T extends { id: string }>(
+  store: IDBObjectStore,
+  ids: string[]
+): Promise<T[]> {
+  return new Promise<T[]>((resolve, reject) => {
+    const results: T[] = []
+    let remaining = ids.length
+    if (remaining === 0) {
+      resolve(results)
+      return
+    }
+    for (const id of ids) {
+      const r = store.get(id)
+      r.onsuccess = () => {
+        const it = r.result as T | undefined
+        if (it) results.push(it)
+        if (--remaining === 0) resolve(results)
+      }
+      r.onerror = () => reject(r.error)
+    }
+  })
+}
+
+/** Parallel put inside one transaction (resolve when all are committed). */
+function putAll<T extends { id: string }>(
+  store: IDBObjectStore,
+  items: T[]
+): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    let remaining = items.length
+    if (remaining === 0) {
+      resolve()
+      return
+    }
+    for (const it of items) {
+      const r = store.put(it)
+      r.onsuccess = () => {
+        if (--remaining === 0) resolve()
+      }
+      r.onerror = () => reject(r.error)
+    }
+  })
+}
+
+/** Place pdfCards into a project — create a placement record (projectCards) +
+ *  the pdfCard's reverse reference, ONE tx + both broadcasts. 1:1 guarded. */
+export async function placePdfCards(
+  pdfCardIds: string[],
+  projectId: string
+): Promise<void> {
+  if (pdfCardIds.length === 0) return
+  const maxOrder = await getMaxOrderInSection(undefined)
+  let runningMax = maxOrder
+  await tx(
+    { pdfCards: "readwrite", projectCards: "readwrite" },
+    async (stores) => {
+      const cards = await getByKeys<PdfCard>(stores.pdfCards, pdfCardIds)
+      for (const pdfCard of cards) {
+        if (pdfCard.projectCardId) continue // 1:1 guard — already placed
+        runningMax += 1
+        const placement: ProjectCard = {
+          id: crypto.randomUUID(),
+          type: pdfCard.kind === "region" ? "image" : "text",
+          content: "",
+          projectId,
+          sectionId: undefined,
+          order: runningMax,
+          pdfCardId: pdfCard.id,
+          createdAt: Date.now()
+        }
+        stores.projectCards.put(placement)
+        stores.pdfCards.put({ ...pdfCard, projectCardId: placement.id })
+      }
+    }
+  )
+  await broadcastDbChange("pdfs")
+}
+
+/** Place a single pdfCard (thin wrapper). */
+export async function placePdfCard(
+  pdfCardId: string,
+  projectId: string
+): Promise<void> {
+  await placePdfCards([pdfCardId], projectId)
+}
+
+/** Remove pdfCards from their project — delete the placement + clear the
+ *  reverse reference + the placement's review (only project cards review). */
+export async function unplacePdfCards(pdfCardIds: string[]): Promise<void> {
+  if (pdfCardIds.length === 0) return
+  await tx(
+    { pdfCards: "readwrite", projectCards: "readwrite", reviews: "readwrite" },
+    async (stores) => {
+      const cards = await getByKeys<PdfCard>(stores.pdfCards, pdfCardIds)
+      for (const pdfCard of cards) {
+        if (!pdfCard.projectCardId) continue
+        const r = stores.reviews.index("itemId").getKey(pdfCard.projectCardId)
+        r.onsuccess = () => {
+          if (r.result) stores.reviews.delete(r.result as string)
+        }
+        stores.projectCards.delete(pdfCard.projectCardId)
+        stores.pdfCards.put({ ...pdfCard, projectCardId: undefined })
+      }
+    }
+  )
+  await broadcastDbChange("pdfs")
+}
+
+/** Remove a single pdfCard from its project (thin wrapper). */
+export async function unplacePdfCard(pdfCardId: string): Promise<void> {
+  await unplacePdfCards([pdfCardId])
+}
+
+/** All annotations across every PDF (for backup). */
+export async function getAllAnnotations(): Promise<PdfAnnotation[]> {
+  return withStore("pdfAnnotations", "readonly", (store) => {
+    return new Promise((resolve, reject) => {
+      const results: PdfAnnotation[] = []
+      const req = store.openCursor()
+      req.onsuccess = () => {
+        const cursor = req.result
+        if (cursor) {
+          results.push(cursor.value as PdfAnnotation)
+          cursor.continue()
+        } else {
+          resolve(results)
+        }
+      }
+      req.onerror = () => reject(req.error)
+    })
+  })
+}
+
+/** Add or update a single annotation (low-level store CRUD). */
 export async function addAnnotation(ann: PdfAnnotation): Promise<void> {
   return withStore("pdfAnnotations", "readwrite", async (store) => {
     await new Promise<void>((resolve, reject) => {
@@ -1201,20 +1716,17 @@ export async function getAnnotationsByPdf(
   pdfId: string
 ): Promise<PdfAnnotation[]> {
   return withStore("pdfAnnotations", "readonly", (store) => {
+    const idx = store.index("pdfId")
     return new Promise((resolve, reject) => {
       const results: PdfAnnotation[] = []
-      const req = store.index("pdfId").openCursor(IDBKeyRange.only(pdfId))
+      const req = idx.openCursor(IDBKeyRange.only(pdfId))
       req.onsuccess = () => {
         const cursor = req.result
         if (cursor) {
           results.push(cursor.value as PdfAnnotation)
           cursor.continue()
         } else {
-          resolve(
-            results.sort(
-              (a, b) => a.page - b.page || a.createdAt - b.createdAt
-            )
-          )
+          resolve(results)
         }
       }
       req.onerror = () => reject(req.error)
@@ -1227,306 +1739,6 @@ export async function deleteAnnotation(id: string): Promise<void> {
     await new Promise<void>((resolve, reject) => {
       const req = store.delete(id)
       req.onsuccess = () => resolve()
-      req.onerror = () => reject(req.error)
-    })
-  })
-}
-
-// ---- PDF annotations ↔ cards (P2) ----
-
-/** All cards belonging to a PDF (via the pdfRefPdfId index), unsorted. */
-export async function getItemsByPdf(pdfId: string): Promise<Item[]> {
-  return withStore("items", "readonly", (store) => {
-    return new Promise((resolve, reject) => {
-      const results: Item[] = []
-      const idx = store.index("pdfRefPdfId")
-      const req = idx.getAll(pdfId)
-      req.onsuccess = () => resolve((req.result as Item[]) ?? [])
-      req.onerror = () => reject(req.error)
-    })
-  })
-}
-
-/** Page-major multiplier for a card's pdfOrder (page * BASE + in-page pos).
- *  Large enough that offsets/rect-y never collide across the multiplier. */
-const PDF_ORDER_BASE = 1e6
-
-/** Create a text annotation + its auto-captured card in ONE transaction. */
-export async function createTextAnnotationCard(input: {
-  pdfId: string
-  page: number
-  type: Exclude<PdfMark, "frame">
-  text: string
-  startOffset: number
-  endOffset: number
-  title?: string
-}): Promise<{ card: Item; annotation: PdfAnnotation }> {
-  const annotation: PdfAnnotation = {
-    id: crypto.randomUUID(),
-    pdfId: input.pdfId,
-    page: input.page,
-    kind: "text",
-    type: input.type,
-    startOffset: input.startOffset,
-    endOffset: input.endOffset,
-    text: input.text,
-    createdAt: Date.now()
-  }
-  const card = createItem({
-    type: "text",
-    title: input.title,
-    content: input.text,
-    pdfRef: {
-      pdfId: input.pdfId,
-      page: input.page,
-      annotationId: annotation.id
-    },
-    pdfOrder: input.page * PDF_ORDER_BASE + input.startOffset
-  })
-  annotation.itemId = card.id
-  await tx(
-    { items: "readwrite", pdfAnnotations: "readwrite" },
-    async (stores) => {
-      await new Promise<void>((resolve, reject) => {
-        const r1 = stores.items.put(card)
-        r1.onsuccess = () => {
-          const r2 = stores.pdfAnnotations.put(annotation)
-          r2.onsuccess = () => resolve()
-          r2.onerror = () => reject(r2.error)
-        }
-        r1.onerror = () => reject(r1.error)
-      })
-    }
-  )
-  return { card, annotation }
-}
-
-/** Create a region (框选) annotation + its image card in ONE transaction.
- *  `rects` are normalized 0-1 fractions of the page box (scale-independent). */
-export async function createRegionAnnotationCard(input: {
-  pdfId: string
-  page: number
-  rects: { x: number; y: number; w: number; h: number }[]
-  imageDataUrl: string
-}): Promise<{ card: Item; annotation: PdfAnnotation }> {
-  const annotation: PdfAnnotation = {
-    id: crypto.randomUUID(),
-    pdfId: input.pdfId,
-    page: input.page,
-    kind: "region",
-    type: "frame",
-    rects: input.rects,
-    createdAt: Date.now()
-  }
-  const y = input.rects.length > 0 ? input.rects[0].y : 0
-  const card = createItem({
-    type: "image",
-    content: input.imageDataUrl,
-    pdfRef: {
-      pdfId: input.pdfId,
-      page: input.page,
-      annotationId: annotation.id
-    },
-    pdfOrder: input.page * PDF_ORDER_BASE + Math.round(y * 1e6)
-  })
-  annotation.itemId = card.id
-  await tx(
-    { items: "readwrite", pdfAnnotations: "readwrite" },
-    async (stores) => {
-      await new Promise<void>((resolve, reject) => {
-        const r1 = stores.items.put(card)
-        r1.onsuccess = () => {
-          const r2 = stores.pdfAnnotations.put(annotation)
-          r2.onsuccess = () => resolve()
-          r2.onerror = () => reject(r2.error)
-        }
-        r1.onerror = () => reject(r1.error)
-      })
-    }
-  )
-  return { card, annotation }
-}
-
-/** Delete an annotation + its linked card together (1:1 coupling). */
-export async function deleteAnnotationWithCard(
-  annotationId: string
-): Promise<void> {
-  await tx(
-    { items: "readwrite", pdfAnnotations: "readwrite" },
-    async (stores) => {
-      const ann = await new Promise<PdfAnnotation | undefined>((resolve, reject) => {
-        const r = stores.pdfAnnotations.get(annotationId)
-        r.onsuccess = () => resolve(r.result as PdfAnnotation | undefined)
-        r.onerror = () => reject(r.error)
-      })
-      await new Promise<void>((resolve, reject) => {
-        if (ann?.itemId) stores.items.delete(ann.itemId)
-        const r = stores.pdfAnnotations.delete(annotationId)
-        r.onsuccess = () => resolve()
-        r.onerror = () => reject(r.error)
-      })
-    }
-  )
-}
-
-/** Delete a card + its linked annotation (the reverse of the above). */
-export async function deletePdfCard(card: Item): Promise<void> {
-  await deletePdfCards([card])
-}
-
-/** Delete PDF cards + their linked annotations + their reviews in ONE
- *  transaction + a single broadcast (batch delete was N × 2-store txs). */
-export async function deletePdfCards(cards: Item[]): Promise<void> {
-  if (cards.length === 0) return
-  await tx(
-    { items: "readwrite", pdfAnnotations: "readwrite", reviews: "readwrite" },
-    async (stores) => {
-      await new Promise<void>((resolve, reject) => {
-        let remaining = cards.length
-        for (const card of cards) {
-          if (card.pdfRef?.annotationId) {
-            stores.pdfAnnotations.delete(card.pdfRef.annotationId)
-          }
-          const r = stores.reviews.index("itemId").getKey(card.id)
-          r.onsuccess = () => {
-            if (r.result) stores.reviews.delete(r.result as string)
-            const d = stores.items.delete(card.id)
-            d.onsuccess = () => {
-              if (--remaining === 0) resolve()
-            }
-            d.onerror = () => reject(d.error)
-          }
-          r.onerror = () => reject(r.error)
-        }
-      })
-    }
-  )
-}
-
-/** Place PDF-sourced cards into a project (未分类) in ONE transaction + a
- *  single `_dbpdf` broadcast. Cards keep their PDF source (multi-home). */
-/** Parallel get by keys inside one transaction (resolve on all requests done). */
-function getByKeys(store: IDBObjectStore, ids: string[]): Promise<Item[]> {
-  return new Promise<Item[]>((resolve, reject) => {
-    const results: Item[] = []
-    let remaining = ids.length
-    if (remaining === 0) {
-      resolve(results)
-      return
-    }
-    for (const id of ids) {
-      const r = store.get(id)
-      r.onsuccess = () => {
-        const it = r.result as Item | undefined
-        if (it) results.push(it)
-        if (--remaining === 0) resolve(results)
-      }
-      r.onerror = () => reject(r.error)
-    }
-  })
-}
-
-/** Parallel put inside one transaction (resolve when all are committed). */
-function putAll(store: IDBObjectStore, items: Item[]): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    let remaining = items.length
-    if (remaining === 0) {
-      resolve()
-      return
-    }
-    for (const it of items) {
-      const r = store.put(it)
-      r.onsuccess = () => {
-        if (--remaining === 0) resolve()
-      }
-      r.onerror = () => reject(r.error)
-    }
-  })
-}
-
-export async function placePdfCards(
-  cardIds: string[],
-  projectId: string
-): Promise<void> {
-  if (cardIds.length === 0) return
-  const items = await withStore("items", "readonly", (store) =>
-    getByKeys(store, cardIds)
-  )
-  if (items.length === 0) return
-  const maxOrder = await getMaxOrderInSection(undefined)
-  // Sequential order assignment: preserved orders advance the running max, so
-  // fresh cards still land AFTER them (parity with the old per-card behavior).
-  let runningMax = maxOrder
-  const nextItems = items.map((item) => {
-    const next: Item = { ...item, projectId, sectionId: undefined }
-    if (item.order === undefined) {
-      next.order = runningMax + 1
-      runningMax = next.order
-    } else if (item.order > runningMax) {
-      runningMax = item.order
-    }
-    return next
-  })
-  await withStore("items", "readwrite", (store) => putAll(store, nextItems))
-  // The panel's data reloads on `_dbpdf` (the cards changed).
-  await broadcastDbChange("pdfs")
-}
-
-/** Place a single PDF-sourced card (thin wrapper over the batch path). */
-export async function placePdfCard(
-  itemId: string,
-  projectId: string
-): Promise<void> {
-  await placePdfCards([itemId], projectId)
-}
-
-/** Remove PDF-sourced cards from their project (back to PDF-only) in ONE
- *  transaction + a single `_dbpdf` broadcast. */
-export async function unplacePdfCards(cardIds: string[]): Promise<void> {
-  if (cardIds.length === 0) return
-  await tx({ items: "readwrite", reviews: "readwrite" }, async (stores) => {
-    const items = await getByKeys(stores.items, cardIds)
-    if (items.length === 0) return
-    const nextItems = items.map((item) => {
-      const next: Item = { ...item }
-      delete next.projectId
-      delete next.sectionId
-      return next
-    })
-    await putAll(stores.items, nextItems)
-    // A card that left its project loses the project-card identity, and only
-    // project cards are reviewable — clear its review (the same semantic as
-    // deleteProject's unplace of surviving cards).
-    for (const item of nextItems) {
-      const r = stores.reviews.index("itemId").getKey(item.id)
-      r.onsuccess = () => {
-        if (r.result) stores.reviews.delete(r.result as string)
-      }
-    }
-  })
-  await broadcastDbChange("pdfs")
-}
-
-/** Remove a single PDF-sourced card from its project (thin wrapper). */
-export async function unplacePdfCard(itemId: string): Promise<void> {
-  await unplacePdfCards([itemId])
-}
-
-/** All annotations across every PDF (for backup). */
-export async function getAllAnnotations(): Promise<PdfAnnotation[]> {
-  return withStore("pdfAnnotations", "readonly", (store) => {
-    return new Promise((resolve, reject) => {
-      const results: PdfAnnotation[] = []
-      const req = store.openCursor()
-      req.onsuccess = () => {
-        const cursor = req.result
-        if (cursor) {
-          results.push(cursor.value as PdfAnnotation)
-          cursor.continue()
-        } else {
-          resolve(results)
-        }
-      }
       req.onerror = () => reject(req.error)
     })
   })

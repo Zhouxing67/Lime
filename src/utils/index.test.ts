@@ -3,10 +3,11 @@ import {
   bytesToBase64,
   appendMarkdownImage,
   buildMergedContent,
-  cloneItem,
+  cloneProjectCard,
   computeDropIndex,
   computeItemHash,
-  createItem,
+  createProjectCard,
+  createTodoCard,
   currentSourceMeta,
   dueLabel,
   dueStatus,
@@ -373,39 +374,44 @@ describe("utils", () => {
   })
 })
 
-describe("createItem / cloneItem / currentSourceMeta", () => {
-  it("createItem builds a fresh item with optional fields, no order", () => {
-    const item = createItem({
+describe("createProjectCard / cloneProjectCard / currentSourceMeta", () => {
+  it("createProjectCard builds a fresh card with optional fields, no order", () => {
+    const card = createProjectCard({
       type: "text",
       title: "t",
       content: "c",
       projectId: "p",
       sectionId: "s",
-      images: ["a"],
-      dueDate: "2026-08-05"
+      images: ["a"]
     })
-    expect(item.id).toBeTruthy()
-    expect(item.type).toBe("text")
-    expect(item.sectionId).toBe("s")
-    expect(item.images).toEqual(["a"])
-    expect(item.dueDate).toBe("2026-08-05")
+    expect(card.id).toBeTruthy()
+    expect(card.type).toBe("text")
+    expect(card.sectionId).toBe("s")
+    expect(card.images).toEqual(["a"])
+    expect(card.projectId).toBe("p")
     // Order is intentionally left for the DB layer to auto-assign.
-    expect(item.order).toBeUndefined()
+    expect(card.order).toBeUndefined()
   })
 
-  it("createItem omits empty optional fields", () => {
-    const item = createItem({ type: "image", content: "https://x/y.png" })
-    expect(item.images).toBeUndefined()
-    expect(item.sectionId).toBeUndefined()
-    expect(item.dueDate).toBeUndefined()
+  it("createTodoCard carries the todo-only due date; empty optional fields stay omitted", () => {
+    const todo = createTodoCard({ title: "t", content: "c", dueDate: "2026-08-05" })
+    expect(todo.id).toBeTruthy()
+    expect(todo.dueDate).toBe("2026-08-05")
+
+    const bare = createTodoCard({ content: "x" })
+    expect(bare.dueDate).toBeUndefined()
+
+    const card = createProjectCard({ type: "image", content: "https://x/y.png", projectId: "p" })
+    expect(card.images).toBeUndefined()
+    expect(card.sectionId).toBeUndefined()
   })
 
-  it("cloneItem drops project-scoped sectionId/order and retargets the project", () => {
+  it("cloneProjectCard drops project-scoped sectionId/order and retargets the project", () => {
     const src = {
-      ...createItem({ type: "text", content: "x", sectionId: "old-sec" }),
+      ...createProjectCard({ type: "text", content: "x", projectId: "src", sectionId: "old-sec" }),
       order: 5
     }
-    const clone = cloneItem(src, "target")
+    const clone = cloneProjectCard(src, "target")
     expect(clone.projectId).toBe("target")
     expect(clone.id).not.toBe(src.id)
     expect(clone.sectionId).toBeUndefined()
@@ -413,17 +419,13 @@ describe("createItem / cloneItem / currentSourceMeta", () => {
     expect(clone.content).toBe("x")
   })
 
-  it("cloneItem drops the PDF source so the annotation↔card link stays 1:1 (a copy is a 自建卡片)", () => {
+  it("cloneProjectCard drops the placement reference so the annotation↔card link stays 1:1 (a copy is a 自建卡片)", () => {
     const src = {
-      ...createItem({
-        type: "text",
-        content: "quote",
-        pdfRef: { pdfId: "p", page: 1, annotationId: "a1" }
-      })
+      ...createProjectCard({ type: "text", content: "quote", projectId: "src" }),
+      pdfCardId: "pc1"
     }
-    const clone = cloneItem(src, "target")
-    expect(clone.pdfRef).toBeUndefined()
-    expect(clone.pdfRefPdfId).toBeUndefined()
+    const clone = cloneProjectCard(src, "target")
+    expect(clone.pdfCardId).toBeUndefined()
     expect(clone.content).toBe("quote")
   })
 

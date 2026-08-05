@@ -1,4 +1,11 @@
-import type { Item, SourceMeta } from "../types"
+import type {
+  PdfCard,
+  PdfMark,
+  ProjectCard,
+  ProjectCardType,
+  SourceMeta,
+  TodoCard
+} from "../types"
 
 export type MergeSeparator = "rule" | "ordered" | "unordered" | "none"
 
@@ -304,18 +311,15 @@ export function computeDropIndex<T extends { id: string; order?: number; created
 
 /** Fresh item factory — the single place a new card/todo/capture is built.
  *  Order is deliberately left undefined (the DB auto-assigns it). */
-export function createItem(data: {
-  type: Item["type"]
+export function createProjectCard(data: {
+  type: ProjectCardType
   content: string
   title?: string
   source?: SourceMeta
-  projectId?: string
+  projectId: string
   sectionId?: string
   images?: string[]
-  dueDate?: string
-  pdfRef?: { pdfId: string; page: number; annotationId: string }
-  pdfOrder?: number
-}): Item {
+}): ProjectCard {
   return {
     id: crypto.randomUUID(),
     type: data.type,
@@ -325,28 +329,65 @@ export function createItem(data: {
     createdAt: Date.now(),
     projectId: data.projectId,
     ...(data.sectionId ? { sectionId: data.sectionId } : {}),
-    ...(data.images && data.images.length > 0 ? { images: data.images } : {}),
-    ...(data.dueDate ? { dueDate: data.dueDate } : {}),
-    ...(data.pdfRef
-      ? { pdfRef: data.pdfRef, pdfRefPdfId: data.pdfRef.pdfId }
-      : {}),
-    ...(data.pdfOrder !== undefined ? { pdfOrder: data.pdfOrder } : {})
+    ...(data.images && data.images.length > 0 ? { images: data.images } : {})
   }
 }
 
-/** Clone a card into another project. Section ids are per-project UUIDs and
- *  order is per-section, so neither transfers — a copy drops them and lands in
- *  the target project's 未分类 with a fresh auto-assigned order. The PDF source
- *  (pdfRef) is dropped too: the annotation↔card relationship stays strictly 1:1,
- *  so a copy becomes a normal 自建卡片 (content + idea copied, no PDF back-jump). */
-export function cloneItem(source: Item, targetProjectId: string): Item {
+/** Fresh todo factory — identity-unique (addTodo never dedups). */
+export function createTodoCard(data: {
+  title?: string
+  content: string
+  dueDate?: string
+}): TodoCard {
+  return {
+    id: crypto.randomUUID(),
+    title: data.title,
+    content: data.content,
+    ...(data.dueDate ? { dueDate: data.dueDate } : {}),
+    createdAt: Date.now()
+  }
+}
+
+/** Fresh PDF annotation card factory. Order is pdfOrder (position in the PDF). */
+export function createPdfCard(data: {
+  pdfId: string
+  page: number
+  kind: "text" | "region"
+  type: PdfMark
+  annotationId: string
+  content: string
+  pdfOrder: number
+  idea?: string
+}): PdfCard {
+  return {
+    id: crypto.randomUUID(),
+    pdfId: data.pdfId,
+    page: data.page,
+    kind: data.kind,
+    type: data.type,
+    annotationId: data.annotationId,
+    content: data.content,
+    pdfOrder: data.pdfOrder,
+    ...(data.idea ? { idea: data.idea } : {}),
+    createdAt: Date.now()
+  }
+}
+
+/** Clone a project card into another project. Section ids are per-project UUIDs
+ *  and order is per-section, so neither transfers — a copy drops them and lands
+ *  in the target project's 未分类 with a fresh auto-assigned order. The placement
+ *  reference (pdfCardId) is dropped too: the annotation↔placement stays strictly
+ *  1:1, so a copy becomes a normal 自建卡片 (content copied, no PDF back-jump). */
+export function cloneProjectCard(
+  source: ProjectCard,
+  targetProjectId: string
+): ProjectCard {
   const {
     id: _id,
     createdAt: _createdAt,
     sectionId: _sectionId,
     order: _order,
-    pdfRef: _pdfRef,
-    pdfRefPdfId: _pdfRefPdfId,
+    pdfCardId: _pdfCardId,
     ...rest
   } = source
   return {

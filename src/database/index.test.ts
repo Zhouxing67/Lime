@@ -1,12 +1,13 @@
 import { dayKey, getRecentItems, rateSrs } from "../hooks/useSrs"
 import { sha256Bytes } from "../utils"
 import type {
-  Item,
   PdfAnnotation,
+  PdfCard,
   PdfFile,
   Project,
+  ProjectCard,
   ReviewEntry,
-  SearchQuery
+  TodoCard
 } from "../types"
 import {
   addAnnotation,
@@ -17,20 +18,22 @@ import {
   createRegionAnnotationCard,
   createTextAnnotationCard,
   deleteAnnotationWithCard,
-  deletePdfCard,
-  getItemById,
-  getItemsByPdf,
-  addItem,
+  deletePdfCards,
+  getProjectCardById,
+  getPdfCards,
+  addProjectCard,
+  addTodo,
   addProject,
   addReview,
   bulkReplace,
   deleteAnnotation,
-  deleteItem,
-  deleteItems,
+  deleteProjectCard,
+  deleteProjectCards,
   deletePdf,
   deleteProject,
-  ensureItemOrder,
+  ensureOrder,
   getAllReviews,
+  getAllTodos,
   getAnnotation,
   getAnnotationsByPdf,
   getDueReviews,
@@ -42,16 +45,18 @@ import {
   placePdfCards,
   unplacePdfCard,
   unplacePdfCards,
-  searchItems,
+  searchProjectCards,
   touchPdf,
-  updateItem,
+  updateProjectCard,
   updateReviewSrs,
   getReviewByItemId
 } from "./index"
 
-// Helper to create a test item
-const createTestItem = (overrides: Partial<Item> = {}): Item => ({
-  id: `item-${Date.now()}-${Math.random()}`,
+// Helper to create a test project card (projectId is REQUIRED — defaults to "p1")
+const createTestProjectCard = (
+  overrides: Partial<ProjectCard> = {}
+): ProjectCard => ({
+  id: `card-${Date.now()}-${Math.random()}`,
   type: "text",
   content: "Test content",
   source: {
@@ -59,77 +64,100 @@ const createTestItem = (overrides: Partial<Item> = {}): Item => ({
     url: "https://example.com/test",
     site: "example.com"
   },
+  projectId: "p1",
   createdAt: Date.now(),
   ...overrides
 })
 
+// Helper to create a test todo card
+const createTestTodoCard = (overrides: Partial<TodoCard> = {}): TodoCard => ({
+  id: `todo-${Date.now()}-${Math.random()}`,
+  content: "- [ ] test task",
+  createdAt: Date.now(),
+  ...overrides
+})
+
+// Helper to create a test PDF card
+const createTestPdfCard = (overrides: Partial<PdfCard> = {}): PdfCard => ({
+  id: `pdfcard-${Date.now()}-${Math.random()}`,
+  pdfId: "pdf-test",
+  page: 1,
+  kind: "text",
+  type: "highlight",
+  annotationId: `ann-${Date.now()}-${Math.random()}`,
+  content: "Test content",
+  pdfOrder: 1e6,
+  createdAt: Date.now(),
+  ...overrides
+})
+
+beforeEach(() => {
+  // Clear IndexedDB before each test
+  indexedDB = new IDBFactory()
+})
+
 describe("database", () => {
-  beforeEach(() => {
-    // Clear IndexedDB before each test
-    indexedDB = new IDBFactory()
-  })
+  describe("addProjectCard", () => {
+    it("should add a project card to the database", async () => {
+      const card = createTestProjectCard()
+      await addProjectCard(card)
 
-  describe("addItem", () => {
-    it("should add an item to the database", async () => {
-      const item = createTestItem()
-      await addItem(item)
-
-      const items = await searchItems({})
-      expect(items).toHaveLength(1)
-      expect(items[0].id).toBe(item.id)
-      expect(items[0].content).toBe(item.content)
+      const cards = await searchProjectCards({})
+      expect(cards).toHaveLength(1)
+      expect(cards[0].id).toBe(card.id)
+      expect(cards[0].content).toBe(card.content)
     })
 
     it("should auto-generate sourceSite from URL if not provided", async () => {
-      const item = createTestItem({
+      const card = createTestProjectCard({
         source: {
           title: "Test",
           url: "https://blog.example.com/post"
         }
       })
-      await addItem(item)
+      await addProjectCard(card)
 
-      const items = await searchItems({})
-      expect(items[0].sourceSite).toBe("blog.example.com")
+      const cards = await searchProjectCards({})
+      expect(cards[0].sourceSite).toBe("blog.example.com")
     })
 
     it("should auto-generate hash if not provided", async () => {
-      const item = createTestItem()
-      delete item.hash
-      await addItem(item)
+      const card = createTestProjectCard()
+      delete card.hash
+      await addProjectCard(card)
 
-      const items = await searchItems({})
-      expect(items[0].hash).toBeDefined()
-      expect(items[0].hash).toHaveLength(64)
+      const cards = await searchProjectCards({})
+      expect(cards[0].hash).toBeDefined()
+      expect(cards[0].hash).toHaveLength(64)
     })
 
-    it("should prevent duplicate items with same hash and URL", async () => {
-      const item = createTestItem({ hash: "test-hash-123" })
-      await addItem(item)
-      await addItem(item) // Try to add duplicate
+    it("should prevent duplicate cards with same hash and URL", async () => {
+      const card = createTestProjectCard({ hash: "test-hash-123" })
+      await addProjectCard(card)
+      await addProjectCard(card) // Try to add duplicate
 
-      const items = await searchItems({})
-      expect(items).toHaveLength(1) // Should only have one item
+      const cards = await searchProjectCards({})
+      expect(cards).toHaveLength(1) // Should only have one card
     })
 
-    it("should allow items with same hash but different URL", async () => {
-      const item1 = createTestItem({
+    it("should allow cards with same hash but different URL", async () => {
+      const card1 = createTestProjectCard({
         hash: "same-hash",
         source: { title: "Page 1", url: "https://site1.com" }
       })
-      const item2 = createTestItem({
+      const card2 = createTestProjectCard({
         hash: "same-hash",
         source: { title: "Page 2", url: "https://site2.com" }
       })
 
-      await addItem(item1)
-      await addItem(item2)
+      await addProjectCard(card1)
+      await addProjectCard(card2)
 
-      const items = await searchItems({})
-      expect(items).toHaveLength(2)
+      const cards = await searchProjectCards({})
+      expect(cards).toHaveLength(2)
     })
 
-    it("should treat different images as different items even with same content and source", async () => {
+    it("should treat different images as different cards even with same content and source", async () => {
       const base = {
         content: "mixed content text",
         source: {
@@ -138,15 +166,15 @@ describe("database", () => {
           site: "example.com"
         }
       }
-      await addItem(
-        createTestItem({ ...base, images: ["https://img.example.com/a.png"] })
+      await addProjectCard(
+        createTestProjectCard({ ...base, images: ["https://img.example.com/a.png"] })
       )
-      await addItem(
-        createTestItem({ ...base, images: ["https://img.example.com/b.png"] })
+      await addProjectCard(
+        createTestProjectCard({ ...base, images: ["https://img.example.com/b.png"] })
       )
 
-      const items = await searchItems({})
-      expect(items).toHaveLength(2)
+      const cards = await searchProjectCards({})
+      expect(cards).toHaveLength(2)
     })
 
     it("should dedupe mixed cards when content and images match", async () => {
@@ -162,63 +190,62 @@ describe("database", () => {
         "https://img.example.com/a.png",
         "https://img.example.com/b.png"
       ]
-      await addItem(createTestItem({ ...base, images }))
-      await addItem(createTestItem({ ...base, images }))
+      await addProjectCard(createTestProjectCard({ ...base, images }))
+      await addProjectCard(createTestProjectCard({ ...base, images }))
 
-      const items = await searchItems({})
-      expect(items).toHaveLength(1)
+      const cards = await searchProjectCards({})
+      expect(cards).toHaveLength(1)
     })
   })
 
-  describe("ensureItemOrder", () => {
+  describe("ensureOrder", () => {
     it("appends to the section's end and to the unclassified scope separately", async () => {
       const mk = (
         id: string,
         content: string,
         sectionId?: string,
-        order?: number,
-        projectId?: string
-      ): Item =>
-        createTestItem({
+        order?: number
+      ): ProjectCard =>
+        createTestProjectCard({
           id,
           content,
+          projectId: "proj",
           ...(sectionId ? { sectionId } : {}),
-          ...(order !== undefined ? { order } : {}),
-          ...(projectId ? { projectId } : {})
+          ...(order !== undefined ? { order } : {})
         })
-      await addItem(mk("o1", "a", "s1", 0, "proj"))
-      await addItem(mk("o2", "b", "s1", 2, "proj"))
-      await addItem(mk("o3", "c", undefined, 5, "proj"))
-      // A non-project card (todo/PDF — no projectId) with a high order must NOT
-      // inflate the unclassified project order space.
-      await addItem(mk("o3b", "c2", undefined, 20))
+      await addProjectCard(mk("o1", "a", "s1", 0))
+      await addProjectCard(mk("o2", "b", "s1", 2))
+      await addProjectCard(mk("o3", "c", undefined, 5))
+      // A todo (separate store — no projectId) must NOT inflate the
+      // unclassified project order space.
+      await addTodo(createTestTodoCard({ id: "o3b", content: "c2" }))
 
-      const placed = await ensureItemOrder(mk("o4", "d", "s1", undefined, "proj"))
+      const placed = await ensureOrder(mk("o4", "d", "s1"))
       expect(placed.order).toBe(3)
-      const placedUnc = await ensureItemOrder(mk("o5", "e", undefined, undefined, "proj"))
+      const placedUnc = await ensureOrder(mk("o5", "e"))
       expect(placedUnc.order).toBe(6)
       // Explicit order is respected.
-      const explicit = await ensureItemOrder(mk("o6", "f", "s1", 9, "proj"))
+      const explicit = await ensureOrder(mk("o6", "f", "s1", 9))
       expect(explicit.order).toBe(9)
     })
 
-    it("addItem auto-assigns order to a card without one", async () => {
-      await addItem(createTestItem({ id: "ao1", content: "a", sectionId: "s1", order: 0 }))
-      const ok = await addItem(
-        createTestItem({ id: "ao2", content: "b", sectionId: "s1" })
+    it("addProjectCard auto-assigns order to a card without one", async () => {
+      await addProjectCard(createTestProjectCard({ id: "ao1", content: "a", sectionId: "s1", order: 0 }))
+      const ok = await addProjectCard(
+        createTestProjectCard({ id: "ao2", content: "b", sectionId: "s1" })
       )
       expect(ok).toBe(true)
-      const items = await searchItems({})
-      const placed = items.find((i) => i.id === "ao2")
+      const cards = await searchProjectCards({})
+      const placed = cards.find((c) => c.id === "ao2")
       expect(placed?.order).toBe(1)
     })
   })
 
-  describe("searchItems", () => {
+  describe("searchProjectCards", () => {
     beforeEach(async () => {
       // Set up test data
-      await addItem(
-        createTestItem({
+      await addProjectCard(
+        createTestProjectCard({
           id: "text1",
           type: "text",
           content: "Hello world",
@@ -230,8 +257,8 @@ describe("database", () => {
           createdAt: 1000
         })
       )
-      await addItem(
-        createTestItem({
+      await addProjectCard(
+        createTestProjectCard({
           id: "image1",
           type: "image",
           content: "data:image/png;base64,xyz",
@@ -243,8 +270,8 @@ describe("database", () => {
           createdAt: 2000
         })
       )
-      await addItem(
-        createTestItem({
+      await addProjectCard(
+        createTestProjectCard({
           id: "text2",
           type: "text",
           content: "Goodbye world",
@@ -260,57 +287,57 @@ describe("database", () => {
     })
 
     it("should filter by type", async () => {
-      const results = await searchItems({ type: "text" })
+      const results = await searchProjectCards({ type: "text" })
       expect(results).toHaveLength(2)
-      expect(results.every((item) => item.type === "text")).toBe(true)
+      expect(results.every((card) => card.type === "text")).toBe(true)
     })
 
     it("should filter by site", async () => {
-      const results = await searchItems({ site: "example.com" })
+      const results = await searchProjectCards({ site: "example.com" })
       expect(results).toHaveLength(2)
-      expect(results.every((item) => item.sourceSite === "example.com")).toBe(
+      expect(results.every((card) => card.sourceSite === "example.com")).toBe(
         true
       )
     })
 
     it("should filter by keyword in content", async () => {
-      const results = await searchItems({ keyword: "hello" })
+      const results = await searchProjectCards({ keyword: "hello" })
       expect(results).toHaveLength(1)
       expect(results[0].id).toBe("text1")
     })
 
     it("should filter by keyword in title", async () => {
-      const results = await searchItems({ keyword: "another" })
+      const results = await searchProjectCards({ keyword: "another" })
       expect(results).toHaveLength(1)
       expect(results[0].id).toBe("text2")
     })
 
     it("should be case-insensitive for keyword search", async () => {
-      const results = await searchItems({ keyword: "HELLO" })
+      const results = await searchProjectCards({ keyword: "HELLO" })
       expect(results).toHaveLength(1)
       expect(results[0].id).toBe("text1")
     })
 
     it("should filter by date range (from)", async () => {
-      const results = await searchItems({ from: 2000 })
+      const results = await searchProjectCards({ from: 2000 })
       expect(results).toHaveLength(2)
-      expect(results.every((item) => item.createdAt >= 2000)).toBe(true)
+      expect(results.every((card) => card.createdAt >= 2000)).toBe(true)
     })
 
     it("should filter by date range (to)", async () => {
-      const results = await searchItems({ to: 2001 })
+      const results = await searchProjectCards({ to: 2001 })
       expect(results).toHaveLength(2)
-      expect(results.every((item) => item.createdAt < 2001)).toBe(true)
+      expect(results.every((card) => card.createdAt < 2001)).toBe(true)
     })
 
     it("should filter by projectId", async () => {
-      const results = await searchItems({ projectId: "proj1" })
+      const results = await searchProjectCards({ projectId: "proj1" })
       expect(results).toHaveLength(1)
       expect(results[0].id).toBe("text2")
     })
 
     it("should combine multiple filters", async () => {
-      const results = await searchItems({
+      const results = await searchProjectCards({
         type: "text",
         site: "example.com",
         keyword: "world"
@@ -318,82 +345,84 @@ describe("database", () => {
       expect(results).toHaveLength(2)
     })
 
-    it("should return all items when query is empty", async () => {
-      const results = await searchItems({})
+    it("should return all cards when query is empty", async () => {
+      const results = await searchProjectCards({})
       expect(results).toHaveLength(3)
     })
 
-    it("should return items in reverse chronological order", async () => {
-      const results = await searchItems({})
+    it("should return cards in reverse chronological order", async () => {
+      const results = await searchProjectCards({})
       expect(results[0].id).toBe("text2")
       expect(results[1].id).toBe("image1")
       expect(results[2].id).toBe("text1")
     })
   })
 
-  describe("updateItem", () => {
-    it("should update an existing item", async () => {
-      const item = createTestItem({ content: "Original content" })
-      await addItem(item)
+  describe("updateProjectCard", () => {
+    it("should update an existing card", async () => {
+      const card = createTestProjectCard({ content: "Original content" })
+      await addProjectCard(card)
 
-      const updatedItem = { ...item, content: "Updated content" }
-      await updateItem(updatedItem)
+      const updatedCard = { ...card, content: "Updated content" }
+      await updateProjectCard(updatedCard)
 
-      const items = await searchItems({})
-      expect(items).toHaveLength(1)
-      expect(items[0].content).toBe("Updated content")
+      const cards = await searchProjectCards({})
+      expect(cards).toHaveLength(1)
+      expect(cards[0].content).toBe("Updated content")
     })
   })
 
-  describe("deleteItem", () => {
-    it("should remove an item from the database", async () => {
-      const item = createTestItem()
-      await addItem(item)
+  describe("deleteProjectCard", () => {
+    it("should remove a card from the database", async () => {
+      const card = createTestProjectCard()
+      await addProjectCard(card)
 
-      let items = await searchItems({})
-      expect(items).toHaveLength(1)
+      let cards = await searchProjectCards({})
+      expect(cards).toHaveLength(1)
 
-      await deleteItem(item.id)
+      await deleteProjectCard(card.id)
 
-      items = await searchItems({})
-      expect(items).toHaveLength(0)
+      cards = await searchProjectCards({})
+      expect(cards).toHaveLength(0)
     })
 
-    it("should not throw error when deleting non-existent item", async () => {
-      await expect(deleteItem("non-existent-id")).resolves.not.toThrow()
+    it("should not throw error when deleting non-existent card", async () => {
+      await expect(deleteProjectCard("non-existent-id")).resolves.not.toThrow()
     })
   })
 
-  describe("deleteItems", () => {
-    it("should delete multiple items in a single transaction", async () => {
-      const item1: Item = {
+  describe("deleteProjectCards", () => {
+    it("should delete multiple cards in a single transaction", async () => {
+      const card1: ProjectCard = {
         id: "batch1",
         type: "text",
         content: "batch test A",
         source: { title: "Page A", url: "https://example.com/a" },
+        projectId: "p1",
         createdAt: 100
       }
-      const item2: Item = {
+      const card2: ProjectCard = {
         id: "batch2",
         type: "text",
         content: "batch test B",
         source: { title: "Page B", url: "https://example.com/b" },
+        projectId: "p1",
         createdAt: 200
       }
-      await addItem(item1)
-      await addItem(item2)
+      await addProjectCard(card1)
+      await addProjectCard(card2)
 
       // Confirm both exist
-      const before = await searchItems({})
-      expect(before.find((i) => i.id === "batch1")).toBeTruthy()
-      expect(before.find((i) => i.id === "batch2")).toBeTruthy()
+      const before = await searchProjectCards({})
+      expect(before.find((c) => c.id === "batch1")).toBeTruthy()
+      expect(before.find((c) => c.id === "batch2")).toBeTruthy()
 
       // Batch delete
-      await deleteItems(["batch1", "batch2"])
+      await deleteProjectCards(["batch1", "batch2"])
 
-      const after = await searchItems({})
-      expect(after.find((i) => i.id === "batch1")).toBeFalsy()
-      expect(after.find((i) => i.id === "batch2")).toBeFalsy()
+      const after = await searchProjectCards({})
+      expect(after.find((c) => c.id === "batch1")).toBeFalsy()
+      expect(after.find((c) => c.id === "batch2")).toBeFalsy()
     })
   })
 
@@ -450,18 +479,18 @@ describe("database", () => {
       )
     })
 
-    it("should delete project and its items atomically", async () => {
+    it("should delete project and its cards atomically", async () => {
       const project = createProject("To Delete")
       await addProject(project)
-      await addItem(createTestItem({ id: "p-item", projectId: project.id }))
+      await addProjectCard(createTestProjectCard({ id: "p-item", projectId: project.id }))
       await addReview(createTestReview("review-1", "p-item", project.id))
 
       await deleteProject(project.id)
 
       const projects = await listProjects()
       expect(projects).toHaveLength(0)
-      const items = await searchItems({ projectId: project.id })
-      expect(items).toHaveLength(0)
+      const cards = await searchProjectCards({ projectId: project.id })
+      expect(cards).toHaveLength(0)
       const reviews = await getAllReviews()
       expect(reviews).toHaveLength(0)
     })
@@ -639,25 +668,29 @@ describe("database", () => {
     it("should upsert remote and delete missing local atomically", async () => {
       const project: Project = { id: "p1", name: "P1", createdAt: 1000 }
       await addProject(project)
-      await addItem(createTestItem({ id: "i1", projectId: "p1" }))
+      await addProjectCard(createTestProjectCard({ id: "i1", projectId: "p1" }))
       await addReview(createTestReview("rv1", "i1", "p1"))
 
-      const remoteItem = createTestItem({ id: "i2", projectId: "p2" })
+      const remoteCard = createTestProjectCard({ id: "i2", projectId: "p2" })
       const remoteProject: Project = { id: "p2", name: "P2", createdAt: 2000 }
       const remoteReview = createTestReview("rv2", "i2", "p2")
 
       await bulkReplace(
-        [remoteItem],
+        [remoteCard],
+        [],
+        [],
         [remoteProject],
         [remoteReview],
-        await searchItems({}),
+        await searchProjectCards({}),
+        await getPdfCards(""),
+        await getAllTodos(),
         await listProjects(),
         await getAllReviews()
       )
 
-      const items = await searchItems({})
-      expect(items).toHaveLength(1)
-      expect(items[0].id).toBe("i2")
+      const cards = await searchProjectCards({})
+      expect(cards).toHaveLength(1)
+      expect(cards[0].id).toBe("i2")
 
       const projects = await listProjects()
       expect(projects).toHaveLength(1)
@@ -669,12 +702,23 @@ describe("database", () => {
     })
 
     it("should replace local review with same itemId instead of hitting unique index", async () => {
-      await addItem(createTestItem({ id: "i1", projectId: "p1" }))
+      await addProjectCard(createTestProjectCard({ id: "i1", projectId: "p1" }))
       await addReview(createTestReview("local-rv", "i1", "p1"))
 
       const remoteReview = createTestReview("remote-rv", "i1", "p1")
 
-      await bulkReplace([], [], [remoteReview], [], [], await getAllReviews())
+      await bulkReplace(
+        [],
+        [],
+        [],
+        [],
+        [remoteReview],
+        [],
+        [],
+        [],
+        [],
+        await getAllReviews()
+      )
 
       const reviews = await getAllReviews()
       expect(reviews).toHaveLength(1)
@@ -687,10 +731,10 @@ describe("database", () => {
     it("groups a card under every day it was reviewed (not just the latest)", async () => {
       const yesterday = Date.now() - 86400000
       const today = Date.now()
-      const i1: Item = createTestItem({ id: "g1" })
-      const i2: Item = createTestItem({ id: "g2" })
-      await addItem(i1)
-      await addItem(i2)
+      const c1: ProjectCard = createTestProjectCard({ id: "g1" })
+      const c2: ProjectCard = createTestProjectCard({ id: "g2" })
+      await addProjectCard(c1)
+      await addProjectCard(c2)
 
       // g1 reviewed yesterday AND today → must appear in both groups.
       await addReview(
@@ -711,12 +755,12 @@ describe("database", () => {
       )
 
       const reviews = await getAllReviews()
-      const groups = getRecentItems([i1, i2], reviews, 3)
+      const groups = getRecentItems([c1, c2], reviews, 3)
       expect(groups).toHaveLength(2)
       const todayGroup = groups.find((g) => g.date === dayKey(today))
       const yesterdayGroup = groups.find((g) => g.date === dayKey(yesterday))
-      expect(todayGroup?.items.map((i) => i.id).sort()).toEqual(["g1", "g2"])
-      expect(yesterdayGroup?.items.map((i) => i.id)).toEqual(["g1"])
+      expect(todayGroup?.items.map((c) => c.id).sort()).toEqual(["g1", "g2"])
+      expect(yesterdayGroup?.items.map((c) => c.id)).toEqual(["g1"])
     })
   })
 })
@@ -780,21 +824,21 @@ describe("pdf annotations ↔ cards", () => {
       endOffset: 20,
       title: "摘要"
     })
-    expect(card.pdfRef?.annotationId).toBe(annotation.id)
-    expect(card.pdfRef?.page).toBe(3)
-    expect(card.pdfRefPdfId).toBe("pdf-a")
-    expect(annotation.itemId).toBe(card.id)
+    expect(card.annotationId).toBe(annotation.id)
+    expect(card.page).toBe(3)
+    expect(card.pdfId).toBe("pdf-a")
+    expect(annotation.cardId).toBe(card.id)
     expect(annotation.kind).toBe("text")
     expect(annotation.text).toBe("关键段落")
 
-    const items = await getItemsByPdf("pdf-a")
-    expect(items).toHaveLength(1)
-    expect(items[0].id).toBe(card.id)
-    expect(await getItemsByPdf("pdf-other")).toHaveLength(0)
+    const cards = await getPdfCards("pdf-a")
+    expect(cards).toHaveLength(1)
+    expect(cards[0].id).toBe(card.id)
+    expect(await getPdfCards("pdf-other")).toHaveLength(0)
   })
 
   it("deletes annotation + card together (both directions)", async () => {
-    const { card, annotation } = await createTextAnnotationCard({
+    const { annotation } = await createTextAnnotationCard({
       pdfId: "pdf-b",
       page: 1,
       type: "underline",
@@ -804,7 +848,7 @@ describe("pdf annotations ↔ cards", () => {
     })
     // delete via annotation
     await deleteAnnotationWithCard(annotation.id)
-    expect(await getItemsByPdf("pdf-b")).toHaveLength(0)
+    expect(await getPdfCards("pdf-b")).toHaveLength(0)
     expect(await getAnnotation(annotation.id)).toBeUndefined()
 
     // delete via card
@@ -816,8 +860,8 @@ describe("pdf annotations ↔ cards", () => {
       startOffset: 0,
       endOffset: 1
     })
-    await deletePdfCard(c2)
-    expect(await getItemsByPdf("pdf-c")).toHaveLength(0)
+    await deletePdfCards([c2])
+    expect(await getPdfCards("pdf-c")).toHaveLength(0)
     expect(await getAnnotation(a2.id)).toBeUndefined()
   })
 })
@@ -830,17 +874,17 @@ describe("pdf region annotations (框选)", () => {
       rects: [{ x: 0.1, y: 0.2, w: 0.5, h: 0.3 }],
       imageDataUrl: "data:image/png;base64,AAAA"
     })
-    expect(card.type).toBe("image")
+    expect(card.kind).toBe("region")
     expect(card.content).toBe("data:image/png;base64,AAAA")
-    expect(card.pdfRefPdfId).toBe("pdf-region")
+    expect(card.pdfId).toBe("pdf-region")
     expect(annotation.kind).toBe("region")
     expect(annotation.type).toBe("frame")
     expect(annotation.rects?.[0]).toEqual({ x: 0.1, y: 0.2, w: 0.5, h: 0.3 })
-    expect(annotation.itemId).toBe(card.id)
+    expect(annotation.cardId).toBe(card.id)
 
-    const items = await getItemsByPdf("pdf-region")
-    expect(items).toHaveLength(1)
-    expect(items[0].type).toBe("image")
+    const cards = await getPdfCards("pdf-region")
+    expect(cards).toHaveLength(1)
+    expect(cards[0].kind).toBe("region")
   })
 })
 
@@ -876,8 +920,8 @@ describe("pdf delete cascade + lastOpened", () => {
     })
     await deletePdf(pdfId)
     expect(await getPdf(pdfId)).toBeUndefined()
-    expect(await getItemsByPdf(pdfId)).toHaveLength(0)
-    expect(await getAnnotation(card.pdfRef!.annotationId)).toBeUndefined()
+    expect(await getPdfCards(pdfId)).toHaveLength(0)
+    expect(await getAnnotation(card.annotationId)).toBeUndefined()
   })
 })
 
@@ -968,7 +1012,7 @@ describe("placePdfCard / unplacePdfCard", () => {
       createdAt: Date.now()
     })
     const proj = (await getProjectByName("PL"))!
-    const card = await createTextAnnotationCard({
+    const { card } = await createTextAnnotationCard({
       pdfId: "p1",
       page: 3,
       type: "highlight",
@@ -976,22 +1020,27 @@ describe("placePdfCard / unplacePdfCard", () => {
       endOffset: 5,
       text: "hello"
     })
-    await placePdfCard(card.card.id, proj.id)
-    const placed = await getItemById(card.card.id)
-    expect(placed?.projectId).toBe(proj.id)
-    expect(placed?.sectionId).toBeUndefined()
-    expect(placed?.order).toBeGreaterThanOrEqual(0)
-    await unplacePdfCard(card.card.id)
-    const unplaced = await getItemById(card.card.id)
-    expect(unplaced?.projectId).toBeUndefined()
-    expect(unplaced?.pdfRef?.pdfId).toBe("p1")
+    await placePdfCard(card.id, proj.id)
+    const placed = await getPdfCards("p1")
+    expect(placed).toHaveLength(1)
+    expect(placed[0].projectCardId).toBeDefined()
+    const placements = await searchProjectCards({ projectId: proj.id })
+    expect(placements).toHaveLength(1)
+    expect(placements[0].pdfCardId).toBe(card.id)
+    expect(placements[0].sectionId).toBeUndefined()
+    expect(placements[0].order).toBeGreaterThanOrEqual(0)
+    await unplacePdfCard(card.id)
+    const unplaced = await getPdfCards("p1")
+    expect(unplaced[0].projectCardId).toBeUndefined()
+    expect(unplaced[0].pdfId).toBe("p1")
+    expect(await searchProjectCards({ projectId: proj.id })).toHaveLength(0)
   })
 })
 
 describe("deleteProject preserves PDF-sourced cards", () => {
   it("unplaces (keeps) a placed PDF card when its project is deleted", async () => {
     await addProject({ id: "proj-d", name: "D", createdAt: 1 })
-    const card = await createTextAnnotationCard({
+    const { card } = await createTextAnnotationCard({
       pdfId: "p1",
       page: 2,
       type: "underline",
@@ -999,12 +1048,13 @@ describe("deleteProject preserves PDF-sourced cards", () => {
       endOffset: 3,
       text: "abc"
     })
-    await placePdfCard(card.card.id, "proj-d")
+    await placePdfCard(card.id, "proj-d")
     await deleteProject("proj-d")
-    const kept = await getItemById(card.card.id)
-    expect(kept).toBeDefined()
-    expect(kept?.projectId).toBeUndefined()
-    expect(kept?.pdfRef?.pdfId).toBe("p1")
+    const kept = await getPdfCards("p1")
+    expect(kept).toHaveLength(1)
+    expect(kept[0].projectCardId).toBeUndefined()
+    expect(kept[0].pdfId).toBe("p1")
+    expect(await searchProjectCards({ projectId: "proj-d" })).toHaveLength(0)
   })
 })
 
@@ -1028,20 +1078,24 @@ describe("placePdfCards / unplacePdfCards (batch)", () => {
       text: "cd"
     })
     await placePdfCards([c1.card.id, c2.card.id], "proj-b")
-    const placed1 = await getItemById(c1.card.id)
-    const placed2 = await getItemById(c2.card.id)
-    expect(placed1?.projectId).toBe("proj-b")
-    expect(placed2?.projectId).toBe("proj-b")
-    expect(placed1?.order).toBeGreaterThanOrEqual(0)
-    expect(placed2?.order).toBe(placed1!.order! + 1)
+    const placed = await searchProjectCards({ projectId: "proj-b" })
+    expect(placed).toHaveLength(2)
+    const placed1 = placed.find((p) => p.pdfCardId === c1.card.id)!
+    const placed2 = placed.find((p) => p.pdfCardId === c2.card.id)!
+    expect(placed1.projectId).toBe("proj-b")
+    expect(placed2.projectId).toBe("proj-b")
+    expect(placed1.order).toBeGreaterThanOrEqual(0)
+    expect(placed2.order).toBe(placed1.order! + 1)
     await unplacePdfCards([c1.card.id, c2.card.id])
-    expect((await getItemById(c1.card.id))?.projectId).toBeUndefined()
-    expect((await getItemById(c2.card.id))?.projectId).toBeUndefined()
+    expect(await searchProjectCards({ projectId: "proj-b" })).toHaveLength(0)
+    const after = await getPdfCards("p1")
+    expect(after.every((pc) => pc.projectCardId === undefined)).toBe(true)
   })
 })
 
 describe("PDF delete cascades reviews (no orphans)", () => {
-  it("deletePdfCard removes the card's review too", async () => {
+  it("deletePdfCards removes the placement's review too", async () => {
+    await addProject({ id: "proj-or1", name: "OR1", createdAt: 1 })
     const c = await createTextAnnotationCard({
       pdfId: "p-or1",
       page: 1,
@@ -1050,17 +1104,19 @@ describe("PDF delete cascades reviews (no orphans)", () => {
       endOffset: 1,
       text: "x"
     })
+    await placePdfCards([c.card.id], "proj-or1")
+    const placed = (await getPdfCards("p-or1"))[0]
     await addReview({
       id: "rev-or1",
-      itemId: c.card.id,
-      projectId: "",
+      itemId: placed.projectCardId!,
+      projectId: "proj-or1",
       status: "active",
       dueDate: Date.now(),
       addedAt: Date.now(),
       srs: { dueDate: Date.now(), interval: 0, easeFactor: 2.5, reviewCount: 0, lastReviewDate: 0 }
     })
-    await deletePdfCard(c.card)
-    expect(await getReviewByItemId(c.card.id)).toBeUndefined()
+    await deletePdfCards([placed])
+    expect(await getReviewByItemId(placed.projectCardId!)).toBeUndefined()
   })
 })
 
@@ -1076,9 +1132,10 @@ describe("unplace clears the card's review (only project cards are reviewable)",
       text: "y"
     })
     await placePdfCards([c.card.id], "proj-u1")
+    const placed = (await getPdfCards("p-u1"))[0]
     await addReview({
       id: "rev-u1",
-      itemId: c.card.id,
+      itemId: placed.projectCardId!,
       projectId: "proj-u1",
       status: "active",
       dueDate: Date.now(),
@@ -1086,8 +1143,145 @@ describe("unplace clears the card's review (only project cards are reviewable)",
       srs: { dueDate: Date.now(), interval: 0, easeFactor: 2.5, reviewCount: 0, lastReviewDate: 0 }
     })
     await unplacePdfCards([c.card.id])
-    const card = await getItemById(c.card.id)
-    expect(card?.projectId).toBeUndefined()
-    expect(await getReviewByItemId(c.card.id)).toBeUndefined()
+    expect(await getProjectCardById(placed.projectCardId!)).toBeUndefined()
+    expect(await getReviewByItemId(placed.projectCardId!)).toBeUndefined()
+  })
+})
+
+describe("v12 migration: items → three typed stores", () => {
+  const openRaw = (version: number) =>
+    new Promise<IDBDatabase>((resolve) => {
+      const req = indexedDB.open("pickquote-db", version)
+      req.onsuccess = () => resolve(req.result)
+      req.onerror = () => resolve(req.result)
+    })
+
+  it("splits todos / pdf-only / placed / plain cards + remaps reviews + mutual refs", async () => {
+    // Build a legacy v11 DB with the items store + seed four card kinds.
+    const legacy = await new Promise<IDBDatabase>((resolve) => {
+      const req = indexedDB.open("pickquote-db", 11)
+      req.onupgradeneeded = () => {
+        const d = req.result
+        const items = d.createObjectStore("items", { keyPath: "id" })
+        items.createIndex("type", "type")
+        items.createIndex("projectId", "projectId")
+        items.createIndex("pdfRefPdfId", "pdfRefPdfId")
+        const anns = d.createObjectStore("pdfAnnotations", { keyPath: "id" })
+        anns.createIndex("pdfId", "pdfId")
+        const revs = d.createObjectStore("reviews", { keyPath: "id" })
+        revs.createIndex("itemId", "itemId", { unique: true })
+        revs.createIndex("dueDate", "dueDate")
+        const annId = "ann-1"
+        const tx = req.transaction as IDBTransaction
+        tx.objectStore("items").put({
+          id: "todo-1",
+          type: "todo",
+          content: "- [ ] a",
+          createdAt: 1
+        })
+        tx.objectStore("items").put({
+          id: "plain-1",
+          type: "text",
+          content: "hello",
+          projectId: "p1",
+          createdAt: 2
+        })
+        tx.objectStore("items").put({
+          id: "pdfonly-1",
+          type: "text",
+          content: "quote-only",
+          projectId: undefined,
+          pdfRef: { pdfId: "pdf-1", page: 2, annotationId: annId },
+          pdfRefPdfId: "pdf-1",
+          pdfOrder: 2000005,
+          createdAt: 3
+        })
+        tx.objectStore("items").put({
+          id: "placed-1",
+          type: "text",
+          content: "quote-placed",
+          projectId: "p1",
+          pdfRef: { pdfId: "pdf-1", page: 3, annotationId: annId },
+          pdfRefPdfId: "pdf-1",
+          pdfOrder: 3000001,
+          idea: "备注",
+          createdAt: 4
+        })
+        tx.objectStore("pdfAnnotations").put({
+          id: annId,
+          pdfId: "pdf-1",
+          page: 2,
+          kind: "text",
+          type: "highlight",
+          itemId: "placed-1",
+          text: "quote-placed",
+          createdAt: 4
+        })
+        tx.objectStore("reviews").put({
+          id: "rev-1",
+          itemId: "placed-1",
+          projectId: "p1",
+          srs: {
+            dueDate: 1,
+            interval: 0,
+            easeFactor: 2.5,
+            reviewCount: 0,
+            lastReviewDate: 0
+          },
+          status: "active",
+          dueDate: 1,
+          addedAt: 4
+        })
+      }
+      req.onsuccess = () => resolve(req.result)
+    })
+    legacy.close()
+
+    // Open at v12 — the migration converts + drops the items store.
+    await addTodo({
+      id: "t0",
+      content: "- [ ] x",
+      createdAt: 0
+    })
+
+    // Todos store.
+    const todos = await getAllTodos()
+    expect(todos.map((t) => t.id)).toContain("todo-1")
+
+    // Plain card → projectCards.
+    const cards = await searchProjectCards({ projectId: "p1" })
+    const plain = cards.find((c) => c.id === "plain-1")
+    expect(plain?.content).toBe("hello")
+
+    // pdf-only → pdfCards with no placement.
+    const pdfCards = await getPdfCards("pdf-1")
+    const pdfOnly = pdfCards.find((c) => c.id === "pdfonly-1")
+    expect(pdfOnly?.pdfOrder).toBe(2000005)
+    expect(pdfOnly?.projectCardId).toBeUndefined()
+
+    // placed → pdfCard + a placement with mutual refs.
+    const placed = pdfCards.find((c) => c.id === "placed-1")
+    expect(placed?.projectCardId).toBeDefined()
+    const placement = cards.find((c) => c.id === placed!.projectCardId)
+    expect(placement?.projectId).toBe("p1")
+    expect(placement?.pdfCardId).toBe(placed!.id)
+    // The placement carries no content (reference model).
+    expect(placement?.content).toBe("")
+
+    // The review remapped to the placement id.
+    const review = await getReviewByItemId(placed!.projectCardId!)
+    expect(review?.id).toBe("rev-1")
+
+    // The old items store is gone; the annotation's itemId → cardId.
+    const db = await openRaw(12)
+    const names = Array.from(db.objectStoreNames)
+    expect(names).not.toContain("items")
+    expect(names).toContain("projectCards")
+    expect(names).toContain("pdfCards")
+    expect(names).toContain("todos")
+    const anns = await getAnnotationsByPdf("pdf-1")
+    const ann = anns.find((a) => a.id === "ann-1")
+    expect(ann?.cardId).toBe("placed-1")
+    db.close()
   })
 })
