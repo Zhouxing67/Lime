@@ -297,6 +297,16 @@ function PageView({
       if (baseW <= 0) return
       const s = Math.max(0.4, (paneW * PAGE_RATIO * zoom) / baseW)
       const vp = page.getViewport({ scale: s })
+      console.log(
+        "[lime:flash] page",
+        pageNumber,
+        "computed",
+        Math.floor(vp.width),
+        "x",
+        Math.floor(vp.height),
+        "vs placeholder",
+        placeholderH
+      )
       setScale(s)
       setWh({ w: Math.floor(vp.width), h: Math.floor(vp.height) })
     }
@@ -318,6 +328,7 @@ function PageView({
       })
       await renderTask.promise
       if (cancelled) return
+      console.log("[lime:flash] page", pageNumber, "render done — canvas drawn")
       // Text layer (selection) aligned over the canvas at the logical viewport.
       const layerDiv = holder.querySelector<HTMLDivElement>(".pdf-textlayer")
       if (layerDiv) {
@@ -365,6 +376,14 @@ function PageView({
       (entries) => {
         if (entries[0].isIntersecting) {
           obs.disconnect()
+          console.log(
+            "[lime:flash] page",
+            pageNumber,
+            "observer →",
+            wh ? "render" : "computeSize",
+            "placeholderH",
+            placeholderH
+          )
           if (!wh) {
             computeSize().catch((e) => console.warn("[pdf] page size:", e))
           } else {

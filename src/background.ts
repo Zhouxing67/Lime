@@ -1,23 +1,20 @@
 import {
   addItem,
   addProject,
-  getDueReviews,
+  getDueCount,
+  getIncompleteTodoCount,
   getRecentProjects,
   listProjects,
-  searchItems,
   touchProject,
   tx
 } from "./database"
 import type { Item, Project } from "./types"
 import type { ExtensionMessage } from "./types/messages"
-import { createItem, isTodoComplete } from "./utils"
+import { createItem } from "./utils"
 
 async function updateBadge() {
   try {
-    const due = await getDueReviews()
-    const todos = await searchItems({ type: "todo" })
-    const incompleteTodos = todos.filter((t) => !isTodoComplete(t.content)).length
-    const total = due.length + incompleteTodos
+    const total = (await getDueCount()) + (await getIncompleteTodoCount())
     chrome.action.setBadgeText({
       text: total > 0 ? String(total) : ""
     })

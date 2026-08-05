@@ -8,7 +8,12 @@ import type {
   SearchQuery,
   SrsData
 } from "../types"
-import { computeItemHash, createItem, sha256Bytes } from "../utils"
+import {
+  computeItemHash,
+  createItem,
+  isTodoComplete,
+  sha256Bytes
+} from "../utils"
 
 const DB_NAME = "pickquote-db"
 const DB_VERSION = 10
@@ -881,6 +886,19 @@ export async function getReviewByItemId(
       req.onerror = () => reject(req.error)
     })
   })
+}
+
+/** Shared light-weight due count — the SAME index query the toolbar badge uses,
+ *  so the NavRail review icon + the badge always agree. */
+export async function getDueCount(): Promise<number> {
+  return (await getDueReviews()).length
+}
+
+/** Shared light-weight incomplete-todo count (the toolbar badge's algorithm) —
+ *  the NavRail todo icon uses it so it updates as fast as the badge. */
+export async function getIncompleteTodoCount(): Promise<number> {
+  const todos = await searchItems({ type: "todo" })
+  return todos.filter((t) => !isTodoComplete(t.content)).length
 }
 
 export async function getDueReviews(): Promise<ReviewEntry[]> {

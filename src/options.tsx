@@ -78,6 +78,8 @@ import {
   addPdf,
   deletePdf,
   getItemById,
+  getDueCount,
+  getIncompleteTodoCount,
   getItemsByPdf,
   getAnnotationsByPdf,
   listPdfs,
@@ -1216,6 +1218,23 @@ export default function OptionsPage() {
   const sidebarTabRef = useRef(sidebarTab)
   sidebarTabRef.current = sidebarTab
   const pdfPanelTimerRef = useRef<number | null>(null)
+  // The NavRail review/todo badges use the SAME light-weight queries as the
+  // toolbar badge (getDueCount / getIncompleteTodoCount) so all three agree and
+  // update at the same speed.
+  const [liteDueCount, setLiteDueCount] = useState(0)
+  const [liteTodoCount, setLiteTodoCount] = useState(0)
+  const refreshLiteCounts = useCallback(async () => {
+    const [due, todo] = await Promise.all([
+      getDueCount(),
+      getIncompleteTodoCount()
+    ])
+    setLiteDueCount(due)
+    setLiteTodoCount(todo)
+    chrome.action?.setBadgeText({
+      text: due + todo > 0 ? String(due + todo) : ""
+    })
+  }, [])
+
   const schedulePdfPanelReload = useCallback(() => {
     if (pdfPanelTimerRef.current)
       window.clearTimeout(pdfPanelTimerRef.current)
@@ -1248,6 +1267,7 @@ export default function OptionsPage() {
     ) => {
       if (changes._dbi || changes._dbp) {
         schedulePdfPanelReload()
+        refreshLiteCounts()
         // In the PDF view the sidebar shows the TOC/library — the full
         // refreshAllData (5 store scans + full re-render) is wasted work on
         // every card write; other views get the coalesced full reload.
@@ -1264,6 +1284,7 @@ export default function OptionsPage() {
       // never the full refreshAllData chain.
       if (changes._dbr) {
         setReviewsVersion((v) => v + 1)
+        refreshLiteCounts()
       }
       // PDF writes broadcast `_dbpdf`: refresh the PDF library + the cards panel.
       if (changes._dbpdf) {
@@ -1273,7 +1294,7 @@ export default function OptionsPage() {
     }
     chrome.storage.onChanged.addListener(onChange)
     return () => chrome.storage.onChanged.removeListener(onChange)
-  }, [loadPdfs, loadPdfPanelData, schedulePdfPanelReload])
+  }, [loadPdfs, loadPdfPanelData, schedulePdfPanelReload, refreshLiteCounts])
 
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null
 
@@ -1575,30 +1596,25 @@ export default function OptionsPage() {
   // todo icon's number (review has its own due-count badge on the 复习 button).
   const todoCount = todoStats.incomplete
 
-  // A card becomes due by TIME (its dueDate passes) with no DB write — no
-  // broadcast fires, so the review/todo icons stay stale. Recompute the review
-  // stats on an interval + when the tab regains focus.
   useEffect(() => {
-    const bump = () => setReviewsVersion((v) => v + 1)
-    const onVisible = () => {
-      if (!document.hidden) bump()
+    const run = () => {
+      refreshLiteCounts()
+      setReviewsVersion((v) => v + 1)
     }
-    bump()
-    const t = window.setInterval(bump, 60000)
+    const onVisible = () => {
+      if (!document.hidden) run()
+    }
+    run()
+    const t = window.setInterval(run, 60000)
     document.addEventListener("visibilitychange", onVisible)
-    window.addEventListener("focus", bump)
+    window.addEventListener("focus", run)
     return () => {
       window.clearInterval(t)
       document.removeEventListener("visibilitychange", onVisible)
-      window.removeEventListener("focus", bump)
+      window.removeEventListener("focus", run)
     }
-  }, [])
+  }, [refreshLiteCounts])
 
-  // Keep the toolbar badge in sync with the NavRail icons (due + incomplete).
-  useEffect(() => {
-    const total = dueCount + todoCount
-    chrome.action?.setBadgeText({ text: total > 0 ? String(total) : "" })
-  }, [dueCount, todoCount])
 
   const handleNewTodo = useCallback(() => {
     setFocusNewTaskId(null)
@@ -1705,8 +1721,8 @@ export default function OptionsPage() {
         }}>
         <NavRail
           sidebarTab={sidebarTab}
-          dueCount={dueCount}
-          todoCount={todoCount}
+          dueCount={liteDueCount}
+          todoCount={liteTodoCount}
           onSetSidebarTab={handleSetSidebarTab}
           onSettingsClick={() => setSettingsOpen(true)}
         />
