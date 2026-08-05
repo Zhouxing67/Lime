@@ -83,6 +83,8 @@ import {
   renamePdfTopic,
   clearPdfTopic,
   updatePdfTopic,
+  placePdfCard,
+  unplacePdfCard,
   touchPdf,
   removeReview,
   searchItems,
@@ -1052,6 +1054,17 @@ export default function OptionsPage() {
     setPdfScrollTarget({ cardId, token: pdfScrollToken.current })
   }, [])
 
+  // Place PDF-sourced cards into a project (未分类) / unplace back to PDF-only.
+  const handlePlaceCards = useCallback(
+    async (cardIds: string[], projectId: string) => {
+      for (const id of cardIds) await placePdfCard(id, projectId)
+    },
+    []
+  )
+  const handleUnplaceCards = useCallback(async (cardIds: string[]) => {
+    for (const id of cardIds) await unplacePdfCard(id)
+  }, [])
+
   const handleOpenPdfFile = useCallback(
     async (file: File) => {
       try {
@@ -1992,6 +2005,9 @@ export default function OptionsPage() {
                     annotations={pdfPanelAnnotations}
                     onCardClick={handlePanelCardClick}
                     scrollTarget={pdfScrollTarget}
+                    projects={projects}
+                    onPlace={handlePlaceCards}
+                    onUnplace={handleUnplaceCards}
                   />
                 </Box>
               ) : (

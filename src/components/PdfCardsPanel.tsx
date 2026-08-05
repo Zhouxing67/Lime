@@ -1,6 +1,9 @@
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded"
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
+import DriveFileMoveRoundedIcon from "@mui/icons-material/DriveFileMoveRounded"
+import FolderRoundedIcon from "@mui/icons-material/FolderRounded"
 import EditRoundedIcon from "@mui/icons-material/EditRounded"
+import LinkOffRoundedIcon from "@mui/icons-material/LinkOffRounded"
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
 import UnfoldLessRoundedIcon from "@mui/icons-material/UnfoldLessRounded"
 import UnfoldMoreRoundedIcon from "@mui/icons-material/UnfoldMoreRounded"
@@ -8,12 +11,14 @@ import {
   Box,
   Checkbox,
   IconButton,
+  Menu,
+  MenuItem,
   Paper,
   Typography
 } from "@mui/material"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
-import type { Item, PdfAnnotation } from "../types"
+import type { Item, PdfAnnotation, Project } from "../types"
 import { deletePdfCard, updateItem } from "../database"
 import PdfCardBody from "./PdfCardBody"
 import PdfEditDialog from "./PdfEditDialog"
@@ -32,6 +37,11 @@ interface PdfCardsPanelProps {
   onCardClick: (card: Item) => void
   /** External "scroll to card" trigger (the annotation popover's 跳转卡片). */
   scrollTarget?: { cardId: string; token: number } | null
+  projects: Project[]
+  onPlace: (cardIds: string[], projectId: string) => void
+  onUnplace: (cardIds: string[]) => void
+  /** Placed card's project chip click → jump to that project. */
+  onJumpToProject?: (card: Item) => void
 }
 
 export default function PdfCardsPanel({
@@ -42,7 +52,11 @@ export default function PdfCardsPanel({
   cards,
   annotations,
   onCardClick,
-  scrollTarget
+  scrollTarget,
+  projects,
+  onPlace,
+  onUnplace,
+  onJumpToProject
 }: PdfCardsPanelProps) {
   const [expandedCards, setExpandedCards] = useState<Set<string>>(
     () => new Set()
@@ -52,6 +66,10 @@ export default function PdfCardsPanel({
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const [batchMode, setBatchMode] = useState(false)
   const [dragging, setDragging] = useState(false)
+  const [placeMenu, setPlaceMenu] = useState<{
+    anchor: HTMLElement
+    cardIds: string[]
+  } | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const jumpTimerRef = useRef<number | null>(null)
   const dragRef = useRef<{ startX: number; startW: number } | null>(null)
@@ -277,6 +295,16 @@ export default function PdfCardsPanel({
               sx={{ p: 0.25, color: "text.disabled" }}>
               <DeleteOutlineRoundedIcon sx={{ fontSize: 15 }} />
             </IconButton>
+            <IconButton
+              size="small"
+              title="置入项目"
+              disabled={selected.size === 0}
+              onClick={(e) =>
+                setPlaceMenu({ anchor: e.currentTarget, cardIds: [...selected] })
+              }
+              sx={{ p: 0.25, color: "text.disabled" }}>
+              <DriveFileMoveRoundedIcon sx={{ fontSize: 15 }} />
+            </IconButton>
             <Box
               onClick={() => {
                 setBatchMode(false)
@@ -314,6 +342,7 @@ export default function PdfCardsPanel({
             const expanded = expandedCards.has(card.id)
             const isSelected = selected.has(card.id)
             const highlighted = highlightId === card.id
+            const placedProject = projects.find((p) => p.id === card.projectId)
             return (
               <Paper
                 key={card.id}
@@ -400,6 +429,34 @@ export default function PdfCardsPanel({
                       {MARK_LABEL[ann.type]}
                     </Box>
                   )}
+                  {placedProject && (
+                    <Box
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onJumpToProject?.(card)
+                      }}
+                      title={`在「${placedProject.name}」中查看`}
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 0.3,
+                        px: 0.5,
+                        py: 0.1,
+                        borderRadius: 1,
+                        bgcolor: "action.hover",
+                        fontSize: "0.66rem",
+                        color: "primary.main",
+                        cursor: "pointer",
+                        maxWidth: 120,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        "&:hover": { bgcolor: "action.selected" }
+                      }}>
+                      <FolderRoundedIcon sx={{ fontSize: 11 }} />
+                      {placedProject.name}
+                    </Box>
+                  )}
                   <Box sx={{ flex: 1 }} />
                   {!batchMode && (
                     <Box
@@ -432,6 +489,32 @@ export default function PdfCardsPanel({
                         sx={{ p: 0.25, color: "text.disabled" }}>
                         <EditRoundedIcon sx={{ fontSize: 14 }} />
                       </IconButton>
+                      {placedProject ? (
+                        <IconButton
+                          size="small"
+                          title="移出项目"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onUnplace([card.id])
+                          }}
+                          sx={{ p: 0.25, color: "text.disabled" }}>
+                          <LinkOffRoundedIcon sx={{ fontSize: 14 }} />
+                        </IconButton>
+                      ) : (
+                        <IconButton
+                          size="small"
+                          title="置入项目"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setPlaceMenu({
+                              anchor: e.currentTarget,
+                              cardIds: [card.id]
+                            })
+                          }}
+                          sx={{ p: 0.25, color: "text.disabled" }}>
+                          <DriveFileMoveRoundedIcon sx={{ fontSize: 14 }} />
+                        </IconButton>
+                      )}
                     </Box>
                   )}
                   <IconButton
@@ -459,6 +542,36 @@ export default function PdfCardsPanel({
         onClose={() => setEditCard(null)}
         onSave={handleSaveIdea}
       />
+      <Menu
+        anchorEl={placeMenu?.anchor}
+        open={Boolean(placeMenu)}
+        onClose={() => setPlaceMenu(null)}
+        slotProps={{
+          paper: { sx: { py: 0.5, borderRadius: 1, minWidth: 160 } }
+        }}>
+        <Typography
+          sx={{
+            fontSize: "0.68rem",
+            color: "text.disabled",
+            px: 1.5,
+            pt: 0.5,
+            pb: 0.25
+          }}>
+          置入项目（未分类）
+        </Typography>
+        {projects.map((p) => (
+          <MenuItem
+            key={p.id}
+            onClick={() => {
+              if (placeMenu) onPlace(placeMenu.cardIds, p.id)
+              setPlaceMenu(null)
+            }}
+            sx={{ gap: 1, fontSize: "0.8rem" }}>
+            <FolderRoundedIcon sx={{ fontSize: 15 }} />
+            {p.name}
+          </MenuItem>
+        ))}
+      </Menu>
     </Box>
   )
 }
