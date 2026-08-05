@@ -413,6 +413,20 @@ describe("createItem / cloneItem / currentSourceMeta", () => {
     expect(clone.content).toBe("x")
   })
 
+  it("cloneItem drops the PDF source so the annotation↔card link stays 1:1 (a copy is a 自建卡片)", () => {
+    const src = {
+      ...createItem({
+        type: "text",
+        content: "quote",
+        pdfRef: { pdfId: "p", page: 1, annotationId: "a1" }
+      })
+    }
+    const clone = cloneItem(src, "target")
+    expect(clone.pdfRef).toBeUndefined()
+    expect(clone.pdfRefPdfId).toBeUndefined()
+    expect(clone.content).toBe("quote")
+  })
+
   it("currentSourceMeta reads the page metadata", () => {
     document.title = "Test Page"
     const meta = currentSourceMeta()

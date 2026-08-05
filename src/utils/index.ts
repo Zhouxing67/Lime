@@ -334,13 +334,17 @@ export function createItem(data: {
 
 /** Clone a card into another project. Section ids are per-project UUIDs and
  *  order is per-section, so neither transfers — a copy drops them and lands in
- *  the target project's 未分类 with a fresh auto-assigned order. */
+ *  the target project's 未分类 with a fresh auto-assigned order. The PDF source
+ *  (pdfRef) is dropped too: the annotation↔card relationship stays strictly 1:1,
+ *  so a copy becomes a normal 自建卡片 (content + idea copied, no PDF back-jump). */
 export function cloneItem(source: Item, targetProjectId: string): Item {
   const {
     id: _id,
     createdAt: _createdAt,
     sectionId: _sectionId,
     order: _order,
+    pdfRef: _pdfRef,
+    pdfRefPdfId: _pdfRefPdfId,
     ...rest
   } = source
   return {
