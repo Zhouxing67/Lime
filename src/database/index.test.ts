@@ -39,7 +39,9 @@ import {
   listPdfs,
   listProjects,
   placePdfCard,
+  placePdfCards,
   unplacePdfCard,
+  unplacePdfCards,
   searchItems,
   touchPdf,
   updateItem,
@@ -996,5 +998,37 @@ describe("deleteProject preserves PDF-sourced cards", () => {
     expect(kept).toBeDefined()
     expect(kept?.projectId).toBeUndefined()
     expect(kept?.pdfRef?.pdfId).toBe("p1")
+  })
+})
+
+describe("placePdfCards / unplacePdfCards (batch)", () => {
+  it("places + unplaces multiple cards in one call, assigning sequential orders", async () => {
+    await addProject({ id: "proj-b", name: "B", createdAt: 1 })
+    const c1 = await createTextAnnotationCard({
+      pdfId: "p1",
+      page: 1,
+      type: "highlight",
+      startOffset: 0,
+      endOffset: 2,
+      text: "ab"
+    })
+    const c2 = await createTextAnnotationCard({
+      pdfId: "p1",
+      page: 1,
+      type: "underline",
+      startOffset: 2,
+      endOffset: 4,
+      text: "cd"
+    })
+    await placePdfCards([c1.card.id, c2.card.id], "proj-b")
+    const placed1 = await getItemById(c1.card.id)
+    const placed2 = await getItemById(c2.card.id)
+    expect(placed1?.projectId).toBe("proj-b")
+    expect(placed2?.projectId).toBe("proj-b")
+    expect(placed1?.order).toBeGreaterThanOrEqual(0)
+    expect(placed2?.order).toBe(placed1!.order! + 1)
+    await unplacePdfCards([c1.card.id, c2.card.id])
+    expect((await getItemById(c1.card.id))?.projectId).toBeUndefined()
+    expect((await getItemById(c2.card.id))?.projectId).toBeUndefined()
   })
 })

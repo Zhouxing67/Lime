@@ -86,8 +86,8 @@ import {
   renamePdfTopic,
   clearPdfTopic,
   updatePdfTopic,
-  placePdfCard,
-  unplacePdfCard,
+  placePdfCards,
+  unplacePdfCards,
   addProject,
   getProjectByName,
   touchPdf,
@@ -483,7 +483,7 @@ export default function OptionsPage() {
     // from the project must only remove the membership (the annotation stays).
     const item = await getItemById(confirmDeleteId)
     if (item?.pdfRef) {
-      await unplacePdfCard(confirmDeleteId)
+      await unplacePdfCards([confirmDeleteId])
       setSnackbarMsg("已从项目移出（PDF 批注保留）")
     } else {
       await deleteItem(confirmDeleteId)
@@ -1086,7 +1086,7 @@ export default function OptionsPage() {
   const handlePlaceCards = useCallback(
     async (cardIds: string[], projectId: string) => {
       const project = projects.find((p) => p.id === projectId)
-      for (const id of cardIds) await placePdfCard(id, projectId)
+      await placePdfCards(cardIds, projectId)
       setSnackbarMsg(
         `已置入 ${cardIds.length} 张卡片到「${project?.name ?? ""}」`
       )
@@ -1108,7 +1108,7 @@ export default function OptionsPage() {
       })
       const created = await getProjectByName(name)
       if (!created) return false
-      for (const id of cardIds) await placePdfCard(id, created.id)
+      await placePdfCards(cardIds, created.id)
       setSnackbarMsg(`已新建项目「${name}」并置入 ${cardIds.length} 张卡片`)
       loadProjects()
       return true
@@ -1116,7 +1116,7 @@ export default function OptionsPage() {
     [loadProjects]
   )
   const handleUnplaceCards = useCallback(async (cardIds: string[]) => {
-    for (const id of cardIds) await unplacePdfCard(id)
+    await unplacePdfCards(cardIds)
     setSnackbarMsg(`已移出 ${cardIds.length} 张卡片（PDF 批注保留）`)
   }, [])
 

@@ -1389,60 +1389,107 @@ export async function deletePdfCard(card: Item): Promise<void> {
   )
 }
 
-/** Place a PDF-sourced card into a project (未分类). The card keeps its PDF
- *  source (multi-home: still listed in the PDF panel). Title stays empty —
- *  the card becomes an ordinary project card whose source is a PDF. */
+/** Place PDF-sourced cards into a project (未分类) in ONE transaction + a
+ *  single `_dbpdf` broadcast. Cards keep their PDF source (multi-home). */
+export async function placePdfCards(
+  cardIds: string[],
+  projectId: string
+): Promise<void> {
+  if (cardIds.length === 0) return
+  const items = await withStore("items", "readonly", (store) => {
+    return new Promise<Item[]>((resolve, reject) => {
+      const results: Item[] = []
+      let remaining = cardIds.length
+      for (const id of cardIds) {
+        const r = store.get(id)
+        r.onsuccess = () => {
+          const it = r.result as Item | undefined
+          if (it) results.push(it)
+          if (--remaining === 0) resolve(results)
+        }
+        r.onerror = () => reject(r.error)
+      }
+    })
+  })
+  if (items.length === 0) return
+  const maxOrder = await getMaxOrderInSection(undefined)
+  let assigned = 0
+  const nextItems = items.map((item) => {
+    const next: Item = { ...item, projectId, sectionId: undefined }
+    if (item.order === undefined) {
+      next.order = maxOrder + 1 + assigned
+      assigned++
+    }
+    return next
+  })
+  await withStore("items", "readwrite", (store) => {
+    return new Promise<void>((resolve, reject) => {
+      let remaining = nextItems.length
+      for (const next of nextItems) {
+        const r = store.put(next)
+        r.onsuccess = () => {
+          if (--remaining === 0) resolve()
+        }
+        r.onerror = () => reject(r.error)
+      }
+    })
+  })
+  // The panel's data reloads on `_dbpdf` (the cards changed).
+  await broadcastDbChange("pdfs")
+}
+
+/** Place a single PDF-sourced card (thin wrapper over the batch path). */
 export async function placePdfCard(
   itemId: string,
   projectId: string
 ): Promise<void> {
-  const item = await withStore("items", "readonly", (store) => {
-    return new Promise<Item | undefined>((resolve, reject) => {
-      const r = store.get(itemId)
-      r.onsuccess = () => resolve(r.result as Item | undefined)
-      r.onerror = () => reject(r.error)
+  await placePdfCards([itemId], projectId)
+}
+
+/** Remove PDF-sourced cards from their project (back to PDF-only) in ONE
+ *  transaction + a single `_dbpdf` broadcast. */
+export async function unplacePdfCards(cardIds: string[]): Promise<void> {
+  if (cardIds.length === 0) return
+  const items = await withStore("items", "readonly", (store) => {
+    return new Promise<Item[]>((resolve, reject) => {
+      const results: Item[] = []
+      let remaining = cardIds.length
+      for (const id of cardIds) {
+        const r = store.get(id)
+        r.onsuccess = () => {
+          const it = r.result as Item | undefined
+          if (it) results.push(it)
+          if (--remaining === 0) resolve(results)
+        }
+        r.onerror = () => reject(r.error)
+      }
     })
   })
-  if (!item) return
-  const next: Item = {
-    ...item,
-    projectId,
-    sectionId: undefined
-  }
-  const withOrder = await ensureItemOrder(next)
+  if (items.length === 0) return
+  const nextItems = items.map((item) => {
+    const next: Item = { ...item }
+    delete next.projectId
+    delete next.sectionId
+    return next
+  })
   await withStore("items", "readwrite", (store) => {
     return new Promise<void>((resolve, reject) => {
-      const r = store.put(withOrder)
-      r.onsuccess = () => resolve()
-      r.onerror = () => reject(r.error)
+      let remaining = nextItems.length
+      for (const next of nextItems) {
+        const r = store.put(next)
+        r.onsuccess = () => {
+          if (--remaining === 0) resolve()
+        }
+        r.onerror = () => reject(r.error)
+      }
     })
   })
-  // The panel's data reloads on `_dbpdf` (the cards changed) — item writes
-  // alone broadcast `_dbi` which wouldn't refresh it.
   await broadcastDbChange("pdfs")
 }
 
-/** Remove a PDF-sourced card from its project (back to PDF-only). */
+/** Remove a single PDF-sourced card from its project (thin wrapper). */
 export async function unplacePdfCard(itemId: string): Promise<void> {
-  const item = await withStore("items", "readonly", (store) => {
-    return new Promise<Item | undefined>((resolve, reject) => {
-      const r = store.get(itemId)
-      r.onsuccess = () => resolve(r.result as Item | undefined)
-      r.onerror = () => reject(r.error)
-    })
-  })
-  if (!item) return
-  const next: Item = { ...item }
-  delete next.projectId
-  delete next.sectionId
-  await withStore("items", "readwrite", (store) => {
-    return new Promise<void>((resolve, reject) => {
-      const r = store.put(next)
-      r.onsuccess = () => resolve()
-      r.onerror = () => reject(r.error)
-    })
-  })
-  await broadcastDbChange("pdfs")
+  await unplacePdfCards([itemId])
 }
 
 /** All annotations across every PDF (for backup). */
