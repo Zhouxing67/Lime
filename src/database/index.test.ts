@@ -1058,3 +1058,31 @@ describe("PDF delete cascades reviews (no orphans)", () => {
     expect(await getReviewByItemId(c.card.id)).toBeUndefined()
   })
 })
+
+describe("unplace clears the card's review (only project cards are reviewable)", () => {
+  it("移出项目 drops the review alongside the projectId", async () => {
+    await addProject({ id: "proj-u1", name: "U1", createdAt: 1 })
+    const c = await createTextAnnotationCard({
+      pdfId: "p-u1",
+      page: 1,
+      type: "highlight",
+      startOffset: 0,
+      endOffset: 1,
+      text: "y"
+    })
+    await placePdfCards([c.card.id], "proj-u1")
+    await addReview({
+      id: "rev-u1",
+      itemId: c.card.id,
+      projectId: "proj-u1",
+      status: "active",
+      dueDate: Date.now(),
+      addedAt: Date.now(),
+      srs: { dueDate: Date.now(), interval: 0, easeFactor: 2.5, reviewCount: 0, lastReviewDate: 0 }
+    })
+    await unplacePdfCards([c.card.id])
+    const card = await getItemById(c.card.id)
+    expect(card?.projectId).toBeUndefined()
+    expect(await getReviewByItemId(c.card.id)).toBeUndefined()
+  })
+})

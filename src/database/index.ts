@@ -1471,17 +1471,26 @@ export async function placePdfCard(
  *  transaction + a single `_dbpdf` broadcast. */
 export async function unplacePdfCards(cardIds: string[]): Promise<void> {
   if (cardIds.length === 0) return
-  const items = await withStore("items", "readonly", (store) =>
-    getByKeys(store, cardIds)
-  )
-  if (items.length === 0) return
-  const nextItems = items.map((item) => {
-    const next: Item = { ...item }
-    delete next.projectId
-    delete next.sectionId
-    return next
+  await tx({ items: "readwrite", reviews: "readwrite" }, async (stores) => {
+    const items = await getByKeys(stores.items, cardIds)
+    if (items.length === 0) return
+    const nextItems = items.map((item) => {
+      const next: Item = { ...item }
+      delete next.projectId
+      delete next.sectionId
+      return next
+    })
+    await putAll(stores.items, nextItems)
+    // A card that left its project loses the project-card identity, and only
+    // project cards are reviewable — clear its review (the same semantic as
+    // deleteProject's unplace of surviving cards).
+    for (const item of nextItems) {
+      const r = stores.reviews.index("itemId").getKey(item.id)
+      r.onsuccess = () => {
+        if (r.result) stores.reviews.delete(r.result as string)
+      }
+    }
   })
-  await withStore("items", "readwrite", (store) => putAll(store, nextItems))
   await broadcastDbChange("pdfs")
 }
 
