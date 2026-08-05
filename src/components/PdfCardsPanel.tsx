@@ -425,6 +425,7 @@ export default function PdfCardsPanel({
                   p: 1.5,
                   mb: 1,
                   borderRadius: 1,
+                  position: "relative",
                   border: "1px solid",
                   borderColor: highlighted
                     ? "primary.main"
@@ -531,8 +532,12 @@ export default function PdfCardsPanel({
                     <Box
                       className="pdf-card-ops"
                       sx={{
+                        position: "absolute",
+                        top: 10,
+                        right: 40,
                         display: "flex",
                         alignItems: "center",
+                        bgcolor: "background.paper",
                         opacity: 0,
                         transition: "opacity 0.15s"
                       }}>
