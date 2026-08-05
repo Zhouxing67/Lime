@@ -553,6 +553,16 @@ export async function deleteItems(ids: string[]): Promise<void> {
   })
 }
 
+export async function getItemById(id: string): Promise<Item | undefined> {
+  return withStore("items", "readonly", (store) => {
+    return new Promise((resolve, reject) => {
+      const r = store.get(id)
+      r.onsuccess = () => resolve(r.result as Item | undefined)
+      r.onerror = () => reject(r.error)
+    })
+  })
+}
+
 export async function updateItem(item: Item): Promise<void> {
   await withStore("items", "readwrite", (store) => {
     store.put({ ...item, updatedAt: Date.now() })
@@ -654,7 +664,19 @@ export async function deleteProject(id: string): Promise<void> {
         if (key) stores.reviews.delete(key)
       }
       for (const itemId of itemIds) {
-        stores.items.delete(itemId)
+        const item = await new Promise<Item | undefined>((resolve, reject) => {
+          const r = stores.items.get(itemId)
+          r.onsuccess = () => resolve(r.result as Item | undefined)
+          r.onerror = () => reject(r.error)
+        })
+        if (item?.pdfRef) {
+          // A PDF-sourced card must NOT be deleted by its project — unplace it
+          // (clear projectId) so it survives as a PDF annotation card.
+          delete item.projectId
+          stores.items.put(item)
+        } else {
+          stores.items.delete(itemId)
+        }
       }
       stores.projects.delete(id)
     }
@@ -1322,6 +1344,58 @@ export async function deletePdfCard(card: Item): Promise<void> {
       })
     }
   )
+}
+
+/** Place a PDF-sourced card into a project (未分类). The card keeps its PDF
+ *  source (multi-home: still listed in the PDF panel). Title stays empty —
+ *  the card becomes an ordinary project card whose source is a PDF. */
+export async function placePdfCard(
+  itemId: string,
+  projectId: string
+): Promise<void> {
+  const item = await withStore("items", "readonly", (store) => {
+    return new Promise<Item | undefined>((resolve, reject) => {
+      const r = store.get(itemId)
+      r.onsuccess = () => resolve(r.result as Item | undefined)
+      r.onerror = () => reject(r.error)
+    })
+  })
+  if (!item) return
+  const next: Item = {
+    ...item,
+    projectId,
+    sectionId: undefined
+  }
+  const withOrder = await ensureItemOrder(next)
+  await withStore("items", "readwrite", (store) => {
+    return new Promise<void>((resolve, reject) => {
+      const r = store.put(withOrder)
+      r.onsuccess = () => resolve()
+      r.onerror = () => reject(r.error)
+    })
+  })
+}
+
+/** Remove a PDF-sourced card from its project (back to PDF-only). */
+export async function unplacePdfCard(itemId: string): Promise<void> {
+  const item = await withStore("items", "readonly", (store) => {
+    return new Promise<Item | undefined>((resolve, reject) => {
+      const r = store.get(itemId)
+      r.onsuccess = () => resolve(r.result as Item | undefined)
+      r.onerror = () => reject(r.error)
+    })
+  })
+  if (!item) return
+  const next: Item = { ...item }
+  delete next.projectId
+  delete next.sectionId
+  await withStore("items", "readwrite", (store) => {
+    return new Promise<void>((resolve, reject) => {
+      const r = store.put(next)
+      r.onsuccess = () => resolve()
+      r.onerror = () => reject(r.error)
+    })
+  })
 }
 
 /** All annotations across every PDF (for backup). */

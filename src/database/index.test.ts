@@ -18,6 +18,7 @@ import {
   createTextAnnotationCard,
   deleteAnnotationWithCard,
   deletePdfCard,
+  getItemById,
   getItemsByPdf,
   addItem,
   addProject,
@@ -37,6 +38,8 @@ import {
   getProjectByName,
   listPdfs,
   listProjects,
+  placePdfCard,
+  unplacePdfCard,
   searchItems,
   touchPdf,
   updateItem,
@@ -945,5 +948,53 @@ describe("addPdf placeholder topic preservation", () => {
     await addPdf({ id: "any", name: "p.pdf", bytes, pageCount: 3, addedAt: 1 })
     expect((await getPdf(id))?.topic).toBe("Math")
     expect((await getPdf(id))?.bytes).not.toBeNull()
+  })
+})
+
+describe("placePdfCard / unplacePdfCard", () => {
+  it("places into 未分类 + unplaces back to PDF-only", async () => {
+    await addProject({
+      id: "proj-pl",
+      name: "PL",
+      createdAt: Date.now()
+    })
+    const proj = (await getProjectByName("PL"))!
+    const card = await createTextAnnotationCard({
+      pdfId: "p1",
+      page: 3,
+      type: "highlight",
+      startOffset: 0,
+      endOffset: 5,
+      text: "hello"
+    })
+    await placePdfCard(card.card.id, proj.id)
+    const placed = await getItemById(card.card.id)
+    expect(placed?.projectId).toBe(proj.id)
+    expect(placed?.sectionId).toBeUndefined()
+    expect(placed?.order).toBeGreaterThanOrEqual(0)
+    await unplacePdfCard(card.card.id)
+    const unplaced = await getItemById(card.card.id)
+    expect(unplaced?.projectId).toBeUndefined()
+    expect(unplaced?.pdfRef?.pdfId).toBe("p1")
+  })
+})
+
+describe("deleteProject preserves PDF-sourced cards", () => {
+  it("unplaces (keeps) a placed PDF card when its project is deleted", async () => {
+    await addProject({ id: "proj-d", name: "D", createdAt: 1 })
+    const card = await createTextAnnotationCard({
+      pdfId: "p1",
+      page: 2,
+      type: "underline",
+      startOffset: 0,
+      endOffset: 3,
+      text: "abc"
+    })
+    await placePdfCard(card.card.id, "proj-d")
+    await deleteProject("proj-d")
+    const kept = await getItemById(card.card.id)
+    expect(kept).toBeDefined()
+    expect(kept?.projectId).toBeUndefined()
+    expect(kept?.pdfRef?.pdfId).toBe("p1")
   })
 })
