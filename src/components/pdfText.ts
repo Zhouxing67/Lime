@@ -48,14 +48,64 @@ export interface PdfRect {
   h: number
 }
 
-function cumulativeLengths(strs: string[]): number[] {
-  const cum: number[] = []
+interface TextLayerIndex {
+  /** div → its index among textDivs */
+  divIndex: Map<HTMLElement, number>
+  /** cumulative[i] = char offset BEFORE div i */
+  cumulative: number[]
+  total: number
+}
+
+/** Cached per-render index (WeakMap → auto-invalidated when the text layer is
+ *  re-rendered/unmounted, covering zoom/rotate + lifecycle). */
+const indexCache = new WeakMap<TextLayer, TextLayerIndex>()
+
+export function buildTextLayerIndex(textLayer: TextLayer): TextLayerIndex {
+  const divs = textLayer.textDivs
+  const strs = textLayer.textContentItemsStr
+  const divIndex = new Map<HTMLElement, number>()
+  const cumulative: number[] = []
   let acc = 0
-  for (const s of strs) {
-    acc += s.length
-    cum.push(acc)
+  for (let i = 0; i < divs.length; i++) {
+    divIndex.set(divs[i], i)
+    cumulative.push(acc)
+    acc += strs[i]?.length ?? 0
   }
-  return cum
+  return { divIndex, cumulative, total: acc }
+}
+
+function getTextLayerIndex(textLayer: TextLayer): TextLayerIndex {
+  let idx = indexCache.get(textLayer)
+  if (!idx) {
+    idx = buildTextLayerIndex(textLayer)
+    indexCache.set(textLayer, idx)
+  }
+  return idx
+}
+
+/** Resolve a selection endpoint to a text-div index. A `<br>` (blank line / line
+ *  break) maps to the NEXT text div so crossing a blank line keeps the range
+ *  (instead of nodeToIdx returning -1 and dropping the highlight). */
+function nodeToDivIndex(node: Node | null, idx: TextLayerIndex): number {
+  if (!node) return -1
+  const el =
+    node.nodeType === Node.TEXT_NODE
+      ? (node.parentElement as HTMLElement | null)
+      : (node as HTMLElement | null)
+  if (!el) return -1
+  const direct = idx.divIndex.get(el)
+  if (direct !== undefined) return direct
+  if (el.tagName === "BR") {
+    let cur = el.nextElementSibling as HTMLElement | null
+    while (cur && !idx.divIndex.has(cur))
+      cur = cur.nextElementSibling as HTMLElement | null
+    if (cur) return idx.divIndex.get(cur)!
+    cur = el.previousElementSibling as HTMLElement | null
+    while (cur && !idx.divIndex.has(cur))
+      cur = cur.previousElementSibling as HTMLElement | null
+    return cur ? idx.divIndex.get(cur)! : -1
+  }
+  return -1
 }
 
 /** Map a text-layer selection to char offsets into the page's textContent. */
@@ -64,32 +114,31 @@ export function textLayerOffsets(
   sel: Selection
 ): { start: number; end: number } | null {
   if (sel.isCollapsed || sel.rangeCount === 0) return null
-  const divs = textLayer.textDivs
-  const strs = textLayer.textContentItemsStr
-  if (divs.length === 0) return null
-  const cum = cumulativeLengths(strs)
-
-  const nodeToIdx = (node: Node | null): number => {
-    if (!node) return -1
-    const el =
-      node.nodeType === Node.TEXT_NODE
-        ? (node.parentElement as HTMLElement | null)
-        : (node as HTMLElement | null)
-    return el ? divs.indexOf(el) : -1
-  }
-
-  const anchorIdx = nodeToIdx(sel.anchorNode)
-  const focusIdx = nodeToIdx(sel.focusNode)
+  const idx = getTextLayerIndex(textLayer)
+  if (idx.divIndex.size === 0) return null
+  const anchorIdx = nodeToDivIndex(sel.anchorNode, idx)
+  const focusIdx = nodeToDivIndex(sel.focusNode, idx)
   if (anchorIdx < 0 || focusIdx < 0) return null
-
   const startDiv = Math.min(anchorIdx, focusIdx)
   const endDiv = Math.max(anchorIdx, focusIdx)
-  const startOff = startDiv === anchorIdx ? sel.anchorOffset : sel.focusOffset
-  const endOff = endDiv === focusIdx ? sel.focusOffset : sel.anchorOffset
-
+  const anchorIsBr =
+    sel.anchorNode instanceof HTMLElement && sel.anchorNode.tagName === "BR"
+  const focusIsBr =
+    sel.focusNode instanceof HTMLElement && sel.focusNode.tagName === "BR"
+  const startOff = anchorIsBr
+    ? 0
+    : startDiv === anchorIdx
+      ? sel.anchorOffset
+      : sel.focusOffset
+  const endOff = focusIsBr
+    ? 0
+    : endDiv === focusIdx
+      ? sel.focusOffset
+      : sel.anchorOffset
   return {
-    start: (startDiv > 0 ? cum[startDiv - 1] : 0) + Math.max(0, startOff),
-    end: (endDiv > 0 ? cum[endDiv - 1] : 0) + Math.max(0, endOff)
+    start:
+      (startDiv > 0 ? idx.cumulative[startDiv] : 0) + Math.max(0, startOff),
+    end: (endDiv > 0 ? idx.cumulative[endDiv] : 0) + Math.max(0, endOff)
   }
 }
 
@@ -100,20 +149,25 @@ export function textLayerRects(
   start: number,
   end: number
 ): PdfRect[] {
+  const idx = getTextLayerIndex(textLayer)
   const divs = textLayer.textDivs
   const strs = textLayer.textContentItemsStr
-  if (divs.length === 0 || end <= start) return []
-  const cum = cumulativeLengths(strs)
+  if (idx.divIndex.size === 0 || end <= start) return []
   const holderRect = holder.getBoundingClientRect()
-
   const rects: PdfRect[] = []
-  let acc = 0
-  for (let i = 0; i < divs.length; i++) {
+  // Binary search the first div whose end exceeds `start` (items are contiguous).
+  let lo = 0
+  let hi = divs.length - 1
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    const divEnd =
+      mid + 1 < divs.length ? idx.cumulative[mid + 1] : idx.total
+    if (divEnd > start) hi = mid
+    else lo = mid + 1
+  }
+  for (let i = lo; i < divs.length; i++) {
     const len = strs[i]?.length ?? 0
-    const divStart = acc
-    const divEnd = acc + len
-    acc = divEnd
-    if (divEnd <= start) continue
+    const divStart = idx.cumulative[i]
     if (divStart >= end) break
     const r = divs[i].getBoundingClientRect()
     if (r.width > 0 && r.height > 0) {

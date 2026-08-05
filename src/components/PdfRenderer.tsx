@@ -115,6 +115,7 @@ const TEXT_LAYER_CSS = `
   cursor: text;
   transform-origin: 0% 0%;
   user-select: text;
+  -webkit-user-drag: none;
 }
 .pdf-textlayer > :not(.markedContent),
 .pdf-textlayer .markedContent span:not(.markedContent) {
@@ -439,6 +440,19 @@ export default function PdfRenderer({
   } | null>(null)
   const dragCleanupRef = useRef<(() => void) | null>(null)
   useEffect(() => () => dragCleanupRef.current?.(), [])
+
+  // Stop Chrome's "drag selected text → new-tab search" gesture inside the PDF
+  // text layer — it interrupts text selection (the sluggish feel) and opens a
+  // search tab. Combined with -webkit-user-drag: none on the spans.
+  useEffect(() => {
+    const onDragStart = (e: DragEvent) => {
+      if ((e.target as HTMLElement | null)?.closest?.(".pdf-textlayer")) {
+        e.preventDefault()
+      }
+    }
+    document.addEventListener("dragstart", onDragStart)
+    return () => document.removeEventListener("dragstart", onDragStart)
+  }, [])
 
   // Stable per-page annotation arrays — rebuilt ONLY when the annotations prop
   // changes, so unrelated re-renders (scrollPage/flashAnnId) don't trigger every
