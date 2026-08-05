@@ -57,6 +57,9 @@ export interface Item {
   }
   /** Denormalized pdfRef.pdfId for the IndexedDB index (deep paths aren't indexable). */
   pdfRefPdfId?: string
+  /** The card's position in the PDF (page-major + in-page offset/rect-y) — the
+   *  PDF panel sorts by this, independent of the project `order`. */
+  pdfOrder?: number
   /** Personal note / 补充说明 (markdown). Generic optional field — the PDF
    *  cards' editable part (content stays read-only). */
   idea?: string

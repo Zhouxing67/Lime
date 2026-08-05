@@ -396,8 +396,14 @@ export async function getMaxOrderInSection(
         const cursor = req.result
         if (cursor) {
           const it = cursor.value as Item
+          // The 未分类 order space is PROJECT cards only — todos + PDF-only
+          // cards (no projectId) have their own ordering worlds and must not
+          // inflate the project order.
+          const inSection = sectionId
+            ? it.sectionId === sectionId
+            : !it.sectionId && !!it.projectId
           if (
-            (sectionId ? it.sectionId === sectionId : !it.sectionId) &&
+            inSection &&
             typeof it.order === "number" &&
             it.order > max
           ) {
@@ -1241,6 +1247,10 @@ export async function getItemsByPdf(pdfId: string): Promise<Item[]> {
   })
 }
 
+/** Page-major multiplier for a card's pdfOrder (page * BASE + in-page pos).
+ *  Large enough that offsets/rect-y never collide across the multiplier. */
+const PDF_ORDER_BASE = 1e6
+
 /** Create a text annotation + its auto-captured card in ONE transaction. */
 export async function createTextAnnotationCard(input: {
   pdfId: string
@@ -1270,7 +1280,8 @@ export async function createTextAnnotationCard(input: {
       pdfId: input.pdfId,
       page: input.page,
       annotationId: annotation.id
-    }
+    },
+    pdfOrder: input.page * PDF_ORDER_BASE + input.startOffset
   })
   annotation.itemId = card.id
   await tx(
@@ -1307,6 +1318,7 @@ export async function createRegionAnnotationCard(input: {
     rects: input.rects,
     createdAt: Date.now()
   }
+  const y = input.rects.length > 0 ? input.rects[0].y : 0
   const card = createItem({
     type: "image",
     content: input.imageDataUrl,
@@ -1314,7 +1326,8 @@ export async function createRegionAnnotationCard(input: {
       pdfId: input.pdfId,
       page: input.page,
       annotationId: annotation.id
-    }
+    },
+    pdfOrder: input.page * PDF_ORDER_BASE + Math.round(y * 1e6)
   })
   annotation.itemId = card.id
   await tx(

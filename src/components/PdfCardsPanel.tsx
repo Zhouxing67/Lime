@@ -92,11 +92,14 @@ export default function PdfCardsPanel({
     []
   )
 
+  // Sort by the card's pdfOrder (the annotation's position in the PDF). Legacy
+  // cards without a pdfOrder fall back to page + offset/annotationId.
   const sortedCards = useMemo(
     () =>
       [...cards].sort(
         (a, b) =>
-          (a.pdfRef?.page ?? 0) - (b.pdfRef?.page ?? 0) ||
+          (a.pdfOrder ?? (a.pdfRef?.page ?? 0) * 1e6) -
+            (b.pdfOrder ?? (b.pdfRef?.page ?? 0) * 1e6) ||
           (a.pdfRef?.annotationId ?? "").localeCompare(
             b.pdfRef?.annotationId ?? ""
           )

@@ -49,6 +49,7 @@ import FooterBar from "./components/FooterBar"
 import ItemDialog from "./components/ItemDialog"
 import CopyCardsDialog from "./components/CopyCardsDialog"
 import MergeConfirmDialog from "./components/MergeConfirmDialog"
+import MoveToSectionDialog from "./components/MoveToSectionDialog"
 import NavRail from "./components/NavRail"
 import type { SidebarTab } from "./components/NavRail"
 import NewCardDialog from "./components/NewCardDialog"
@@ -80,6 +81,7 @@ import {
   getItemById,
   getDueCount,
   getIncompleteTodoCount,
+  getMaxOrderInSection,
   getItemsByPdf,
   getAnnotationsByPdf,
   listPdfs,
@@ -195,6 +197,7 @@ export default function OptionsPage() {
   } | null>(null)
   const loadMoreRef = useRef<HTMLDivElement>(null)
   const [copyCardId, setCopyCardId] = useState<string | null>(null)
+  const [moveSectionCardId, setMoveSectionCardId] = useState<string | null>(null)
   const [batchCopyOpen, setBatchCopyOpen] = useState(false)
   const [snackbarMsg, setSnackbarMsg] = useState("")
   const [backupSelectedIds, setBackupSelectedIds] = useState<string[]>([])
@@ -1545,6 +1548,23 @@ export default function OptionsPage() {
     onSearch()
   }
 
+  // Move a card to a section of the active project (未分类 when sectionId is
+  // null) — restores organizing captured/placed cards after the fact.
+  const handleMoveCardConfirm = async (sectionId: string | null) => {
+    if (!moveSectionCardId) return
+    const card = allItems.find((i) => i.id === moveSectionCardId)
+    if (card) {
+      const maxOrder = await getMaxOrderInSection(sectionId ?? undefined)
+      await updateItem({
+        ...card,
+        sectionId: sectionId ?? undefined,
+        order: maxOrder + 1
+      })
+    }
+    setMoveSectionCardId(null)
+    onSearch()
+  }
+
   const handleBatchCopy = () => setBatchCopyOpen(true)
 
   const handleBatchCopyCards = async (targetProjectId: string) => {
@@ -1719,6 +1739,7 @@ export default function OptionsPage() {
     onReReview: handleReReview,
     onCopyToProject: setCopyCardId,
     onOpenPdfSource: handlePanelCardClick,
+    onMoveToSection: setMoveSectionCardId,
     highlightedId: projectCardHighlightId
   }
 
@@ -2734,6 +2755,19 @@ export default function OptionsPage() {
                 projects={otherProjects}
                 onSelect={handleCopyCard}
                 onClose={() => setCopyCardId(null)}
+              />
+
+              <MoveToSectionDialog
+                open={Boolean(moveSectionCardId)}
+                sections={activeProject?.sections ?? []}
+                currentSectionId={
+                  moveSectionCardId
+                    ? (allItems.find((i) => i.id === moveSectionCardId)?.sectionId ??
+                      null)
+                    : null
+                }
+                onMove={handleMoveCardConfirm}
+                onClose={() => setMoveSectionCardId(null)}
               />
 
               <CopyCardsDialog

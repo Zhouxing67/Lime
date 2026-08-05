@@ -1,4 +1,5 @@
 import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded"
+import DriveFileMoveOutlinedIcon from "@mui/icons-material/DriveFileMoveOutlined"
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
 import FileCopyOutlinedIcon from "@mui/icons-material/FileCopyOutlined"
 import PlaylistAddCheckRoundedIcon from "@mui/icons-material/PlaylistAddCheckRounded"
@@ -20,6 +21,8 @@ interface ItemCardOperationsProps {
   onToggleReview?: (id: string) => void
   onReReview?: (id: string) => void
   onCopyToProject?: (id: string) => void
+  /** Move the card to another section of the active project. */
+  onMoveToSection?: (id: string) => void
 }
 
 export default function ItemCardOperations({
@@ -31,7 +34,8 @@ export default function ItemCardOperations({
   onDelete,
   onToggleReview,
   onReReview,
-  onCopyToProject
+  onCopyToProject,
+  onMoveToSection
 }: ItemCardOperationsProps) {
   const [copied, setCopied] = useState(false)
 
@@ -91,6 +95,19 @@ export default function ItemCardOperations({
                   }}
                   sx={{ p: 0.75 }}>
                   <ReplayRoundedIcon sx={{ fontSize: 16 }} />
+                </IconButton>
+              </Tooltip>
+            )}
+            {onMoveToSection && (
+              <Tooltip title="移动到章节">
+                <IconButton
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onMoveToSection(item.id)
+                  }}
+                  sx={{ p: 0.75 }}>
+                  <DriveFileMoveOutlinedIcon sx={{ fontSize: 16 }} />
                 </IconButton>
               </Tooltip>
             )}

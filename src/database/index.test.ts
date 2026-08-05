@@ -176,24 +176,29 @@ describe("database", () => {
         id: string,
         content: string,
         sectionId?: string,
-        order?: number
+        order?: number,
+        projectId?: string
       ): Item =>
         createTestItem({
           id,
           content,
           ...(sectionId ? { sectionId } : {}),
-          ...(order !== undefined ? { order } : {})
+          ...(order !== undefined ? { order } : {}),
+          ...(projectId ? { projectId } : {})
         })
-      await addItem(mk("o1", "a", "s1", 0))
-      await addItem(mk("o2", "b", "s1", 2))
-      await addItem(mk("o3", "c", undefined, 5))
+      await addItem(mk("o1", "a", "s1", 0, "proj"))
+      await addItem(mk("o2", "b", "s1", 2, "proj"))
+      await addItem(mk("o3", "c", undefined, 5, "proj"))
+      // A non-project card (todo/PDF — no projectId) with a high order must NOT
+      // inflate the unclassified project order space.
+      await addItem(mk("o3b", "c2", undefined, 20))
 
-      const placed = await ensureItemOrder(mk("o4", "d", "s1"))
+      const placed = await ensureItemOrder(mk("o4", "d", "s1", undefined, "proj"))
       expect(placed.order).toBe(3)
-      const placedUnc = await ensureItemOrder(mk("o5", "e"))
+      const placedUnc = await ensureItemOrder(mk("o5", "e", undefined, undefined, "proj"))
       expect(placedUnc.order).toBe(6)
       // Explicit order is respected.
-      const explicit = await ensureItemOrder(mk("o6", "f", "s1", 9))
+      const explicit = await ensureItemOrder(mk("o6", "f", "s1", 9, "proj"))
       expect(explicit.order).toBe(9)
     })
 

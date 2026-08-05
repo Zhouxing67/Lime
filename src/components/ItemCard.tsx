@@ -22,6 +22,7 @@ export default function ItemCard({
   onReReview,
   onCopyToProject,
   onOpenPdfSource,
+  onMoveToSection,
   highlighted
 }: {
   item: Item
@@ -38,6 +39,7 @@ export default function ItemCard({
   onReReview?: (id: string) => void
   onCopyToProject?: (id: string) => void
   onOpenPdfSource?: (item: Item) => void
+  onMoveToSection?: (id: string) => void
   highlighted?: boolean
 }) {
   const [hovered, setHovered] = useState(false)
@@ -154,6 +156,7 @@ export default function ItemCard({
             onToggleReview={onToggleReview}
             onReReview={onReReview}
             onCopyToProject={onCopyToProject}
+            onMoveToSection={onMoveToSection}
           />
         )}
       </Stack>

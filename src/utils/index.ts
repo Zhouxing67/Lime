@@ -314,6 +314,7 @@ export function createItem(data: {
   images?: string[]
   dueDate?: string
   pdfRef?: { pdfId: string; page: number; annotationId: string }
+  pdfOrder?: number
 }): Item {
   return {
     id: crypto.randomUUID(),
@@ -328,7 +329,8 @@ export function createItem(data: {
     ...(data.dueDate ? { dueDate: data.dueDate } : {}),
     ...(data.pdfRef
       ? { pdfRef: data.pdfRef, pdfRefPdfId: data.pdfRef.pdfId }
-      : {})
+      : {}),
+    ...(data.pdfOrder !== undefined ? { pdfOrder: data.pdfOrder } : {})
   }
 }
 

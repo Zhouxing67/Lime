@@ -35,6 +35,7 @@ interface CardGridProps {
   onReReview?: (id: string) => void
   onCopyToProject?: (id: string) => void
   onOpenPdfSource?: (item: Item) => void
+  onMoveToSection?: (id: string) => void
   highlightedId?: string | null
 }
 
@@ -62,6 +63,7 @@ export default function CardGrid({
   onReReview,
   onCopyToProject,
   onOpenPdfSource,
+  onMoveToSection,
   highlightedId,
   reviewItemIds,
   masteredItemIds,
@@ -215,6 +217,7 @@ export default function CardGrid({
                   onReReview={onReReview}
                   onCopyToProject={onCopyToProject}
                   onOpenPdfSource={onOpenPdfSource}
+                  onMoveToSection={onMoveToSection}
                   highlighted={highlightedId === it.id}
                 />
               </Box>
