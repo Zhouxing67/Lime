@@ -1953,7 +1953,13 @@ export default function OptionsPage() {
                     minHeight: 0,
                     position: "relative"
                   }}>
-                  <Box sx={{ flex: 1, minWidth: 0, height: "100%" }}>
+                  <Box
+                    sx={{
+                      flex: 1,
+                      minWidth: 0,
+                      height: "100%",
+                      overflow: "hidden"
+                    }}>
                     {openPdfIds.map((id) => (
                       <Box
                         key={id}

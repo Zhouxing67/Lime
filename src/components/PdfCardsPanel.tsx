@@ -51,6 +51,7 @@ export default function PdfCardsPanel({
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const [batchMode, setBatchMode] = useState(false)
+  const [dragging, setDragging] = useState(false)
   const listRef = useRef<HTMLDivElement>(null)
   const jumpTimerRef = useRef<number | null>(null)
   const dragRef = useRef<{ startX: number; startW: number } | null>(null)
@@ -150,9 +151,13 @@ export default function PdfCardsPanel({
   }, [scrollTarget])
 
   // Right-anchored width drag: dragging the left edge left widens the panel.
+  // No width transition while dragging — instant reflow so the PDF's re-scale
+  // starts immediately (a transitioned width would lag the pointer + the PDF
+  // would appear covered).
   const startDrag = useCallback(
     (e: React.PointerEvent) => {
       e.preventDefault()
+      setDragging(true)
       dragRef.current = { startX: e.clientX, startW: width }
       const mv = (ev: PointerEvent) => {
         const d = dragRef.current
@@ -161,6 +166,7 @@ export default function PdfCardsPanel({
       }
       const up = () => {
         dragRef.current = null
+        setDragging(false)
         document.removeEventListener("pointermove", mv)
         document.removeEventListener("pointerup", up)
       }
@@ -184,7 +190,7 @@ export default function PdfCardsPanel({
         flexDirection: "column",
         minHeight: 0,
         position: "relative",
-        transition: "width 0.25s ease-out"
+        transition: dragging ? "none" : "width 0.25s ease-out"
       }}>
       {/* Drag handle (the panel's left edge — right-anchored: drag left widens) */}
       <Box
