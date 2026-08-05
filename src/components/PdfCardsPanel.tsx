@@ -73,6 +73,9 @@ export default function PdfCardsPanel({
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const [batchMode, setBatchMode] = useState(false)
   const [mainAreaW, setMainAreaW] = useState(0)
+  const mainAreaWRef = useRef(0)
+  mainAreaWRef.current = mainAreaW
+  const maxPanelWRef = useRef(0)
   const [placeMenu, setPlaceMenu] = useState<{
     anchor: HTMLElement
     cardIds: string[]
@@ -224,6 +227,7 @@ export default function PdfCardsPanel({
   const sharedSpace = mainAreaW + width
   const maxPanelW =
     sharedSpace > 0 ? Math.max(240, Math.min(520, sharedSpace - 400)) : 520
+  maxPanelWRef.current = maxPanelW
 
   useEffect(() => {
     const el = rootRef.current?.previousElementSibling
@@ -248,19 +252,29 @@ export default function PdfCardsPanel({
         if (!d) return
         const next = Math.max(
           240,
-          Math.min(maxPanelW, d.startW - (ev.clientX - d.startX))
+          Math.min(maxPanelWRef.current, d.startW - (ev.clientX - d.startX))
         )
+        const panelRect = rootRef.current?.getBoundingClientRect()
+        const mainRect = rootRef.current?.previousElementSibling?.getBoundingClientRect()
         console.log(
           "[lime:drag] mainArea",
-          mainAreaW,
+          mainAreaWRef.current,
           "width",
           d.startW,
           "→",
           next,
           "maxPanelW",
           maxPanelW,
-          "sharedSpace",
-          sharedSpace
+          "panelLeft",
+          panelRect ? Math.round(panelRect.left) : "?",
+          "mainRight",
+          mainRect ? Math.round(mainRect.right) : "?",
+          "overlap",
+          panelRect && mainRect
+            ? panelRect.left < mainRect.right
+              ? "YES"
+              : "no"
+            : "?"
         )
         onWidthChange(next)
       }
