@@ -1285,3 +1285,23 @@ describe("v12 migration: items → three typed stores", () => {
     db.close()
   })
 })
+
+describe("searchProjectCards resolves placed cards' PDF quotes", () => {
+  it("keyword matches the linked pdfCard content even though the placement has none", async () => {
+    const { card: pdfCard } = await createTextAnnotationCard({
+      pdfId: "p-search",
+      page: 1,
+      type: "highlight",
+      text: "A UNIQUE QUOTE fragment",
+      startOffset: 0,
+      endOffset: 10
+    })
+    await addProject({ id: "proj-search", name: "S", createdAt: 1 })
+    await placePdfCards([pdfCard.id], "proj-search")
+    const hits = await searchProjectCards({
+      keyword: "UNIQUE QUOTE",
+      projectId: "proj-search"
+    })
+    expect(hits.map((c) => c.id)).toContain(pdfCard.projectCardId)
+  })
+})

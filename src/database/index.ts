@@ -273,6 +273,13 @@ function openDb(version?: number): Promise<IDBDatabase> {
               pending--
               maybeFinish()
             }
+            annReq.onerror = () => {
+              // Annotation lookup failed — still convert the card from the item
+              // data so the migration can't hang (the pending gate).
+              const ann = undefined
+              pending--
+              maybeFinish()
+            }
           } else {
             pcStore.put({
               id: item.id,
@@ -677,6 +684,27 @@ export async function deleteTodo(id: string): Promise<void> {
 }
 
 export async function searchProjectCards(q: SearchQuery): Promise<ProjectCard[]> {
+  // Placed cards carry NO content (reference model) — to keyword-search their
+  // PDF quotes, resolve the linked pdfCards BEFORE opening the projectCards
+  // transaction (a nested transaction would commit the outer one on the await
+  // gap → InvalidStateError).
+  const keyword = q.keyword?.toLowerCase()
+  const pdfById = keyword
+    ? await withStore("pdfCards", "readonly", (pdfStore) =>
+        new Promise<Map<string, PdfCard>>((resolveMap) => {
+          const map = new Map<string, PdfCard>()
+          const allReq = pdfStore.openCursor()
+          allReq.onsuccess = () => {
+            const c = allReq.result
+            if (c) {
+              map.set((c.value as PdfCard).id, c.value as PdfCard)
+              c.continue()
+            } else resolveMap(map)
+          }
+          allReq.onerror = () => resolveMap(map)
+        })
+      )
+    : undefined
   return withStore("projectCards", "readonly", async (store) => {
     const results: ProjectCard[] = []
     return new Promise<ProjectCard[]>((resolve, reject) => {
@@ -701,16 +729,24 @@ export async function searchProjectCards(q: SearchQuery): Promise<ProjectCard[]>
           return
         }
         const card = cursor.value as ProjectCard
+        let kwMatch = true
+        if (keyword) {
+          const src = card.pdfCardId ? pdfById?.get(card.pdfCardId) : undefined
+          kwMatch =
+            card.content?.toLowerCase().includes(keyword) ||
+            card.title?.toLowerCase().includes(keyword) ||
+            card.source?.title?.toLowerCase().includes(keyword) ||
+            !!src &&
+              (src.content?.toLowerCase().includes(keyword) ||
+                src.idea?.toLowerCase().includes(keyword))
+        }
         if (
           (!q.type || card.type === q.type) &&
           (!q.site || card.sourceSite === q.site) &&
           (!q.from || card.createdAt >= q.from) &&
           (!q.to || card.createdAt < q.to) &&
           (!q.projectId || card.projectId === q.projectId) &&
-          (!q.keyword ||
-            card.content?.toLowerCase().includes(q.keyword.toLowerCase()) ||
-            card.title?.toLowerCase().includes(q.keyword.toLowerCase()) ||
-            card.source?.title?.toLowerCase().includes(q.keyword.toLowerCase()))
+          kwMatch
         ) {
           results.push(card)
         }
@@ -1498,21 +1534,41 @@ export async function deleteAnnotationWithCard(
       })
       await new Promise<void>((resolve, reject) => {
         if (ann?.cardId) {
-          stores.pdfCards.delete(ann.cardId)
-          const r = stores.pdfCards.index("projectCardId").getKey(ann.cardId)
-          r.onsuccess = () => {
-            if (r.result) {
-              const rr = stores.reviews.index("itemId").getKey(r.result as string)
+          // The pdfCard carries the placement reference — look it up first
+          // (the projectCardId index key is the placement's PRIMARY key, not
+          // the pdfCard id, so querying by ann.cardId never matched).
+          const gr = stores.pdfCards.get(ann.cardId)
+          gr.onsuccess = () => {
+            const pdfCard = gr.result as PdfCard | undefined
+            if (pdfCard?.projectCardId) {
+              const rr = stores.reviews
+                .index("itemId")
+                .getKey(pdfCard.projectCardId)
               rr.onsuccess = () => {
                 if (rr.result) stores.reviews.delete(rr.result as string)
               }
-              stores.projectCards.delete(r.result as string)
+              rr.onerror = () =>
+                console.warn(
+                  "[lime] deleteAnnotationWithCard: review lookup failed"
+                )
+              stores.projectCards.delete(pdfCard.projectCardId)
             }
+            stores.pdfCards.delete(ann.cardId!)
+            const d = stores.pdfAnnotations.delete(annotationId)
+            d.onsuccess = () => resolve()
+            d.onerror = () => reject(d.error)
           }
+          gr.onerror = () => {
+            stores.pdfCards.delete(ann.cardId!)
+            const d = stores.pdfAnnotations.delete(annotationId)
+            d.onsuccess = () => resolve()
+            d.onerror = () => reject(d.error)
+          }
+        } else {
+          const d = stores.pdfAnnotations.delete(annotationId)
+          d.onsuccess = () => resolve()
+          d.onerror = () => reject(d.error)
         }
-        const d = stores.pdfAnnotations.delete(annotationId)
-        d.onsuccess = () => resolve()
-        d.onerror = () => reject(d.error)
       })
     }
   )
