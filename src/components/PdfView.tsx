@@ -1,5 +1,7 @@
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
+import AddRoundedIcon from "@mui/icons-material/AddRounded"
 import EditRoundedIcon from "@mui/icons-material/EditRounded"
+import RemoveRoundedIcon from "@mui/icons-material/RemoveRounded"
 import UndoRoundedIcon from "@mui/icons-material/UndoRounded"
 import {
   Box,
@@ -85,6 +87,7 @@ export default function PdfView({
   const { loaded, error } = usePdfDocument(pdfId)
   const [scrollPage, setScrollPage] = useState<number | null>(null)
   const [flashAnnId, setFlashAnnId] = useState<string | null>(null)
+  const [zoom, setZoom] = useState(1)
   const [annotations, setAnnotations] = useState<PdfAnnotation[]>([])
   const [clickedAnn, setClickedAnn] = useState<{
     ann: PdfAnnotation
@@ -519,6 +522,46 @@ export default function PdfView({
             }}>
             <EditRoundedIcon sx={{ fontSize: 14 }} />
           </Box>
+          {/* zoom */}
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 0.25,
+              ml: 0.5,
+              px: 0.5,
+              py: 0.25,
+              borderRadius: 1,
+              bgcolor: "action.hover",
+              color: "text.secondary"
+            }}>
+            <IconButton
+              size="small"
+              title="缩小"
+              onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.1).toFixed(2)))}
+              sx={{ p: 0.25 }}>
+              <RemoveRoundedIcon sx={{ fontSize: 14 }} />
+            </IconButton>
+            <Typography
+              title="适应宽度"
+              onClick={() => setZoom(1)}
+              sx={{
+                fontSize: "0.68rem",
+                minWidth: 38,
+                textAlign: "center",
+                cursor: "pointer",
+                "&:hover": { color: "primary.main" }
+              }}>
+              {Math.round(zoom * 100)}%
+            </Typography>
+            <IconButton
+              size="small"
+              title="放大"
+              onClick={() => setZoom((z) => Math.min(3, +(z + 0.1).toFixed(2)))}
+              sx={{ p: 0.25 }}>
+              <AddRoundedIcon sx={{ fontSize: 14 }} />
+            </IconButton>
+          </Box>
           <Menu
             anchorEl={annotMenuAnchor}
             open={!!annotMenuAnchor}
@@ -575,6 +618,7 @@ export default function PdfView({
             doc={loaded.doc}
             pageCount={loaded.pageCount}
             scrollTarget={scrollPage}
+            zoom={zoom}
             annotations={annotations}
             flashAnnId={flashAnnId}
             onFlashDone={() => setFlashAnnId(null)}

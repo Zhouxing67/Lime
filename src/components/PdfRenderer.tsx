@@ -88,6 +88,10 @@ function appendFlash(overlay: HTMLElement, r: PdfRect): void {
   overlay.appendChild(flash)
 }
 
+/** The reading column never exceeds this share of the pane width — the pages
+ *  are centered with side white space instead of stretching edge-to-edge. */
+const PAGE_RATIO = 0.75
+
 const TEXT_LAYER_CSS = `
 .pdf-textlayer {
   color-scheme: only light;
@@ -176,6 +180,7 @@ function PageView({
   doc,
   pageNumber,
   paneW,
+  zoom,
   annotations,
   flashAnnId,
   onFlashDone,
@@ -185,6 +190,7 @@ function PageView({
   doc: pdfjsLib.PDFDocumentProxy
   pageNumber: number
   paneW: number
+  zoom: number
   annotations: PdfAnnotation[]
   flashAnnId?: string | null
   onFlashDone?: () => void
@@ -283,7 +289,7 @@ function PageView({
       if (cancelled) return
       const baseW = page.getViewport({ scale: 1 }).width
       if (baseW <= 0) return
-      const s = Math.max(0.4, paneW / baseW)
+      const s = Math.max(0.4, (paneW * PAGE_RATIO * zoom) / baseW)
       const vp = page.getViewport({ scale: s })
       setScale(s)
       setWh({ w: Math.floor(vp.width), h: Math.floor(vp.height) })
@@ -377,7 +383,7 @@ function PageView({
       if (flashTimer !== null) window.clearTimeout(flashTimer)
       unregisterTextLayer(pageNumber)
     }
-  }, [doc, pageNumber, paneW, wh, scale, annotations, flashAnnId, searchFlash])
+  }, [doc, pageNumber, paneW, zoom, wh, scale, annotations, flashAnnId, searchFlash])
 
   return (
     <div
@@ -388,8 +394,12 @@ function PageView({
         margin: "0 auto 12px",
         background: "#fff",
         boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
-        width: wh?.w ?? (paneW > 0 ? Math.floor(paneW) : undefined),
-        height: wh?.h ?? (paneW > 0 ? placeholderH : undefined)
+        // Clamp to the pane width: during the re-scale lag (async pdf.js render)
+        // the old wh can exceed the shrunk container — the holder never extends
+        // under the cards panel.
+        width: wh ? Math.min(wh.w, paneW) : paneW > 0 ? Math.floor(paneW) : undefined,
+        height: wh?.h ?? (paneW > 0 ? placeholderH : undefined),
+        overflow: "hidden"
       }}>
       <canvas style={{ display: "block" }} />
       <div className="pdf-annotations" />
@@ -405,6 +415,7 @@ export default function PdfRenderer({
   doc,
   pageCount,
   scrollTarget,
+  zoom,
   annotations,
   flashAnnId,
   onFlashDone,
@@ -417,6 +428,7 @@ export default function PdfRenderer({
   doc: pdfjsLib.PDFDocumentProxy
   pageCount: number
   scrollTarget?: number | null
+  zoom?: number
   annotations?: PdfAnnotation[]
   flashAnnId?: string | null
   onFlashDone?: () => void
@@ -475,7 +487,7 @@ export default function PdfRenderer({
     if (!el) return
     const ro = new ResizeObserver((entries) => {
       const w = entries[0].contentRect.width
-      if (Math.abs(w - paneWRef.current) <= 2) return
+      if (w === paneWRef.current) return
       paneWRef.current = w
       setPaneW(w)
     })
@@ -628,7 +640,7 @@ export default function PdfRenderer({
         flex: 1,
         minHeight: 0,
         overflowY: "auto",
-        overflowX: "hidden",
+        overflowX: "auto",
         background: "#f0efec",
         padding: "16px 0",
         cursor: frameMode ? "crosshair" : "default"
@@ -640,6 +652,7 @@ export default function PdfRenderer({
             doc={doc}
             pageNumber={n}
             paneW={paneW}
+            zoom={zoom ?? 1}
             annotations={pageAnnMap.get(n) ?? EMPTY_ANNOTATIONS}
             flashAnnId={flashPage === n ? flashAnnId : null}
             onFlashDone={onFlashDone}

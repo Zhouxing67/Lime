@@ -66,6 +66,7 @@ export default function PdfCardsPanel({
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const [batchMode, setBatchMode] = useState(false)
   const [dragging, setDragging] = useState(false)
+  const [parentW, setParentW] = useState(0)
   const [placeMenu, setPlaceMenu] = useState<{
     anchor: HTMLElement
     cardIds: string[]
@@ -168,6 +169,20 @@ export default function PdfCardsPanel({
     }, 1500)
   }, [scrollTarget])
 
+  // The panel's max width = its parent minus a minimum workspace (the PDF
+  // needs room) — the panel can never shrink the workspace to 0 / cover the PDF.
+  const maxPanelW = parentW > 0 ? Math.max(240, Math.min(520, parentW - 400)) : 520
+
+  useEffect(() => {
+    const el = listRef.current?.parentElement
+    if (!el) return
+    const ro = new ResizeObserver((entries) => {
+      setParentW(Math.floor(entries[0].contentRect.width))
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
   // Right-anchored width drag: dragging the left edge left widens the panel.
   // No width transition while dragging — instant reflow so the PDF's re-scale
   // starts immediately (a transitioned width would lag the pointer + the PDF
@@ -180,7 +195,9 @@ export default function PdfCardsPanel({
       const mv = (ev: PointerEvent) => {
         const d = dragRef.current
         if (!d) return
-        onWidthChange(Math.max(240, Math.min(520, d.startW - (ev.clientX - d.startX))))
+        onWidthChange(
+          Math.max(240, Math.min(maxPanelW, d.startW - (ev.clientX - d.startX)))
+        )
       }
       const up = () => {
         dragRef.current = null
@@ -192,7 +209,7 @@ export default function PdfCardsPanel({
       document.addEventListener("pointerup", up)
       dragCleanupRef.current = up
     },
-    [width, onWidthChange]
+    [width, onWidthChange, maxPanelW]
   )
 
   return (

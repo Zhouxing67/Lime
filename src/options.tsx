@@ -1993,7 +1993,7 @@ export default function OptionsPage() {
                   <Box
                     sx={{
                       flex: 1,
-                      minWidth: 0,
+                      minWidth: 400,
                       height: "100%",
                       overflow: "hidden"
                     }}>
