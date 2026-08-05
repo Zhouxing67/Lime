@@ -627,7 +627,6 @@ export default function PdfView({
               "&:hover": { bgcolor: "action.hover" }
             }}>
             <EditRoundedIcon sx={{ fontSize: 14 }} />
-            批注
           </Box>
           <Menu
             anchorEl={annotMenuAnchor}

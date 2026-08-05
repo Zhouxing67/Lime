@@ -267,7 +267,6 @@ function PdfTab({
                 "&:hover": { color: "text.primary" }
               }}>
               <CloseRoundedIcon sx={{ fontSize: 14 }} />
-              关闭目录
             </Box>
             <Box
               onClick={() =>
@@ -291,7 +290,6 @@ function PdfTab({
               ) : (
                 <UnfoldLessRoundedIcon sx={{ fontSize: 15 }} />
               )}
-              {collapsedKeys.size > 0 ? "展开" : "折叠"}
             </Box>
           </Box>
           {pdfOutline.map((item) => (

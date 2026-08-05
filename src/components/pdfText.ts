@@ -129,18 +129,21 @@ export function textLayerRects(
 }
 
 /** Union selection rects per line (same vertical band + horizontal adjacency)
- *  into single boxes — removes the per-span ::selection overlap at CJK/Latin
- *  boundaries. Rects are viewport coords; the holder rect anchors them. */
+ *  into single boxes — removes per-span overlap at CJK/Latin boundaries.
+ *  `holder` (viewport rect) converts viewport coords; omit it when the rects
+ *  are already holder-relative (textLayerRects output). */
 export function mergeRects(
   rects: PdfRect[],
-  holder: DOMRect
+  holder?: DOMRect
 ): PdfRect[] {
-  const norm = rects.map((r) => ({
-    x: r.x - holder.left,
-    y: r.y - holder.top,
-    w: r.w,
-    h: r.h
-  }))
+  const norm = holder
+    ? rects.map((r) => ({
+        x: r.x - holder.left,
+        y: r.y - holder.top,
+        w: r.w,
+        h: r.h
+      }))
+    : rects.map((r) => ({ ...r }))
   norm.sort((a, b) => a.y - b.y || a.x - b.x)
   const merged: PdfRect[] = []
   for (const r of norm) {

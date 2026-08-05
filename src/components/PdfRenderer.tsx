@@ -5,7 +5,7 @@ import * as pdfjsLib from "pdfjs-dist"
 import type { PdfAnnotation, PdfMark } from "../types"
 import { MARK_COLOR } from "./pdfTheme"
 import { registerTextLayer, unregisterTextLayer } from "./pdfRegistry"
-import { mergeRects, textLayerRects } from "./pdfText"
+import { mergeRects, textLayerOffsets, textLayerRects } from "./pdfText"
 import type { PdfRect } from "./pdfText"
 
 // Low-saturation annotation colors (align with the app's RATING_META family).
@@ -197,6 +197,9 @@ function PageView({
   flashDoneRef.current = onFlashDone
   const onAnnotationClickRef = useRef(onAnnotationClick)
   onAnnotationClickRef.current = onAnnotationClick
+  const textLayerRef = useRef<InstanceType<typeof pdfjsLib.TextLayer> | null>(
+    null
+  )
 
   // Click an annotation → jump to its card + open the annotation actions popover.
   useEffect(() => {
@@ -216,14 +219,19 @@ function PageView({
 
   // Custom unified selection highlight: draw the merged selection rects on the
   // .pdf-selection overlay instead of the native per-span ::selection (which
-  // doubles at CJK/Latin boundaries + steps span-by-span).
+  // doubles at CJK/Latin boundaries + steps span-by-span). Uses the SAME tight
+  // item boxes as the annotation marks (textLayerRects), rAF-throttled so the
+  // transient drag ranges don't flicker.
   useEffect(() => {
     const holder = holderRef.current
     if (!holder) return
+    let raf = 0
     const draw = () => {
+      raf = 0
       const selOverlay = holder.querySelector<HTMLElement>(".pdf-selection")
       const layerDiv = holder.querySelector<HTMLElement>(".pdf-textlayer")
-      if (!selOverlay || !layerDiv) return
+      const tl = textLayerRef.current
+      if (!selOverlay || !layerDiv || !tl) return
       selOverlay.replaceChildren()
       const sel = document.getSelection()
       if (!sel || sel.isCollapsed || sel.rangeCount === 0) return
@@ -232,14 +240,10 @@ function PageView({
         layerDiv.contains(range.startContainer) &&
         layerDiv.contains(range.endContainer)
       if (!inLayer) return
+      const offsets = textLayerOffsets(tl, sel)
+      if (!offsets) return
       const rects = mergeRects(
-        Array.from(range.getClientRects()).map((r) => ({
-          x: r.left,
-          y: r.top,
-          w: r.width,
-          h: r.height
-        })),
-        holder.getBoundingClientRect()
+        textLayerRects(tl, holder, offsets.start, offsets.end)
       )
       for (const r of rects) {
         const el = document.createElement("div")
@@ -250,10 +254,15 @@ function PageView({
         selOverlay.appendChild(el)
       }
     }
+    const schedule = () => {
+      if (raf) return
+      raf = window.requestAnimationFrame(draw)
+    }
     draw()
-    document.addEventListener("selectionchange", draw)
+    document.addEventListener("selectionchange", schedule)
     return () => {
-      document.removeEventListener("selectionchange", draw)
+      document.removeEventListener("selectionchange", schedule)
+      if (raf) window.cancelAnimationFrame(raf)
       holder.querySelector(".pdf-selection")?.replaceChildren()
     }
   }, [])
@@ -335,6 +344,7 @@ function PageView({
         }
         // Expose for the toolbar's selection→offset mapping.
         registerTextLayer(pageNumber, { holder, textLayer })
+        textLayerRef.current = textLayer
       }
     }
 

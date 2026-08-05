@@ -1588,7 +1588,10 @@ export default function OptionsPage() {
               }
               activeProjectName={
                 sidebarTab === "pdf" && activePdfId
-                  ? (pdfs.find((p) => p.id === activePdfId)?.name ?? null)
+                  ? (pdfs.find((p) => p.id === activePdfId)?.name.replace(
+                      /\.pdf$/i,
+                      ""
+                    ) ?? null)
                   : (activeProject?.name ?? null)
               }>
               {sidebarTab === "review" ? (
