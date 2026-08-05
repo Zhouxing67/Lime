@@ -19,6 +19,7 @@ import { useCallback, useMemo, useState } from "react"
 
 import type { Project, Section } from "../types"
 import { RECENT_TOTAL as RECENT_TOTAL_SHARED } from "../constants"
+import { byRecency } from "../utils"
 
 type DropPos = "before" | "after"
 
@@ -95,8 +96,10 @@ export default function ProjectTree({
   const RECENT_TOTAL = RECENT_TOTAL_SHARED
   const orderedProjects = useMemo(() => {
     const sorted = [...projects].sort(
-      (a, b) =>
-        (b.lastOpened ?? 0) - (a.lastOpened ?? 0) || b.createdAt - a.createdAt
+      byRecency(
+        (p) => p.lastOpened,
+        (a, b) => b.createdAt - a.createdAt
+      )
     )
     if (activeProjectId) {
       const active = sorted.find((p) => p.id === activeProjectId)

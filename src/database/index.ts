@@ -9,6 +9,7 @@ import type {
   SrsData
 } from "../types"
 import {
+  byRecency,
   computeItemHash,
   createItem,
   isTodoComplete,
@@ -478,14 +479,22 @@ export async function searchItems(q: SearchQuery): Promise<Item[]> {
   return withStore("items", "readonly", async (store) => {
     const results: Item[] = []
     return new Promise<Item[]>((resolve, reject) => {
-      const source = q.projectId
-        ? store.index("projectId")
-        : store.index("createdAt")
-      const range = q.projectId ? IDBKeyRange.only(q.projectId) : null
-      const cursorReq = source.openCursor(
-        range,
-        q.projectId ? undefined : "prev"
-      )
+      // Index-aware source selection: the most selective index first. Pure-type
+      // queries (e.g. todos) avoid scanning every card by createdAt.
+      let source: IDBIndex | IDBObjectStore
+      let range: IDBKeyRange | null = null
+      let direction: IDBCursorDirection = "next"
+      if (q.projectId) {
+        source = store.index("projectId")
+        range = IDBKeyRange.only(q.projectId)
+      } else if (q.type && !q.site && !q.keyword && !q.from && !q.to) {
+        source = store.index("type")
+        range = IDBKeyRange.only(q.type)
+      } else {
+        source = store.index("createdAt")
+        direction = "prev"
+      }
+      const cursorReq = source.openCursor(range, direction)
       cursorReq.onsuccess = () => {
         const cursor = cursorReq.result
         if (!cursor) {
@@ -689,12 +698,23 @@ export async function deleteProject(id: string): Promise<void> {
 }
 
 export async function touchProject(id: string): Promise<void> {
-  const projects = await listProjects()
-  const project = projects.find((p) => p.id === id)
-  if (project) {
-    project.lastOpened = Date.now()
-    await updateProject(project)
-  }
+  await withStore("projects", "readwrite", (store) => {
+    return new Promise<void>((resolve, reject) => {
+      const r = store.get(id)
+      r.onsuccess = () => {
+        const project = r.result as Project | undefined
+        if (!project) {
+          resolve()
+          return
+        }
+        project.lastOpened = Date.now()
+        const put = store.put(project)
+        put.onsuccess = () => resolve()
+        put.onerror = () => reject(put.error)
+      }
+      r.onerror = () => reject(r.error)
+    })
+  })
 }
 
 // ---- Sections (embedded in Project) ----
@@ -788,8 +808,13 @@ export async function batchUpdateItems(
 
 export async function getRecentProjects(limit = 3): Promise<Project[]> {
   const projects = await listProjects()
-  return projects
-    .sort((a, b) => (b.lastOpened ?? 0) - (a.lastOpened ?? 0))
+  return [...projects]
+    .sort(
+      byRecency(
+        (p) => p.lastOpened,
+        (a, b) => b.createdAt - a.createdAt
+      )
+    )
     .slice(0, limit)
 }
 

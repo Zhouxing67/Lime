@@ -10,15 +10,12 @@ import {
 } from "./database"
 import type { Item, Project } from "./types"
 import type { ExtensionMessage } from "./types/messages"
-import { createItem } from "./utils"
+import { applyBadge, createItem } from "./utils"
 
 async function updateBadge() {
   try {
     const total = (await getDueCount()) + (await getIncompleteTodoCount())
-    chrome.action.setBadgeText({
-      text: total > 0 ? String(total) : ""
-    })
-    chrome.action.setBadgeBackgroundColor({ color: "#dc2626" })
+    applyBadge(total)
   } catch {}
 }
 

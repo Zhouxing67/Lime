@@ -8,7 +8,7 @@ import { alpha } from "@mui/material/styles"
 
 import type { Project } from "../types"
 import EmptyState from "./EmptyState"
-import { relativeTime } from "../utils"
+import { byRecency, relativeTime } from "../utils"
 import DashedTile from "./DashedTile"
 
 interface ProjectHubProps {
@@ -64,8 +64,10 @@ export default function ProjectHub({
       )
     })
     .sort(
-      (a, b) =>
-        (b.lastOpened ?? 0) - (a.lastOpened ?? 0) || b.createdAt - a.createdAt
+      byRecency(
+        (p) => p.lastOpened,
+        (a, b) => b.createdAt - a.createdAt
+      )
     )
 
   if (projects.length === 0) {

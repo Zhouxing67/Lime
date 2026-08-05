@@ -170,6 +170,26 @@ export function markdownCompletedCount(content: string): number {
 }
 
 /** A todo is complete when it has at least one task and all are checked. */
+/** Set the extension toolbar badge (due + incomplete todos). Shared by the
+ *  background SW (closed-options context) + the options page (open context +
+ *  time-passed-due freshness). */
+export function applyBadge(total: number): void {
+  try {
+    chrome.action?.setBadgeText({ text: total > 0 ? String(total) : "" })
+    chrome.action?.setBadgeBackgroundColor({ color: "#dc2626" })
+  } catch {}
+}
+
+/** Shared recency comparator — lastOpened desc with a deterministic tiebreak.
+ *  Dedupes the 6 hand-rolled lastOpened sorts (hubs, trees, panels, DB). */
+export function byRecency<T>(
+  getTime: (item: T) => number | undefined,
+  tiebreak: (a: T, b: T) => number
+): (a: T, b: T) => number {
+  return (a, b) =>
+    (getTime(b) ?? 0) - (getTime(a) ?? 0) || tiebreak(a, b)
+}
+
 export function isTodoComplete(content: string): boolean {
   const tasks = markdownTasks(content)
   return tasks.length > 0 && tasks.every((t) => t.checked)

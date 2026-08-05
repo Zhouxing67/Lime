@@ -108,7 +108,7 @@ import { createAppTheme } from "./theme"
 import { buildProjectMarkdown, buildScopeData } from "./utils/export"
 import type { Item, MergeSeparator, PdfAnnotation, PdfFile, PresetName, Project, SearchQuery, SrsData, TodoFilter } from "./types"
 import { sendMessage } from "./types/messages"
-import { DAY_MS, RATING_META, buildMergedContent, cloneItem, compareCards, createItem, dueStatus, isTodoComplete, toggleMarkdownTask, todayLocalDate } from "./utils"
+import { DAY_MS, RATING_META, applyBadge, buildMergedContent, cloneItem, compareCards, createItem, dueStatus, isTodoComplete, toggleMarkdownTask, todayLocalDate } from "./utils"
 
 const MIN_DRAWER_WIDTH = 200
 const MAX_DRAWER_WIDTH = 500
@@ -1230,9 +1230,7 @@ export default function OptionsPage() {
     ])
     setLiteDueCount(due)
     setLiteTodoCount(todo)
-    chrome.action?.setBadgeText({
-      text: due + todo > 0 ? String(due + todo) : ""
-    })
+    applyBadge(due + todo)
   }, [])
 
   const schedulePdfPanelReload = useCallback(() => {

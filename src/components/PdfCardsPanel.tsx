@@ -22,6 +22,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import type { Item, PdfAnnotation, Project } from "../types"
 import { deletePdfCard, updateItem } from "../database"
+import { byRecency } from "../utils"
 import DeleteConfirmDialog from "./DeleteConfirmDialog"
 import PdfCardBody from "./PdfCardBody"
 import PdfEditDialog from "./PdfEditDialog"
@@ -99,7 +100,10 @@ export default function PdfCardsPanel({
   const sortedProjects = useMemo(
     () =>
       [...projects].sort(
-        (a, b) => (b.lastOpened ?? 0) - (a.lastOpened ?? 0)
+        byRecency(
+          (p) => p.lastOpened,
+          (a, b) => b.createdAt - a.createdAt
+        )
       ),
     [projects]
   )

@@ -27,6 +27,7 @@ import type { PdfFile, Project, TodoFilter, TodoStats } from "../types"
 import type { PdfOutlineItem } from "./PdfView"
 import type { SidebarTab } from "./NavRail"
 import { RECENT_TOTAL as RECENT_TOTAL_SHARED } from "../constants"
+import { byRecency } from "../utils"
 
 interface SidebarFiltersProps {
   open: boolean
@@ -237,10 +238,14 @@ function PdfTab({
       return next
     })
   // Active PDF pins to the top (like the project tree's active project).
+  const byLastOpened = byRecency<PdfFile>(
+    (p) => p.lastOpened,
+    (a, b) => b.addedAt - a.addedAt
+  )
   const ordered = [...pdfs].sort((a, b) => {
     if (a.id === activePdfId) return -1
     if (b.id === activePdfId) return 1
-    return (b.lastOpened ?? 0) - (a.lastOpened ?? 0) || b.addedAt - a.addedAt
+    return byLastOpened(a, b)
   })
   const visible = showAll ? ordered : ordered.slice(0, RECENT_TOTAL)
   const hiddenCount = ordered.length - visible.length

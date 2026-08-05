@@ -21,7 +21,7 @@ import { useState } from "react"
 
 import type { PdfFile } from "../types"
 import EmptyState from "./EmptyState"
-import { relativeTime } from "../utils"
+import { byRecency, relativeTime } from "../utils"
 import DashedTile from "./DashedTile"
 
 
@@ -83,8 +83,10 @@ export default function PdfHub({
 
   const shownPdfs = [...pdfs]
     .sort(
-      (a, b) =>
-        (b.lastOpened ?? 0) - (a.lastOpened ?? 0) || b.addedAt - a.addedAt
+      byRecency(
+        (p) => p.lastOpened,
+        (a, b) => b.addedAt - a.addedAt
+      )
     )
     .filter((p) => {
       if (keyword.trim()) {
