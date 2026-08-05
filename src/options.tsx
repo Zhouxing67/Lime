@@ -1615,8 +1615,12 @@ export default function OptionsPage() {
 
   useEffect(() => {
     const run = () => {
+      // The lite counts (badge + NavRail icons) refresh every tick — cheap,
+      // and they capture time-passed-due cards. The heavy reviews reload
+      // (getAllReviews + in-memory stats) only matters while the review view is
+      // visible, so skip it elsewhere (a review write still bumps via _dbr).
       refreshLiteCounts()
-      setReviewsVersion((v) => v + 1)
+      if (sidebarTabRef.current === "review") setReviewsVersion((v) => v + 1)
     }
     const onVisible = () => {
       if (!document.hidden) run()
