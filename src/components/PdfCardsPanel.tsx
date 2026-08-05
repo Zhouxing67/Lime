@@ -72,7 +72,7 @@ export default function PdfCardsPanel({
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const [batchMode, setBatchMode] = useState(false)
-  const [parentW, setParentW] = useState(0)
+  const [mainAreaW, setMainAreaW] = useState(0)
   const [placeMenu, setPlaceMenu] = useState<{
     anchor: HTMLElement
     cardIds: string[]
@@ -215,15 +215,21 @@ export default function PdfCardsPanel({
     }, 1500)
   }, [scrollTarget])
 
-  // The panel's max width = its parent minus a minimum workspace (the PDF
-  // needs room) — the panel can never shrink the workspace to 0 / cover the PDF.
-  const maxPanelW = parentW > 0 ? Math.max(240, Math.min(520, parentW - 400)) : 520
+  // The panel's max width must leave the PDF workspace at least 400px. The
+  // panel is a top-level sibling AFTER the main-area, so measuring the ROOT
+  // (parent) width would include the NavRail + sidebar and let the panel squeeze
+  // the PDF to ~0. Instead measure the main-area (the previous sibling): the
+  // shared space = main-area width + the current panel width is constant, so
+  // max = sharedSpace − 400.
+  const sharedSpace = mainAreaW + width
+  const maxPanelW =
+    sharedSpace > 0 ? Math.max(240, Math.min(520, sharedSpace - 400)) : 520
 
   useEffect(() => {
-    const el = rootRef.current?.parentElement
+    const el = rootRef.current?.previousElementSibling
     if (!el) return
     const ro = new ResizeObserver((entries) => {
-      setParentW(Math.floor(entries[0].contentRect.width))
+      setMainAreaW(Math.floor(entries[0].contentRect.width))
     })
     ro.observe(el)
     return () => ro.disconnect()
@@ -240,9 +246,23 @@ export default function PdfCardsPanel({
       const mv = (ev: PointerEvent) => {
         const d = dragRef.current
         if (!d) return
-        onWidthChange(
-          Math.max(240, Math.min(maxPanelW, d.startW - (ev.clientX - d.startX)))
+        const next = Math.max(
+          240,
+          Math.min(maxPanelW, d.startW - (ev.clientX - d.startX))
         )
+        console.log(
+          "[lime:drag] mainArea",
+          mainAreaW,
+          "width",
+          d.startW,
+          "→",
+          next,
+          "maxPanelW",
+          maxPanelW,
+          "sharedSpace",
+          sharedSpace
+        )
+        onWidthChange(next)
       }
       const up = () => {
         dragRef.current = null

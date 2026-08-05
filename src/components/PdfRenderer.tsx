@@ -82,7 +82,6 @@ function drawPageAnnotations(
 }
 
 function appendFlash(overlay: HTMLElement, r: PdfRect): void {
-  console.log("[lime:jump] flash drawn:", r)
   const flash = document.createElement("div")
   flash.className = "pdf-ann-flash"
   flash.style.cssText = `position:absolute;left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;pointer-events:none;`
@@ -297,16 +296,6 @@ function PageView({
       if (baseW <= 0) return
       const s = Math.max(0.4, (paneW * PAGE_RATIO * zoom) / baseW)
       const vp = page.getViewport({ scale: s })
-      console.log(
-        "[lime:flash] page",
-        pageNumber,
-        "computed",
-        Math.floor(vp.width),
-        "x",
-        Math.floor(vp.height),
-        "vs placeholder",
-        placeholderH
-      )
       setScale(s)
       setWh({ w: Math.floor(vp.width), h: Math.floor(vp.height) })
     }
@@ -317,7 +306,6 @@ function PageView({
       if (cancelled) return
       const canvas = holder.querySelector("canvas")
       if (!canvas) return
-      const renderStart = performance.now()
       // DPR crispness: physical canvas = logical × dpr, CSS = logical.
       canvas.width = Math.floor(wh.w * dpr)
       canvas.height = Math.floor(wh.h * dpr)
@@ -329,12 +317,6 @@ function PageView({
       })
       await renderTask.promise
       if (cancelled) return
-      console.log(
-        "[lime:flash] page",
-        pageNumber,
-        "render done",
-        (performance.now() - renderStart).toFixed(0) + "ms"
-      )
       // Text layer (selection) aligned over the canvas at the logical viewport.
       const layerDiv = holder.querySelector<HTMLDivElement>(".pdf-textlayer")
       if (layerDiv) {
@@ -383,22 +365,6 @@ function PageView({
       (entries) => {
         if (entries[0].isIntersecting) {
           obs.disconnect()
-          const below = scrollRoot
-            ? Math.round(
-                holder.getBoundingClientRect().top -
-                  scrollRoot.getBoundingClientRect().bottom
-              )
-            : 0
-          console.log(
-            "[lime:flash] page",
-            pageNumber,
-            "observer →",
-            wh ? "render" : "computeSize",
-            "belowVisible",
-            below,
-            "placeholderH",
-            placeholderH
-          )
           if (!wh) {
             computeSize().catch((e) => console.warn("[pdf] page size:", e))
           } else {
@@ -572,7 +538,6 @@ export default function PdfRenderer({
     const scroll = () => {
       const target = el()
       if (target) {
-        console.log("[lime:jump] scrolling to page holder:", scrollTarget)
         target.scrollIntoView({ behavior: "auto", block: "start" })
         return true
       }

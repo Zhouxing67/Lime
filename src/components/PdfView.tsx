@@ -159,7 +159,6 @@ export default function PdfView({
   // External card-click (the cards panel) → navigate + flash the annotation.
   useEffect(() => {
     if (!flashTarget) return
-    console.log("[lime:jump] PdfView flash effect:", flashTarget)
     navigateTo(flashTarget.page)
     setFlashAnnId(flashTarget.annId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
