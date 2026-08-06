@@ -84,8 +84,10 @@ async function startRegionSelectCapture(
     }
     try {
       const dataUrl = await sendMessage({ kind: "capture-visible-tab" })
+      console.warn("[lime] region capture:", dataUrl ? dataUrl.slice(0, 40) : "UNDEFINED", "rect", x, y, w, h, "dpr", window.devicePixelRatio)
       if (dataUrl) {
         const cropped = await cropRegion(dataUrl, x, y, w, h)
+        console.warn("[lime] region crop:", cropped ? cropped.slice(0, 40) : "NULL")
         if (cropped) onImage(cropped)
         else onCancel()
       } else onCancel()
