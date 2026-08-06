@@ -10,13 +10,13 @@ import {
 } from "@mui/material"
 import { useCallback, useEffect } from "react"
 
-import type { Item } from "../types"
+import type { DisplayCard } from "../types"
 import { RATING_META } from "../utils"
 import CardRenderer from "./CardRenderer"
 import ReviewEmptyStats from "./ReviewEmptyStats"
 
 interface ReviewSessionProps {
-  item: Item | null
+  item: DisplayCard | null
   /** Cards left in the current pass (absolute, no ratio). */
   remaining: number
   /** Rating actions taken this session. */

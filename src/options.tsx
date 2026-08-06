@@ -68,37 +68,44 @@ import SidebarFilters from "./components/SidebarFilters"
 import Toast from "./components/Toast"
 import TodoView from "./components/TodoView"
 import {
-  addItem,
-  addReview,
-  batchUpdateItems,
-  deleteItem,
-  deleteItems,
-  getAllReviews,
-  getDueReviews,
-  ensureItemOrder,
   addPdf,
+  addProject,
+  addProjectCard,
+  addReview,
+  addTodo,
+  batchUpdateProjectCards,
+  clearPdfTopic,
+  deleteProject,
+  deleteProjectCard,
+  deleteProjectCards,
   deletePdf,
-  getItemById,
+  deletePdfCards,
+  deleteTodo,
+  ensureOrder,
+  getAllPdfCards,
+  getAllProjectCards,
+  getAllReviews,
+  getAllTodos,
+  getAnnotationsByPdf,
   getDueCount,
+  getDueReviews,
   getIncompleteTodoCount,
   getMaxOrderInSection,
-  getItemsByPdf,
-  getAnnotationsByPdf,
-  listPdfs,
-  renamePdfTopic,
-  clearPdfTopic,
-  updatePdfTopic,
-  placePdfCards,
-  unplacePdfCards,
-  addProject,
-  deleteProject,
+  getPdfCards,
   getProjectByName,
-  touchPdf,
+  listPdfs,
+  placePdfCards,
   removeReview,
-  searchItems,
+  renamePdfTopic,
+  searchProjectCards,
+  touchPdf,
   tx,
-  updateItem,
-  updateReviewSrs
+  unplacePdfCards,
+  updatePdfCard,
+  updatePdfTopic,
+  updateProjectCard,
+  updateReviewSrs,
+  updateTodo
 } from "./database"
 import { useBackupSync } from "./hooks/useBackupSync"
 import { useCardDragReorder } from "./hooks/useCardDragReorder"
@@ -109,21 +116,35 @@ import { createReviewEntry, dayKey, rateSrs } from "./hooks/useSrs"
 import { importFromZip } from "./import"
 import { createAppTheme } from "./theme"
 import { buildProjectMarkdown, buildScopeData } from "./utils/export"
-import type { Item, MergeSeparator, PdfAnnotation, PdfFile, PresetName, Project, ReviewEntry, SearchQuery, SrsData, TodoFilter } from "./types"
+import type {
+  DisplayCard,
+  MergeSeparator,
+  PdfAnnotation,
+  PdfCard,
+  PdfFile,
+  PresetName,
+  Project,
+  ProjectCard,
+  ReviewEntry,
+  SearchQuery,
+  SrsData,
+  TodoCard,
+  TodoFilter
+} from "./types"
 import { sendMessage } from "./types/messages"
-import { DAY_MS, RATING_META, applyBadge, buildMergedContent, cloneItem, compareCards, createItem, dueStatus, isTodoComplete, toggleMarkdownTask, todayLocalDate } from "./utils"
+import { DAY_MS, RATING_META, applyBadge, buildMergedContent, cloneProjectCard, compareCards, computeItemHash, createProjectCard, createTodoCard, dueStatus, isTodoComplete, toggleMarkdownTask, todayLocalDate } from "./utils"
+import { resolveCardContent, stripPlacementContent } from "./utils/cards"
 
 const MIN_DRAWER_WIDTH = 200
 const MAX_DRAWER_WIDTH = 500
+const ITEMS_PER_PAGE = 20
 
 export default function OptionsPage() {
-  const [allItems, setAllItems] = useState<Item[]>([])
-  const [displayedItems, setDisplayedItems] = useState<Item[]>([])
+  const [allProjectCards, setAllProjectCards] = useState<ProjectCard[]>([])
   const [keyword, setKeyword] = useState("")
-  const [dialogItem, setDialogItem] = useState<Item | null>(null)
+  const [dialogCard, setDialogCard] = useState<DisplayCard | null>(null)
 
   // Navigate prev/next within the currently displayed list
-  const [hasMore, setHasMore] = useState(true)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [drawerWidth, setDrawerWidth] = useState(280)
   const [selectMode, setSelectMode] = useState(false)
@@ -142,7 +163,7 @@ export default function OptionsPage() {
   const [pdfPanelAnnotations, setPdfPanelAnnotations] = useState<
     PdfAnnotation[]
   >([])
-  const [pdfPanelCards, setPdfPanelCards] = useState<Item[]>([])
+  const [pdfPanelCards, setPdfPanelCards] = useState<PdfCard[]>([])
   const [pdfFlashTarget, setPdfFlashTarget] = useState<{
     page: number
     annId: string
@@ -178,15 +199,20 @@ export default function OptionsPage() {
   const [pdfOutlineDest, setPdfOutlineDest] = useState<PdfOutlineItem | null>(
     null
   )
-  const [reviewItems, setReviewItems] = useState<Item[]>([])
+  const [reviewItems, setReviewItems] = useState<DisplayCard[]>([])
   const [reviewDateFilter, setReviewDateFilter] = useState<string | null>(null)
   const [ratingFilter, setRatingFilter] = useState<1 | 2 | 3 | null>(null)
-  const [allItemsUnfiltered, setAllItemsUnfiltered] = useState<Item[]>([])
-  const [todoItems, setTodoItems] = useState<Item[]>([])
+  /** ALL project cards across projects (unfiltered) — the review pairing, the
+   *  hub counts, the backup/export scope, and the delete-routing lookups. */
+  const [allProjectCardsUnfiltered, setAllProjectCardsUnfiltered] = useState<
+    ProjectCard[]
+  >([])
+  const [allPdfCards, setAllPdfCards] = useState<PdfCard[]>([])
+  const [allTodos, setAllTodos] = useState<TodoCard[]>([])
   const [todoEditingId, setTodoEditingId] = useState<string | null>(null)
   const [focusNewTaskId, setFocusNewTaskId] = useState<string | null>(null)
   const [todoFilter, setTodoFilter] = useState<TodoFilter>("incomplete")
-  const [todoDeleteTarget, setTodoDeleteTarget] = useState<Item | null>(null)
+  const [todoDeleteTarget, setTodoDeleteTarget] = useState<TodoCard | null>(null)
   const [projectDeleteTarget, setProjectDeleteTarget] = useState<Project | null>(
     null
   )
@@ -244,7 +270,7 @@ export default function OptionsPage() {
     cardCount: number
     subSectionCount: number
   } | null>(null)
-  const [mergeState, setMergeState] = useState<Item[] | null>(null)
+  const [mergeState, setMergeState] = useState<DisplayCard[] | null>(null)
 
   const reviewProgress = useMemo(
     () => ({
@@ -254,8 +280,6 @@ export default function OptionsPage() {
     }),
     [reviewItems.length, sessionRatedCount, sessionPassedIds]
   )
-
-  const ITEMS_PER_PAGE = 20
 
   const prefersDarkMode = useMediaQuery("(prefers-color-scheme: dark)")
 
@@ -274,6 +298,57 @@ export default function OptionsPage() {
     chrome.storage.sync.set({ preset })
   }, [preset])
 
+  // ---- Display resolution (the three-store data link) ----
+  // Project cards are the persisted identity; a placed card (pdfCardId) carries
+  // NO content — its effective body/idea come from the linked pdfCard. The grids
+  // render DisplayCard (resolved), while every WRITE path operates on the
+  // original ProjectCard (via stripPlacementContent).
+  const pdfById = useMemo(
+    () => new Map(allPdfCards.map((c) => [c.id, c])),
+    [allPdfCards]
+  )
+
+  const resolveDisplay = useCallback(
+    (card: ProjectCard): DisplayCard => {
+      if (!card.pdfCardId) return card
+      const resolved = resolveCardContent(card, pdfById)
+      const pdfCard = pdfById.get(card.pdfCardId)
+      return pdfCard
+        ? {
+            ...card,
+            content: resolved.content,
+            idea: resolved.idea,
+            pdfSource: { pdfId: pdfCard.pdfId, page: pdfCard.page }
+          }
+        : { ...card, content: resolved.content, idea: resolved.idea }
+    },
+    [pdfById]
+  )
+
+  /** The current scope's render list (search results / project scope). */
+  const displayCards = useMemo(
+    () => allProjectCards.map(resolveDisplay),
+    [allProjectCards, resolveDisplay]
+  )
+
+  /** EVERY project card across projects, display-resolved (review + backup). */
+  const displayCardsUnfiltered = useMemo(
+    () => allProjectCardsUnfiltered.map(resolveDisplay),
+    [allProjectCardsUnfiltered, resolveDisplay]
+  )
+
+  // Search results render in pages; the visible page derives from the resolved
+  // display list so a pdfCard edit re-resolves without a stale slice.
+  const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE)
+  const displayedItems = useMemo(
+    () => displayCards.slice(0, visibleCount),
+    [displayCards, visibleCount]
+  )
+  const hasMore = useMemo(
+    () => displayCards.length > visibleCount,
+    [displayCards.length, visibleCount]
+  )
+
   const onSearch = useCallback(
     async (projectId?: string | null) => {
       const pid = projectId !== undefined ? projectId : activeProjectId
@@ -283,15 +358,13 @@ export default function OptionsPage() {
         from: dateRange?.from,
         to: dateRange?.to
       }
-      const list = await searchItems(q)
-      // Todos are a global view of their own; never mix into project/search.
-      const filtered = list.filter((i) => i.type !== "todo")
-      filtered.sort(compareCards)
-      setAllItems(filtered)
-      setDisplayedItems(filtered.slice(0, ITEMS_PER_PAGE))
-      setHasMore(filtered.length > ITEMS_PER_PAGE)
+      const list = await searchProjectCards(q)
+      // Todos live in their own store/view now — never mixed into project/search.
+      list.sort(compareCards)
+      setAllProjectCards(list)
+      setVisibleCount(ITEMS_PER_PAGE)
     },
-    [keyword, activeProjectId, dateRange, ITEMS_PER_PAGE]
+    [keyword, activeProjectId, dateRange]
   )
 
   const {
@@ -324,7 +397,7 @@ export default function OptionsPage() {
       setSelectMode(false)
       setActiveProjectId(null)
       setNavOpen(false)
-      setDialogItem(null)
+      setDialogCard(null)
       setKeyword("")
       setDateRange(null)
       if (id) {
@@ -348,8 +421,7 @@ export default function OptionsPage() {
     todayRatings,
     streakDays
   } = useReview({
-    allItemsUnfiltered,
-    searchItems,
+    allItemsUnfiltered: displayCardsUnfiltered,
     onSearch,
     sidebarTab,
     setSidebarTab,
@@ -387,9 +459,12 @@ export default function OptionsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Load unfiltered items for review (cross-project, independent of active project)
+  // Load unfiltered cards for review + hub counts + backup scope
+  // (cross-project, independent of the active project), plus the pdfCards that
+  // resolve placed cards' content for display.
   useEffect(() => {
-    searchItems({}).then(setAllItemsUnfiltered)
+    getAllProjectCards().then(setAllProjectCardsUnfiltered)
+    getAllPdfCards().then(setAllPdfCards)
   }, [])
 
   // Load review states (refresh when items or review data change)
@@ -406,7 +481,7 @@ export default function OptionsPage() {
         )
       )
     })
-  }, [allItemsUnfiltered, reviewsVersion])
+  }, [allProjectCardsUnfiltered, reviewsVersion])
 
   // Immediate search for non-keyword filter changes
   useEffect(() => {
@@ -478,38 +553,33 @@ export default function OptionsPage() {
 
   const onDelete = (id: string) => {
     setConfirmDeleteId(id)
-    getItemById(id).then((item) =>
-      setDeleteTargetIsPdf(Boolean(item?.pdfRef))
-    )
+    const card = allProjectCardsUnfiltered.find((c) => c.id === id)
+    setDeleteTargetIsPdf(Boolean(card?.pdfCardId))
   }
 
   const handleConfirmDelete = async () => {
     if (!confirmDeleteId) return
     // A placed PDF-sourced card is ALSO the PDF annotation card — deleting it
-    // from the project must only remove the membership (the annotation stays).
-    const item = await getItemById(confirmDeleteId)
-    if (item?.pdfRef) {
-      await unplacePdfCards([confirmDeleteId])
+    // from the project must only remove the placement (the annotation stays).
+    const card = allProjectCardsUnfiltered.find(
+      (c) => c.id === confirmDeleteId
+    )
+    if (card?.pdfCardId) {
+      await unplacePdfCards([card.pdfCardId])
       setSnackbarMsg("已从项目移出（PDF 批注保留）")
     } else {
-      await deleteItem(confirmDeleteId)
+      await deleteProjectCard(confirmDeleteId)
     }
     setConfirmDeleteId(null)
     onSearch()
   }
 
-  // Keep a ref to the latest allItems so loadMore never uses stale data
-  const allItemsRef = useRef(allItems)
-  allItemsRef.current = allItems
-
   const loadMore = useCallback(() => {
     if (!hasMore) return
-    const items = allItemsRef.current
-    const currentLength = displayedItems.length
-    const nextItems = items.slice(0, currentLength + ITEMS_PER_PAGE)
-    setDisplayedItems(nextItems)
-    setHasMore(nextItems.length < items.length)
-  }, [displayedItems.length, hasMore, ITEMS_PER_PAGE])
+    setVisibleCount((c) =>
+      Math.min(c + ITEMS_PER_PAGE, allProjectCards.length)
+    )
+  }, [hasMore, allProjectCards.length])
 
   // Keep a stable ref to the latest loadMore function so the observer
   // effect doesn't need to re-create the IntersectionObserver on every data change.
@@ -551,7 +621,7 @@ export default function OptionsPage() {
 
   const handleBatchMerge = () => {
     if (selectedIds.length < 2) return
-    const items = allItems.filter((i) => selectedIds.includes(i.id))
+    const items = displayCards.filter((i) => selectedIds.includes(i.id))
     setMergeState(items)
   }
 
@@ -564,6 +634,9 @@ export default function OptionsPage() {
     const selectedItems = mergeState
     const ids = selectedItems.map((i) => i.id)
 
+    // Merge the RESOLVED content (a placed card's body lives on its pdfCard;
+    // the placement itself carries none) — the merged card becomes a plain
+    // 自建卡片 with the combined quotes.
     const mergedContent = buildMergedContent(selectedItems, separator)
 
     // Merge images (dedup by URL)
@@ -584,7 +657,7 @@ export default function OptionsPage() {
     const mergedSectionId =
       sameSection && firstSectionId ? firstSectionId : undefined
 
-    const newItem = createItem({
+    const newCard = createProjectCard({
       type: "text",
       title: mergedTitle.trim(),
       content: mergedContent,
@@ -592,39 +665,59 @@ export default function OptionsPage() {
       images: allImages,
       ...(mergedSectionId ? { sectionId: mergedSectionId } : {})
     })
-    // Place the merged card last in its scope (addItem-level auto-order).
-    const readyItem = await ensureItemOrder(newItem)
+    // Place the merged card last in its scope (auto-order) + give it a dedup
+    // hash so future captures of the same text collapse (addProjectCard-level).
+    const readyCard = await ensureOrder(newCard)
+    const readyWithHash = {
+      ...readyCard,
+      hash: await computeItemHash(readyCard.content, "", allImages)
+    }
 
-    // Atomic transaction: insert new + delete originals + cleanup reviews
-    await tx({ items: "readwrite", reviews: "readwrite" }, async (stores) => {
-      await new Promise<void>((resolve, reject) => {
-        const req = stores.items.put(readyItem)
-        req.onsuccess = () => resolve()
-        req.onerror = () => reject(req.error)
-      })
-      for (const id of ids) {
+    // Atomic transaction: insert new + delete originals + cleanup reviews.
+    // A placed original ALSO loses its placement — its pdfCard's reverse
+    // reference is cleared so the 1:1 placement invariant holds.
+    await tx(
+      {
+        projectCards: "readwrite",
+        pdfCards: "readwrite",
+        reviews: "readwrite"
+      },
+      async (stores) => {
         await new Promise<void>((resolve, reject) => {
-          const req = stores.items.delete(id)
+          const req = stores.projectCards.put(readyWithHash)
           req.onsuccess = () => resolve()
           req.onerror = () => reject(req.error)
         })
-      }
-      for (const id of ids) {
-        await new Promise<void>((resolve) => {
-          const req = stores.reviews
-            .index("itemId")
-            .openCursor(IDBKeyRange.only(id))
-          req.onsuccess = () => {
-            const cursor = req.result
-            if (cursor) {
-              cursor.delete()
-              cursor.continue()
-            } else resolve()
+        for (const card of selectedItems) {
+          if (card.pdfCardId) {
+            const gr = stores.pdfCards.get(card.pdfCardId)
+            const pdfCard = await new Promise<PdfCard | undefined>(
+              (resolve) => {
+                gr.onsuccess = () => resolve(gr.result as PdfCard | undefined)
+                gr.onerror = () => resolve(undefined)
+              }
+            )
+            if (pdfCard && pdfCard.projectCardId === card.id) {
+              await new Promise<void>((resolve, reject) => {
+                const pr = stores.pdfCards.put({
+                  ...pdfCard,
+                  projectCardId: undefined
+                })
+                pr.onsuccess = () => resolve()
+                pr.onerror = () => reject(pr.error)
+              })
+            }
           }
-          req.onerror = () => resolve()
-        })
+          const rk = stores.reviews.index("itemId").getKey(card.id)
+          const key = await new Promise<string | null>((resolve) => {
+            rk.onsuccess = () => resolve((rk.result as string) ?? null)
+            rk.onerror = () => resolve(null)
+          })
+          if (key) stores.reviews.delete(key)
+          stores.projectCards.delete(card.id)
+        }
       }
-    })
+    )
 
     setMergeState(null)
     setSelectedIds([])
@@ -634,7 +727,17 @@ export default function OptionsPage() {
   }
 
   const handleConfirmBatchDelete = async () => {
-    await deleteItems(selectedIds)
+    // Route placed cards through unplace (their pdfCard + annotation survive);
+    // plain cards are deleted outright. Both delete the placement's review.
+    const placedPdfCardIds: string[] = []
+    const plainIds: string[] = []
+    for (const id of selectedIds) {
+      const card = allProjectCardsUnfiltered.find((c) => c.id === id)
+      if (card?.pdfCardId) placedPdfCardIds.push(card.pdfCardId)
+      else plainIds.push(id)
+    }
+    if (placedPdfCardIds.length > 0) await unplacePdfCards(placedPdfCardIds)
+    if (plainIds.length > 0) await deleteProjectCards(plainIds)
     setSelectMode(false)
     setSelectedIds([])
     setConfirmBatchDelete(false)
@@ -642,22 +745,26 @@ export default function OptionsPage() {
   }
 
   const loadTodos = useCallback(async () => {
-    const todos = await searchItems({ type: "todo" })
-    setTodoItems(todos)
+    const todos = await getAllTodos()
+    setAllTodos(todos)
   }, [])
 
   const refreshAllData = useCallback(async () => {
     await loadProjects()
     await onSearch()
     await loadTodos()
-    const all = await searchItems({})
-    setAllItemsUnfiltered(all)
-    // reviewItemIds + reviewSrsMap updated by the effect on allItemsUnfiltered change
+    const [all, pdfs] = await Promise.all([
+      getAllProjectCards(),
+      getAllPdfCards()
+    ])
+    setAllProjectCardsUnfiltered(all)
+    setAllPdfCards(pdfs)
+    // reviewItemIds + reviewSrsMap updated by the effect on allProjectCardsUnfiltered change
   }, [loadProjects, onSearch, loadTodos])
 
   const handleToggleReview = useCallback(
     async (itemId: string) => {
-      const card = allItemsUnfiltered.find((i) => i.id === itemId)
+      const card = allProjectCardsUnfiltered.find((i) => i.id === itemId)
       if (!card) return
 
       // If already in review, remove it
@@ -679,11 +786,11 @@ export default function OptionsPage() {
       }
 
       // Has title → add directly
-      await addReview(createReviewEntry(itemId, card.projectId ?? ""))
+      await addReview(createReviewEntry(itemId, card.projectId))
       setReviewItemIds((prev) => new Set(prev).add(itemId))
       setSnackbarMsg("已加入复习")
     },
-    [allItemsUnfiltered, reviewItemIds]
+    [allProjectCardsUnfiltered, reviewItemIds]
   )
 
   const handleReReview = useCallback(
@@ -765,10 +872,12 @@ export default function OptionsPage() {
         setAnimating(false)
         if (willEmpty) {
           const due = await getDueReviews()
-          const itemMap = new Map(allItemsUnfiltered.map((i) => [i.id, i]))
+          // Display-resolved pairing: a placed card's review entry points at its
+          // placement, and the session renders the resolved body/idea.
+          const itemMap = new Map(displayCardsUnfiltered.map((i) => [i.id, i]))
           const items = due
             .map((r) => itemMap.get(r.itemId))
-            .filter((i): i is Item => i !== undefined)
+            .filter((i): i is DisplayCard => i !== undefined)
           if (items.length === 0) {
             setReviewCompleted(true)
             setReviewItems([])
@@ -778,7 +887,7 @@ export default function OptionsPage() {
         }
       }, 350)
     },
-    [reviewItems, reviewSrsMap, animating, allItemsUnfiltered]
+    [reviewItems, reviewSrsMap, animating, displayCardsUnfiltered]
   )
 
   const {
@@ -788,7 +897,7 @@ export default function OptionsPage() {
     handleDownloadSync
   } = useBackupSync({
     projects,
-    allItemsUnfiltered,
+    allItemsUnfiltered: allProjectCardsUnfiltered,
     backupScope,
     backupSelectedIds,
     backupSelectedPdfIds,
@@ -911,22 +1020,22 @@ export default function OptionsPage() {
     ) => {
       if (!activeProjectId) return
       const origSectionId =
-        allItems.find((i) => i.id === itemId)?.sectionId ?? null
-      const sectionItems = allItems.filter((i) =>
+        allProjectCards.find((i) => i.id === itemId)?.sectionId ?? null
+      const sectionCards = allProjectCards.filter((i) =>
         targetSectionId ? i.sectionId === targetSectionId : !i.sectionId
       )
-      const sorted = sectionItems.sort(compareCards)
+      const sorted = sectionCards.slice().sort(compareCards)
       const filtered = sorted.filter((i) => i.id !== itemId)
       filtered.splice(targetOrder, 0, {
-        ...allItems.find((i) => i.id === itemId)!,
+        ...allProjectCards.find((i) => i.id === itemId)!,
         sectionId: targetSectionId ?? undefined
       })
-      const updates = filtered.map((item, idx) => ({
-        id: item.id,
+      const updates = filtered.map((card, idx) => ({
+        id: card.id,
         sectionId: targetSectionId ?? undefined,
         order: idx
       }))
-      await batchUpdateItems(updates)
+      await batchUpdateProjectCards(updates)
       await refreshAllData()
       // Only toast when the card actually moved to another section — a
       // same-section reorder is its own visual feedback.
@@ -938,7 +1047,7 @@ export default function OptionsPage() {
         )
       }
     },
-    [activeProjectId, allItems, refreshAllData, projects]
+    [activeProjectId, allProjectCards, refreshAllData, projects]
   )
 
   // Load LXGW WenKai font from CDN
@@ -970,7 +1079,7 @@ export default function OptionsPage() {
     }
     const [ann, cards] = await Promise.all([
       getAnnotationsByPdf(id),
-      getItemsByPdf(id)
+      getPdfCards(id)
     ])
     setPdfPanelAnnotations(ann)
     setPdfPanelCards(cards)
@@ -1067,21 +1176,40 @@ export default function OptionsPage() {
     setPdfOutlineDest(null)
   }, [])
 
-  // Card source / panel click → open the PDF (if needed) + flash the annotation.
-  const handlePanelCardClick = useCallback((card: Item) => {
-    if (!card.pdfRef) return
+  // PdfCardsPanel card click → open the PDF (if needed) + flash the annotation.
+  const handlePanelCardClick = useCallback((card: PdfCard) => {
     // Switch to the PDF view first — openPdf alone activates the PDF but the
     // main area stays on the current tab, so the PdfView never mounts.
     setSidebarTab("pdf")
     setDrawerOpen(true)
-    openPdf(card.pdfRef.pdfId)
+    openPdf(card.pdfId)
     pdfFlashToken.current += 1
     setPdfFlashTarget({
-      page: card.pdfRef.page,
-      annId: card.pdfRef.annotationId,
+      page: card.page,
+      annId: card.annotationId,
       token: pdfFlashToken.current
     })
   }, [])
+
+  // Project card's PDF-source footer → jump to the PDF + flash its annotation.
+  // The display card carries `pdfSource` (pdfId + page); the annotation id is
+  // looked up from the linked pdfCard (the placement↔pdfCard 1:1 reference).
+  const handleOpenPdfFromCard = useCallback(
+    (card: DisplayCard) => {
+      if (!card.pdfSource) return
+      setSidebarTab("pdf")
+      setDrawerOpen(true)
+      openPdf(card.pdfSource.pdfId)
+      const pdfCard = card.pdfCardId ? pdfById.get(card.pdfCardId) : undefined
+      pdfFlashToken.current += 1
+      setPdfFlashTarget({
+        page: card.pdfSource.page,
+        annId: pdfCard?.annotationId ?? "",
+        token: pdfFlashToken.current
+      })
+    },
+    [openPdf, pdfById]
+  )
 
   // PdfView annotation popover "跳转卡片" → scroll the panel to that card.
   const handleJumpInPanel = useCallback((cardId: string) => {
@@ -1142,22 +1270,47 @@ export default function OptionsPage() {
     }
   }, [])
 
-  // Placed card's project chip → jump to the project (未分类) + highlight it.
-  const handleJumpToProject = useCallback((card: Item) => {
-    if (!card.projectId) return
-    setSidebarTab("projects")
-    setActiveProjectId(card.projectId)
-    setActiveSectionByProject((prev) => ({
-      ...prev,
-      [card.projectId!]: null
-    }))
-    setProjectCardHighlightId(card.id)
-    if (projectCardHighlightTimer.current)
-      window.clearTimeout(projectCardHighlightTimer.current)
-    projectCardHighlightTimer.current = window.setTimeout(() => {
-      setProjectCardHighlightId(null)
-      projectCardHighlightTimer.current = null
-    }, 2000)
+  // A pdfCard's project chip → jump to its placement's project + highlight it.
+  // The placement lookup goes through the loaded placements (1:1 reverse ref).
+  const handleJumpToProject = useCallback(
+    (card: PdfCard) => {
+      if (!card.projectCardId) return
+      const placement = allProjectCardsUnfiltered.find(
+        (c) => c.id === card.projectCardId
+      )
+      if (!placement) return
+      setSidebarTab("projects")
+      setActiveProjectId(placement.projectId)
+      setActiveSectionByProject((prev) => ({
+        ...prev,
+        [placement.projectId]: null
+      }))
+      setProjectCardHighlightId(placement.id)
+      if (projectCardHighlightTimer.current)
+        window.clearTimeout(projectCardHighlightTimer.current)
+      projectCardHighlightTimer.current = window.setTimeout(() => {
+        setProjectCardHighlightId(null)
+        projectCardHighlightTimer.current = null
+      }, 2000)
+    },
+    [allProjectCardsUnfiltered]
+  )
+
+  // Placement lookup for the cards panel: pdfCard.projectCardId → the
+  // placement ProjectCard (the placed-chip jump + unplace routing).
+  const placements = useMemo(() => {
+    const m = new Map<string, ProjectCard>()
+    for (const c of allProjectCardsUnfiltered) {
+      if (c.pdfCardId) m.set(c.id, c)
+    }
+    return m
+  }, [allProjectCardsUnfiltered])
+
+  // The cards panel's delete: pdfCards + their annotations + placements'
+  // reviews are removed together (deletePdfCards cascades) — the project side
+  // never touches pdfCards (its delete only unplaces).
+  const handleDeletePdfCards = useCallback(async (cards: PdfCard[]) => {
+    await deletePdfCards(cards)
   }, [])
 
   const handleOpenPdfFile = useCallback(
@@ -1306,9 +1459,11 @@ export default function OptionsPage() {
         setReviewsVersion((v) => v + 1)
         refreshLiteCounts()
       }
-      // PDF writes broadcast `_dbpdf`: refresh the PDF library + the cards panel.
+      // PDF writes broadcast `_dbpdf`: refresh the PDF library + the cards panel
+      // + the pdfCard cache (placed cards' resolved content/idea re-render).
       if (changes._dbpdf) {
         loadPdfs()
+        getAllPdfCards().then(setAllPdfCards)
         schedulePdfPanelReload()
       }
     }
@@ -1320,11 +1475,11 @@ export default function OptionsPage() {
 
   const countByPdf = useMemo(() => {
     const m: Record<string, number> = {}
-    for (const it of allItemsUnfiltered) {
-      if (it.pdfRefPdfId) m[it.pdfRefPdfId] = (m[it.pdfRefPdfId] ?? 0) + 1
+    for (const c of allPdfCards) {
+      m[c.pdfId] = (m[c.pdfId] ?? 0) + 1
     }
     return m
-  }, [allItemsUnfiltered])
+  }, [allPdfCards])
   const otherProjects = useMemo(
     () => projects.filter((p) => p.id !== activeProjectId),
     [projects, activeProjectId]
@@ -1333,34 +1488,36 @@ export default function OptionsPage() {
   // ---- Section view state (sidebar tree -> main area) ----
   const countBySection = useMemo(() => {
     const m = new Map<string, number>()
-    for (const it of allItems) {
+    for (const it of allProjectCards) {
       if (it.sectionId) m.set(it.sectionId, (m.get(it.sectionId) ?? 0) + 1)
     }
     return m
-  }, [allItems])
+  }, [allProjectCards])
 
   const unclassifiedByProject = useMemo(() => {
     const m: Record<string, number> = {}
-    for (const it of allItems) {
+    for (const it of allProjectCards) {
       if (!it.sectionId) m[it.projectId] = (m[it.projectId] ?? 0) + 1
     }
     return m
-  }, [allItems])
+  }, [allProjectCards])
 
   // Per-project card counts (meaningful when no project is open, since
-  // allItems then holds every project's cards for the hub overview).
+  // allProjectCards then holds every project's cards for the hub overview).
   const countByProject = useMemo(() => {
     const m: Record<string, number> = {}
-    for (const it of allItemsUnfiltered) {
-      if (it.type !== "todo") m[it.projectId] = (m[it.projectId] ?? 0) + 1
+    for (const it of allProjectCardsUnfiltered) {
+      m[it.projectId] = (m[it.projectId] ?? 0) + 1
     }
     return m
-  }, [allItemsUnfiltered])
+  }, [allProjectCardsUnfiltered])
 
-  const scopeItems = useMemo(() => {
-    if (!activeSectionId) return allItems
+  // The section scope as the PERSISTED projectCards (drag reorder + writes
+  // operate on the originals) — the grid renders the resolved variant.
+  const scopeCards = useMemo(() => {
+    if (!activeSectionId) return allProjectCards
     if (activeSectionId === "__unclassified__")
-      return allItems.filter((i) => !i.sectionId)
+      return allProjectCards.filter((i) => !i.sectionId)
     const section = activeProject?.sections?.find(
       (s) => s.id === activeSectionId
     )
@@ -1370,14 +1527,19 @@ export default function OptionsPage() {
           .filter((s) => s.level === 2 && s.parentId === activeSectionId)
           .map((s) => s.id)
       )
-      return allItems.filter(
+      return allProjectCards.filter(
         (i) =>
           i.sectionId === activeSectionId ||
           (i.sectionId !== undefined && childIds.has(i.sectionId))
       )
     }
-    return allItems.filter((i) => i.sectionId === activeSectionId)
-  }, [allItems, activeSectionId, activeProject])
+    return allProjectCards.filter((i) => i.sectionId === activeSectionId)
+  }, [allProjectCards, activeSectionId, activeProject])
+
+  const scopeItems = useMemo(
+    () => scopeCards.map(resolveDisplay),
+    [scopeCards, resolveDisplay]
+  )
 
   // Full breadcrumb path: project / L1 / L2
   const sectionPath = useMemo(() => {
@@ -1414,7 +1576,7 @@ export default function OptionsPage() {
     flipRectsRef,
     handleGripPointerDown
   } = useCardDragReorder({
-    items: scopeItems,
+    items: scopeCards,
     onMoveCard
   })
 
@@ -1424,23 +1586,23 @@ export default function OptionsPage() {
     sidebarTab === "review" && reviewDateFilter
       ? filteredDateItems
       : keyword || dateRange
-        ? allItems
+        ? displayCards
         : scopeItems
 
   const handleNavigate = useCallback(
     (direction: "prev" | "next") => {
-      if (!dialogItem) return
-      const idx = navList.findIndex((i) => i.id === dialogItem.id)
+      if (!dialogCard) return
+      const idx = navList.findIndex((i) => i.id === dialogCard.id)
       if (idx === -1) return
       const nextIdx = direction === "prev" ? idx - 1 : idx + 1
       if (nextIdx < 0 || nextIdx >= navList.length) return
-      setDialogItem(navList[nextIdx])
+      setDialogCard(navList[nextIdx])
     },
-    [dialogItem, navList]
+    [dialogCard, navList]
   )
 
-  const navIndex = dialogItem
-    ? navList.findIndex((i) => i.id === dialogItem.id)
+  const navIndex = dialogCard
+    ? navList.findIndex((i) => i.id === dialogCard.id)
     : -1
   const hasPrev = navIndex > 0
   const hasNext = navIndex >= 0 && navIndex < navList.length - 1
@@ -1509,8 +1671,9 @@ export default function OptionsPage() {
       if (!project) return
       const data = buildScopeData(
         project,
-        allItemsUnfiltered,
-        sectionId ?? null
+        allProjectCardsUnfiltered,
+        sectionId ?? null,
+        allPdfCards
       )
       const { markdown, skippedImages } = buildProjectMarkdown(data)
       const filename =
@@ -1528,15 +1691,22 @@ export default function OptionsPage() {
           : "已导出 Markdown"
       )
     },
-    [projects, allItemsUnfiltered]
+    [projects, allProjectCardsUnfiltered, allPdfCards]
   )
 
   const handleCopyCard = async (targetProjectId: string) => {
     if (!copyCardId) return
-    const card = allItems.find((i) => i.id === copyCardId)
-    if (card) {
-      const newCard = cloneItem(card, targetProjectId)
-      const saved = await addItem(newCard)
+    const original = allProjectCardsUnfiltered.find((c) => c.id === copyCardId)
+    if (original) {
+      // A placed card's copy carries its RESOLVED quote (the placement holds no
+      // content); cloneProjectCard drops the placement ref → a plain 自建卡片.
+      const display = displayCardsUnfiltered.find((c) => c.id === copyCardId)
+      const source: ProjectCard =
+        original.pdfCardId && display
+          ? { ...original, content: display.content }
+          : original
+      const newCard = cloneProjectCard(source, targetProjectId)
+      const saved = await addProjectCard(newCard)
       if (!saved) {
         setSnackbarMsg("目标项目已存在相同内容，跳过复制")
         setCopyCardId(null)
@@ -1552,14 +1722,18 @@ export default function OptionsPage() {
   // null) — restores organizing captured/placed cards after the fact.
   const handleMoveCardConfirm = async (sectionId: string | null) => {
     if (!moveSectionCardId) return
-    const card = allItems.find((i) => i.id === moveSectionCardId)
+    const card = allProjectCardsUnfiltered.find(
+      (c) => c.id === moveSectionCardId
+    )
     if (card) {
       const maxOrder = await getMaxOrderInSection(sectionId ?? undefined)
-      await updateItem({
-        ...card,
-        sectionId: sectionId ?? undefined,
-        order: maxOrder + 1
-      })
+      await updateProjectCard(
+        stripPlacementContent({
+          ...card,
+          sectionId: sectionId ?? undefined,
+          order: maxOrder + 1
+        })
+      )
     }
     setMoveSectionCardId(null)
     onSearch()
@@ -1570,10 +1744,15 @@ export default function OptionsPage() {
   const handleBatchCopyCards = async (targetProjectId: string) => {
     let skipped = 0
     for (const id of selectedIds) {
-      const card = allItems.find((i) => i.id === id)
-      if (!card) continue
-      const newCard = cloneItem(card, targetProjectId)
-      const saved = await addItem(newCard)
+      const original = allProjectCardsUnfiltered.find((c) => c.id === id)
+      if (!original) continue
+      const display = displayCardsUnfiltered.find((c) => c.id === id)
+      const source: ProjectCard =
+        original.pdfCardId && display
+          ? { ...original, content: display.content }
+          : original
+      const newCard = cloneProjectCard(source, targetProjectId)
+      const saved = await addProjectCard(newCard)
       if (!saved) skipped++
     }
     setBatchCopyOpen(false)
@@ -1591,7 +1770,7 @@ export default function OptionsPage() {
     let completed = 0
     let overdue = 0
     let todayCount = 0
-    for (const t of todoItems) {
+    for (const t of allTodos) {
       if (isTodoComplete(t.content)) {
         completed++
       } else {
@@ -1601,11 +1780,11 @@ export default function OptionsPage() {
       if (s === "overdue") overdue++
       if (s === "today") todayCount++
     }
-    return { total: todoItems.length, incomplete, completed, overdue, today: todayCount }
-  }, [todoItems, today])
+    return { total: allTodos.length, incomplete, completed, overdue, today: todayCount }
+  }, [allTodos, today])
 
   const filteredTodos = useMemo(() => {
-    const list = todoItems.filter((t) => {
+    const list = allTodos.filter((t) => {
       switch (todoFilter) {
         case "all":
           return true
@@ -1627,7 +1806,7 @@ export default function OptionsPage() {
       if (bd) return 1
       return b.createdAt - a.createdAt
     })
-  }, [todoItems, todoFilter, today])
+  }, [allTodos, todoFilter, today])
 
   // Todo badge = incomplete todos only. Review cards must not inflate the
   // todo icon's number (review has its own due-count badge on the 复习 button).
@@ -1669,23 +1848,23 @@ export default function OptionsPage() {
     setTodoEditingId(id)
   }, [])
 
-  const handleQuickAdd = useCallback((item: Item) => {
+  const handleQuickAdd = useCallback((item: TodoCard) => {
     setTodoEditingId(item.id)
     setFocusNewTaskId(item.id)
   }, [])
 
   const handleToggleTodoTask = useCallback(
-    async (item: Item, index: number) => {
+    async (item: TodoCard, index: number) => {
       const next = toggleMarkdownTask(item.content, index)
       if (next === item.content) return
-      await updateItem({ ...item, content: next })
+      await updateTodo({ ...item, content: next })
     },
     []
   )
 
   const handleSaveTodo = useCallback(
     async (
-      item: Item,
+      item: TodoCard,
       title: string,
       content: string,
       dueDate?: string
@@ -1698,15 +1877,14 @@ export default function OptionsPage() {
       const cleanDue =
         dueDate && /^\d{4}-\d{2}-\d{2}$/.test(dueDate) ? dueDate : undefined
       if (item.id === "__new__") {
-        const created = createItem({
-          type: "todo",
+        const created = createTodoCard({
           title: title.trim() || undefined,
           content,
           ...(cleanDue && { dueDate: cleanDue })
         })
-        await addItem(created, { skipDedup: true })
+        await addTodo(created)
       } else {
-        await updateItem({
+        await updateTodo({
           ...item,
           title: title.trim() || undefined,
           content,
@@ -1719,8 +1897,8 @@ export default function OptionsPage() {
     []
   )
 
-  const handleDeleteTodo = useCallback(async (item: Item) => {
-    await deleteItem(item.id)
+  const handleDeleteTodo = useCallback(async (item: TodoCard) => {
+    await deleteTodo(item.id)
     setTodoEditingId(null)
     setFocusNewTaskId(null)
   }, [])
@@ -1728,17 +1906,17 @@ export default function OptionsPage() {
   // Full card set the current view renders. 全选 must target this scope, not
   // the paginated displayedItems slice (which only holds the first page) —
   // otherwise select-all in the section/outline view only picks 20 cards.
-  const viewItems = keyword || dateRange ? allItems : scopeItems
+  const viewItems = keyword || dateRange ? displayCards : scopeItems
 
   const sharedCardGridProps = {
     selectedIds,
     reviewItemIds,
     masteredItemIds,
-    onOpenDialog: setDialogItem,
+    onOpenDialog: setDialogCard,
     onToggleReview: handleToggleReview,
     onReReview: handleReReview,
     onCopyToProject: setCopyCardId,
-    onOpenPdfSource: handlePanelCardClick,
+    onOpenPdfSource: handleOpenPdfFromCard,
     onMoveToSection: setMoveSectionCardId,
     highlightedId: projectCardHighlightId
   }
@@ -1810,7 +1988,7 @@ export default function OptionsPage() {
               setSelectMode(false)
               setActiveProjectId(null)
               setNavOpen(false)
-              setDialogItem(null)
+              setDialogCard(null)
               setKeyword("")
               setDateRange(null)
               onSearch(null)
@@ -2420,7 +2598,7 @@ export default function OptionsPage() {
 
                       {activeProject &&
                         !hasMore &&
-                        allItems.length === 0 &&
+                        allProjectCards.length === 0 &&
                         (keyword ? (
                           <EmptyState
                             icon={
@@ -2459,7 +2637,7 @@ export default function OptionsPage() {
                       {activeProject &&
                         !keyword &&
                         !dateRange &&
-                        allItems.length > 0 &&
+                        allProjectCards.length > 0 &&
                         scopeItems.length === 0 && (
                           <EmptyState
                             icon={
@@ -2495,41 +2673,51 @@ export default function OptionsPage() {
              )}
 
               <ItemDialog
-                item={dialogItem}
-                open={Boolean(dialogItem)}
+                item={dialogCard}
+                open={Boolean(dialogCard)}
                 readOnly={sidebarTab === "review"}
                 hasPrev={hasPrev}
                 hasNext={hasNext}
-                onClose={() => setDialogItem(null)}
+                onClose={() => setDialogCard(null)}
                 onNavigate={handleNavigate}
                 onSave={async (updated) => {
-                  // Atomically save item update and optionally remove from review
-                  await tx(
-                    { items: "readwrite", reviews: "readwrite" },
-                    async (stores) => {
-                      stores.items.put({ ...updated, updatedAt: Date.now() })
-                      if (!updated.title) {
-                        const idx = stores.reviews.index("itemId")
-                        return new Promise<void>((resolve, reject) => {
-                          const req = idx.getKey(updated.id)
-                          req.onsuccess = () => {
-                            if (req.result)
-                              stores.reviews.delete(req.result as string)
-                            resolve()
-                          }
-                          req.onerror = () => reject(req.error)
-                        })
-                      }
-                    }
+                  // Writes operate on the ORIGINAL projectCard. A placed card's
+                  // title persists on the placement; its idea (备注) persists on
+                  // the linked pdfCard; its content is NEVER written (the
+                  // placement references the pdfCard's quote).
+                  const original = allProjectCardsUnfiltered.find(
+                    (c) => c.id === updated.id
                   )
-                  if (!updated.title) {
+                  if (!original) return
+                  const title = updated.title?.trim() || undefined
+                  if (original.pdfCardId) {
+                    await updateProjectCard(
+                      stripPlacementContent({ ...original, title })
+                    )
+                    const pdfCard = pdfById.get(original.pdfCardId)
+                    const newIdea = updated.idea?.trim() || undefined
+                    if (pdfCard && newIdea !== (pdfCard.idea?.trim() || undefined)) {
+                      await updatePdfCard({ ...pdfCard, idea: newIdea })
+                    }
+                  } else {
+                    await updateProjectCard(
+                      stripPlacementContent({
+                        ...original,
+                        title,
+                        content: updated.content ?? original.content
+                      })
+                    )
+                  }
+                  if (!title) {
+                    // A card without a title can't be reviewed — drop its entry.
+                    await removeReview(updated.id)
                     setReviewItemIds((prev) => {
                       const next = new Set(prev)
                       next.delete(updated.id)
                       return next
                     })
                   }
-                  setDialogItem(null)
+                  setDialogCard(null)
                   onSearch()
                 }}
               />
@@ -2582,21 +2770,24 @@ export default function OptionsPage() {
                       disabled={!reviewTitleDraft.trim()}
                       sx={{ borderRadius: 1 }}
                       onClick={async () => {
-                        const card = allItemsUnfiltered.find(
+                        const card = allProjectCardsUnfiltered.find(
                           (i) => i.id === reviewTitlePending
                         )
                         if (!card || !reviewTitleDraft.trim()) return
-                        // Update card title
-                        await updateItem({
-                          ...card,
-                          title: reviewTitleDraft.trim()
-                        })
+                        // Update card title (placed cards keep content "" —
+                        // the title lives on the placement).
+                        await updateProjectCard(
+                          stripPlacementContent({
+                            ...card,
+                            title: reviewTitleDraft.trim()
+                          })
+                        )
                         // Add to review (skip if it entered review while the
                         // dialog was open — itemId has a unique index).
                         const alreadyInReview = reviewItemIds.has(card.id)
                         if (!alreadyInReview) {
                           await addReview(
-                            createReviewEntry(card.id, card.projectId ?? "")
+                            createReviewEntry(card.id, card.projectId)
                           )
                         }
                         setReviewTitlePending(null)
@@ -2762,8 +2953,9 @@ export default function OptionsPage() {
                 sections={activeProject?.sections ?? []}
                 currentSectionId={
                   moveSectionCardId
-                    ? (allItems.find((i) => i.id === moveSectionCardId)?.sectionId ??
-                      null)
+                    ? (allProjectCardsUnfiltered.find(
+                        (i) => i.id === moveSectionCardId
+                      )?.sectionId ?? null)
                     : null
                 }
                 onMove={handleMoveCardConfirm}
@@ -2801,7 +2993,7 @@ export default function OptionsPage() {
            </Box>
           <FooterBar
             sidebarTab={sidebarTab}
-            totalItems={allItemsUnfiltered.length}
+            totalItems={allProjectCardsUnfiltered.length}
             totalProjects={projects.length}
             dueCount={dueCount}
             syncStatus={syncStatus}
@@ -2809,8 +3001,9 @@ export default function OptionsPage() {
             todoStats={todoStats}
             activeProjectName={activeProject?.name ?? null}
             activeProjectItemCount={
-              allItemsUnfiltered.filter((i) => i.projectId === activeProjectId)
-                .length
+              allProjectCardsUnfiltered.filter(
+                (i) => i.projectId === activeProjectId
+              ).length
             }
           />
         </Box>
@@ -2824,8 +3017,10 @@ export default function OptionsPage() {
           onCardClick={handlePanelCardClick}
           scrollTarget={pdfScrollTarget}
           projects={projects}
+          placements={placements}
           onPlace={handlePlaceCards}
           onUnplace={handleUnplaceCards}
+          onDelete={handleDeletePdfCards}
           onCreateProject={handleCreateProjectAndPlace}
           onJumpToProject={handleJumpToProject}
         />

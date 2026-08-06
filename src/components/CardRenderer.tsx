@@ -5,17 +5,17 @@ import ImageRoundedIcon from "@mui/icons-material/ImageRounded"
 import LinkRoundedIcon from "@mui/icons-material/LinkRounded"
 import { Box, Chip, Typography } from "@mui/material"
 
-import type { Item } from "../types"
+import type { DisplayCard } from "../types"
 import { extractMarkdownImages, prettyUrl, truncateText } from "../utils"
 import MarkdownRenderer from "./MarkdownRenderer"
 
 interface CardRendererProps {
-  item: Item
+  item: DisplayCard
   mode: "front" | "back" | "full" | "preview"
   truncateTo?: number
   contentAlign?: "top" | "center"
   /** PDF-sourced project card: the source footer click jumps to the PDF. */
-  onOpenPdfSource?: (item: Item) => void
+  onOpenPdfSource?: (item: DisplayCard) => void
 }
 
 const TYPE_LABEL: Record<string, string> = {
@@ -42,7 +42,7 @@ export const typeIcon = (type: string) => {
 
 /** All displayable images for a card: content-embedded Markdown images plus
  *  legacy `item.images` (image-type cards exclude their own content URL). */
-function allImages(item: Item): string[] {
+function allImages(item: DisplayCard): string[] {
   return [...extractMarkdownImages(item.content), ...(item.images ?? [])].filter(
     (u, i, arr) =>
       arr.indexOf(u) === i && (item.type !== "image" || u !== item.content)
@@ -51,7 +51,7 @@ function allImages(item: Item): string[] {
 
 /** Legacy-only images (pre-Markdown cards). Used where the Markdown body
  *  already renders content-embedded images inline, to avoid duplication. */
-function legacyImages(item: Item): string[] {
+function legacyImages(item: DisplayCard): string[] {
   return (item.images ?? []).filter(
     (u) => item.type !== "image" || u !== item.content
   )
@@ -59,7 +59,7 @@ function legacyImages(item: Item): string[] {
 
 /** Shared "原文" section (label + quote block + images) used by both the full
  *  and review-back views so the back card reads like the full card. */
-function OriginalBlock({ item }: { item: Item }) {
+function OriginalBlock({ item }: { item: DisplayCard }) {
   return (
     <Box>
       <Typography
@@ -140,7 +140,7 @@ function ImageGallery({ images }: { images: string[] }) {
   )
 }
 
-function ContentBlock({ item }: { item: Item }) {
+function ContentBlock({ item }: { item: DisplayCard }) {
   if (item.type === "image") {
     return (
       <Box
@@ -396,7 +396,7 @@ export default function CardRenderer({
             )}
           </Box>
         </Box>
-        {(item.source?.url || item.pdfRef) && (
+        {(item.source?.url || item.pdfSource) && (
           <>
             <Box
               sx={{
@@ -409,7 +409,7 @@ export default function CardRenderer({
             <Typography
               variant="caption"
               onClick={
-                item.pdfRef
+                item.pdfSource
                   ? (e) => {
                       e.stopPropagation()
                       onOpenPdfSource?.(item)
@@ -425,12 +425,12 @@ export default function CardRenderer({
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
                 flexShrink: 0,
-                ...(item.pdfRef
+                ...(item.pdfSource
                   ? { cursor: "pointer", "&:hover": { color: "primary.main" } }
                   : {})
               }}>
-              {item.pdfRef
-                ? `PDF · 第 ${item.pdfRef.page} 页`
+              {item.pdfSource
+                ? `PDF · 第 ${item.pdfSource.page} 页`
                 : `↗ ${item.source.title || prettyUrl(item.source.url)}`}
             </Typography>
           </>
@@ -462,7 +462,7 @@ export default function CardRenderer({
         }}>
         <Box sx={{ marginTop: "auto", marginBottom: "auto", width: "100%" }}>
           <OriginalBlock item={item} />
-          {(item.source?.url || item.pdfRef) && (
+          {(item.source?.url || item.pdfSource) && (
             <Box
               sx={{
                 mt: 2.5,
@@ -472,12 +472,12 @@ export default function CardRenderer({
               }}>
               <Typography
                 variant="body2"
-                component={item.pdfRef ? "span" : "a"}
-                href={item.pdfRef ? undefined : item.source?.url}
-                target={item.pdfRef ? undefined : "_blank"}
+                component={item.pdfSource ? "span" : "a"}
+                href={item.pdfSource ? undefined : item.source?.url}
+                target={item.pdfSource ? undefined : "_blank"}
                 onClick={(e) => {
                   e.stopPropagation()
-                  if (item.pdfRef) onOpenPdfSource?.(item)
+                  if (item.pdfSource) onOpenPdfSource?.(item)
                 }}
                 sx={{
                   color: "primary.main",
@@ -485,10 +485,10 @@ export default function CardRenderer({
                   "&:hover": { textDecoration: "underline" },
                   fontSize: "0.8rem",
                   wordBreak: "break-word",
-                  cursor: item.pdfRef ? "pointer" : "pointer"
+                  cursor: item.pdfSource ? "pointer" : "pointer"
                 }}>
-                {item.pdfRef
-                  ? `PDF · 第 ${item.pdfRef.page} 页`
+                {item.pdfSource
+                  ? `PDF · 第 ${item.pdfSource.page} 页`
                   : `↗ ${item.source?.title || prettyUrl(item.source?.url ?? "")}`}
               </Typography>
             </Box>
@@ -546,8 +546,8 @@ export default function CardRenderer({
               letterSpacing: "0.03em"
             }}>
             {item.type.toUpperCase()}
-            {!item.source && !item.pdfRef && " · 自建卡片"}
-            {item.pdfRef && ` · PDF · 第 ${item.pdfRef.page} 页`}
+            {!item.source && !item.pdfSource && " · 自建卡片"}
+            {item.pdfSource && ` · PDF · 第 ${item.pdfSource.page} 页`}
             {" · "}
             {new Date(item.createdAt).toLocaleDateString("zh-CN", {
               year: "numeric",
@@ -557,38 +557,8 @@ export default function CardRenderer({
           </Typography>
         </Box>
       </Box>
-      {item.context?.paragraph && (
-        <Box
-          sx={{ mt: 4, pt: 3, borderTop: "1px solid", borderColor: "divider" }}>
-          <Typography
-            variant="caption"
-            sx={{
-              color: "text.secondary",
-              fontSize: "0.75rem",
-              letterSpacing: "0.05em",
-              mb: 1.5,
-              display: "block"
-            }}>
-            所在段落
-          </Typography>
-          <Box
-            sx={{ pl: 1.5, borderLeft: "2px solid", borderColor: "divider" }}>
-            <Typography
-              variant="body2"
-              sx={{
-                whiteSpace: "pre-wrap",
-                lineHeight: 1.9,
-                textAlign: "justify",
-                color: "text.secondary",
-                fontSize: "0.9rem"
-              }}>
-              {item.context.paragraph}
-            </Typography>
-          </Box>
-        </Box>
-      )}
 
-      {(item.source?.url || item.pdfRef) && (
+      {(item.source?.url || item.pdfSource) && (
         <>
           <Box
             sx={{
@@ -601,7 +571,7 @@ export default function CardRenderer({
           <Typography
             variant="caption"
             onClick={
-              item.pdfRef
+              item.pdfSource
                 ? (e) => {
                     e.stopPropagation()
                     onOpenPdfSource?.(item)
@@ -616,12 +586,12 @@ export default function CardRenderer({
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
-              ...(item.pdfRef
+              ...(item.pdfSource
                 ? { cursor: "pointer", "&:hover": { color: "primary.main" } }
                 : {})
             }}>
-            {item.pdfRef
-              ? `PDF · 第 ${item.pdfRef.page} 页`
+            {item.pdfSource
+              ? `PDF · 第 ${item.pdfSource.page} 页`
               : `↗ ${item.source?.title || prettyUrl(item.source?.url ?? "")}`}
           </Typography>
         </>

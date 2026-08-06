@@ -1,6 +1,20 @@
-import type { Item, PdfAnnotation, PdfFile, Project, ReviewEntry } from "../types"
+import type {
+  PdfAnnotation,
+  PdfCard,
+  PdfFile,
+  Project,
+  ProjectCard,
+  ReviewEntry,
+  TodoCard
+} from "../types"
 import { sendMessage } from "../types/messages"
-import { base64ToBytes, blobToUint8, bytesToBase64, computeItemHash } from "./index"
+import { splitLegacyItem, type LegacyItem } from "./cards"
+import {
+  base64ToBytes,
+  blobToUint8,
+  bytesToBase64,
+  computeItemHash
+} from "./index"
 
 const SYNC_PATH = "/Apps/lime/lime-sync.json"
 const BASE_URL = "https://dav.jianguoyun.com/dav"
@@ -16,13 +30,15 @@ export type PdfSyncMeta = Pick<
   "id" | "name" | "pageCount" | "addedAt" | "lastOpened" | "topic"
 >
 
-interface SyncPayload {
+export interface SyncPayload {
   version: number
   syncedAt: number
   contentHash: string
   deviceInfo: { version: string }
   projects: Project[]
-  items: Item[]
+  projectCards: ProjectCard[]
+  pdfCards: PdfCard[]
+  todos: TodoCard[]
   reviews: ReviewEntry[]
   pdfAnnotations: PdfAnnotation[]
   pdfs: PdfSyncMeta[]
@@ -73,9 +89,7 @@ async function bgFetchBinary(
 }
 
 /** Enumerate the remote /pdfs/ folder → the stored "<contentHash>.pdf" names. */
-export async function listRemotePdfs(
-  cred: SyncCredentials
-): Promise<string[]> {
+export async function listRemotePdfs(cred: SyncCredentials): Promise<string[]> {
   const res = await bgFetch(cred, "/Apps/lime/pdfs/", { method: "PROPFIND" })
   if (res.status === 404) return []
   if (!res.ok) throw new Error(`读取云端 PDF 列表失败：HTTP ${res.status}`)
@@ -132,8 +146,7 @@ export async function downloadPdfFiles(
   const local = new Map(localPdfs.map((p) => [p.id, p]))
   const remoteFiles = new Set(await listRemotePdfs(cred))
   const toFetch = remotePdfs.filter(
-    (meta) =>
-      !local.get(meta.id)?.bytes && remoteFiles.has(`${meta.id}.pdf`)
+    (meta) => !local.get(meta.id)?.bytes && remoteFiles.has(`${meta.id}.pdf`)
   )
   const out: { meta: PdfSyncMeta; bytes: Blob }[] = []
   let done = 0
@@ -155,7 +168,12 @@ export async function downloadPdfFiles(
 // ---- Dirty-check helpers ----
 
 async function hasChangesSince(lastSync: number): Promise<boolean> {
-  const data = await chrome.storage.local.get(["_dbi", "_dbp", "_dbr", "_dbpdf"])
+  const data = await chrome.storage.local.get([
+    "_dbi",
+    "_dbp",
+    "_dbr",
+    "_dbpdf"
+  ])
   return (
     (data._dbi ?? 0) > lastSync ||
     (data._dbp ?? 0) > lastSync ||
@@ -184,6 +202,73 @@ export async function testConnection(
   }
 }
 
+/** Convert a v3/v4 legacy payload (monolithic `items`) into the v5 shape. A
+ *  placed item becomes a pdfCard (keeping the old id) + a placement projectCard
+ *  (new uuid, mutual references); reviews of placed items remap to the
+ *  placement ids; legacy annotations carry itemId → cardId (the pdfCard id). */
+function convertLegacyPayload(p: {
+  version: number
+  syncedAt: number
+  contentHash: string
+  deviceInfo: { version: string }
+  items?: LegacyItem[]
+  projects?: Project[]
+  reviews?: ReviewEntry[]
+  pdfAnnotations?: PdfAnnotation[]
+  pdfs?: PdfSyncMeta[]
+}): SyncPayload {
+  const annType = new Map<string, string>()
+  for (const ann of p.pdfAnnotations ?? []) {
+    if (ann.id) annType.set(ann.id, ann.type)
+  }
+  const projectCards: ProjectCard[] = []
+  const pdfCards: PdfCard[] = []
+  const todos: TodoCard[] = []
+  const reviewRemap = new Map<string, string>()
+  for (const item of p.items ?? []) {
+    const split = splitLegacyItem(
+      item,
+      (annType.get(item.pdfRef?.annotationId ?? "") as
+        | PdfAnnotation["type"]
+        | undefined) ?? "highlight"
+    )
+    if (split.todo) todos.push(split.todo)
+    if (split.pdfCard) {
+      pdfCards.push(split.pdfCard)
+      if (split.placement) {
+        projectCards.push(split.placement)
+        reviewRemap.set(split.pdfCard.id, split.placement.id)
+      }
+    }
+    if (split.projectCard) projectCards.push(split.projectCard)
+  }
+  const reviews = (p.reviews ?? []).map((r) => {
+    const mapped = reviewRemap.get(r.itemId)
+    return mapped ? { ...r, itemId: mapped } : r
+  })
+  const pdfAnnotations: PdfAnnotation[] = (p.pdfAnnotations ?? []).map((a) => {
+    const legacy = a as PdfAnnotation & { itemId?: string }
+    if (legacy.cardId) return a
+    const normalized: PdfAnnotation = { ...a }
+    if (legacy.itemId) normalized.cardId = legacy.itemId
+    delete (normalized as unknown as Record<string, unknown>).itemId
+    return normalized
+  })
+  return {
+    version: 5,
+    syncedAt: p.syncedAt,
+    contentHash: p.contentHash,
+    deviceInfo: p.deviceInfo,
+    projectCards,
+    pdfCards,
+    todos,
+    projects: p.projects ?? [],
+    reviews,
+    pdfs: p.pdfs ?? [],
+    pdfAnnotations
+  }
+}
+
 async function downloadSyncFile(
   cred: SyncCredentials
 ): Promise<SyncPayload | null> {
@@ -191,14 +276,22 @@ async function downloadSyncFile(
   if (res.status === 404) return null
   if (!res.ok) throw new Error(`下载失败：HTTP ${res.status}`)
   try {
-    const payload = JSON.parse(res.body) as SyncPayload
-    // Read v3 (legacy cloud data) and v4; older/newer → prompt to upgrade.
-    // The next upload writes v4, upgrading the cloud file automatically.
-    if (payload.version < 3 || payload.version > 4)
+    const payload = JSON.parse(res.body) as SyncPayload & {
+      items?: LegacyItem[]
+    }
+    // Read v3/v4 (legacy cloud data) and v5; older/newer → prompt to upgrade.
+    // The next upload writes v5, upgrading the cloud file automatically.
+    if (payload.version < 3 || payload.version > 5)
       throw new Error("云端数据版本不兼容，请升级扩展后重试")
+    if (payload.version >= 5) {
+      if (!Array.isArray(payload.projectCards))
+        throw new Error("数据格式异常：缺少 projectCards 字段")
+      return payload
+    }
+    // v3/v4 → convert the legacy items array into the three-store shape.
     if (!Array.isArray(payload.items))
       throw new Error("数据格式异常：缺少 items 字段")
-    return payload
+    return convertLegacyPayload(payload)
   } catch (e: any) {
     throw new Error(`解析云端数据失败：${e.message ?? e}`)
   }
@@ -219,7 +312,9 @@ async function uploadSyncFile(
 }
 
 async function buildPayload(
-  items: Item[],
+  projectCards: ProjectCard[],
+  pdfCards: PdfCard[],
+  todos: TodoCard[],
   projects: Project[],
   reviews: ReviewEntry[],
   pdfAnnotations: PdfAnnotation[],
@@ -228,7 +323,9 @@ async function buildPayload(
   const byId = <T extends { id: string }>(arr: T[]) =>
     [...arr].sort((a, b) => a.id.localeCompare(b.id))
   const raw = JSON.stringify({
-    items: byId(items),
+    projectCards: byId(projectCards),
+    pdfCards: byId(pdfCards),
+    todos: byId(todos),
     projects: byId(projects),
     reviews: byId(reviews),
     pdfAnnotations: byId(pdfAnnotations),
@@ -236,12 +333,14 @@ async function buildPayload(
   })
   const contentHash = await computeItemHash(raw, "")
   return {
-    version: 4,
+    version: 5,
     syncedAt: Date.now(),
     contentHash,
-    deviceInfo: { version: "0.4.0" },
+    deviceInfo: { version: "0.5.0" },
+    projectCards: byId(projectCards),
+    pdfCards: byId(pdfCards),
+    todos: byId(todos),
     projects: byId(projects),
-    items: byId(items),
     reviews: byId(reviews),
     pdfAnnotations: byId(pdfAnnotations),
     pdfs: byId(pdfs)
@@ -250,7 +349,9 @@ async function buildPayload(
 
 export async function runSync(
   cred: SyncCredentials,
-  items: Item[],
+  projectCards: ProjectCard[],
+  pdfCards: PdfCard[],
+  todos: TodoCard[],
   projects: Project[],
   reviews: ReviewEntry[],
   pdfAnnotations: PdfAnnotation[],
@@ -266,7 +367,9 @@ export async function runSync(
 
     onStatus?.("正在序列化数据…")
     const localPayload = await buildPayload(
-      items,
+      projectCards,
+      pdfCards,
+      todos,
       projects,
       reviews,
       pdfAnnotations,
@@ -304,7 +407,9 @@ export async function runSync(
 
 export async function downloadRemote(
   cred: SyncCredentials,
-  items: Item[],
+  projectCards: ProjectCard[],
+  pdfCards: PdfCard[],
+  todos: TodoCard[],
   projects: Project[],
   reviews: ReviewEntry[],
   pdfAnnotations: PdfAnnotation[],
@@ -320,7 +425,9 @@ export async function downloadRemote(
 
     onStatus?.("正在对比数据…")
     const localPayload = await buildPayload(
-      items,
+      projectCards,
+      pdfCards,
+      todos,
       projects,
       reviews,
       pdfAnnotations,

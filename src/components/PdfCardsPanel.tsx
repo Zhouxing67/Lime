@@ -17,8 +17,13 @@ import {
 } from "@mui/material"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
-import type { Item, PdfAnnotation, Project } from "../types"
-import { deletePdfCard, deletePdfCards, updateItem } from "../database"
+import type {
+  PdfAnnotation,
+  PdfCard,
+  Project,
+  ProjectCard
+} from "../types"
+import { addPdfCard } from "../database"
 import DeleteConfirmDialog from "./DeleteConfirmDialog"
 import EmptyState from "./EmptyState"
 import PdfCardBody from "./PdfCardBody"
@@ -34,18 +39,22 @@ interface PdfCardsPanelProps {
   width: number
   onWidthChange: (w: number) => void
   onCollapse: () => void
-  cards: Item[]
+  cards: PdfCard[]
   annotations: PdfAnnotation[]
-  onCardClick: (card: Item) => void
+  onCardClick: (card: PdfCard) => void
   /** External "scroll to card" trigger (the annotation popover's 跳转卡片). */
   scrollTarget?: { cardId: string; token: number } | null
   projects: Project[]
+  /** Placement id (the pdfCard's projectCardId) → the projectCard placement. */
+  placements: Map<string, ProjectCard>
   onPlace: (cardIds: string[], projectId: string) => void
   onUnplace: (cardIds: string[]) => void
+  /** Delete pdfCards (+ their annotations + placements' reviews). */
+  onDelete: (cards: PdfCard[]) => void | Promise<void>
   /** Create a project + place the cards into it (returns success). */
   onCreateProject?: (name: string, cardIds: string[]) => Promise<boolean>
   /** Placed card's project chip click → jump to that project. */
-  onJumpToProject?: (card: Item) => void
+  onJumpToProject?: (card: PdfCard) => void
 }
 
 export default function PdfCardsPanel({
@@ -58,15 +67,17 @@ export default function PdfCardsPanel({
   onCardClick,
   scrollTarget,
   projects,
+  placements,
   onPlace,
   onUnplace,
+  onDelete,
   onCreateProject,
   onJumpToProject
 }: PdfCardsPanelProps) {
   const [expandedCards, setExpandedCards] = useState<Set<string>>(
     () => new Set()
   )
-  const [editCard, setEditCard] = useState<Item | null>(null)
+  const [editCard, setEditCard] = useState<PdfCard | null>(null)
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const [batchMode, setBatchMode] = useState(false)
@@ -76,7 +87,7 @@ export default function PdfCardsPanel({
     anchor: HTMLElement
     cardIds: string[]
   } | null>(null)
-  const [deleteTarget, setDeleteTarget] = useState<Item | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<PdfCard | null>(null)
   const [batchDeleteOpen, setBatchDeleteOpen] = useState(false)
   const listRef = useRef<HTMLDivElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -92,17 +103,13 @@ export default function PdfCardsPanel({
     []
   )
 
-  // Sort by the card's pdfOrder (the annotation's position in the PDF). Legacy
-  // cards without a pdfOrder fall back to page + offset/annotationId.
+  // Sort by the card's pdfOrder (the annotation's position in the PDF).
   const sortedCards = useMemo(
     () =>
       [...cards].sort(
         (a, b) =>
-          (a.pdfOrder ?? (a.pdfRef?.page ?? 0) * 1e6) -
-            (b.pdfOrder ?? (b.pdfRef?.page ?? 0) * 1e6) ||
-          (a.pdfRef?.annotationId ?? "").localeCompare(
-            b.pdfRef?.annotationId ?? ""
-          )
+          a.pdfOrder - b.pdfOrder ||
+          a.annotationId.localeCompare(b.annotationId)
       ),
     [cards]
   )
@@ -116,27 +123,27 @@ export default function PdfCardsPanel({
     })
   }, [])
 
-  const handleCardEdit = useCallback((card: Item) => {
+  const handleCardEdit = useCallback((card: PdfCard) => {
     setEditCard(card)
   }, [])
 
   const handleSaveIdea = useCallback(
     async (idea: string) => {
       if (!editCard) return
-      await updateItem({ ...editCard, idea })
+      await addPdfCard({ ...editCard, idea })
       setEditCard(null)
-      // The write broadcasts _dbi → options' reload refreshes the cards.
+      // The write broadcasts _dbpdf → options' reload refreshes the cards.
     },
     [editCard]
   )
 
-  const handleCardDelete = useCallback((card: Item) => {
+  const handleCardDelete = useCallback((card: PdfCard) => {
     setDeleteTarget(card)
   }, [])
 
   const confirmDelete = useCallback(async () => {
     if (!deleteTarget) return
-    await deletePdfCard(deleteTarget)
+    await onDelete([deleteTarget])
     setSelected((prev) => {
       if (!prev.has(deleteTarget.id)) return prev
       const next = new Set(prev)
@@ -144,15 +151,15 @@ export default function PdfCardsPanel({
       return next
     })
     setDeleteTarget(null)
-  }, [deleteTarget])
+  }, [deleteTarget, onDelete])
 
   const handleBatchDelete = useCallback(async () => {
     const batch = sortedCards.filter((c) => selected.has(c.id))
-    await deletePdfCards(batch)
+    await onDelete(batch)
     setSelected(new Set())
     setBatchMode(false)
     setBatchDeleteOpen(false)
-  }, [sortedCards, selected])
+  }, [sortedCards, selected, onDelete])
 
   const toggleSelect = useCallback((id: string) => {
     setSelected((prev) => {
@@ -363,13 +370,16 @@ export default function PdfCardsPanel({
           />
         ) : (
           sortedCards.map((card) => {
-            const ann = annotations.find(
-              (x) => x.id === card.pdfRef?.annotationId
-            )
+            const ann = annotations.find((x) => x.id === card.annotationId)
             const expanded = expandedCards.has(card.id)
             const isSelected = selected.has(card.id)
             const highlighted = highlightId === card.id
-            const placedProject = projects.find((p) => p.id === card.projectId)
+            const placement = card.projectCardId
+              ? placements.get(card.projectCardId)
+              : undefined
+            const placedProject = placement
+              ? projects.find((p) => p.id === placement.projectId)
+              : undefined
             return (
               <Paper
                 key={card.id}
@@ -435,7 +445,7 @@ export default function PdfCardsPanel({
                       color: "text.secondary",
                       flexShrink: 0
                     }}>
-                    P{card.pdfRef?.page}
+                    P{card.page}
                   </Box>
                   {ann && (
                     <Box

@@ -5,7 +5,7 @@ import EditRoundedIcon from "@mui/icons-material/EditRounded"
 import { alpha, Box, Button, IconButton, Paper, Stack, TextField, Typography } from "@mui/material"
 import { useEffect, useState } from "react"
 
-import type { Item } from "../types"
+import type { TodoCard as TodoCardType } from "../types"
 import {
   dueInfo,
   dueStatus,
@@ -19,7 +19,7 @@ import TaskEditor from "./TaskEditor"
 import DateField from "./DateField"
 
 interface TodoCardProps {
-  item: Item
+  item: TodoCardType
   editing: boolean
   focusNewTask: boolean
   onToggleTask: (index: number) => void
@@ -30,7 +30,7 @@ interface TodoCardProps {
   onQuickAdd: () => void
 }
 
-function DueChip({ item, today }: { item: Item; today: string }) {
+function DueChip({ item, today }: { item: TodoCardType; today: string }) {
   const { status, label } = dueInfo(item.dueDate, today)
   if (status === "none") return null
   const tone = {

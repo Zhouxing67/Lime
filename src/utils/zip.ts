@@ -1,6 +1,14 @@
 import JSZip from "jszip"
 
-import type { Item, PdfAnnotation, PdfFile, Project, ReviewEntry } from "../types"
+import type {
+  PdfAnnotation,
+  PdfCard,
+  PdfFile,
+  Project,
+  ProjectCard,
+  ReviewEntry,
+  TodoCard
+} from "../types"
 
 function dataUrlToBlob(dataUrl: string): Blob {
   const [meta, content] = dataUrl.split(",")
@@ -11,8 +19,19 @@ function dataUrlToBlob(dataUrl: string): Blob {
   return new Blob([arr], { type: mime })
 }
 
+export interface PdfExportMeta {
+  id: string
+  name: string
+  pageCount: number
+  addedAt: number
+  lastOpened?: number
+  topic?: string
+}
+
 export async function toJsonZip(
-  items: Item[],
+  projectCards: ProjectCard[],
+  pdfCards: PdfCard[],
+  todos: TodoCard[],
   projects?: Project[],
   reviews?: ReviewEntry[],
   pdfs?: PdfFile[],
@@ -20,28 +39,32 @@ export async function toJsonZip(
 ): Promise<Blob> {
   const zip = new JSZip()
 
-  for (const it of items) {
+  // Image files: standalone image cards carry the data-URL in content, and a
+  // region pdfCard's content IS its frame data-URL. Both are stored under
+  // images/ (the JSON payload keeps the data-URL whole either way).
+  for (const card of projectCards) {
     if (
-      it.type === "image" &&
-      typeof it.content === "string" &&
-      it.content.startsWith("data:image")
+      card.type === "image" &&
+      typeof card.content === "string" &&
+      card.content.startsWith("data:image")
     ) {
-      const filename = `images/${it.hash || `${Date.now()}-${Math.random().toString(16).slice(2)}`}.png`
-      const blob = dataUrlToBlob(it.content)
-      zip.file(filename, blob)
+      const filename = `images/${card.hash || card.id}.png`
+      zip.file(filename, dataUrlToBlob(card.content))
+    }
+  }
+  for (const card of pdfCards) {
+    if (
+      card.kind === "region" &&
+      typeof card.content === "string" &&
+      card.content.startsWith("data:image")
+    ) {
+      zip.file(`images/${card.id}.png`, dataUrlToBlob(card.content))
     }
   }
 
   // PDF files are stored as blobs (local-only domain; not in WebDAV sync).
   // Metadata-only placeholders (synced without the file) are skipped.
-  const pdfMeta: {
-    id: string
-    name: string
-    pageCount: number
-    addedAt: number
-    lastOpened?: number
-    topic?: string
-  }[] = []
+  const pdfMeta: PdfExportMeta[] = []
   for (const pdf of pdfs ?? []) {
     if (!pdf.bytes) continue
     zip.file(`pdfs/${pdf.id}.pdf`, pdf.bytes)
@@ -56,19 +79,20 @@ export async function toJsonZip(
   }
 
   const payload: {
-    items: Item[]
+    version: 5
+    projectCards: ProjectCard[]
+    pdfCards: PdfCard[]
+    todos: TodoCard[]
     projects?: Project[]
     reviews?: ReviewEntry[]
     pdfAnnotations?: PdfAnnotation[]
-    pdfs?: {
-      id: string
-      name: string
-      pageCount: number
-      addedAt: number
-      lastOpened?: number
-      topic?: string
-    }[]
-  } = { items }
+    pdfs?: PdfExportMeta[]
+  } = {
+    version: 5,
+    projectCards,
+    pdfCards,
+    todos
+  }
   if (projects && projects.length > 0) {
     // Spread projects so new fields (e.g. lastOpened) survive backups without
     // a parallel export patch.

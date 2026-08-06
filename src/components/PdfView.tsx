@@ -27,7 +27,7 @@ import {
   getAnnotationsByPdf,
   updateAnnotationType,
 } from "../database"
-import type { Item, PdfAnnotation, PdfMark } from "../types"
+import type { PdfAnnotation, PdfMark } from "../types"
 import { usePdfDocument } from "../hooks/usePdfDocument"
 import { MARK_DOT, MARK_LABEL } from "./pdfTheme"
 import { getTextLayer } from "./pdfRegistry"
@@ -238,7 +238,7 @@ export default function PdfView({
       const ann = annotations.find((a) => a.id === annId)
       if (!ann) return
       setClickedAnn({ ann, pos })
-      if (ann.itemId) onJumpInPanelRef.current?.(ann.itemId)
+      if (ann.cardId) onJumpInPanelRef.current?.(ann.cardId)
     },
     [annotations]
   )

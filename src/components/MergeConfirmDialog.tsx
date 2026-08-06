@@ -9,7 +9,7 @@ import {
 } from "@mui/material"
 import { useState } from "react"
 
-import type { Item, MergeSeparator } from "../types"
+import type { DisplayCard, MergeSeparator } from "../types"
 import { truncateText } from "../utils"
 import DialogShell from "./DialogShell"
 
@@ -22,7 +22,7 @@ const SEPARATOR_OPTIONS: { value: MergeSeparator; label: string }[] = [
 
 export interface MergeConfirmDialogProps {
   open: boolean
-  items: Item[]
+  items: DisplayCard[]
   onClose: () => void
   onConfirm: (title: string, separator: MergeSeparator) => void
 }

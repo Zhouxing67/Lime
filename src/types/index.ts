@@ -86,6 +86,16 @@ export interface TodoCard {
 
 export type AnyCard = ProjectCard | PdfCard | TodoCard
 
+/** The project view's render form of a ProjectCard. For a placed card
+ *  (pdfCardId) the body/idea are RESOLVED from the linked pdfCard (the
+ *  placement itself carries no content) + `pdfSource` carries the PDF page for
+ *  the source footer + back-jump. Write handlers must call
+ *  stripPlacementContent() before persisting a DisplayCard. */
+export type DisplayCard = ProjectCard & {
+  idea?: string
+  pdfSource?: { pdfId: string; page: number }
+}
+
 export type PdfMark = "highlight" | "underline" | "wavy" | "strike" | "frame"
 
 export interface PdfFile {

@@ -1,7 +1,7 @@
 import { Box } from "@mui/material"
 import { alpha } from "@mui/material/styles"
 
-import type { Item } from "../types"
+import type { PdfCard } from "../types"
 import MarkdownRenderer from "./MarkdownRenderer"
 
 /** Unified PDF-card body: the read-only `content` (text → quote block,
@@ -10,13 +10,13 @@ export default function PdfCardBody({
   item,
   maxLines
 }: {
-  item: Item
+  item: PdfCard
   maxLines?: number
 }) {
   const showIdea = !!item.idea
   return (
     <Box>
-      {item.type === "image" ? (
+      {item.kind === "region" ? (
         <Box
           sx={{
             borderRadius: 1,
@@ -54,7 +54,7 @@ export default function PdfCardBody({
         </Box>
       )}
       {showIdea && (
-        <Box sx={{ mt: item.type === "image" ? 1.5 : 0 }}>
+        <Box sx={{ mt: item.kind === "region" ? 1.5 : 0 }}>
           {/* The note is the user's own content — always fully visible. */}
           <MarkdownRenderer content={item.idea!} />
         </Box>

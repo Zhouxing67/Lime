@@ -1,33 +1,31 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import type { SidebarTab } from "../components/NavRail"
-import {
-  searchItems as dbSearch,
-  getDueReviews
-} from "../database"
-import type { Item, ReviewEntry } from "../types"
+import { getDueReviews } from "../database"
+import type { DisplayCard, ReviewEntry } from "../types"
 import { DAY_MS } from "../utils"
 import { dayKey, getRecentItems as getRecentItemsBySrs } from "./useSrs"
 import type { ReviewStats } from "./useSrs"
 
 function pairWithItems(
   reviews: Awaited<ReturnType<typeof getDueReviews>>,
-  items: Item[]
-): Item[] {
-  const itemMap = new Map(items.map((i) => [i.id, i]))
+  cards: DisplayCard[]
+): DisplayCard[] {
+  const cardMap = new Map(cards.map((i) => [i.id, i]))
   return reviews
-    .map((r) => itemMap.get(r.itemId))
-    .filter((i): i is Item => i !== undefined)
+    .map((r) => cardMap.get(r.itemId))
+    .filter((i): i is DisplayCard => i !== undefined)
 }
 
 interface UseReviewOptions {
-  allItemsUnfiltered: Item[]
-  searchItems: typeof dbSearch
+  /** ALL cards across projects, display-resolved (a placed card's body/idea
+   *  come from its linked pdfCard) — the review date view renders these. */
+  allItemsUnfiltered: DisplayCard[]
   onSearch: () => Promise<void>
   sidebarTab: SidebarTab
   setSidebarTab: (tab: SidebarTab) => void
-  reviewItems: Item[]
-  setReviewItems: (items: Item[]) => void
+  reviewItems: DisplayCard[]
+  setReviewItems: (items: DisplayCard[]) => void
   reviewDateFilter: string | null
   setReviewDateFilter: (key: string | null) => void
   /** All reviews, loaded once by the options composition root and passed in —
@@ -38,7 +36,6 @@ interface UseReviewOptions {
 export function useReview(options: UseReviewOptions) {
   const {
     allItemsUnfiltered,
-    searchItems,
     onSearch,
     sidebarTab,
     setSidebarTab,
@@ -56,7 +53,7 @@ export function useReview(options: UseReviewOptions) {
     activeCount: 0
   })
   const [recentItems, setRecentItems] = useState<
-    { date: string; items: Item[] }[]
+    { date: string; items: DisplayCard[] }[]
   >([])
   const [todayRatings, setTodayRatings] = useState<
     [number, number, number]
@@ -80,7 +77,15 @@ export function useReview(options: UseReviewOptions) {
     }
     setDueCount(dueCount)
     setReviewStats({ masteredCount, dueCount, activeCount })
-    setRecentItems(getRecentItemsBySrs(allItemsUnfiltered, reviews))
+    // getRecentItems groups ProjectCards by review day; the items here are
+    // already display-resolved (DisplayCard extends ProjectCard) — re-type the
+    // grouped list so the date view renders the resolved content.
+    setRecentItems(
+      getRecentItemsBySrs(allItemsUnfiltered, reviews).map((g) => ({
+        date: g.date,
+        items: g.items as DisplayCard[]
+      }))
+    )
     const todayKey = dayKey(now)
     const allDateKeys = new Set<string>()
     const counts: [number, number, number] = [0, 0, 0]

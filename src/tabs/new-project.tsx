@@ -12,17 +12,17 @@ import { createTheme, ThemeProvider } from "@mui/material/styles"
 import { useEffect, useState } from "react"
 
 import {
-  addItem,
   addProject,
+  addProjectCard,
   getProjectByName,
   listProjects
 } from "../database"
-import type { Item, Project } from "../types"
+import type { Project, ProjectCardType } from "../types"
 import { sendMessage } from "../types/messages"
-import { createItem } from "../utils"
+import { createProjectCard } from "../utils"
 
 interface PendingCapture {
-  type: Item["type"]
+  type: ProjectCardType
   content: string
   source: { title: string; url: string; site?: string }
 }
@@ -50,13 +50,13 @@ export default function NewProjectPage() {
   const saveAndClose = async (projectId: string, projectName: string) => {
     if (!pending) return
     setBusy(true)
-    const item = createItem({
+    const card = createProjectCard({
       type: pending.type,
       content: pending.content,
       source: pending.source,
       projectId
     })
-    const saved = await addItem(item)
+    const saved = await addProjectCard(card)
     const result = await chrome.storage.session.get("pendingTabId")
     const tabId = (result as { pendingTabId?: number }).pendingTabId
 

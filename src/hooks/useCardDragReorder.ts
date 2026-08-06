@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
-import type { Item } from "../types"
+import type { ProjectCard } from "../types"
 import { compareCards, computeDropIndex, type DropPos } from "../utils"
 
 export interface CardDropState {
@@ -9,7 +9,7 @@ export interface CardDropState {
 }
 
 export interface UseCardDragReorderArgs {
-  items: Item[]
+  items: ProjectCard[]
   onMoveCard: (
     itemId: string,
     targetSectionId: string | null,
@@ -181,7 +181,7 @@ export function useCardDragReorder({
   }, [removeGhost])
 
   const handleGripPointerDown = useCallback(
-    (e: React.PointerEvent, item: Item) => {
+    (e: React.PointerEvent, item: ProjectCard) => {
       if (e.pointerType === "mouse" && e.button !== 0) return
       e.preventDefault()
       e.stopPropagation()

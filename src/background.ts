@@ -1,6 +1,6 @@
 import {
-  addItem,
   addProject,
+  addProjectCard,
   getDueCount,
   getIncompleteTodoCount,
   getRecentProjects,
@@ -8,9 +8,9 @@ import {
   touchProject,
   tx
 } from "./database"
-import type { Item, Project } from "./types"
+import type { Project } from "./types"
 import type { ExtensionMessage } from "./types/messages"
-import { applyBadge, createItem } from "./utils"
+import { applyBadge, createProjectCard } from "./utils"
 
 async function updateBadge() {
   try {
@@ -188,16 +188,17 @@ async function handleCapture(
     : (await getRecentProjects(1))[0]
 
   if (targetProject) {
-    const item = createItem({
+    // Captured cards land in 未分类 (no sectionId) — the same as before.
+    const card = createProjectCard({
       type: payload.type,
       content: payload.content,
       title: payload.title,
       source: payload.source,
       projectId: targetProject.id
     })
-    const saved = await addItem(item)
+    const saved = await addProjectCard(card)
     if (saved) touchProject(targetProject.id).catch(() => {})
-    notifyTab(senderTab?.id, saved, item.type)
+    notifyTab(senderTab?.id, saved, card.type)
     sendResponse({ ok: true, saved })
     return
   }

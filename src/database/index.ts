@@ -800,6 +800,25 @@ export async function deleteProjectCards(ids: string[]): Promise<void> {
   })
 }
 
+export async function getAllProjectCards(): Promise<ProjectCard[]> {
+  return withStore("projectCards", "readonly", (store) => {
+    return new Promise<ProjectCard[]>((resolve, reject) => {
+      const all: ProjectCard[] = []
+      const req = store.openCursor()
+      req.onsuccess = () => {
+        const cursor = req.result
+        if (cursor) {
+          all.push(cursor.value as ProjectCard)
+          cursor.continue()
+        } else {
+          resolve(all)
+        }
+      }
+      req.onerror = () => reject(req.error)
+    })
+  })
+}
+
 export async function getProjectCardById(
   id: string
 ): Promise<ProjectCard | undefined> {
@@ -1406,6 +1425,42 @@ export async function deletePdf(id: string): Promise<void> {
       })
     }
   )
+}
+
+/** All pdfCards across every PDF (for backup/sync payloads). */
+export async function getAllPdfCards(): Promise<PdfCard[]> {
+  return withStore("pdfCards", "readonly", (store) => {
+    return new Promise<PdfCard[]>((resolve, reject) => {
+      const all: PdfCard[] = []
+      const req = store.openCursor()
+      req.onsuccess = () => {
+        const cursor = req.result
+        if (cursor) {
+          all.push(cursor.value as PdfCard)
+          cursor.continue()
+        } else {
+          resolve(all)
+        }
+      }
+      req.onerror = () => reject(req.error)
+    })
+  })
+}
+
+/** Low-level insert/overwrite of a pdfCard (identity-keyed — used by import
+ *  and legacy payload conversion; the 1:1 annotation link is the caller's job). */
+export async function addPdfCard(card: PdfCard): Promise<void> {
+  await withStore("pdfCards", "readwrite", (store) => {
+    store.put(card)
+  })
+}
+
+/** Persist a pdfCard edit (e.g. the idea/备注 for a placed card). Broadcasts
+ *  _dbpdf → the options page reloads the panel + the resolved display. */
+export async function updatePdfCard(card: PdfCard): Promise<void> {
+  await withStore("pdfCards", "readwrite", (store) => {
+    store.put(card)
+  })
 }
 
 /** All pdfCards belonging to a PDF (via the pdfId index), unsorted. */

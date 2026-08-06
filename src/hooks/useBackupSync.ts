@@ -5,10 +5,13 @@ import {
   applyPdfSync,
   bulkReplace,
   getAllAnnotations,
+  getAllPdfCards,
+  getAllProjectCards,
   getAllReviews,
+  getAllTodos,
   listPdfs
 } from "../database"
-import type { Item, PdfFile, Project } from "../types"
+import type { PdfFile, Project, ProjectCard } from "../types"
 import {
   downloadPdfFiles,
   downloadRemote,
@@ -20,7 +23,7 @@ import { toJsonZip } from "../utils/zip"
 
 export function useBackupSync(options: {
   projects: Project[]
-  allItemsUnfiltered: Item[]
+  allItemsUnfiltered: ProjectCard[]
   backupScope: "projects" | "pdfs"
   backupSelectedIds: string[]
   backupSelectedPdfIds: string[]
@@ -53,9 +56,22 @@ export function useBackupSync(options: {
 
   const handleExportBackup = async () => {
     if (backupScope === "projects") {
-      const items = allItemsUnfiltered.filter(
-        (i) => i.projectId && backupSelectedIds.includes(i.projectId)
+      const projectCards = allItemsUnfiltered.filter(
+        (c) => c.projectId && backupSelectedIds.includes(c.projectId)
       )
+      // A placed card carries NO content — its quote lives in the linked
+      // pdfCard. Include those pdfCards so the backup is self-contained.
+      const referencedPdfIds = new Set(
+        projectCards
+          .map((c) => c.pdfCardId)
+          .filter((id): id is string => Boolean(id))
+      )
+      const allPdfCards = await getAllPdfCards()
+      const referencedPdfCards = allPdfCards.filter((c) =>
+        referencedPdfIds.has(c.id)
+      )
+      // Todos are global — the projects-scope export carries them all.
+      const todos = await getAllTodos()
       const selectedProjects = projects.filter((p) =>
         backupSelectedIds.includes(p.id)
       )
@@ -63,7 +79,13 @@ export function useBackupSync(options: {
       const scopedReviews = reviews.filter((r) =>
         backupSelectedIds.includes(r.projectId)
       )
-      const blob = await toJsonZip(items, selectedProjects, scopedReviews)
+      const blob = await toJsonZip(
+        projectCards,
+        referencedPdfCards,
+        todos,
+        selectedProjects,
+        scopedReviews
+      )
       const url = URL.createObjectURL(blob)
       await chrome.downloads.download({ url, filename: "lime-backup.zip" })
       URL.revokeObjectURL(url)
@@ -71,14 +93,23 @@ export function useBackupSync(options: {
       const selectedPdfs = pdfs.filter((p) =>
         backupSelectedPdfIds.includes(p.id)
       )
-      const pdfCards = allItemsUnfiltered.filter(
-        (i) => i.pdfRef && backupSelectedPdfIds.includes(i.pdfRef.pdfId)
+      const allPdfCards = await getAllPdfCards()
+      const pdfCards = allPdfCards.filter((c) =>
+        backupSelectedPdfIds.includes(c.pdfId)
+      )
+      // Preserve the placements of the exported pdfCards (the reverse of the
+      // projects scope) so a restore can re-place them into matching projects.
+      const pdfCardIds = new Set(pdfCards.map((c) => c.id))
+      const placements = allItemsUnfiltered.filter(
+        (c) => c.pdfCardId && pdfCardIds.has(c.pdfCardId)
       )
       const annotations = (await getAllAnnotations()).filter((a) =>
         backupSelectedPdfIds.includes(a.pdfId)
       )
       const blob = await toJsonZip(
+        placements,
         pdfCards,
+        [],
         [],
         [],
         selectedPdfs,
@@ -102,6 +133,8 @@ export function useBackupSync(options: {
         setSyncStatus("请先在设置中配置坚果云")
         return
       }
+      const pdfCards = await getAllPdfCards()
+      const todos = await getAllTodos()
       const reviews = await getAllReviews()
       const annotations = await getAllAnnotations()
       const localPdfs = await listPdfs()
@@ -116,6 +149,8 @@ export function useBackupSync(options: {
       const result = await runSync(
         cred,
         allItemsUnfiltered,
+        pdfCards,
+        todos,
         projects,
         reviews,
         annotations,
@@ -142,6 +177,8 @@ export function useBackupSync(options: {
         return
       }
 
+      const pdfCards = await getAllPdfCards()
+      const todos = await getAllTodos()
       const reviews = await getAllReviews()
       const annotations = await getAllAnnotations()
       const pdfMeta = (await listPdfs()).map((p) => ({
@@ -155,6 +192,8 @@ export function useBackupSync(options: {
       const remote = await downloadRemote(
         cred,
         allItemsUnfiltered,
+        pdfCards,
+        todos,
         projects,
         reviews,
         annotations,
@@ -169,10 +208,14 @@ export function useBackupSync(options: {
         if (remote.direction === "download") {
           setSyncStatus("正在应用数据…")
           await bulkReplace(
-            remote.payload.items,
-            remote.payload.projects,
+            remote.payload.projectCards ?? [],
+            remote.payload.pdfCards ?? [],
+            remote.payload.todos ?? [],
+            remote.payload.projects ?? [],
             remote.payload.reviews ?? [],
-            allItemsUnfiltered,
+            await getAllProjectCards(),
+            await getAllPdfCards(),
+            await getAllTodos(),
             projects,
             reviews
           )

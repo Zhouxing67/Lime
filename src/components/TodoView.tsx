@@ -2,27 +2,31 @@ import AddRoundedIcon from "@mui/icons-material/AddRounded"
 import CheckCircleOutlineRoundedIcon from "@mui/icons-material/CheckCircleOutlineRounded"
 import { Box, Paper, Typography } from "@mui/material"
 
-import type { Item } from "../types"
+import type { TodoCard as TodoCardType } from "../types"
 import TodoCard from "./TodoCard"
 import DashedTile from "./DashedTile"
 import EmptyState from "./EmptyState"
 
 interface TodoViewProps {
-  items: Item[]
+  items: TodoCardType[]
   editingId: string | null
   focusNewTaskId: string | null
-  onToggleTask: (item: Item, index: number) => void
+  onToggleTask: (item: TodoCardType, index: number) => void
   onStartEdit: (id: string) => void
   onCancelEdit: () => void
-  onSave: (item: Item, title: string, content: string, dueDate?: string) => void
-  onDelete: (item: Item) => void
-  onQuickAdd: (item: Item) => void
+  onSave: (
+    item: TodoCardType,
+    title: string,
+    content: string,
+    dueDate?: string
+  ) => void
+  onDelete: (item: TodoCardType) => void
+  onQuickAdd: (item: TodoCardType) => void
   onNewTodo: () => void
 }
 
-const NEW_TODO: Item = {
+const NEW_TODO: TodoCardType = {
   id: "__new__",
-  type: "todo",
   content: "",
   createdAt: Date.now()
 }

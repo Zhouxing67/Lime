@@ -2,7 +2,7 @@ import DragIndicatorRoundedIcon from "@mui/icons-material/DragIndicatorRounded"
 import { Box, Link, Paper, Stack, Typography, alpha } from "@mui/material"
 import { useState } from "react"
 
-import type { Item } from "../types"
+import type { DisplayCard } from "../types"
 import { RATING_META, hostnameOf } from "../utils"
 import CardRenderer, { typeIcon } from "./CardRenderer"
 import ItemCardOperations from "./ItemCardOperations"
@@ -25,20 +25,20 @@ export default function ItemCard({
   onMoveToSection,
   highlighted
 }: {
-  item: Item
+  item: DisplayCard
   firstRating?: 1 | 2 | 3
   inReview?: boolean
   mastered?: boolean
   readOnly?: boolean
   draggable?: boolean
   selectMode?: boolean
-  onGripPointerDown?: (e: React.PointerEvent, item: Item) => void
+  onGripPointerDown?: (e: React.PointerEvent, item: DisplayCard) => void
   onDelete: (id: string) => void
   onClick?: () => void
   onToggleReview?: (id: string) => void
   onReReview?: (id: string) => void
   onCopyToProject?: (id: string) => void
-  onOpenPdfSource?: (item: Item) => void
+  onOpenPdfSource?: (item: DisplayCard) => void
   onMoveToSection?: (id: string) => void
   highlighted?: boolean
 }) {
@@ -215,7 +215,7 @@ export default function ItemCard({
               }}>
               {hostnameOf(item.source.url)}
             </Link>
-          ) : item.pdfRef ? (
+          ) : item.pdfSource ? (
             <Typography
               variant="caption"
               onClick={(e) => {
@@ -228,7 +228,7 @@ export default function ItemCard({
                 cursor: "pointer",
                 "&:hover": { color: "primary.main" }
               }}>
-              PDF · 第 {item.pdfRef.page} 页
+              PDF · 第 {item.pdfSource.page} 页
             </Typography>
           ) : (
             <Typography

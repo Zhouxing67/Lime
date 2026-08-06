@@ -10,12 +10,12 @@ import {
 import { useLayoutEffect, useRef } from "react"
 
 import type { CardDropState } from "../hooks/useCardDragReorder"
-import type { Item } from "../types"
+import type { DisplayCard } from "../types"
 import ItemCard from "./ItemCard"
 import DashedTile from "./DashedTile"
 
 interface CardGridProps {
-  items: Item[]
+  items: DisplayCard[]
   selectMode: boolean
   selectedIds: string[]
   readOnly?: boolean
@@ -27,14 +27,14 @@ interface CardGridProps {
   draggedId?: string | null
   dropIndicator?: CardDropState | null
   flipRectsRef?: React.MutableRefObject<Map<string, DOMRect> | null>
-  onGripPointerDown?: (e: React.PointerEvent, item: Item) => void
+  onGripPointerDown?: (e: React.PointerEvent, item: DisplayCard) => void
   onSelectItem: (id: string) => void
   onDeleteItem: (id: string) => void
-  onOpenDialog: (item: Item) => void
+  onOpenDialog: (item: DisplayCard) => void
   onToggleReview?: (id: string) => void
   onReReview?: (id: string) => void
   onCopyToProject?: (id: string) => void
-  onOpenPdfSource?: (item: Item) => void
+  onOpenPdfSource?: (item: DisplayCard) => void
   onMoveToSection?: (id: string) => void
   highlightedId?: string | null
 }

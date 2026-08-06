@@ -2,24 +2,29 @@ import JSZip from "jszip"
 
 import {
   addAnnotation,
-  addItem,
   addPdf,
+  addPdfCard,
   addProject,
+  addProjectCard,
   addReview,
+  addTodo,
   getAllAnnotations,
+  getAllProjectCards,
   getAllReviews,
-  getProjectByName,
-  searchItems
+  getAllTodos,
+  getProjectByName
 } from "../database"
 import type {
-  Item,
-  ItemType,
   PdfAnnotation,
+  PdfCard,
   PdfMark,
   Project,
+  ProjectCard,
   ReviewEntry,
-  Section
+  Section,
+  TodoCard
 } from "../types"
+import { splitLegacyItem, type LegacyItem } from "../utils/cards"
 
 export interface ImportResult {
   imported: number
@@ -27,19 +32,28 @@ export interface ImportResult {
   errors: { index: number; reason: string }[]
 }
 
-const VALID_TYPES: ItemType[] = ["text", "image", "link", "todo"]
+const VALID_TYPES = ["text", "image", "link", "todo"] as const
+const VALID_CARD_TYPES = ["text", "image", "link"] as const
+const VALID_MARKS: PdfMark[] = [
+  "highlight",
+  "underline",
+  "wavy",
+  "strike",
+  "frame"
+]
 
-function validateItem(
-  raw: unknown,
-  _index: number
-): { item: Item } | { error: string } {
+/** A legacy monolithic card (the old `items` array). Validated loosely — the
+ *  pdfRef shape is guarded so splitLegacyItem can't crash on malformed input. */
+function validateLegacyItem(
+  raw: unknown
+): { item: LegacyItem } | { error: string } {
   if (!raw || typeof raw !== "object") {
     return { error: "条目不是有效对象" }
   }
 
   const obj = raw as Record<string, unknown>
 
-  if (!VALID_TYPES.includes(obj.type as ItemType)) {
+  if (!VALID_TYPES.includes(obj.type as (typeof VALID_TYPES)[number])) {
     return { error: `无效的 type: "${obj.type}"` }
   }
 
@@ -51,19 +65,15 @@ function validateItem(
     obj.source && typeof obj.source === "object"
       ? (obj.source as Record<string, unknown>)
       : undefined
-  // source is OPTIONAL — 自建卡片 (created via the new-card tile) has no
-  // origin webpage. Only its shape is validated when present; missing source
-  // imports as undefined instead of being rejected.
 
   // Spread the raw record first so NEW fields survive without a parallel
-  // import patch ("一次修改，一直有效"); only the critical + known fields
-  // below are validated and override the raw values.
-  const item: Item = { ...(raw as Item) }
+  // import patch; only the critical + known fields are validated below.
+  const item: LegacyItem = { ...(raw as LegacyItem) }
   item.id =
     typeof obj.id === "string" && obj.id.length > 0
       ? obj.id
       : crypto.randomUUID()
-  item.type = obj.type as ItemType
+  item.type = obj.type as LegacyItem["type"]
   item.content = obj.content
   item.createdAt =
     typeof obj.createdAt === "number" && obj.createdAt > 0
@@ -72,7 +82,7 @@ function validateItem(
   item.source = source
     ? {
         title: typeof source.title === "string" ? source.title : "",
-        url: source.url as string,
+        url: typeof source.url === "string" ? source.url : "",
         site: typeof source.site === "string" ? source.site : undefined
       }
     : undefined
@@ -88,7 +98,6 @@ function validateItem(
     typeof obj.title === "string" && obj.title.length > 0
       ? obj.title
       : undefined
-  item.read = typeof obj.read === "boolean" ? obj.read : undefined
   item.order = typeof obj.order === "number" ? obj.order : undefined
   item.updatedAt =
     typeof obj.updatedAt === "number" && obj.updatedAt > 0
@@ -107,8 +116,190 @@ function validateItem(
     typeof obj.dueDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(obj.dueDate)
       ? obj.dueDate
       : undefined
+  // Guard the pdfRef shape (annotations page/annotationId are required for the
+  // split; anything malformed degrades to a plain card instead of crashing).
+  const pdfRef =
+    obj.pdfRef && typeof obj.pdfRef === "object"
+      ? (obj.pdfRef as Record<string, unknown>)
+      : undefined
+  if (
+    pdfRef &&
+    typeof pdfRef.pdfId === "string" &&
+    typeof pdfRef.page === "number" &&
+    typeof pdfRef.annotationId === "string"
+  ) {
+    item.pdfRef = {
+      pdfId: pdfRef.pdfId,
+      page: pdfRef.page,
+      annotationId: pdfRef.annotationId
+    }
+  } else {
+    item.pdfRef = undefined
+  }
 
   return { item }
+}
+
+function validateProjectCard(
+  raw: unknown
+): { card: ProjectCard } | { error: string } {
+  if (!raw || typeof raw !== "object") {
+    return { error: "卡片不是有效对象" }
+  }
+
+  const obj = raw as Record<string, unknown>
+
+  if (
+    !VALID_CARD_TYPES.includes(obj.type as (typeof VALID_CARD_TYPES)[number])
+  ) {
+    return { error: `无效的 type: "${obj.type}"` }
+  }
+  // content may be "" — a placed card (placement) carries no body by design.
+  if (typeof obj.content !== "string") {
+    return { error: "content 缺失或非字符串" }
+  }
+
+  const source: Record<string, unknown> | undefined =
+    obj.source && typeof obj.source === "object"
+      ? (obj.source as Record<string, unknown>)
+      : undefined
+
+  const card: ProjectCard = { ...(raw as ProjectCard) }
+  card.id =
+    typeof obj.id === "string" && obj.id.length > 0
+      ? obj.id
+      : crypto.randomUUID()
+  card.type = obj.type as ProjectCard["type"]
+  card.content = obj.content
+  card.createdAt =
+    typeof obj.createdAt === "number" && obj.createdAt > 0
+      ? obj.createdAt
+      : Date.now()
+  card.projectId = typeof obj.projectId === "string" ? obj.projectId : ""
+  card.source = source
+    ? {
+        title: typeof source.title === "string" ? source.title : "",
+        url: typeof source.url === "string" ? source.url : "",
+        site: typeof source.site === "string" ? source.site : undefined
+      }
+    : undefined
+  card.hash =
+    typeof obj.hash === "string" && obj.hash.length === 64
+      ? obj.hash
+      : undefined
+  card.title =
+    typeof obj.title === "string" && obj.title.length > 0
+      ? obj.title
+      : undefined
+  card.order = typeof obj.order === "number" ? obj.order : undefined
+  card.updatedAt =
+    typeof obj.updatedAt === "number" && obj.updatedAt > 0
+      ? obj.updatedAt
+      : undefined
+  card.images =
+    Array.isArray(obj.images) &&
+    obj.images.every((v) => typeof v === "string" && v.length > 0)
+      ? (obj.images as string[])
+      : undefined
+  card.sectionId =
+    typeof obj.sectionId === "string" && obj.sectionId.length > 0
+      ? obj.sectionId
+      : undefined
+  card.sourceSite =
+    typeof obj.sourceSite === "string" && obj.sourceSite.length > 0
+      ? obj.sourceSite
+      : undefined
+  card.pdfCardId =
+    typeof obj.pdfCardId === "string" && obj.pdfCardId.length > 0
+      ? obj.pdfCardId
+      : undefined
+  return { card }
+}
+
+function validatePdfCard(raw: unknown): { card: PdfCard } | { error: string } {
+  if (!raw || typeof raw !== "object") {
+    return { error: "PDF 卡片不是有效对象" }
+  }
+
+  const obj = raw as Record<string, unknown>
+
+  if (typeof obj.pdfId !== "string" || obj.pdfId.length === 0) {
+    return { error: "pdfId 缺失" }
+  }
+  if (typeof obj.page !== "number") {
+    return { error: "page 缺失" }
+  }
+  if (typeof obj.content !== "string" || obj.content.length === 0) {
+    return { error: "content 缺失或为空" }
+  }
+  if (typeof obj.annotationId !== "string" || obj.annotationId.length === 0) {
+    return { error: "annotationId 缺失" }
+  }
+
+  const card: PdfCard = { ...(raw as PdfCard) }
+  card.id =
+    typeof obj.id === "string" && obj.id.length > 0
+      ? obj.id
+      : crypto.randomUUID()
+  card.pdfId = obj.pdfId
+  card.page = obj.page
+  card.kind = obj.kind === "region" ? "region" : "text"
+  card.type = VALID_MARKS.includes(obj.type as PdfMark)
+    ? (obj.type as PdfMark)
+    : "highlight"
+  card.annotationId = obj.annotationId
+  card.content = obj.content
+  card.idea =
+    typeof obj.idea === "string" && obj.idea.length > 0 ? obj.idea : undefined
+  card.pdfOrder =
+    typeof obj.pdfOrder === "number" ? obj.pdfOrder : obj.page * 1e6
+  card.projectCardId =
+    typeof obj.projectCardId === "string" && obj.projectCardId.length > 0
+      ? obj.projectCardId
+      : undefined
+  card.createdAt =
+    typeof obj.createdAt === "number" && obj.createdAt > 0
+      ? obj.createdAt
+      : Date.now()
+  return { card }
+}
+
+function validateTodoCard(
+  raw: unknown
+): { card: TodoCard } | { error: string } {
+  if (!raw || typeof raw !== "object") {
+    return { error: "待办不是有效对象" }
+  }
+
+  const obj = raw as Record<string, unknown>
+
+  if (typeof obj.content !== "string" || obj.content.length === 0) {
+    return { error: "content 缺失或为空" }
+  }
+
+  const card: TodoCard = { ...(raw as TodoCard) }
+  card.id =
+    typeof obj.id === "string" && obj.id.length > 0
+      ? obj.id
+      : crypto.randomUUID()
+  card.title =
+    typeof obj.title === "string" && obj.title.length > 0
+      ? obj.title
+      : undefined
+  card.content = obj.content
+  card.dueDate =
+    typeof obj.dueDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(obj.dueDate)
+      ? obj.dueDate
+      : undefined
+  card.createdAt =
+    typeof obj.createdAt === "number" && obj.createdAt > 0
+      ? obj.createdAt
+      : Date.now()
+  card.updatedAt =
+    typeof obj.updatedAt === "number" && obj.updatedAt > 0
+      ? obj.updatedAt
+      : undefined
+  return { card }
 }
 
 function validateReview(raw: unknown): ReviewEntry | null {
@@ -154,15 +345,22 @@ function validatePdfAnnotation(raw: unknown): PdfAnnotation | null {
   ann.pdfId = obj.pdfId
   ann.page = obj.page
   ann.kind = obj.kind === "region" ? "region" : "text"
-  ann.type = (obj.type as PdfMark) ?? "highlight"
+  ann.type = VALID_MARKS.includes(obj.type as PdfMark)
+    ? (obj.type as PdfMark)
+    : "highlight"
   ann.createdAt =
     typeof obj.createdAt === "number" && obj.createdAt > 0
       ? obj.createdAt
       : Date.now()
+  ann.cardId =
+    typeof obj.cardId === "string" && obj.cardId.length > 0
+      ? obj.cardId
+      : undefined
   return ann
 }
 
-function validateProject(raw: unknown): Project | null {  if (!raw || typeof raw !== "object") return null
+function validateProject(raw: unknown): Project | null {
+  if (!raw || typeof raw !== "object") return null
   const obj = raw as Record<string, unknown>
   if (typeof obj.name !== "string" || obj.name.length === 0) return null
   const project: Project = { ...(raw as Project) }
@@ -205,6 +403,92 @@ function validateProject(raw: unknown): Project | null {  if (!raw || typeof raw
   return project
 }
 
+interface ParsedExport {
+  /** The plain legacy `items` array (v4 and older / very old bare arrays). */
+  legacyItems: unknown[]
+  /** The v5 three-store arrays. */
+  projectCardsRaw: unknown[]
+  pdfCardsRaw: unknown[]
+  todosRaw: unknown[]
+  importedProjects: Project[]
+  importedReviews: ReviewEntry[]
+  importedAnnotations: PdfAnnotation[]
+  importedPdfMeta: {
+    id: string
+    name: string
+    pageCount: number
+    addedAt: number
+    lastOpened?: number
+    topic?: string
+  }[]
+}
+
+function parseExport(rawJson: string): ParsedExport | { error: string } {
+  const parsed = JSON.parse(rawJson)
+  if (Array.isArray(parsed)) {
+    // very old legacy format: plain items array
+    return {
+      legacyItems: parsed,
+      projectCardsRaw: [],
+      pdfCardsRaw: [],
+      todosRaw: [],
+      importedProjects: [],
+      importedReviews: [],
+      importedAnnotations: [],
+      importedPdfMeta: []
+    }
+  }
+  if (typeof parsed !== "object" || parsed === null) {
+    return { error: "export.json 格式无效" }
+  }
+  const obj = parsed as Record<string, unknown>
+  const isV5 =
+    Array.isArray(obj.projectCards) ||
+    Array.isArray(obj.pdfCards) ||
+    Array.isArray(obj.todos)
+  if (!isV5 && !Array.isArray(obj.items)) {
+    return { error: "export.json 缺少 items 或 projectCards 数组" }
+  }
+  const importedProjects: Project[] = Array.isArray(obj.projects)
+    ? obj.projects.map(validateProject).filter((p): p is Project => p !== null)
+    : []
+  const importedReviews: ReviewEntry[] = []
+  if (Array.isArray(obj.reviews)) {
+    for (const rv of obj.reviews) {
+      const review = validateReview(rv)
+      if (review) importedReviews.push(review)
+    }
+  }
+  const importedAnnotations: PdfAnnotation[] = []
+  if (Array.isArray(obj.pdfAnnotations)) {
+    for (const ra of obj.pdfAnnotations) {
+      const ann = validatePdfAnnotation(ra)
+      if (ann) importedAnnotations.push(ann)
+    }
+  }
+  const importedPdfMeta =
+    (obj.pdfs as {
+      id: string
+      name: string
+      pageCount: number
+      addedAt: number
+      lastOpened?: number
+      topic?: string
+    }[]) ?? []
+  return {
+    legacyItems: isV5 ? [] : (obj.items as unknown[]),
+    projectCardsRaw: Array.isArray(obj.projectCards)
+      ? (obj.projectCards as unknown[])
+      : [],
+    pdfCardsRaw: Array.isArray(obj.pdfCards) ? (obj.pdfCards as unknown[]) : [],
+    todosRaw: Array.isArray(obj.todos) ? (obj.todos as unknown[]) : [],
+    importedProjects,
+    importedReviews,
+    importedAnnotations,
+    importedPdfMeta
+  }
+}
+
 export async function importFromZip(
   file: File,
   projectIds?: string[]
@@ -239,65 +523,30 @@ export async function importFromZip(
     }
   }
 
-  let rawArray: unknown[]
-  let importedProjects: Project[] = []
-  let importedReviews: ReviewEntry[] = []
-  let importedAnnotations: PdfAnnotation[] = []
-  let importedPdfMeta: {
-    id: string
-    name: string
-    pageCount: number
-    addedAt: number
-    lastOpened?: number
-    topic?: string
-  }[] = []
+  let parsed: ParsedExport
   try {
-    const parsed = JSON.parse(rawJson)
-    if (Array.isArray(parsed)) {
-      // legacy format: plain items array
-      rawArray = parsed
-    } else if (typeof parsed === "object" && parsed !== null) {
-      const obj = parsed as Record<string, unknown>
-      if (Array.isArray(obj.items)) {
-        rawArray = obj.items
-      } else {
-        return {
-          ...result,
-          errors: [{ index: -1, reason: "export.json 缺少 items 数组" }]
-        }
-      }
-      if (Array.isArray(obj.projects)) {
-        importedProjects = obj.projects
-          .map(validateProject)
-          .filter((p): p is Project => p !== null)
-      }
-      if (Array.isArray(obj.reviews)) {
-        for (const rv of obj.reviews) {
-          const review = validateReview(rv)
-          if (review) importedReviews.push(review)
-        }
-      }
-      if (Array.isArray(obj.pdfAnnotations)) {
-        for (const ra of obj.pdfAnnotations) {
-          const ann = validatePdfAnnotation(ra)
-          if (ann) importedAnnotations.push(ann)
-        }
-      }
-      if (Array.isArray(obj.pdfs)) {
-        importedPdfMeta = (obj.pdfs as { id: string; name: string; pageCount: number; addedAt: number; lastOpened?: number; topic?: string }[]) ?? []
-      }
-    } else {
-      return {
-        ...result,
-        errors: [{ index: -1, reason: "export.json 格式无效" }]
-      }
+    const p = parseExport(rawJson)
+    if ("error" in p) {
+      return { ...result, errors: [{ index: -1, reason: p.error }] }
     }
+    parsed = p
   } catch {
     return {
       ...result,
       errors: [{ index: -1, reason: "export.json JSON 解析失败" }]
     }
   }
+
+  const {
+    legacyItems,
+    projectCardsRaw,
+    pdfCardsRaw,
+    todosRaw,
+    importedProjects,
+    importedReviews,
+    importedAnnotations,
+    importedPdfMeta
+  } = parsed
 
   // ---- project id remapping ----
   const projectIdMap = new Map<string, string>()
@@ -316,26 +565,83 @@ export async function importFromZip(
     }
   }
 
-  const validItems: Item[] = []
+  // ---- collect + validate the three-store records ----
+  const validProjectCards: ProjectCard[] = []
+  const validPdfCards: PdfCard[] = []
+  const validTodos: TodoCard[] = []
+  // Legacy: placed items split into pdfCard (old id) + placement (new uuid) —
+  // reviews that referenced the old id must remap onto the placement.
+  const reviewRemap = new Map<string, string>()
+  const annTypeById = new Map<string, PdfMark>()
+  for (const ann of importedAnnotations) {
+    annTypeById.set(ann.id, ann.type)
+  }
 
-  for (let i = 0; i < rawArray.length; i++) {
-    const r = validateItem(rawArray[i], i)
-    if ("error" in r) {
-      result.errors.push({ index: i, reason: r.error })
-      result.skipped++
-    } else {
-      const item = r.item
-      // remap projectId
-      if (item.projectId && projectIdMap.has(item.projectId)) {
-        item.projectId = projectIdMap.get(item.projectId)!
-      } else if (item.projectId) {
-        // The project is not part of this import — either the mapping failed or
-        // the project never came along (e.g. a PDF-scope backup has no projects
-        // array). Drop the membership so the card lands in 未分类 instead of
-        // pointing at a nonexistent project (unreachable card).
-        item.projectId = undefined
+  if (legacyItems.length > 0) {
+    for (let i = 0; i < legacyItems.length; i++) {
+      const r = validateLegacyItem(legacyItems[i])
+      if ("error" in r) {
+        result.errors.push({ index: i, reason: r.error })
+        result.skipped++
+        continue
       }
-      validItems.push(item)
+      const split = splitLegacyItem(
+        r.item,
+        r.item.pdfRef ? annTypeById.get(r.item.pdfRef.annotationId) : undefined
+      )
+      if (split.todo) {
+        validTodos.push(split.todo)
+      } else if (split.pdfCard) {
+        validPdfCards.push(split.pdfCard)
+        if (split.placement) {
+          validProjectCards.push(split.placement)
+          reviewRemap.set(split.pdfCard.id, split.placement.id)
+        }
+      } else if (split.projectCard) {
+        validProjectCards.push(split.projectCard)
+      }
+    }
+  } else {
+    for (const raw of projectCardsRaw) {
+      const r = validateProjectCard(raw)
+      if ("error" in r) {
+        result.errors.push({ index: -1, reason: r.error })
+        result.skipped++
+        continue
+      }
+      validProjectCards.push(r.card)
+    }
+    for (const raw of pdfCardsRaw) {
+      const r = validatePdfCard(raw)
+      if ("error" in r) {
+        result.errors.push({ index: -1, reason: r.error })
+        result.skipped++
+        continue
+      }
+      validPdfCards.push(r.card)
+    }
+    for (const raw of todosRaw) {
+      const r = validateTodoCard(raw)
+      if ("error" in r) {
+        result.errors.push({ index: -1, reason: r.error })
+        result.skipped++
+        continue
+      }
+      validTodos.push(r.card)
+    }
+  }
+
+  // ---- projectId remap on projectCards (placements included) ----
+  for (const card of validProjectCards) {
+    if (card.projectId && projectIdMap.has(card.projectId)) {
+      card.projectId = projectIdMap.get(card.projectId)!
+    } else if (card.projectId) {
+      // The project is not part of this import (a PDF-scope backup carries no
+      // projects, or the project was filtered out). A placement can't exist
+      // without its project — it is dropped below (its pdfCard stays as a
+      // PDF-only card). A plain card keeps an empty membership so it never
+      // points at a nonexistent project.
+      card.projectId = ""
     }
   }
 
@@ -345,7 +651,14 @@ export async function importFromZip(
   const pdfIdMap = new Map<string, string>()
   const pdfMetaByName = new Map<
     string,
-    { id: string; name: string; pageCount: number; addedAt: number; lastOpened?: number; topic?: string }
+    {
+      id: string
+      name: string
+      pageCount: number
+      addedAt: number
+      lastOpened?: number
+      topic?: string
+    }
   >()
   for (const meta of importedPdfMeta) pdfMetaByName.set(meta.id, meta)
   for (const zipPath of Object.keys(zip.files)) {
@@ -370,25 +683,75 @@ export async function importFromZip(
     }
   }
 
-  for (const item of validItems) {
-    if (projectIds && !item.projectId) {
+  // ---- decide which placements survive (their project must exist) ----
+  const insertablePlacementIds = new Set<string>()
+  const cardsToInsert: ProjectCard[] = []
+  for (const card of validProjectCards) {
+    // Filtered imports only restore cards of the selected projects.
+    if (projectIds && !card.projectId) {
       result.skipped++
       continue
     }
-    // Remap PDF cards' pdfRef onto the imported content-hash id.
-    if (item.pdfRef && pdfIdMap.has(item.pdfRef.pdfId)) {
-      item.pdfRef = { ...item.pdfRef, pdfId: pdfIdMap.get(item.pdfRef.pdfId)! }
-      item.pdfRefPdfId = item.pdfRef.pdfId
+    if (!card.projectId && card.pdfCardId) {
+      // A placement without a project is dead weight — its quote lives in the
+      // pdfCard, which imports as a PDF-only card.
+      result.skipped++
+      continue
     }
+    cardsToInsert.push(card)
+    if (card.pdfCardId) insertablePlacementIds.add(card.id)
+  }
+
+  // ---- pdfId remap on pdfCards (exported pdf id → content-hash id) ----
+  for (const pdfCard of validPdfCards) {
+    if (pdfIdMap.has(pdfCard.pdfId)) {
+      pdfCard.pdfId = pdfIdMap.get(pdfCard.pdfId)!
+    }
+    if (
+      pdfCard.projectCardId &&
+      !insertablePlacementIds.has(pdfCard.projectCardId)
+    ) {
+      // The placement wasn't restored — the pdfCard stays PDF-only.
+      pdfCard.projectCardId = undefined
+    }
+  }
+
+  // ---- insert todos (global, identity-unique — never gated on projects) ----
+  for (const todo of validTodos) {
     try {
-      if (
-        await addItem(
-          item,
-          item.type === "todo" || item.pdfRef
-            ? { skipDedup: true }
-            : undefined
-        )
-      ) {
+      await addTodo(todo)
+      result.imported++
+    } catch (e) {
+      result.errors.push({
+        index: -1,
+        reason: `待办导入异常: ${(e as Error)?.message ?? e}`
+      })
+      result.skipped++
+    }
+  }
+
+  // ---- insert pdfCards ----
+  for (const pdfCard of validPdfCards) {
+    try {
+      await addPdfCard(pdfCard)
+      result.imported++
+    } catch (e) {
+      result.errors.push({
+        index: -1,
+        reason: `PDF 卡片导入异常: ${(e as Error)?.message ?? e}`
+      })
+      result.skipped++
+    }
+  }
+
+  // ---- insert projectCards (placements skip dedup — they're identity-unique) ----
+  for (const card of cardsToInsert) {
+    try {
+      const ok = await addProjectCard(
+        card,
+        card.pdfCardId ? { skipDedup: true } : undefined
+      )
+      if (ok) {
         result.imported++
       } else {
         result.skipped++
@@ -396,7 +759,7 @@ export async function importFromZip(
     } catch (e) {
       result.errors.push({
         index: -1,
-        reason: `导入异常（${item.type}）: ${(e as Error)?.message ?? e}`
+        reason: `导入异常（${card.type}）: ${(e as Error)?.message ?? e}`
       })
       result.skipped++
     }
@@ -404,9 +767,10 @@ export async function importFromZip(
 
   // ---- reviews import ----
   if (importedReviews.length > 0) {
-    const validItemIds = new Set(
-      (await searchItems({})).map((i) => i.id)
-    )
+    const validIds = new Set([
+      ...(await getAllProjectCards()).map((c) => c.id),
+      ...(await getAllTodos()).map((t) => t.id)
+    ])
     const existingReviewItemIds = new Set(
       (await getAllReviews()).map((r) => r.itemId)
     )
@@ -416,9 +780,13 @@ export async function importFromZip(
       if (projectIdMap.has(rv.projectId)) {
         rv.projectId = projectIdMap.get(rv.projectId)!
       }
-      // Drop orphans (item not present) and duplicates (review already exists
-      // for the item — itemId has a unique index).
-      if (!validItemIds.has(rv.itemId)) continue
+      // Legacy placed-card reviews referenced the old monolithic item id —
+      // remap onto the placement id.
+      const mapped = reviewRemap.get(rv.itemId)
+      if (mapped) rv.itemId = mapped
+      // Drop orphans (card not present) and duplicates (review already exists
+      // for the card — itemId has a unique index).
+      if (!validIds.has(rv.itemId)) continue
       if (existingReviewItemIds.has(rv.itemId)) continue
       try {
         await addReview(rv)
@@ -439,6 +807,11 @@ export async function importFromZip(
     if (!pdfIdSet.has(mappedId)) continue
     if (existingAnnotationIds.has(ann.id)) continue
     ann.pdfId = mappedId
+    // Legacy annotations carried itemId instead of cardId — the linked pdfCard
+    // kept the old item id, so the reference is the same value.
+    const legacy = ann as PdfAnnotation & { itemId?: string }
+    if (!ann.cardId && legacy.itemId) ann.cardId = legacy.itemId
+    delete (ann as unknown as Record<string, unknown>).itemId
     try {
       await addAnnotation(ann)
       existingAnnotationIds.add(ann.id)

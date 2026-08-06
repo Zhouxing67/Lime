@@ -8,11 +8,11 @@ import ReplayRoundedIcon from "@mui/icons-material/ReplayRounded"
 import { Box, IconButton, Stack, Tooltip } from "@mui/material"
 import { useState } from "react"
 
-import type { Item } from "../types"
+import type { DisplayCard } from "../types"
 import { prettyUrl } from "../utils"
 
 interface ItemCardOperationsProps {
-  item: Item
+  item: DisplayCard
   inReview?: boolean
   mastered?: boolean
   readOnly?: boolean

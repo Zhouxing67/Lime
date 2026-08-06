@@ -18,7 +18,7 @@ import {
 } from "@mui/material"
 import { useCallback, useEffect, useState } from "react"
 
-import type { Item } from "../types"
+import type { DisplayCard } from "../types"
 import { prettyUrl } from "../utils"
 import CardRenderer, { typeIcon } from "./CardRenderer"
 import DialogEditMode from "./DialogEditMode"
@@ -33,10 +33,10 @@ export default function ItemDialog({
   hasPrev,
   hasNext
 }: {
-  item: Item | null
+  item: DisplayCard | null
   open: boolean
   onClose: () => void
-  onSave?: (updated: Item) => void | Promise<void>
+  onSave?: (updated: DisplayCard) => void | Promise<void>
   onNavigate?: (direction: "prev" | "next") => void
   readOnly?: boolean
   hasPrev?: boolean
@@ -59,10 +59,11 @@ export default function ItemDialog({
   const [animDir, setAnimDir] = useState<"prev" | "next" | null>(null)
 
   const handleSave = async () => {
-    // PDF-sourced cards keep their content read-only (the PDF original);
-    // only the idea (备注) is editable. Same for image captures.
-    const readOnlyContent = item.type === "image" || !!item.pdfRef
-    const updated: Item = {
+    // Placed PDF cards keep their content read-only (the PDF original — the
+    // content lives on the linked pdfCard); only the idea (备注) is editable.
+    // Same for image captures. The options' handler splits the idea write.
+    const readOnlyContent = item.type === "image" || !!item.pdfCardId
+    const updated: DisplayCard = {
       ...item,
       title: draftTitle.trim() || undefined,
       content: readOnlyContent ? item.content : draftContent,
@@ -293,7 +294,7 @@ export default function ItemDialog({
               draftTitle={draftTitle}
               draftContent={draftContent}
               draftIdea={draftIdea}
-              readOnlyContent={item.type === "image" || !!item.pdfRef}
+              readOnlyContent={item.type === "image" || !!item.pdfCardId}
               isImage={item.type === "image"}
               onTitleChange={setDraftTitle}
               onContentChange={setDraftContent}

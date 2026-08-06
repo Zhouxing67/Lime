@@ -1,7 +1,7 @@
 import { Box, TextField, Typography } from "@mui/material"
 import { useEffect, useState } from "react"
 
-import type { Item } from "../types"
+import type { PdfCard } from "../types"
 import DialogShell from "./DialogShell"
 import PdfCardBody from "./PdfCardBody"
 
@@ -12,7 +12,7 @@ export default function PdfEditDialog({
   onClose,
   onSave
 }: {
-  item: Item | null
+  item: PdfCard | null
   open: boolean
   onClose: () => void
   onSave: (idea: string) => void
@@ -28,7 +28,7 @@ export default function PdfEditDialog({
     <DialogShell
       open={open}
       onClose={onClose}
-      title={item?.pdfRef?.page ? `P${item.pdfRef.page} · 补充说明` : "补充说明"}
+      title={item?.page ? `P${item.page} · 补充说明` : "补充说明"}
       maxWidth="sm"
       confirmLabel="保存"
       onConfirm={() => onSave(idea.trim())}
