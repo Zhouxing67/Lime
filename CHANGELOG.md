@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 5.0.1 — 修复
+
+- 布局高度溢出修复：PDF 卡片面板无视口高度约束 → 整页可滚动；根容器改为 `height:100vh` + `overflow:hidden`
+- PDF 卡片面板交互批次：复制反馈（MUI Tooltip + 绿勾）、批注类型改色点 tooltip、placed 项目名移到卡片底部来源行、图标按钮原生 title → MUI Tooltip（hover 更快）、批注跳转滚动到视口中心、框选图可复制为图片（ClipboardItem）、顶栏 icon 尺寸对齐项目卡片
+- 数据库按 store 拆分重构（零行为变化，156 测试保持全绿）
+- 技术文档：布局高度溢出报告
+
 ## 5.0.0 — 存储架构重构
 
 **底层存储拆分**（数据库 v12）：单一 `items` 表拆为 `projectCards` / `pdfCards` / `todos` 三个类型化表——语义边界彻底消除，每类卡片字段独立、查询专用化；placed 卡改为**双记录模型**（pdfCard 源 + projectCard 放置，互相引用 1:1），置入/移出/删除级联原子化；`ReviewEntry.itemId` 对齐项目卡；SyncPayload v4→v5，旧 v3/v4 云端数据自动兼容转换；迁移/导入/同步三链路往返验证。

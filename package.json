@@ -1,7 +1,7 @@
 {
   "name": "lime",
   "displayName": "lime",
-  "version": "5.0.0",
+  "version": "5.0.1",
   "description": "一款集网页摘录、PDF 阅读批注、知识整理与间隔复习于一体的浏览器知识管理插件。",
   "author": "minorcell",
   "scripts": {
