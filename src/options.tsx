@@ -153,7 +153,7 @@ export default function OptionsPage() {
   const [deleteTargetIsPdf, setDeleteTargetIsPdf] = useState(false)
   const [confirmBatchDelete, setConfirmBatchDelete] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
-  const [preset, setPreset] = useState<PresetName>("classic")
+  const [preset, setPreset] = useState<PresetName>("indigo-crimson")
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>("projects")
   const [pdfs, setPdfs] = useState<PdfFile[]>([])

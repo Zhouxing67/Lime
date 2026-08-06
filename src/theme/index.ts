@@ -40,7 +40,7 @@ export { palettes } from "./palettes"
 
 export const createAppTheme = (
   mode: PaletteMode,
-  preset: PresetName = "classic"
+  preset: PresetName = "indigo-crimson"
 ) => {
   const p = palettes[preset]
   const isLight = mode === "light"

@@ -164,7 +164,13 @@ export interface Project {
   sections?: Section[]
 }
 
-export type PresetName = "classic" | "indigo-crimson" | "forest" | "terracotta"
+export type PresetName =
+  | "classic"
+  | "indigo-crimson"
+  | "forest"
+  | "terracotta"
+  | "navy"
+  | "purple"
 
 export type TodoFilter =
   | "all"
@@ -188,5 +194,7 @@ export const PRESET_LABELS: Record<PresetName, string> = {
   classic: "青灰",
   "indigo-crimson": "紫檀",
   forest: "墨绿",
-  terracotta: "暖陶"
+  terracotta: "暖陶",
+  navy: "黛蓝",
+  purple: "绛紫"
 }

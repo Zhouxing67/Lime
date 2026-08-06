@@ -516,7 +516,7 @@ export default function PdfCardsPanel({
                               )
                             }, 1200)
                           }}
-                          sx={{ p: 0.25, color: "text.disabled" }}>
+                          sx={{ p: 0.75, color: "text.disabled" }}>
                           {copiedCardId === card.id ? (
                             <CheckRoundedIcon
                               sx={{ fontSize: 16, color: "success.main" }}
@@ -533,7 +533,7 @@ export default function PdfCardsPanel({
                             e.stopPropagation()
                             toggleExpand(card.id)
                           }}
-                          sx={{ p: 0.25, color: "text.disabled" }}>
+                          sx={{ p: 0.75, color: "text.disabled" }}>
                           {expanded ? (
                             <UnfoldLessRoundedIcon sx={{ fontSize: 16 }} />
                           ) : (
@@ -548,7 +548,7 @@ export default function PdfCardsPanel({
                             e.stopPropagation()
                             handleCardEdit(card)
                           }}
-                          sx={{ p: 0.25, color: "text.disabled" }}>
+                          sx={{ p: 0.75, color: "text.disabled" }}>
                           <EditRoundedIcon sx={{ fontSize: 16 }} />
                         </IconButton>
                       </Tooltip>
@@ -560,7 +560,7 @@ export default function PdfCardsPanel({
                               e.stopPropagation()
                               onUnplace([card.id])
                             }}
-                            sx={{ p: 0.25, color: "text.disabled" }}>
+                            sx={{ p: 0.75, color: "text.disabled" }}>
                             <LinkOffRoundedIcon sx={{ fontSize: 16 }} />
                           </IconButton>
                         </Tooltip>
@@ -575,7 +575,7 @@ export default function PdfCardsPanel({
                                 cardIds: [card.id]
                               })
                             }}
-                            sx={{ p: 0.25, color: "text.disabled" }}>
+                            sx={{ p: 0.75, color: "text.disabled" }}>
                             <DriveFileMoveRoundedIcon sx={{ fontSize: 16 }} />
                           </IconButton>
                         </Tooltip>
@@ -589,7 +589,7 @@ export default function PdfCardsPanel({
                         e.stopPropagation()
                         handleCardDelete(card)
                       }}
-                      sx={{ p: 0.25, color: "text.disabled" }}>
+                      sx={{ p: 0.75, color: "text.disabled" }}>
                       <DeleteOutlineRoundedIcon sx={{ fontSize: 16 }} />
                     </IconButton>
                   </Tooltip>

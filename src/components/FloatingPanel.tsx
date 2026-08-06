@@ -92,7 +92,7 @@ export function FloatingPanelContent({
   const ref = useRef<HTMLDivElement>(null)
 
   // ---- Theme: preset from storage + dark mode from prefers-color-scheme ----
-  const [preset, setPreset] = useState<PresetName>(cachedPreset ?? "classic")
+  const [preset, setPreset] = useState<PresetName>(cachedPreset ?? "indigo-crimson")
   const [dark, setDark] = useState<boolean>(
     () => window.matchMedia("(prefers-color-scheme: dark)").matches
   )

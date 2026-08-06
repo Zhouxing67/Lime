@@ -46,7 +46,7 @@ export default function BatchToolbar({
           color: "text.disabled",
           "&.Mui-checked": { color: "error.main" },
           "&.MuiCheckbox-indeterminate": { color: "error.main" },
-          "& .MuiSvgIcon-root": { fontSize: 18 }
+          "& .MuiSvgIcon-root": { fontSize: 16 }
         }}
       />
       <Button

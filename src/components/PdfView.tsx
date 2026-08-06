@@ -433,7 +433,7 @@ export default function PdfView({
                           px: 0.25,
                           "&:hover": { color: "primary.main" }
                         }}>
-                        <ChevronLeftRoundedIcon sx={{ fontSize: 18 }} />
+                        <ChevronLeftRoundedIcon sx={{ fontSize: 16 }} />
                       </Box>
                       <Box
                         sx={{
@@ -453,7 +453,7 @@ export default function PdfView({
                           px: 0.25,
                           "&:hover": { color: "primary.main" }
                         }}>
-                        <ChevronRightRoundedIcon sx={{ fontSize: 18 }} />
+                        <ChevronRightRoundedIcon sx={{ fontSize: 16 }} />
                       </Box>
                     </Box>
                   ) : searchState.query ? (
@@ -508,7 +508,7 @@ export default function PdfView({
               "&:hover": { color: "primary.main" },
               "&.Mui-disabled": { color: "text.disabled", opacity: 0.35 }
             }}>
-            <UndoRoundedIcon sx={{ fontSize: 17 }} />
+            <UndoRoundedIcon sx={{ fontSize: 16 }} />
           </IconButton>
           {/* 批注 menu (二级) */}
           <Box
@@ -527,7 +527,7 @@ export default function PdfView({
               color: frameMode ? "text.primary" : "text.secondary",
               "&:hover": { bgcolor: "action.hover" }
             }}>
-            <EditRoundedIcon sx={{ fontSize: 14 }} />
+            <EditRoundedIcon sx={{ fontSize: 16 }} />
           </Box>
           {/* zoom */}
           <Box
@@ -546,8 +546,8 @@ export default function PdfView({
               size="small"
               title="缩小"
               onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.1).toFixed(2)))}
-              sx={{ p: 0.25 }}>
-              <RemoveRoundedIcon sx={{ fontSize: 14 }} />
+              sx={{ p: 0.5 }}>
+              <RemoveRoundedIcon sx={{ fontSize: 16 }} />
             </IconButton>
             <Typography
               title="适应宽度"
@@ -565,8 +565,8 @@ export default function PdfView({
               size="small"
               title="放大"
               onClick={() => setZoom((z) => Math.min(3, +(z + 0.1).toFixed(2)))}
-              sx={{ p: 0.25 }}>
-              <AddRoundedIcon sx={{ fontSize: 14 }} />
+              sx={{ p: 0.5 }}>
+              <AddRoundedIcon sx={{ fontSize: 16 }} />
             </IconButton>
           </Box>
           <Menu

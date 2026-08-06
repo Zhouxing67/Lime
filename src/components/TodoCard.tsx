@@ -2,7 +2,7 @@ import AddRoundedIcon from "@mui/icons-material/AddRounded"
 import CheckRoundedIcon from "@mui/icons-material/CheckRounded"
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
 import EditRoundedIcon from "@mui/icons-material/EditRounded"
-import { alpha, Box, Button, IconButton, Paper, Stack, TextField, Typography } from "@mui/material"
+import { alpha, Box, Button, IconButton, Paper, Stack, TextField, Tooltip, Typography } from "@mui/material"
 import { useEffect, useState } from "react"
 
 import type { TodoCard as TodoCardType } from "../types"
@@ -202,12 +202,16 @@ export default function TodoCard({
             transition: "opacity 0.15s"
           }}
           onClick={(e) => e.stopPropagation()}>
-          <IconButton size="small" onClick={onStartEdit}>
-            <EditRoundedIcon sx={{ fontSize: 14 }} />
-          </IconButton>
-          <IconButton size="small" onClick={onDelete}>
-            <DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />
-          </IconButton>
+          <Tooltip title="编辑">
+            <IconButton size="small" onClick={onStartEdit} sx={{ p: 0.75 }}>
+              <EditRoundedIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="删除">
+            <IconButton size="small" onClick={onDelete} sx={{ p: 0.75 }}>
+              <DeleteOutlineRoundedIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Tooltip>
         </Box>
       </Stack>
 
@@ -215,7 +219,7 @@ export default function TodoCard({
         <Box
           sx={{
             height: 3,
-            borderRadius: 1.5,
+            borderRadius: 1,
             bgcolor: "action.hover",
             overflow: "hidden",
             mb: 1

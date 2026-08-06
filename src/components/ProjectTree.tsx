@@ -735,11 +735,13 @@ function ProjectNode({
             <AddRoundedIcon sx={{ fontSize: 16 }} />
           </IconButton>
         </Tooltip>
-        <IconButton
-          size="small"
-          onClick={(e) => setMenuAnchor(e.currentTarget)}>
-          <MoreHorizRoundedIcon sx={{ fontSize: 16 }} />
-        </IconButton>
+        <Tooltip title="更多操作">
+          <IconButton
+            size="small"
+            onClick={(e) => setMenuAnchor(e.currentTarget)}>
+            <MoreHorizRoundedIcon sx={{ fontSize: 16 }} />
+          </IconButton>
+        </Tooltip>
         <Menu
               anchorEl={menuAnchor}
               open={Boolean(menuAnchor)}
@@ -896,11 +898,13 @@ function SectionNode({
             </IconButton>
           </Tooltip>
         )}
-        <IconButton
-          size="small"
-          onClick={(e) => setMenuAnchor(e.currentTarget)}>
-          <MoreHorizRoundedIcon sx={{ fontSize: 16 }} />
-        </IconButton>
+        <Tooltip title="更多操作">
+          <IconButton
+            size="small"
+            onClick={(e) => setMenuAnchor(e.currentTarget)}>
+            <MoreHorizRoundedIcon sx={{ fontSize: 16 }} />
+          </IconButton>
+        </Tooltip>
         <Menu
           anchorEl={menuAnchor}
           open={Boolean(menuAnchor)}
