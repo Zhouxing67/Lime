@@ -55,8 +55,7 @@ function drawPageAnnotations(
   overlay: HTMLElement,
   annotations: PdfAnnotation[],
   textLayer: InstanceType<typeof pdfjsLib.TextLayer>,
-  holder: HTMLElement,
-  flashAnnId: string | null
+  holder: HTMLElement
 ): void {
   overlay.replaceChildren()
   const holderRect = holder.getBoundingClientRect()
@@ -66,19 +65,62 @@ function drawPageAnnotations(
     if (ann.kind === "text") {
       if (ann.startOffset == null || ann.endOffset == null) continue
       const rects = textLayerRects(textLayer, holder, ann.startOffset, ann.endOffset)
-      for (const r of rects) {
-        if (ann.id === flashAnnId) appendFlash(overlay, r)
-        drawAnnotation(overlay, ann.type, r, ann.id)
-      }
+      for (const r of rects) drawAnnotation(overlay, ann.type, r, ann.id)
     } else if (ann.kind === "region") {
       // Frame rects are stored normalized (0-1 fractions of the page box).
       for (const r of ann.rects ?? []) {
         const rect = { x: r.x * hw, y: r.y * hh, w: r.w * hw, h: r.h * hh }
-        if (ann.id === flashAnnId) appendFlash(overlay, rect)
         drawAnnotation(overlay, ann.type, rect, ann.id)
       }
     }
   }
+}
+
+/** The annotation-jump flash lives on its own layer (a direct holder child) so
+ *  the annotation overlay's replaceChildren can't re-create it — re-creating
+ *  restarts the CSS animation ("flashes twice"). Created once per flash, then
+ *  re-positioned. */
+function drawFlash(
+  flashLayer: HTMLElement,
+  annotations: PdfAnnotation[],
+  textLayer: InstanceType<typeof pdfjsLib.TextLayer>,
+  holder: HTMLElement,
+  flashAnnId: string
+): PdfRect[] {
+  const target = annotations.find((a) => a.id === flashAnnId)
+  const rects: PdfRect[] = []
+  if (target) {
+    if (target.kind === "text") {
+      if (target.startOffset != null && target.endOffset != null) {
+        rects.push(...textLayerRects(textLayer, holder, target.startOffset, target.endOffset))
+      }
+    } else if (target.kind === "region") {
+      const hw = holder.getBoundingClientRect().width || 1
+      const hh = holder.getBoundingClientRect().height || 1
+      for (const r of target.rects ?? []) {
+        rects.push({ x: r.x * hw, y: r.y * hh, w: r.w * hw, h: r.h * hh })
+      }
+    }
+  }
+  // Create the element ONCE per flash — re-creating it restarts the CSS
+  // animation. Re-renders (ready toggling) only re-position it.
+  let flash = flashLayer.querySelector<HTMLElement>(".pdf-ann-flash")
+  if (rects.length === 0) {
+    flash?.remove()
+    return rects
+  }
+  if (!flash) {
+    flash = document.createElement("div")
+    flash.className = "pdf-ann-flash"
+    flash.style.cssText = "position:absolute;pointer-events:none;"
+    flashLayer.appendChild(flash)
+  }
+  const r = rects[0]
+  flash.style.left = `${r.x}px`
+  flash.style.top = `${r.y}px`
+  flash.style.width = `${r.w}px`
+  flash.style.height = `${r.h}px`
+  return rects
 }
 
 function appendFlash(overlay: HTMLElement, r: PdfRect): void {
@@ -150,6 +192,12 @@ const TEXT_LAYER_CSS = `
   background: rgba(99,102,241,0.26);
   border-radius: 2px;
 }
+.pdf-ann-flash-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
 .pdf-ann-flash {
   background: rgba(99,102,241,0.4);
   border-radius: 2px;
@@ -209,6 +257,9 @@ function PageView({
   const holderRef = useRef<HTMLDivElement>(null)
   const [wh, setWh] = useState<{ w: number; h: number } | null>(null)
   const [scale, setScale] = useState(1)
+  // Set once the text layer is built — the flash/search effects wait on it so
+  // a flash/search change never re-renders the canvas.
+  const [ready, setReady] = useState(false)
   const flashDoneRef = useRef(onFlashDone)
   flashDoneRef.current = onFlashDone
   const onAnnotationClickRef = useRef(onAnnotationClick)
@@ -300,8 +351,8 @@ function PageView({
     let cancelled = false
     let renderTask: pdfjsLib.RenderTask | null = null
     let textLayer: InstanceType<typeof pdfjsLib.TextLayer> | null = null
-    let flashTimer: number | null = null
     const dpr = window.devicePixelRatio || 1
+    setReady(false)
 
     const computeSize = async () => {
       const page = await doc.getPage(pageNumber)
@@ -361,67 +412,15 @@ function PageView({
         // Enforce the exact page box (setLayerDimensions may round the width).
         layerDiv.style.width = `${wh.w}px`
         layerDiv.style.height = `${wh.h}px`
-        // Draw the page's annotations from the text spans.
+        // Draw the page's annotations from the text spans (the flash + the
+        // search highlight live in their OWN effects — a flash/search change
+        // must NOT re-render the canvas + text layer, which caused the laggy
+        // "page first, then center" two-step jump).
         const annDiv = holder.querySelector<HTMLElement>(".pdf-annotations")
         if (annDiv) {
-          drawPageAnnotations(annDiv, annotations, textLayer, holder, flashAnnId)
-          if (flashAnnId && flashTimer === null) {
-            flashTimer = window.setTimeout(() => flashDoneRef.current?.(), 1500)
-            // Center the flashed annotation in the viewport (vertical, and
-            // horizontal when the container overflows, e.g. zoomed).
-            const target = annotations.find((a) => a.id === flashAnnId)
-            if (target && textLayer) {
-              // Text annotations use the char offsets; region (框选) cards have
-              // no offsets — their normalized rects drive the centering instead
-              // (otherwise frame cards never center-scrolled).
-              let rects: PdfRect[] = []
-              if (target.kind === "text") {
-                if (target.startOffset != null && target.endOffset != null) {
-                  rects = textLayerRects(
-                    textLayer,
-                    holder,
-                    target.startOffset,
-                    target.endOffset
-                  )
-                }
-              } else if (target.kind === "region") {
-                const hw = holder.getBoundingClientRect().width || 1
-                const hh = holder.getBoundingClientRect().height || 1
-                for (const r of target.rects ?? []) {
-                  rects.push({ x: r.x * hw, y: r.y * hh, w: r.w * hw, h: r.h * hh })
-                }
-              }
-              if (rects.length > 0) {
-                const minX = Math.min(...rects.map((r) => r.x))
-                const minY = Math.min(...rects.map((r) => r.y))
-                const maxX = Math.max(...rects.map((r) => r.x + r.w))
-                const maxY = Math.max(...rects.map((r) => r.y + r.h))
-                const c = holder.closest<HTMLElement>("[data-pdf-scroll]")
-                if (c) {
-                  const hr = holder.getBoundingClientRect()
-                  const cr = c.getBoundingClientRect()
-                  const absX = c.scrollLeft + (hr.left - cr.left) + (minX + maxX) / 2
-                  const absY = c.scrollTop + (hr.top - cr.top) + (minY + maxY) / 2
-                  c.scrollTo({
-                    top: Math.max(0, absY - c.clientHeight / 2),
-                    left: Math.max(0, absX - c.clientWidth / 2),
-                    behavior: "auto"
-                  })
-                }
-              }
-            }
-          }
-          // Search-match highlight (temporary, not a stored annotation).
-          if (searchFlash) {
-            const rects = textLayerRects(
-              textLayer,
-              holder,
-              searchFlash.start,
-              searchFlash.end
-            )
-            for (const r of rects) appendFlash(annDiv, r)
-          }
+          drawPageAnnotations(annDiv, annotations, textLayer, holder)
         }
+        setReady(true)
         // Expose for the toolbar's selection→offset mapping.
         registerTextLayer(pageNumber, { holder, textLayer })
         textLayerRef.current = textLayer
@@ -456,10 +455,57 @@ function PageView({
       obs.disconnect()
       renderTask?.cancel()
       textLayer?.cancel()
-      if (flashTimer !== null) window.clearTimeout(flashTimer)
       unregisterTextLayer(pageNumber)
     }
-  }, [doc, pageNumber, paneW, paneH, zoom, fitMode, wh, scale, annotations, flashAnnId, searchFlash])
+  }, [doc, pageNumber, paneW, paneH, zoom, fitMode, wh, scale, annotations])
+
+  // Annotation-jump flash: draw on its own layer + center the annotation the
+  // MOMENT the text layer exists — NO canvas re-render, so a jump to an
+  // already-rendered page is one direct centered scroll instead of the laggy
+  // "page first, then center" two-step.
+  useEffect(() => {
+    const holder = holderRef.current
+    const tl = textLayerRef.current
+    const flashLayer = holder?.querySelector<HTMLElement>(".pdf-ann-flash-layer")
+    if (!holder || !tl || !flashLayer || !ready || !flashAnnId) {
+      flashLayer?.replaceChildren()
+      return
+    }
+    const rects = drawFlash(flashLayer, annotations, tl, holder, flashAnnId)
+    const timer = window.setTimeout(() => flashDoneRef.current?.(), 1500)
+    if (rects.length > 0) {
+      const minX = Math.min(...rects.map((r) => r.x))
+      const minY = Math.min(...rects.map((r) => r.y))
+      const maxX = Math.max(...rects.map((r) => r.x + r.w))
+      const maxY = Math.max(...rects.map((r) => r.y + r.h))
+      const c = holder.closest<HTMLElement>("[data-pdf-scroll]")
+      if (c) {
+        const hr = holder.getBoundingClientRect()
+        const cr = c.getBoundingClientRect()
+        const absX = c.scrollLeft + (hr.left - cr.left) + (minX + maxX) / 2
+        const absY = c.scrollTop + (hr.top - cr.top) + (minY + maxY) / 2
+        c.scrollTo({
+          top: Math.max(0, absY - c.clientHeight / 2),
+          left: Math.max(0, absX - c.clientWidth / 2),
+          behavior: "auto"
+        })
+      }
+    }
+    return () => window.clearTimeout(timer)
+  }, [flashAnnId, ready, annotations])
+
+  // Search-match highlight — also decoupled so navigating matches doesn't
+  // re-render the canvas.
+  useEffect(() => {
+    if (!searchFlash || !ready) return
+    const holder = holderRef.current
+    const tl = textLayerRef.current
+    const annDiv = holder?.querySelector<HTMLElement>(".pdf-annotations")
+    if (!holder || !tl || !annDiv) return
+    drawPageAnnotations(annDiv, annotations, tl, holder)
+    const rects = textLayerRects(tl, holder, searchFlash.start, searchFlash.end)
+    for (const r of rects) appendFlash(annDiv, r)
+  }, [searchFlash, ready, annotations])
 
   return (
     <div
@@ -479,6 +525,7 @@ function PageView({
       }}>
       <canvas style={{ display: "block" }} />
       <div className="pdf-annotations" />
+      <div className="pdf-ann-flash-layer" />
       <div className="pdf-textlayer" />
       <div className="pdf-selection" />
       <style>{TEXT_LAYER_CSS}</style>
@@ -530,14 +577,17 @@ export default function PdfRenderer({
   const [pageAspects, setPageAspects] = useState<Map<number, number> | null>(
     null
   )
-  // Precompute every page's height/width ratio up front (cheap getViewport, no
-  // render) so unrendered placeholders match the real page — no layout jump /
-  // flash when a new page scrolls in.
+  // Precompute the first pages' height/width ratios up front so early
+  // placeholders match real pages. The FULL loop was a load bottleneck for
+  // large PDFs (500 pages = 500 getPage calls before anything renders) — pages
+  // beyond the head use the A4-ish default and fill their real aspect when they
+  // render.
+  const ASPECT_HEAD = 50
   useEffect(() => {
     let cancelled = false
     const run = async () => {
       const aspects = new Map<number, number>()
-      for (let p = 1; p <= pageCount; p++) {
+      for (let p = 1; p <= Math.min(pageCount, ASPECT_HEAD); p++) {
         const page = await doc.getPage(p)
         if (cancelled) return
         const vp = page.getViewport({ scale: 1 })
@@ -599,20 +649,32 @@ export default function PdfRenderer({
     // contentRect.height on a scroll container reports the SCROLL content's
     // height (it grows with the rendered pages), which would make the fit-page
     // scale always width-bound (no visible difference).
+    // Debounce the pane size: dragging a sidebar/panel changes the width every
+    // frame and each change re-fits + re-renders every visible page (the drag
+    // lag). Defer the fit until the drag pauses (100ms trailing) — the layout
+    // follows the pointer smoothly, the PDF re-renders once at the end.
+    let resizeTimer: number | null = null
     const ro = new ResizeObserver(() => {
       const w = el.clientWidth
       const h = el.clientHeight
-      if (w !== paneWRef.current) {
-        paneWRef.current = w
-        setPaneW(w)
-      }
-      if (h !== paneHRef.current) {
-        paneHRef.current = h
-        setPaneH(h)
-      }
+      if (resizeTimer !== null) window.clearTimeout(resizeTimer)
+      resizeTimer = window.setTimeout(() => {
+        resizeTimer = null
+        if (w !== paneWRef.current) {
+          paneWRef.current = w
+          setPaneW(w)
+        }
+        if (h !== paneHRef.current) {
+          paneHRef.current = h
+          setPaneH(h)
+        }
+      }, 100)
     })
     ro.observe(el)
-    return () => ro.disconnect()
+    return () => {
+      if (resizeTimer !== null) window.clearTimeout(resizeTimer)
+      ro.disconnect()
+    }
   }, [])
 
   // Scroll to a requested page (TOC navigation) — instant, positions are
@@ -626,10 +688,7 @@ export default function PdfRenderer({
     const scroll = () => {
       const target = el()
       if (target) {
-        // Center the page, not the top: for a flash/annotation jump the page's
-        // annotation is usually mid-page, so the follow-up centering needs only
-        // a small adjustment — block:start caused the two-step "page → center".
-        target.scrollIntoView({ behavior: "auto", block: "center" })
+        target.scrollIntoView({ behavior: "auto", block: "start" })
         return true
       }
       return false
