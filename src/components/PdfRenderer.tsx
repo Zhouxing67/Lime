@@ -181,6 +181,7 @@ function PageView({
   pageNumber,
   paneW,
   zoom,
+  onZoomChange,
   pageAspect,
   annotations,
   flashAnnId,
@@ -192,6 +193,8 @@ function PageView({
   pageNumber: number
   paneW: number
   zoom: number
+  /** Ctrl+wheel zoom (the toolbar's +/- uses it too). */
+  onZoomChange?: (zoom: number) => void
   pageAspect: number
   annotations: PdfAnnotation[]
   flashAnnId?: string | null

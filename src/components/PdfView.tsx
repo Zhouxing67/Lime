@@ -621,6 +621,7 @@ export default function PdfView({
             pageCount={loaded.pageCount}
             scrollTarget={scrollPage}
             zoom={zoom}
+            onZoomChange={setZoom}
             annotations={annotations}
             flashAnnId={flashAnnId}
             onFlashDone={() => setFlashAnnId(null)}
