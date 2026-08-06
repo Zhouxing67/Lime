@@ -371,12 +371,26 @@ function PageView({
             // horizontal when the container overflows, e.g. zoomed).
             const target = annotations.find((a) => a.id === flashAnnId)
             if (target && textLayer) {
-              const rects = textLayerRects(
-                textLayer,
-                holder,
-                target.startOffset,
-                target.endOffset
-              )
+              // Text annotations use the char offsets; region (框选) cards have
+              // no offsets — their normalized rects drive the centering instead
+              // (otherwise frame cards never center-scrolled).
+              let rects: PdfRect[] = []
+              if (target.kind === "text") {
+                if (target.startOffset != null && target.endOffset != null) {
+                  rects = textLayerRects(
+                    textLayer,
+                    holder,
+                    target.startOffset,
+                    target.endOffset
+                  )
+                }
+              } else if (target.kind === "region") {
+                const hw = holder.getBoundingClientRect().width || 1
+                const hh = holder.getBoundingClientRect().height || 1
+                for (const r of target.rects ?? []) {
+                  rects.push({ x: r.x * hw, y: r.y * hh, w: r.w * hw, h: r.h * hh })
+                }
+              }
               if (rects.length > 0) {
                 const minX = Math.min(...rects.map((r) => r.x))
                 const minY = Math.min(...rects.map((r) => r.y))
@@ -612,7 +626,10 @@ export default function PdfRenderer({
     const scroll = () => {
       const target = el()
       if (target) {
-        target.scrollIntoView({ behavior: "auto", block: "start" })
+        // Center the page, not the top: for a flash/annotation jump the page's
+        // annotation is usually mid-page, so the follow-up centering needs only
+        // a small adjustment — block:start caused the two-step "page → center".
+        target.scrollIntoView({ behavior: "auto", block: "center" })
         return true
       }
       return false
