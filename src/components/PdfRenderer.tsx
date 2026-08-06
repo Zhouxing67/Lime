@@ -181,7 +181,6 @@ function PageView({
   pageNumber,
   paneW,
   zoom,
-  onZoomChange,
   pageAspect,
   annotations,
   flashAnnId,
@@ -193,8 +192,6 @@ function PageView({
   pageNumber: number
   paneW: number
   zoom: number
-  /** Ctrl+wheel zoom (the toolbar's +/- uses it too). */
-  onZoomChange?: (zoom: number) => void
   pageAspect: number
   annotations: PdfAnnotation[]
   flashAnnId?: string | null
@@ -431,6 +428,7 @@ export default function PdfRenderer({
   pageCount,
   scrollTarget,
   zoom,
+  onZoomChange,
   annotations,
   flashAnnId,
   onFlashDone,
@@ -444,6 +442,8 @@ export default function PdfRenderer({
   pageCount: number
   scrollTarget?: number | null
   zoom?: number
+  /** Ctrl+wheel zoom (the toolbar's +/- uses it too). */
+  onZoomChange?: (zoom: number) => void
   annotations?: PdfAnnotation[]
   flashAnnId?: string | null
   onFlashDone?: () => void
