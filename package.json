@@ -9,7 +9,7 @@
     "predev": "node scripts/copy-pdfjs-assets.mjs",
     "build": "plasmo build",
     "prebuild": "node scripts/copy-pdfjs-assets.mjs",
-    "package": "plasmo package",
+    "package": "python3 scripts/package.py",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "jest",
