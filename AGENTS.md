@@ -149,6 +149,8 @@ Layout is three columns: **NavRail | Sidebar | Main**.
 
 ## UI 一致性（防风格割裂）
 
+> 数值基准（icon/按钮尺寸、token 档位、状态反馈、文案规范）与完整组件复用清单见 **`docs/design-standard.md`**——新功能先查组件清单，非必要不自定义。
+
 **复用优先**（新 UI 必须复用，禁止手写 inline）：
 - 空态 → `EmptyState`；弹窗 → `DialogShell`；操作栏 → `BatchToolbar`（可配置 actions + countLabel）
 - 侧栏列表行 → 轻量行模式（active = `action.selected` + `primary.main` 文字，hover = `action.hover`）——**禁止用 MUI `Button outlined/contained` 做筛选行**
