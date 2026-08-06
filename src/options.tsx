@@ -1303,6 +1303,7 @@ export default function OptionsPage() {
         (c) => c.id === card.projectCardId
       )
       if (!placement) return
+      console.warn("[lime:jump] placement", placement.id, "section", placement.sectionId, "project", placement.projectId)
       setSidebarTab("projects")
       setKeyword("")
       setDateRange(null)
