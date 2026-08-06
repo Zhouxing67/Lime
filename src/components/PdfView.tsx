@@ -507,8 +507,16 @@ export default function PdfView({
               onKeyDown={(e) => {
                 if (e.key === "Enter" && jumpDraft !== "") {
                   const n = Number(jumpDraft)
-                  if (Number.isInteger(n) && loaded) {
-                    navigateTo(Math.max(1, Math.min(loaded.pageCount, n)))
+                  // Only a VALID in-range integer navigates. Anything else
+                  // (0, negatives, beyond the max, non-integers) is rejected —
+                  // the input simply snaps back to the current page.
+                  if (
+                    Number.isInteger(n) &&
+                    loaded &&
+                    n >= 1 &&
+                    n <= loaded.pageCount
+                  ) {
+                    navigateTo(n)
                   }
                   setEditingJump(false)
                   setJumpDraft("")
