@@ -1,4 +1,5 @@
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
+import DeleteSweepRoundedIcon from "@mui/icons-material/DeleteSweepRounded"
 import DoneAllRoundedIcon from "@mui/icons-material/DoneAllRounded"
 import DriveFileMoveRoundedIcon from "@mui/icons-material/DriveFileMoveRounded"
 import FolderRoundedIcon from "@mui/icons-material/FolderRounded"
@@ -26,6 +27,7 @@ import type {
 import { addPdfCard } from "../database"
 import DeleteConfirmDialog from "./DeleteConfirmDialog"
 import EmptyState from "./EmptyState"
+import BatchToolbar from "./BatchToolbar"
 import PdfCardBody from "./PdfCardBody"
 import PlaceCardMenu from "./PlaceCardMenu"
 import PdfEditDialog from "./PdfEditDialog"
@@ -312,56 +314,50 @@ export default function PdfCardsPanel({
           }}>
           <DoneAllRoundedIcon sx={{ fontSize: 18 }} />
         </IconButton>
-        {batchMode && (
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 0.5,
-              fontSize: "0.72rem",
-              color: "text.disabled"
-            }}>
-            <Checkbox
-              size="small"
-              checked={allSelected}
-              indeterminate={selected.size > 0 && !allSelected}
-              onChange={() =>
-                setSelected(
-                  allSelected
-                    ? new Set()
-                    : new Set(sortedCards.map((c) => c.id))
-                )
-              }
-              sx={{
-                p: 0.25,
-                color: "text.disabled",
-                "&.Mui-checked": { color: "error.main" },
-                "&.MuiCheckbox-indeterminate": { color: "error.main" },
-                "& .MuiSvgIcon-root": { fontSize: 16 }
-              }}
-            />
-            <Box>{selected.size} 已选</Box>
-            <IconButton
-              size="small"
-              title="删除选中"
-              disabled={selected.size === 0}
-              onClick={() => setBatchDeleteOpen(true)}
-              sx={{ p: 0.25, color: "text.disabled" }}>
-              <DeleteOutlineRoundedIcon sx={{ fontSize: 15 }} />
-            </IconButton>
-            <IconButton
-              size="small"
-              title="置入项目"
-              disabled={selected.size === 0}
-              onClick={(e) =>
-                setPlaceMenu({ anchor: e.currentTarget, cardIds: [...selected] })
-              }
-              sx={{ p: 0.25, color: "text.disabled" }}>
-              <DriveFileMoveRoundedIcon sx={{ fontSize: 15 }} />
-            </IconButton>
-          </Box>
-        )}
       </Box>
+      {batchMode && (
+        <Box
+          sx={{
+            borderBottom: "1px solid",
+            borderColor: "divider",
+            px: 2,
+            py: 0.75
+          }}>
+          <BatchToolbar
+            selectedCount={selected.size}
+            allSelected={allSelected}
+            countLabel="张"
+            onSelectAll={() =>
+              setSelected(
+                allSelected
+                  ? new Set()
+                  : new Set(sortedCards.map((c) => c.id))
+              )
+            }
+            actions={[
+              {
+                label: "置入项目",
+                icon: <DriveFileMoveRoundedIcon sx={{ fontSize: 16, mr: 0.5 }} />,
+                onClick: (e) =>
+                  setPlaceMenu({
+                    anchor: e.currentTarget,
+                    cardIds: [...selected]
+                  }),
+                disabled: selected.size === 0
+              },
+              {
+                label: "删除选中",
+                icon: <DeleteSweepRoundedIcon sx={{ fontSize: 16, mr: 0.5 }} />,
+                onClick: () => setBatchDeleteOpen(true),
+                dividerBefore: true,
+                disabled: selected.size === 0,
+                variant: "contained",
+                color: "error"
+              }
+            ]}
+          />
+        </Box>
+      )}
       <Divider sx={{ mx: 1 }} />
       {/* Card list */}
       <Box ref={listRef} sx={{ flex: 1, overflowY: "auto", p: 2, minHeight: 0 }}>
