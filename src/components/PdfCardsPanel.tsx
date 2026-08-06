@@ -1,6 +1,7 @@
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
 import DeleteSweepRoundedIcon from "@mui/icons-material/DeleteSweepRounded"
 import DoneAllRoundedIcon from "@mui/icons-material/DoneAllRounded"
+import CheckRoundedIcon from "@mui/icons-material/CheckRounded"
 import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded"
 import DriveFileMoveRoundedIcon from "@mui/icons-material/DriveFileMoveRounded"
 import FolderRoundedIcon from "@mui/icons-material/FolderRounded"
@@ -15,6 +16,7 @@ import {
   Divider,
   IconButton,
   Paper,
+  Tooltip,
   Typography
 } from "@mui/material"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -32,7 +34,7 @@ import BatchToolbar from "./BatchToolbar"
 import PdfCardBody from "./PdfCardBody"
 import PlaceCardMenu from "./PlaceCardMenu"
 import PdfEditDialog from "./PdfEditDialog"
-import { MARK_DOT } from "./pdfTheme"
+import { MARK_DOT, MARK_LABEL } from "./pdfTheme"
 
 /** The PDF view's right-side cards panel — a peer of the sidebar/workspace:
  *  collapsible, resizable (240–520), a built-in batch bar, and the annotated
@@ -451,51 +453,17 @@ export default function PdfCardsPanel({
                     P{card.page}
                   </Box>
                   {ann && (
-                    <Box
-                      sx={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 0.4,
-                        fontSize: "0.68rem",
-                        color: "text.secondary"
-                      }}>
+                    <Tooltip title={MARK_LABEL[ann.type]}>
                       <Box
                         sx={{
                           width: 7,
                           height: 7,
                           borderRadius: 1,
-                          background: MARK_DOT[ann.type]
+                          background: MARK_DOT[ann.type],
+                          flexShrink: 0
                         }}
                       />
-                    </Box>
-                  )}
-                  {placedProject && (
-                    <Box
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onJumpToProject?.(card)
-                      }}
-                      title={`在「${placedProject.name}」中查看`}
-                      sx={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 0.3,
-                        px: 0.5,
-                        py: 0.1,
-                        borderRadius: 1,
-                        bgcolor: "action.hover",
-                        fontSize: "0.66rem",
-                        color: "primary.main",
-                        cursor: "pointer",
-                        maxWidth: 120,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                        "&:hover": { bgcolor: "action.selected" }
-                      }}>
-                      <FolderRoundedIcon sx={{ fontSize: 11 }} />
-                      {placedProject.name}
-                    </Box>
+                    </Tooltip>
                   )}
                   <Box sx={{ flex: 1 }} />
                   {!batchMode && (
@@ -511,112 +479,157 @@ export default function PdfCardsPanel({
                         opacity: 0,
                         transition: "opacity 0.15s"
                       }}>
-                      <IconButton
-                        size="small"
+                      <Tooltip
                         title={
                           copiedCardId === card.id
                             ? "已复制"
                             : card.kind === "region"
                               ? "复制图片"
                               : "复制内容"
-                        }
-                        onClick={async (e) => {
-                          e.stopPropagation()
-                          if (card.kind === "region") {
-                            // A frame card copies the IMAGE itself (ClipboardItem).
-                            try {
-                              const blob = await (
-                                await fetch(card.content)
-                              ).blob()
-                              await navigator.clipboard.write([
-                                new ClipboardItem({
-                                  [blob.type || "image/png"]: blob
-                                })
-                              ])
-                            } catch (err) {
-                              console.warn("[lime] image copy failed:", err)
-                              navigator.clipboard.writeText(card.content)
+                        }>
+                        <IconButton
+                          size="small"
+                          onClick={async (e) => {
+                            e.stopPropagation()
+                            if (card.kind === "region") {
+                              // A frame card copies the IMAGE itself (ClipboardItem).
+                              try {
+                                const blob = await (
+                                  await fetch(card.content)
+                                ).blob()
+                                await navigator.clipboard.write([
+                                  new ClipboardItem({
+                                    [blob.type || "image/png"]: blob
+                                  })
+                                ])
+                              } catch (err) {
+                                console.warn("[lime] image copy failed:", err)
+                                navigator.clipboard.writeText(card.content)
+                              }
+                            } else {
+                              navigator.clipboard.writeText(`> ${card.content}`)
                             }
-                          } else {
-                            navigator.clipboard.writeText(`> ${card.content}`)
-                          }
-                          setCopiedCardId(card.id)
-                          window.setTimeout(() => {
-                            setCopiedCardId((cur) =>
-                              cur === card.id ? null : cur
-                            )
-                          }, 1200)
-                        }}
-                        sx={{ p: 0.25, color: "text.disabled" }}>
-                        <ContentCopyRoundedIcon sx={{ fontSize: 14 }} />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        title={expanded ? "收起内容" : "展开内容"}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          toggleExpand(card.id)
-                        }}
-                        sx={{ p: 0.25, color: "text.disabled" }}>
-                        {expanded ? (
-                          <UnfoldLessRoundedIcon sx={{ fontSize: 14 }} />
-                        ) : (
-                          <UnfoldMoreRoundedIcon sx={{ fontSize: 14 }} />
-                        )}
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        title="编辑"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleCardEdit(card)
-                        }}
-                        sx={{ p: 0.25, color: "text.disabled" }}>
-                        <EditRoundedIcon sx={{ fontSize: 14 }} />
-                      </IconButton>
+                            setCopiedCardId(card.id)
+                            window.setTimeout(() => {
+                              setCopiedCardId((cur) =>
+                                cur === card.id ? null : cur
+                              )
+                            }, 1200)
+                          }}
+                          sx={{ p: 0.25, color: "text.disabled" }}>
+                          {copiedCardId === card.id ? (
+                            <CheckRoundedIcon
+                              sx={{ fontSize: 14, color: "success.main" }}
+                            />
+                          ) : (
+                            <ContentCopyRoundedIcon sx={{ fontSize: 14 }} />
+                          )}
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title={expanded ? "收起内容" : "展开内容"}>
+                        <IconButton
+                          size="small"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            toggleExpand(card.id)
+                          }}
+                          sx={{ p: 0.25, color: "text.disabled" }}>
+                          {expanded ? (
+                            <UnfoldLessRoundedIcon sx={{ fontSize: 14 }} />
+                          ) : (
+                            <UnfoldMoreRoundedIcon sx={{ fontSize: 14 }} />
+                          )}
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="编辑">
+                        <IconButton
+                          size="small"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleCardEdit(card)
+                          }}
+                          sx={{ p: 0.25, color: "text.disabled" }}>
+                          <EditRoundedIcon sx={{ fontSize: 14 }} />
+                        </IconButton>
+                      </Tooltip>
                       {placedProject ? (
-                        <IconButton
-                          size="small"
-                          title="移出项目"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onUnplace([card.id])
-                          }}
-                          sx={{ p: 0.25, color: "text.disabled" }}>
-                          <LinkOffRoundedIcon sx={{ fontSize: 14 }} />
-                        </IconButton>
+                        <Tooltip title="移出项目">
+                          <IconButton
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onUnplace([card.id])
+                            }}
+                            sx={{ p: 0.25, color: "text.disabled" }}>
+                            <LinkOffRoundedIcon sx={{ fontSize: 14 }} />
+                          </IconButton>
+                        </Tooltip>
                       ) : (
-                        <IconButton
-                          size="small"
-                          title="置入项目"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setPlaceMenu({
-                              anchor: e.currentTarget,
-                              cardIds: [card.id]
-                            })
-                          }}
-                          sx={{ p: 0.25, color: "text.disabled" }}>
-                          <DriveFileMoveRoundedIcon sx={{ fontSize: 14 }} />
-                        </IconButton>
+                        <Tooltip title="置入项目">
+                          <IconButton
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setPlaceMenu({
+                                anchor: e.currentTarget,
+                                cardIds: [card.id]
+                              })
+                            }}
+                            sx={{ p: 0.25, color: "text.disabled" }}>
+                            <DriveFileMoveRoundedIcon sx={{ fontSize: 14 }} />
+                          </IconButton>
+                        </Tooltip>
                       )}
                     </Box>
                   )}
-                  <IconButton
-                    size="small"
-                    title="删除"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleCardDelete(card)
-                    }}
-                    sx={{ p: 0.25, color: "text.disabled" }}>
-                    <DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />
-                  </IconButton>
+                  <Tooltip title="删除">
+                    <IconButton
+                      size="small"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleCardDelete(card)
+                      }}
+                      sx={{ p: 0.25, color: "text.disabled" }}>
+                      <DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />
+                    </IconButton>
+                  </Tooltip>
                 </Box>
                 <PdfCardBody
                   item={card}
                   maxLines={expanded ? undefined : 4}
                 />
+                {placedProject && (
+                  <Box
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onJumpToProject?.(card)
+                    }}
+                    sx={{
+                      mt: 1.25,
+                      pt: 1,
+                      borderTop: "1px solid",
+                      borderColor: "divider",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 0.3,
+                      color: "primary.main",
+                      fontSize: "0.7rem",
+                      cursor: "pointer",
+                      overflow: "hidden",
+                      "&:hover": { textDecoration: "underline" }
+                    }}>
+                    <FolderRoundedIcon sx={{ fontSize: 12, flexShrink: 0 }} />
+                    <Box
+                      component="span"
+                      sx={{
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap"
+                      }}>
+                      项目：{placedProject.name}
+                    </Box>
+                  </Box>
+                )}
               </Paper>
             )
           })

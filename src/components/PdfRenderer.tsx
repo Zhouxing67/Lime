@@ -346,6 +346,35 @@ function PageView({
           drawPageAnnotations(annDiv, annotations, textLayer, holder, flashAnnId)
           if (flashAnnId && flashTimer === null) {
             flashTimer = window.setTimeout(() => flashDoneRef.current?.(), 1500)
+            // Center the flashed annotation in the viewport (vertical, and
+            // horizontal when the container overflows, e.g. zoomed).
+            const target = annotations.find((a) => a.id === flashAnnId)
+            if (target && textLayer) {
+              const rects = textLayerRects(
+                textLayer,
+                holder,
+                target.startOffset,
+                target.endOffset
+              )
+              if (rects.length > 0) {
+                const minX = Math.min(...rects.map((r) => r.x))
+                const minY = Math.min(...rects.map((r) => r.y))
+                const maxX = Math.max(...rects.map((r) => r.x + r.w))
+                const maxY = Math.max(...rects.map((r) => r.y + r.h))
+                const c = holder.closest<HTMLElement>("[data-pdf-scroll]")
+                if (c) {
+                  const hr = holder.getBoundingClientRect()
+                  const cr = c.getBoundingClientRect()
+                  const absX = c.scrollLeft + (hr.left - cr.left) + (minX + maxX) / 2
+                  const absY = c.scrollTop + (hr.top - cr.top) + (minY + maxY) / 2
+                  c.scrollTo({
+                    top: Math.max(0, absY - c.clientHeight / 2),
+                    left: Math.max(0, absX - c.clientWidth / 2),
+                    behavior: "auto"
+                  })
+                }
+              }
+            }
           }
           // Search-match highlight (temporary, not a stored annotation).
           if (searchFlash) {
