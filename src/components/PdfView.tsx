@@ -109,8 +109,10 @@ export default function PdfView({
   const [frameMode, setFrameMode] = useState(false)
   const [canGoBack, setCanGoBack] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
-  // The jump input's draft: "" shows the current page (Edge-style); typing
-  // replaces it; Enter jumps + resets back to the live page.
+  // The jump input: NOT focused → shows the live current page; focused →
+  // purely the user's draft (they can delete/retype freely, no auto-clamp),
+  // blur/Enter validates + snaps back to the live page.
+  const [editingJump, setEditingJump] = useState(false)
   const [jumpDraft, setJumpDraft] = useState("")
   const currentPageRef = useRef(1)
   const navHistoryRef = useRef<number[]>([])
@@ -490,30 +492,25 @@ export default function PdfView({
               size="small"
               variant="outlined"
               type="number"
-              value={jumpDraft === "" ? String(currentPage) : jumpDraft}
+              value={editingJump ? jumpDraft : String(currentPage)}
               inputProps={{ min: 1, max: loaded?.pageCount, step: 1 }}
-              onFocus={(e) => e.target.select()}
-              onChange={(e) => {
-                const v = e.target.value
-                if (v === "") {
-                  setJumpDraft("")
-                  return
-                }
-                const n = Number(v)
-                if (!Number.isInteger(n)) return
-                // Clamp as you type — an out-of-range value snaps to the
-                // nearest valid page (-1 → 1, 100000 → pageCount).
-                if (n < 1) setJumpDraft("1")
-                else if (loaded && n > loaded.pageCount)
-                  setJumpDraft(String(loaded.pageCount))
-                else setJumpDraft(v)
+              onFocus={(e) => {
+                setJumpDraft(String(currentPage))
+                setEditingJump(true)
+                e.target.select()
               }}
-              onBlur={() => setJumpDraft("")}
+              onChange={(e) => setJumpDraft(e.target.value)}
+              onBlur={() => {
+                setEditingJump(false)
+                setJumpDraft("")
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && jumpDraft !== "") {
                   const n = Number(jumpDraft)
-                  if (loaded)
+                  if (Number.isInteger(n) && loaded) {
                     navigateTo(Math.max(1, Math.min(loaded.pageCount, n)))
+                  }
+                  setEditingJump(false)
                   setJumpDraft("")
                 }
               }}
