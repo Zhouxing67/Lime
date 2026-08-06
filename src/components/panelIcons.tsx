@@ -14,22 +14,6 @@ export const IconPlus = () => (
   </svg>
 )
 
-export const IconPlus = () => (
-  <svg
-    viewBox="0 0 24 24"
-    style={{ display: "block", width: 14, height: 14, fill: "currentColor" }}>
-    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6z" />
-  </svg>
-)
-
-export const IconBack = () => (
-  <svg
-    viewBox="0 0 24 24"
-    style={{ display: "block", width: 16, height: 16, fill: "currentColor" }}>
-    <path d="M15.41 16.59 10.83 12l4.58-4.59L14 6l-6 6 6 6z" />
-  </svg>
-)
-
 /** Crop-free / 框选 icon — a dashed rounded square with corner ticks. */
 export const IconCrop = () => (
   <svg
