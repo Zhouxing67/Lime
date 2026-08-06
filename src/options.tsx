@@ -183,26 +183,22 @@ export default function OptionsPage() {
   const [pdfCurrentPage, setPdfCurrentPage] = useState(1)
   const [pdfPageCount, setPdfPageCount] = useState(0)
   const [pdfImmersive, setPdfImmersive] = useState(false)
-  const immersiveSavedUiRef = useRef<{
-    drawerOpen: boolean
-    pdfCardsOpen: boolean
-  } | null>(null)
 
   // Immersive PDF reading: closes both sidebars; toggling off restores the
   // pre-immersive open/close states.
   const toggleImmersive = useCallback(() => {
-    console.warn("[lime:immersive]", "state", pdfImmersive, "saved", immersiveSavedUiRef.current, "drawer", drawerOpen, "panel", pdfCardsOpen)
     if (pdfImmersive) {
-      setDrawerOpen(immersiveSavedUiRef.current?.drawerOpen ?? true)
-      setPdfCardsOpen(immersiveSavedUiRef.current?.pdfCardsOpen ?? true)
-      immersiveSavedUiRef.current = null
+      // Exit: always reopen BOTH sidebars (the immersive is a temporary
+      // distraction-free mode — restoring the pre-state left the panel closed
+      // when it was closed before entering, which read as "no response").
+      setDrawerOpen(true)
+      setPdfCardsOpen(true)
     } else {
-      immersiveSavedUiRef.current = { drawerOpen, pdfCardsOpen }
       setDrawerOpen(false)
       setPdfCardsOpen(false)
     }
     setPdfImmersive(!pdfImmersive)
-  }, [pdfImmersive, drawerOpen, pdfCardsOpen])
+  }, [pdfImmersive])
   const [pdfDeleteTarget, setPdfDeleteTarget] = useState<PdfFile | null>(null)
   const [topicDeleteTarget, setTopicDeleteTarget] = useState<string | null>(
     null
