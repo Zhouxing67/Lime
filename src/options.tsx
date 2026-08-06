@@ -2013,7 +2013,8 @@ export default function OptionsPage() {
       <Box
         sx={{
           display: "flex",
-          minHeight: "100vh",
+          height: "100vh",
+          overflow: "hidden",
           bgcolor: "background.default"
         }}>
         <NavRail

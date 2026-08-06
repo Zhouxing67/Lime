@@ -250,6 +250,7 @@ export default function PdfCardsPanel({
         width: open ? width : 0,
         flexShrink: 0,
         overflow: "hidden",
+        height: "100vh",
         borderLeft: open ? "1px solid" : "none",
         borderColor: "divider",
         bgcolor: "background.default",
