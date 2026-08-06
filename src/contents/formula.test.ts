@@ -141,3 +141,33 @@ describe("mathFormats registry", () => {
     expect(wrapMath(el, "x")).toBe("$$x$$")
   })
 })
+
+describe("MathJax v3 SVG perception", () => {
+  it("reconstructs the rendered text from the glyph-name char codes", () => {
+    document.body.innerHTML = `
+      <svg role="img" aria-hidden="true">
+        <use xlink:href="#MJMATHI-41" x="0"></use>
+        <use xlink:href="#MJMAIN-3D" x="40"></use>
+        <use xlink:href="#MJMATHI-78" x="80"></use>
+      </svg>`
+    const svg = document.querySelector("svg")!
+    expect(mathSource(svg)).toBe("A=x")
+    expect(wrapMath(svg, "A=x")).toBe("$A=x$")
+  })
+
+  it("prefers the enclosing ztext-math data-tex over the glyph text", () => {
+    document.body.innerHTML = `
+      <span class="ztext-math" data-tex="E=mc^2">
+        <svg role="img" aria-hidden="true">
+          <use xlink:href="#MJMATHI-45" x="0"></use>
+        </svg>
+      </span>`
+    const svg = document.querySelector("svg")!
+    expect(mathSource(svg)).toBe("E=mc^2")
+  })
+
+  it("returns null for a non-math svg[role=img]", () => {
+    document.body.innerHTML = `<svg role="img" aria-hidden="true"></svg>`
+    expect(mathSource(document.querySelector("svg")!)).toBeNull()
+  })
+})

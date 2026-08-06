@@ -42,6 +42,36 @@ function ztextSource(el: Element): string | null {
   return rendered && rendered.length > 0 ? rendered : null
 }
 
+/** MathJax v3 renders to a bare SVG (role=img, aria-hidden) whose glyphs are
+ *  `<use xlink:href="#MJMATHI-41">` references — the textContent is empty and
+ *  the LaTeX is gone (rendered to glyph paths). The glyph NAME encodes the
+ *  unicode char code (#MJMATHI-41 → 0x41 → 'A'), so the rendered text can be
+ *  reconstructed as a best-effort source. Prefer the surrounding container's
+ *  real LaTeX (a .ztext-math[data-tex] / mjx-container aria-label) when present. */
+function mathjaxSvgSource(el: Element): string | null {
+  // The LaTeX may survive on an enclosing container.
+  const container = el.closest?.(".ztext-math, mjx-container, .MathJax")
+  if (container && container !== el) {
+    const containerSrc = ztextSource(container)
+    if (containerSrc) return containerSrc
+  }
+  const label = el.getAttribute("aria-label")
+  if (label?.trim()) return label.trim()
+  // Reconstruct the rendered text from the glyph names.
+  const chars: string[] = []
+  for (const use of Array.from(el.querySelectorAll("use"))) {
+    const href =
+      use.getAttribute("xlink:href") ?? use.getAttribute("href") ?? ""
+    const name = href.slice(1)
+    if (!name.startsWith("MJMATHI") && !name.startsWith("MJMAIN")) continue
+    const hex = name.slice(name.lastIndexOf("-") + 1)
+    const code = parseInt(hex, 16)
+    if (!Number.isNaN(code) && code > 0) chars.push(String.fromCharCode(code))
+  }
+  const text = chars.join("")
+  return text.length > 0 ? text : null
+}
+
 export const mathFormats: MathFormat[] = [
   { selector: ".katex", extract: katexSource, isDisplay: (el) => el.closest?.(".katex-display") != null },
   {
@@ -58,6 +88,12 @@ export const mathFormats: MathFormat[] = [
       const src = el.getAttribute("data-tex") ?? el.getAttribute("alt") ?? ""
       return /\\begin\{/.test(src)
     }
+  },
+  {
+    // MathJax v3's bare SVG output. Detection is verified by the extractor —
+    // a non-math svg[role=img] returns null (no MJ glyphs / container source).
+    selector: 'svg[role="img"], svg[aria-hidden="true"]',
+    extract: mathjaxSvgSource
   }
 ]
 

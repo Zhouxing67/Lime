@@ -13,7 +13,10 @@ export function mathAtPoint(x: number, y: number): Element | null {
   if (x < 0 || y < 0) return null
   const el = document.elementFromPoint(x, y)
   if (!el) return null
-  return el.closest?.(MATH_SELECTOR) ?? null
+  const formula = el.closest?.(MATH_SELECTOR) ?? null
+  // Verify it's really a math container — svg[role=img] matches broad, but the
+  // extractor distinguishes real MathJax SVGs (null for non-math SVGs).
+  return formula && mathSource(formula) ? formula : null
 }
 
 /** Replace every math container in a cloned root with its `$…$`/`$$…$$` source
@@ -69,7 +72,7 @@ export function mathBlockText(root: Element): string {
 export function paragraphFromCursor(): { content: string; el: Element } | null {
   const formula =
     lastTarget?.closest?.(MATH_SELECTOR) ?? mathAtPoint(lastX, lastY)
-  if (!formula) return null
+  if (!formula || !mathSource(formula)) return null
   const para = enclosingParagraph(formula)
   const content = mathBlockText(para)
   if (!content) return null
@@ -141,7 +144,9 @@ export function initMathHover(): () => void {
     raf = requestAnimationFrame(() => {
       raf = 0
       if (!enabled) return
-      const el = lastTarget?.closest?.(MATH_SELECTOR) ?? null
+      const matched = lastTarget?.closest?.(MATH_SELECTOR) ?? null
+      // Only highlight real math — the svg selector matches broad.
+      const el = matched && mathSource(matched) ? matched : null
       if (el === hovered) return
       clearHighlight()
       if (el) {
