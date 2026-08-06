@@ -335,7 +335,7 @@ function PageView({
       canvas.height = Math.floor(wh.h * dpr)
       canvas.style.width = `${wh.w}px`
       canvas.style.height = `${wh.h}px`
-      canvas.style.filter = "contrast(1.18) brightness(0.95)"
+      canvas.style.filter = "contrast(1.18)"
       renderTask = page.render({
         canvas,
         viewport: page.getViewport({ scale: scale * dpr })
