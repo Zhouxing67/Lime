@@ -232,17 +232,19 @@ export default function CardRenderer({
               mb: 1.5,
               borderRadius: 1,
               overflow: "hidden",
-              aspectRatio: "16 / 9",
-              bgcolor: "action.hover"
+              bgcolor: "action.hover",
+              display: "flex",
+              justifyContent: "center",
+              maxHeight: 220
             }}>
             <img
               src={item.content}
               alt={item.source?.title || ""}
               loading="lazy"
               style={{
-                width: "100%",
-                height: "100%",
-                objectFit: "cover",
+                maxWidth: "100%",
+                maxHeight: 220,
+                objectFit: "contain",
                 display: "block"
               }}
             />

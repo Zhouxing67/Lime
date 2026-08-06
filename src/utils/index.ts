@@ -295,6 +295,22 @@ export function compareCards<T extends { order?: number; createdAt?: number }>(
  * Computes the insertion index for a dragged card relative to a target card
  * within the target section's ordered card list (dragged card excluded).
  */
+/** Sort a project's cards for the ALL-CARDS view: same-section cards adjacent
+ *  (by the section's position in the project's sections array, tree order),
+ *  ordered within each section, 未分类 last. No visual grouping. */
+export function sortAllCards<
+  T extends { sectionId?: string; order?: number; createdAt?: number }
+>(cards: T[], sections: { id: string }[]): T[] {
+  const rank = new Map<string, number>()
+  sections.forEach((s, i) => rank.set(s.id, i))
+  const last = sections.length
+  const rankOf = (c: T) =>
+    c.sectionId ? (rank.get(c.sectionId) ?? last) : last + 1
+  return cards.slice().sort(
+    (a, b) => rankOf(a) - rankOf(b) || compareCards(a, b)
+  )
+}
+
 export function computeDropIndex<T extends { id: string; order?: number; createdAt?: number }>(
   cards: T[],
   draggedId: string,

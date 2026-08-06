@@ -132,7 +132,7 @@ import type {
   TodoFilter
 } from "./types"
 import { sendMessage } from "./types/messages"
-import { DAY_MS, RATING_META, applyBadge, buildMergedContent, cloneProjectCard, compareCards, computeItemHash, createProjectCard, createTodoCard, dueStatus, isTodoComplete, toggleMarkdownTask, todayLocalDate } from "./utils"
+import { DAY_MS, RATING_META, applyBadge, buildMergedContent, cloneProjectCard, compareCards, computeItemHash, createProjectCard, createTodoCard, dueStatus, isTodoComplete, sortAllCards, toggleMarkdownTask, todayLocalDate } from "./utils"
 import { resolveCardContent, stripPlacementContent } from "./utils/cards"
 
 const MIN_DRAWER_WIDTH = 200
@@ -1214,6 +1214,12 @@ export default function OptionsPage() {
         annId: pdfCard?.annotationId ?? "",
         token: pdfFlashToken.current
       })
+      // Also scroll + highlight the matching sidebar card.
+      pdfScrollToken.current += 1
+      setPdfScrollTarget({
+        cardId: pdfCard?.id ?? "",
+        token: pdfScrollToken.current
+      })
     },
     [openPdf, pdfById]
   )
@@ -1292,7 +1298,7 @@ export default function OptionsPage() {
       setActiveProjectId(placement.projectId)
       setActiveSectionByProject((prev) => ({
         ...prev,
-        [placement.projectId]: null
+        [placement.projectId]: placement.sectionId ?? null
       }))
       setProjectCardHighlightId(placement.id)
       if (projectCardHighlightTimer.current)
@@ -1532,7 +1538,8 @@ export default function OptionsPage() {
   // The section scope as the PERSISTED projectCards (drag reorder + writes
   // operate on the originals) — the grid renders the resolved variant.
   const scopeCards = useMemo(() => {
-    if (!activeSectionId) return allProjectCards
+    if (!activeSectionId)
+      return sortAllCards(allProjectCards, activeProject?.sections ?? [])
     if (activeSectionId === "__unclassified__")
       return allProjectCards.filter((i) => !i.sectionId)
     const section = activeProject?.sections?.find(

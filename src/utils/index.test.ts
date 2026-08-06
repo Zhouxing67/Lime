@@ -19,6 +19,7 @@ import {
   prettyUrl,
   removeMarkdownImage,
   sha256,
+  sortAllCards,
   toggleMarkdownTask
 } from "./index"
 
@@ -449,5 +450,24 @@ describe("base64 (chunked)", () => {
   it("handles empty input", () => {
     expect(bytesToBase64(new Uint8Array(0))).toBe("")
     expect(base64ToBytes("")).toEqual(new Uint8Array(0))
+  })
+})
+
+describe("sortAllCards", () => {
+  const sections = [
+    { id: "s1" },
+    { id: "s2" }
+  ]
+  it("keeps same-section cards adjacent, ordered within, 未分类 last", () => {
+    const cards = [
+      { id: "a", sectionId: "s1", order: 2 },
+      { id: "b", sectionId: undefined, order: 0 },
+      { id: "c", sectionId: "s2", order: 0 },
+      { id: "d", sectionId: "s1", order: 1 },
+      { id: "e", sectionId: "s2", order: 1 }
+    ]
+    const sorted = sortAllCards(cards, sections).map((c) => c.id)
+    // s1 first (d order1, a order2), then s2 (c order0, e order1), 未分类 last.
+    expect(sorted).toEqual(["d", "a", "c", "e", "b"])
   })
 })
