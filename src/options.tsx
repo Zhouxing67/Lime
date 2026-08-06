@@ -54,7 +54,6 @@ import NavRail from "./components/NavRail"
 import type { SidebarTab } from "./components/NavRail"
 import NewCardDialog from "./components/NewCardDialog"
 import NewProjectDialog from "./components/NewProjectDialog"
-import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
 import ProjectHub from "./components/ProjectHub"
 import BackupView from "./components/BackupView"
 import PdfHub from "./components/PdfHub"
@@ -1280,6 +1279,8 @@ export default function OptionsPage() {
       )
       if (!placement) return
       setSidebarTab("projects")
+      setKeyword("")
+      setDateRange(null)
       setActiveProjectId(placement.projectId)
       setActiveSectionByProject((prev) => ({
         ...prev,
@@ -1431,6 +1432,8 @@ export default function OptionsPage() {
   useEffect(() => {
     return () => {
       if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current)
+      if (projectCardHighlightTimer.current)
+        window.clearTimeout(projectCardHighlightTimer.current)
     }
   }, [])
 
@@ -1441,6 +1444,12 @@ export default function OptionsPage() {
       if (changes._dbi || changes._dbp) {
         schedulePdfPanelReload()
         refreshLiteCounts()
+        // Light-refresh the project cards UNCONDITIONALLY — the PDF panel's
+        // placed-project chip + 移出项目 derive from the placements map (built
+        // from allProjectCardsUnfiltered), so a place/unplace while IN the PDF
+        // view must update them even though the heavy full reload is gated.
+        getAllProjectCards().then(setAllProjectCardsUnfiltered)
+        if (changes._dbp) loadProjects()
         // In the PDF view the sidebar shows the TOC/library — the full
         // refreshAllData (5 store scans + full re-render) is wasted work on
         // every card write; other views get the coalesced full reload.
@@ -2344,7 +2353,7 @@ export default function OptionsPage() {
                           }))
                         }
                         outlineDest={pdfOutlineDest}
-                        flashTarget={pdfFlashTarget}
+                        flashTarget={id === activePdfId ? pdfFlashTarget : null}
                         onJumpInPanel={handleJumpInPanel}
                       />
                     </Box>
@@ -2786,9 +2795,15 @@ export default function OptionsPage() {
                         // dialog was open — itemId has a unique index).
                         const alreadyInReview = reviewItemIds.has(card.id)
                         if (!alreadyInReview) {
-                          await addReview(
-                            createReviewEntry(card.id, card.projectId)
-                          )
+                          try {
+                            await addReview(
+                              createReviewEntry(card.id, card.projectId)
+                            )
+                          } catch (e) {
+                            // The unique itemId index can reject if the card
+                            // entered review while the dialog was open.
+                            console.warn("[lime] addReview:", e)
+                          }
                         }
                         setReviewTitlePending(null)
                         setReviewTitleDraft("")

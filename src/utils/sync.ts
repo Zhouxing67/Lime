@@ -225,6 +225,7 @@ function convertLegacyPayload(p: {
   const pdfCards: PdfCard[] = []
   const todos: TodoCard[] = []
   const reviewRemap = new Map<string, string>()
+  const validProjectCardIds = new Set<string>()
   for (const item of p.items ?? []) {
     const split = splitLegacyItem(
       item,
@@ -238,14 +239,22 @@ function convertLegacyPayload(p: {
       if (split.placement) {
         projectCards.push(split.placement)
         reviewRemap.set(split.pdfCard.id, split.placement.id)
+        validProjectCardIds.add(split.placement.id)
       }
     }
-    if (split.projectCard) projectCards.push(split.projectCard)
+    if (split.projectCard) {
+      projectCards.push(split.projectCard)
+      validProjectCardIds.add(split.projectCard.id)
+    }
   }
-  const reviews = (p.reviews ?? []).map((r) => {
-    const mapped = reviewRemap.get(r.itemId)
-    return mapped ? { ...r, itemId: mapped } : r
-  })
+  // Only project cards are reviewable — drop a legacy pdf-only/todo card's
+  // review (a phantom that would inflate the badge + propagate).
+  const reviews = (p.reviews ?? [])
+    .filter((r) => reviewRemap.has(r.itemId) || validProjectCardIds.has(r.itemId))
+    .map((r) => {
+      const mapped = reviewRemap.get(r.itemId)
+      return mapped ? { ...r, itemId: mapped } : r
+    })
   const pdfAnnotations: PdfAnnotation[] = (p.pdfAnnotations ?? []).map((a) => {
     const legacy = a as PdfAnnotation & { itemId?: string }
     if (legacy.cardId) return a

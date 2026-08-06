@@ -1,3 +1,4 @@
+import { splitLegacyItem, type LegacyItem } from "../utils/cards"
 import type {
   PdfCard,
   PdfMark,
@@ -184,6 +185,7 @@ function openDb(version?: number): Promise<IDBDatabase> {
         const annStore = tx.objectStore("pdfAnnotations")
         const reviewStore = tx.objectStore("reviews")
         const reviewRemap = new Map<string, string>()
+        const validProjectCardIds = new Set<string>()
         let collected = false
         let pending = 0
         let done = false
@@ -191,8 +193,10 @@ function openDb(version?: number): Promise<IDBDatabase> {
         const finish = () => {
           if (done) return
           done = true
-          // Remap reviews of placed items onto their placement ids, then drop
-          // the old monolithic store.
+          // Remap reviews of placed items onto their placement ids; DROP any
+          // review whose item isn't a project card — only project cards are
+          // reviewable, so a legacy pdf-only/todo card's review would be a
+          // phantom inflating the badge + propagating through sync forever.
           const rc = reviewStore.openCursor()
           rc.onsuccess = (e) => {
             const c = (e.target as IDBRequest<IDBCursorWithValue>).result
@@ -200,6 +204,7 @@ function openDb(version?: number): Promise<IDBDatabase> {
               const r = c.value as ReviewEntry
               const mapped = reviewRemap.get(r.itemId)
               if (mapped) c.update({ ...r, itemId: mapped })
+              else if (!validProjectCardIds.has(r.itemId)) c.delete()
               c.continue()
             } else {
               db.deleteObjectStore("items")
@@ -218,7 +223,7 @@ function openDb(version?: number): Promise<IDBDatabase> {
             maybeFinish()
             return
           }
-          const item = c.value
+          const item = c.value as LegacyItem
           if (item.type === "todo") {
             tdStore.put({
               id: item.id,
@@ -231,71 +236,45 @@ function openDb(version?: number): Promise<IDBDatabase> {
           } else if (item.pdfRef) {
             pending++
             const annReq = annStore.get(item.pdfRef.annotationId)
+            const convert = (annotationType?: PdfMark) => {
+              const split = splitLegacyItem(item, annotationType)
+              if (!split.pdfCard) {
+                pending--
+                maybeFinish()
+                return
+              }
+              pdStore.put(split.pdfCard)
+              if (split.placement) {
+                pcStore.put(split.placement)
+                // splitLegacyItem already set the mutual reference.
+                reviewRemap.set(item.id, split.placement.id)
+                validProjectCardIds.add(split.placement.id)
+              }
+              pending--
+              maybeFinish()
+            }
             annReq.onsuccess = () => {
               const ann = annReq.result as PdfAnnotation | undefined
-              // The pdfCard keeps the old item id so the annotation's cardId
-              // maps naturally (no id remap). The old itemId field is retired.
-              const pdfCard: PdfCard = {
-                id: item.id,
-                pdfId: item.pdfRef.pdfId,
-                page: item.pdfRef.page,
-                annotationId: item.pdfRef.annotationId,
-                kind: item.type === "image" ? "region" : "text",
-                type: ann?.type ?? "highlight",
-                content: item.content,
-                idea: item.idea,
-                pdfOrder: item.pdfOrder ?? item.pdfRef.page * 1e6,
-                createdAt: item.createdAt
-              }
               if (ann) {
+                // The pdfCard keeps the old item id — the annotation's cardId
+                // maps naturally + the old itemId field is retired.
                 const updated = { ...ann, cardId: item.id } as PdfAnnotation
                 delete (updated as unknown as Record<string, unknown>).itemId
                 annStore.put(updated)
               }
-              pdStore.put(pdfCard)
-              if (item.projectId) {
-                const placement: ProjectCard = {
-                  id: crypto.randomUUID(),
-                  type: item.type === "image" ? "image" : "text",
-                  title: item.title,
-                  content: "",
-                  projectId: item.projectId,
-                  sectionId: item.sectionId,
-                  order: item.order,
-                  pdfCardId: pdfCard.id,
-                  createdAt: item.createdAt,
-                  updatedAt: item.updatedAt
-                }
-                pcStore.put(placement)
-                pdStore.put({ ...pdfCard, projectCardId: placement.id })
-                reviewRemap.set(item.id, placement.id)
-              }
-              pending--
-              maybeFinish()
+              convert(ann?.type)
             }
             annReq.onerror = () => {
-              // Annotation lookup failed — still convert the card from the item
-              // data so the migration can't hang (the pending gate).
-              const ann = undefined
-              pending--
-              maybeFinish()
+              // Annotation lookup failed — still convert (the type falls back
+              // to highlight) so the migration can't hang or drop cards.
+              convert(undefined)
             }
           } else {
-            pcStore.put({
-              id: item.id,
-              type: item.type === "link" ? "link" : item.type,
-              title: item.title,
-              content: item.content,
-              source: item.source,
-              sourceSite: item.sourceSite,
-              images: item.images,
-              projectId: item.projectId,
-              sectionId: item.sectionId,
-              order: item.order,
-              hash: item.hash,
-              createdAt: item.createdAt,
-              updatedAt: item.updatedAt
-            })
+            const split = splitLegacyItem(item)
+            if (split.projectCard) {
+              pcStore.put(split.projectCard)
+              validProjectCardIds.add(split.projectCard.id)
+            }
           }
           c.continue()
         }
@@ -466,8 +445,8 @@ async function withStore<T>(
  * On success, broadcasts _dbi/_dbp once. On error, the entire transaction rolls back.
  *
  * Usage:
- *   await tx({ items: "readwrite", reviews: "readwrite" }, async (s) => {
- *     s.items.delete(id)
+ *   await tx({ projectCards: "readwrite", reviews: "readwrite" }, async (s) => {
+ *     s.projectCards.delete(id)
  *     s.reviews.delete(reviewKey)
  *   })
  */
@@ -502,33 +481,6 @@ export async function tx<T>(
   } finally {
     db?.close()
   }
-}
-
-export async function isDuplicate(
-  hash: string,
-  projectId?: string,
-  sourceUrl?: string
-): Promise<boolean> {
-  return withStore("projectCards", "readonly", async (store) => {
-    const idx = store.index("hash")
-    return new Promise<boolean>((resolve, reject) => {
-      const req = idx.openCursor(IDBKeyRange.only(hash))
-      req.onsuccess = () => {
-        const cursor = req.result
-        if (!cursor) {
-          resolve(false)
-          return
-        }
-        const val = cursor.value as ProjectCard
-        if (val.projectId === projectId && val.source?.url === sourceUrl) {
-          resolve(true)
-          return
-        }
-        cursor.continue()
-      }
-      req.onerror = () => reject(req.error)
-    })
-  })
 }
 
 function safeHostname(url: string): string | undefined {
@@ -982,7 +934,7 @@ export async function touchProject(id: string): Promise<void> {
  * Atomic cascade delete of a Section:
  *  1. Collects the target section id + all descendant section ids (level-2 children).
  *  2. Removes those sections from Project.sections.
- *  3. Clears `sectionId` on all items that were attached to any deleted section.
+ *  3. Clears `sectionId` on all projectCards attached to any deleted section.
  *  Single transaction across projects + items for atomicity.
  */
 export async function deleteSection(
@@ -1692,27 +1644,6 @@ function getByKeys<T extends { id: string }>(
   })
 }
 
-/** Parallel put inside one transaction (resolve when all are committed). */
-function putAll<T extends { id: string }>(
-  store: IDBObjectStore,
-  items: T[]
-): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    let remaining = items.length
-    if (remaining === 0) {
-      resolve()
-      return
-    }
-    for (const it of items) {
-      const r = store.put(it)
-      r.onsuccess = () => {
-        if (--remaining === 0) resolve()
-      }
-      r.onerror = () => reject(r.error)
-    }
-  })
-}
-
 /** Place pdfCards into a project — create a placement record (projectCards) +
  *  the pdfCard's reverse reference, ONE tx + both broadcasts. 1:1 guarded. */
 export async function placePdfCards(
@@ -1744,7 +1675,6 @@ export async function placePdfCards(
       }
     }
   )
-  await broadcastDbChange("pdfs")
 }
 
 /** Place a single pdfCard (thin wrapper). */
@@ -1769,12 +1699,13 @@ export async function unplacePdfCards(pdfCardIds: string[]): Promise<void> {
         r.onsuccess = () => {
           if (r.result) stores.reviews.delete(r.result as string)
         }
+        r.onerror = () =>
+          console.warn("[lime] unplacePdfCards: review lookup failed")
         stores.projectCards.delete(pdfCard.projectCardId)
         stores.pdfCards.put({ ...pdfCard, projectCardId: undefined })
       }
     }
   )
-  await broadcastDbChange("pdfs")
 }
 
 /** Remove a single pdfCard from its project (thin wrapper). */
