@@ -84,10 +84,8 @@ async function startRegionSelectCapture(
     }
     try {
       const dataUrl = await sendMessage({ kind: "capture-visible-tab" })
-      console.warn("[lime] region capture:", dataUrl ? dataUrl.slice(0, 40) : "UNDEFINED", "rect", x, y, w, h, "dpr", window.devicePixelRatio)
       if (dataUrl) {
         const cropped = await cropRegion(dataUrl, x, y, w, h)
-        console.warn("[lime] region crop:", cropped ? cropped.slice(0, 40) : "NULL")
         if (cropped) onImage(cropped)
         else onCancel()
       } else onCancel()
@@ -268,8 +266,11 @@ export default function LimePanel() {
     window.setTimeout(() => {
       void startRegionSelectCapture(
         (dataUrl) => {
+          // Fill the CONTENT (the image-mode preview shows <img src=content>),
+          // matching the Alt+S-on-<img> capture path — not the URL quick-input.
           setCaptureType("image")
-          setImageDraft(dataUrl)
+          setContent(dataUrl)
+          setImageDraft("")
           setOpen(true)
         },
         () => {

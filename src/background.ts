@@ -167,12 +167,7 @@ chrome.runtime.onMessage.addListener((raw: any, _sender, sendResponse) => {
       return true
     }
     case "capture-visible-tab": {
-      chrome.tabs.captureVisibleTab((dataUrl) => {
-        if (chrome.runtime.lastError)
-          console.warn("[lime] captureVisibleTab error:", chrome.runtime.lastError.message)
-        console.warn("[lime] captureVisibleTab result:", dataUrl ? dataUrl.slice(0, 40) : "UNDEFINED")
-        sendResponse(dataUrl)
-      })
+      chrome.tabs.captureVisibleTab((dataUrl) => sendResponse(dataUrl))
       return true
     }
     default: {
