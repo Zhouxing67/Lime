@@ -76,7 +76,8 @@ export default function PdfView({
   onOutlineLoaded,
   outlineDest,
   flashTarget,
-  onJumpInPanel
+  onJumpInPanel,
+  onVisiblePageChange
 }: {
   pdfId: string | null
   onOutlineLoaded?: (outline: PdfOutlineItem[] | null) => void
@@ -85,6 +86,8 @@ export default function PdfView({
   flashTarget?: { page: number; annId: string; token: number } | null
   /** Annotation popover "跳转卡片" → scroll the cards panel. */
   onJumpInPanel?: (cardId: string) => void
+  /** Report the current visible page (the bottom-bar status). */
+  onVisiblePageChange?: (page: number) => void
 }) {
   const { loaded, error } = usePdfDocument(pdfId)
   const [scrollPage, setScrollPage] = useState<number | null>(null)
@@ -142,9 +145,13 @@ export default function PdfView({
   }, [reloadPdfData])
 
   // ---- 回跳 (back) history ----
-  const handleVisiblePageChange = useCallback((page: number) => {
-    currentPageRef.current = page
-  }, [])
+  const handleVisiblePageChange = useCallback(
+    (page: number) => {
+      currentPageRef.current = page
+      onVisiblePageChange?.(page)
+    },
+    [onVisiblePageChange]
+  )
 
   const navigateTo = useCallback((page: number) => {
     const prev = currentPageRef.current
@@ -473,12 +480,10 @@ export default function PdfView({
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 const n = Number((e.target as HTMLInputElement).value)
-                if (
-                  Number.isInteger(n) &&
-                  n >= 1 &&
-                  n <= (loaded?.pageCount ?? Infinity)
-                ) {
-                  navigateTo(n)
+                // Clamp into [1, pageCount] — an out-of-range target converges
+                // to the nearest valid page instead of being silently ignored.
+                if (Number.isInteger(n) && loaded) {
+                  navigateTo(Math.max(1, Math.min(loaded.pageCount, n)))
                 }
                 ;(e.target as HTMLInputElement).value = ""
               }

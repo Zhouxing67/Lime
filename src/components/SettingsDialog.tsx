@@ -114,23 +114,25 @@ export default function SettingsDialog({
       </Typography>
 
       <Stack spacing={1.5}>
-        <TextField
-          fullWidth
-          size="small"
-          label="坚果云用户名（邮箱）"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          sx={{ "& .MuiOutlinedInput-root": { borderRadius: 1 } }}
-        />
-        <TextField
-          fullWidth
-          size="small"
-          type="password"
-          label="App 密码"
-          value={appPassword}
-          onChange={(e) => setAppPassword(e.target.value)}
-          sx={{ "& .MuiOutlinedInput-root": { borderRadius: 1 } }}
-        />
+        <Stack direction="row" spacing={1}>
+          <TextField
+            fullWidth
+            size="small"
+            label="坚果云用户名（邮箱）"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            sx={{ "& .MuiOutlinedInput-root": { borderRadius: 1 } }}
+          />
+          <TextField
+            fullWidth
+            size="small"
+            type="password"
+            label="App 密码"
+            value={appPassword}
+            onChange={(e) => setAppPassword(e.target.value)}
+            sx={{ "& .MuiOutlinedInput-root": { borderRadius: 1 } }}
+          />
+        </Stack>
         <Stack direction="row" spacing={1}>
           <Button
             size="small"
@@ -192,7 +194,7 @@ export default function SettingsDialog({
           }}>
           App 密码请在坚果云网页端「账户信息 → 安全选项」中生成。
           <br />
-          上传/下载操作请在侧栏「备份与同步」中进行。
+          上传/下载请在「备份」视图中进行。
         </Typography>
 
         <Box
@@ -269,7 +271,7 @@ export default function SettingsDialog({
             <Typography
               variant="caption"
               sx={{ color: "text.disabled", display: "block", mt: 0.5 }}>
-              阅读页面悬停公式时显示柔和底色，便于 Alt+L 拾取公式
+              阅读页面悬停公式时显示柔和底色，便于 Alt+S 捕获公式
             </Typography>
           </Box>
           <Switch

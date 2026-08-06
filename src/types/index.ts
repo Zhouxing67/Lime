@@ -185,8 +185,8 @@ export interface TodoStats {
 }
 
 export const PRESET_LABELS: Record<PresetName, string> = {
-  classic: "经典蓝灰",
-  "indigo-crimson": "靛蓝胭红",
-  forest: "墨绿森林",
-  terracotta: "赤陶暖调"
+  classic: "青灰",
+  "indigo-crimson": "紫檀",
+  forest: "墨绿",
+  terracotta: "暖陶"
 }

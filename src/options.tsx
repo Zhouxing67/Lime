@@ -180,6 +180,7 @@ export default function OptionsPage() {
   const pdfFlashToken = useRef(0)
   const pdfScrollToken = useRef(0)
   const [activePdfId, setActivePdfId] = useState<string | null>(null)
+  const [pdfCurrentPage, setPdfCurrentPage] = useState(1)
   const [pdfDeleteTarget, setPdfDeleteTarget] = useState<PdfFile | null>(null)
   const [topicDeleteTarget, setTopicDeleteTarget] = useState<string | null>(
     null
@@ -2442,6 +2443,9 @@ export default function OptionsPage() {
                         outlineDest={pdfOutlineDest}
                         flashTarget={id === activePdfId ? pdfFlashTarget : null}
                         onJumpInPanel={handleJumpInPanel}
+                        onVisiblePageChange={
+                          id === activePdfId ? setPdfCurrentPage : undefined
+                        }
                       />
                     </Box>
                   ))}
@@ -3081,6 +3085,10 @@ export default function OptionsPage() {
            </Box>
           <FooterBar
             sidebarTab={sidebarTab}
+            pdfCurrentPage={pdfCurrentPage}
+            pdfPageCount={
+              pdfs.find((p) => p.id === activePdfId)?.pageCount ?? 0
+            }
             totalItems={allProjectCardsUnfiltered.length}
             totalProjects={projects.length}
             dueCount={dueCount}
