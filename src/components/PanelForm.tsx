@@ -188,6 +188,8 @@ export default function PanelForm({
 
   return (
     <>
+      {/* Scrollable middle (project row + form) — the footer stays pinned. */}
+      <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
       {/* Business row: project selection + create */}
       <div
         style={{
@@ -304,7 +306,7 @@ export default function PanelForm({
         </div>
       )}
 
-      {/* Inputs */}
+      {/* Inputs — scrollable so a tall content box never clips */}
       <div style={{ padding: "8px 12px 4px" }}>
         <input
           className="lime-input"
@@ -334,11 +336,12 @@ export default function PanelForm({
               placeholder="输入内容…"
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              rows={4}
+              rows={8}
               style={{
                 ...inputStyle(colors),
                 lineHeight: 1.7,
-                resize: "vertical"
+                resize: "vertical",
+                maxHeight: 420
               }}
             />
 
@@ -513,6 +516,8 @@ export default function PanelForm({
             ))}
           </div>
         )}
+      </div>
+
       </div>
 
       {/* Footer */}
