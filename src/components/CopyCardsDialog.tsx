@@ -9,9 +9,10 @@ import {
   Typography
 } from "@mui/material"
 import AddRoundedIcon from "@mui/icons-material/AddRounded"
-import { useState } from "react"
+import { useMemo, useState } from "react"
 
 import type { Project } from "../types"
+import { byRecency } from "../utils"
 import DialogShell from "./DialogShell"
 
 export default function CopyCardsDialog({
@@ -32,7 +33,26 @@ export default function CopyCardsDialog({
 }) {
   const [newProjectOpen, setNewProjectOpen] = useState(false)
   const [creatingProject, setCreatingProject] = useState(false)
+  const [showAllProjects, setShowAllProjects] = useState(false)
   const [name, setName] = useState("")
+
+  // Same 收纳 pattern as the sidebar tree / place menu: recent-first, top 7 +
+  // a 全部项目 (N) fold, ellipsis-truncated names — a long project list stays
+  // scannable instead of a 300px scroll wall.
+  const sortedProjects = useMemo(
+    () =>
+      [...projects].sort(
+        byRecency(
+          (p) => p.lastOpened,
+          (a, b) => b.createdAt - a.createdAt
+        )
+      ),
+    [projects]
+  )
+  const visibleProjects = showAllProjects
+    ? sortedProjects
+    : sortedProjects.slice(0, 7)
+  const hiddenProjects = sortedProjects.length - visibleProjects.length
 
   const handleCreate = async () => {
     const trimmed = name.trim()
@@ -65,19 +85,30 @@ export default function CopyCardsDialog({
         </Typography>
       ) : (
         <List disablePadding sx={{ maxHeight: 300, overflowY: "auto" }}>
-          {projects.map((p) => (
+          {visibleProjects.map((p) => (
             <ListItemButton
               key={p.id}
               onClick={() => onSelect(p.id)}
+              title={p.name}
               sx={{ borderRadius: 1, my: 0.25 }}>
               <ListItemText
                 primary={p.name}
                 secondary={p.note || undefined}
-                primaryTypographyProps={{ fontSize: "0.85rem" }}
-                secondaryTypographyProps={{ fontSize: "0.75rem" }}
+                primaryTypographyProps={{ fontSize: "0.85rem", noWrap: true }}
+                secondaryTypographyProps={{
+                  fontSize: "0.75rem",
+                  noWrap: true
+                }}
               />
             </ListItemButton>
           ))}
+          {hiddenProjects > 0 && (
+            <ListItemButton
+              onClick={() => setShowAllProjects((s) => !s)}
+              sx={{ borderRadius: 1, fontSize: "0.75rem", color: "text.secondary" }}>
+              {showAllProjects ? "收起" : `全部项目（${sortedProjects.length}）`}
+            </ListItemButton>
+          )}
         </List>
       )}
       {onCreateProject && (
