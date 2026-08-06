@@ -108,7 +108,10 @@ export default function PdfView({
   } | null>(null)
   const [frameMode, setFrameMode] = useState(false)
   const [canGoBack, setCanGoBack] = useState(false)
-  const [jumpInput, setJumpInput] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
+  // The jump input's draft: "" shows the current page (Edge-style); typing
+  // replaces it; Enter jumps + resets back to the live page.
+  const [jumpDraft, setJumpDraft] = useState("")
   const currentPageRef = useRef(1)
   const navHistoryRef = useRef<number[]>([])
   const [annotMenuAnchor, setAnnotMenuAnchor] = useState<HTMLElement | null>(
@@ -157,6 +160,7 @@ export default function PdfView({
   const handleVisiblePageChange = useCallback(
     (page: number) => {
       currentPageRef.current = page
+      setCurrentPage(page)
       onVisiblePageChange?.(page)
     },
     [onVisiblePageChange]
@@ -481,43 +485,54 @@ export default function PdfView({
             />
           {/* jump to page */}
           <Box sx={{ flex: 1 }} />
-          <TextField
-            size="small"
-            variant="outlined"
-            type="number"
-            placeholder="跳转页码"
-            value={jumpInput}
-            inputProps={{ min: 1, max: loaded?.pageCount, step: 1 }}
-            onChange={(e) => {
-              const v = e.target.value
-              if (v === "") {
-                setJumpInput("")
-                return
-              }
-              const n = Number(v)
-              if (!Number.isInteger(n)) return
-              // Clamp as you type — an out-of-range value snaps to the nearest
-              // valid page (-1 → 1, 100000 → pageCount).
-              if (n < 1) setJumpInput("1")
-              else if (loaded && n > loaded.pageCount)
-                setJumpInput(String(loaded.pageCount))
-              else setJumpInput(v)
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && jumpInput !== "") {
-                const n = Number(jumpInput)
-                if (loaded) navigateTo(Math.max(1, Math.min(loaded.pageCount, n)))
-                setJumpInput("")
-              }
-            }}
-            sx={{
-              width: 100,
-              "& .MuiOutlinedInput-root": {
-                borderRadius: 1,
-                fontSize: "0.8rem"
-              }
-            }}
-          />
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+            <TextField
+              size="small"
+              variant="outlined"
+              type="number"
+              value={jumpDraft === "" ? String(currentPage) : jumpDraft}
+              inputProps={{ min: 1, max: loaded?.pageCount, step: 1 }}
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => {
+                const v = e.target.value
+                if (v === "") {
+                  setJumpDraft("")
+                  return
+                }
+                const n = Number(v)
+                if (!Number.isInteger(n)) return
+                // Clamp as you type — an out-of-range value snaps to the
+                // nearest valid page (-1 → 1, 100000 → pageCount).
+                if (n < 1) setJumpDraft("1")
+                else if (loaded && n > loaded.pageCount)
+                  setJumpDraft(String(loaded.pageCount))
+                else setJumpDraft(v)
+              }}
+              onBlur={() => setJumpDraft("")}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && jumpDraft !== "") {
+                  const n = Number(jumpDraft)
+                  if (loaded)
+                    navigateTo(Math.max(1, Math.min(loaded.pageCount, n)))
+                  setJumpDraft("")
+                }
+              }}
+              sx={{
+                width: 52,
+                "& .MuiOutlinedInput-root": {
+                  borderRadius: 1,
+                  fontSize: "0.8rem",
+                  px: 0.5
+                },
+                "& input": { textAlign: "center", p: "6px 4px" }
+              }}
+            />
+            <Typography
+              variant="caption"
+              sx={{ fontSize: "0.75rem", color: "text.disabled", whiteSpace: "nowrap" }}>
+              / {loaded?.pageCount ?? "…"}
+            </Typography>
+          </Box>
           {/* 回跳 */}
           <IconButton
             size="small"
