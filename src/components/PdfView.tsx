@@ -520,6 +520,7 @@ export default function PdfView({
                   }
                   setEditingJump(false)
                   setJumpDraft("")
+                  ;(e.target as HTMLInputElement).blur()
                 }
               }}
               sx={{

@@ -7,11 +7,6 @@ export interface PaletteColors {
 }
 
 export const palettes: Record<PresetName, PaletteColors> = {
-  classic: {
-    primary: { main: "#6b7785", light: "#8a96a3", dark: "#4a5563" },
-    secondary: { main: "#9c8b7a", light: "#b5a598", dark: "#7d6f61" },
-    error: { main: "#c9786e", light: "#d89a91" }
-  },
   "indigo-crimson": {
     primary: { main: "#4f46e5", light: "#818cf8", dark: "#3730a3" },
     secondary: { main: "#ef4444", light: "#f87171", dark: "#b91c1c" },
@@ -35,6 +30,11 @@ export const palettes: Record<PresetName, PaletteColors> = {
   purple: {
     primary: { main: "#6b5b8f", light: "#8b7ab0", dark: "#4c4068" },
     secondary: { main: "#a0685f", light: "#c0877e", dark: "#7c4b44" },
+    error: { main: "#c9786e", light: "#d89a91" }
+  },
+  crimson: {
+    primary: { main: "#8a3a3a", light: "#a85a5a", dark: "#6b2b2b" },
+    secondary: { main: "#a9824f", light: "#c29b6b", dark: "#87612f" },
     error: { main: "#c9786e", light: "#d89a91" }
   }
 }

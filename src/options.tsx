@@ -114,7 +114,7 @@ import { useProjects } from "./hooks/useProjects"
 import { useReview } from "./hooks/useReview"
 import { createReviewEntry, dayKey, rateSrs } from "./hooks/useSrs"
 import { importFromZip } from "./import"
-import { createAppTheme } from "./theme"
+import { createAppTheme, palettes } from "./theme"
 import { buildProjectMarkdown, buildScopeData } from "./utils/export"
 import type {
   DisplayCard,
@@ -299,7 +299,10 @@ export default function OptionsPage() {
 
   useEffect(() => {
     chrome.storage.sync.get("preset", (data) => {
-      if (data.preset) setPreset(data.preset as PresetName)
+      // Only adopt a preset that still exists — a stale stored value (e.g. the
+      // removed classic) falls back to the default instead of crashing.
+      if (data.preset && data.preset in palettes)
+        setPreset(data.preset as PresetName)
     })
   }, [])
 

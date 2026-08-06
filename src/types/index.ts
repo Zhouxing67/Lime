@@ -165,12 +165,12 @@ export interface Project {
 }
 
 export type PresetName =
-  | "classic"
   | "indigo-crimson"
   | "forest"
   | "terracotta"
   | "navy"
   | "purple"
+  | "crimson"
 
 export type TodoFilter =
   | "all"
@@ -191,10 +191,10 @@ export interface TodoStats {
 }
 
 export const PRESET_LABELS: Record<PresetName, string> = {
-  classic: "青灰",
   "indigo-crimson": "紫檀",
   forest: "墨绿",
   terracotta: "暖陶",
   navy: "黛蓝",
-  purple: "绛紫"
+  purple: "绛紫",
+  crimson: "赤红"
 }
