@@ -1,11 +1,15 @@
 import {
+  Box,
   Button,
   DialogActions,
   List,
   ListItemButton,
   ListItemText,
+  TextField,
   Typography
 } from "@mui/material"
+import AddRoundedIcon from "@mui/icons-material/AddRounded"
+import { useState } from "react"
 
 import type { Project } from "../types"
 import DialogShell from "./DialogShell"
@@ -15,14 +19,35 @@ export default function CopyCardsDialog({
   title,
   projects,
   onSelect,
+  onCreateProject,
   onClose
 }: {
   open: boolean
   title: string
   projects: Project[]
   onSelect: (projectId: string) => void
+  /** Create a new project inline (returns its id, or null on failure). */
+  onCreateProject?: (name: string) => Promise<string | null>
   onClose: () => void
 }) {
+  const [newProjectOpen, setNewProjectOpen] = useState(false)
+  const [creatingProject, setCreatingProject] = useState(false)
+  const [name, setName] = useState("")
+
+  const handleCreate = async () => {
+    const trimmed = name.trim()
+    if (!trimmed || !onCreateProject || creatingProject) return
+    setCreatingProject(true)
+    const id = await onCreateProject(trimmed)
+    setCreatingProject(false)
+    if (id) {
+      setName("")
+      setNewProjectOpen(false)
+      onClose()
+      onSelect(id)
+    }
+  }
+
   return (
     <DialogShell
       open={open}
@@ -54,6 +79,36 @@ export default function CopyCardsDialog({
             </ListItemButton>
           ))}
         </List>
+      )}
+      {onCreateProject && (
+        <>
+          <Box sx={{ borderTop: "1px solid", borderColor: "divider", my: 1 }} />
+          {newProjectOpen ? (
+            <Box sx={{ px: 1, py: 0.5 }}>
+              <TextField
+                autoFocus
+                size="small"
+                fullWidth
+                placeholder="项目名称"
+                value={name}
+                disabled={creatingProject}
+                onChange={(e) => setName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleCreate()
+                  if (e.key === "Escape") setNewProjectOpen(false)
+                }}
+                sx={{ "& .MuiInputBase-input": { fontSize: "0.8rem" } }}
+              />
+            </Box>
+          ) : (
+            <ListItemButton
+              onClick={() => setNewProjectOpen(true)}
+              sx={{ gap: 1, borderRadius: 1, fontSize: "0.8rem" }}>
+              <AddRoundedIcon sx={{ fontSize: 15 }} />
+              新建项目
+            </ListItemButton>
+          )}
+        </>
       )}
     </DialogShell>
   )

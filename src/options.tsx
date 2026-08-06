@@ -1769,6 +1769,25 @@ export default function OptionsPage() {
     onSearch()
   }
 
+  // Inline 新建项目 for the copy dialog: create + return the new project's id
+  // (null on failure). Name must be unique.
+  const handleCreateProjectAndCopy = useCallback(async (name: string) => {
+    const existing = await getProjectByName(name)
+    if (existing) {
+      setSnackbarMsg("项目名已存在")
+      return null
+    }
+    const id = crypto.randomUUID()
+    try {
+      await addProject({ id, name, createdAt: Date.now() })
+      return id
+    } catch (e) {
+      console.warn("[lime] create project failed:", e)
+      setSnackbarMsg("新建项目失败，请重试")
+      return null
+    }
+  }, [])
+
   const handleBatchCopy = () => setBatchCopyOpen(true)
 
   const handleBatchCopyCards = async (targetProjectId: string) => {
@@ -2991,6 +3010,7 @@ export default function OptionsPage() {
                 title="复制到项目"
                 projects={otherProjects}
                 onSelect={handleCopyCard}
+                onCreateProject={handleCreateProjectAndCopy}
                 onClose={() => setCopyCardId(null)}
               />
 
@@ -3018,6 +3038,7 @@ export default function OptionsPage() {
 
               <CopyCardsDialog
                 open={batchCopyOpen}
+                onCreateProject={handleCreateProjectAndCopy}
                 title="批量复制到项目"
                 projects={otherProjects}
                 onSelect={handleBatchCopyCards}
