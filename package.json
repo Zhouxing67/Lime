@@ -59,8 +59,7 @@
       "downloads"
     ],
     "host_permissions": [
-      "https://*/*",
-      "http://*/*"
+      "<all_urls>"
     ],
     "options_ui": {
       "page": "options.html",
