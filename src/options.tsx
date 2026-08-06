@@ -1309,7 +1309,7 @@ export default function OptionsPage() {
       setActiveProjectId(placement.projectId)
       setActiveSectionByProject((prev) => ({
         ...prev,
-        [placement.projectId]: placement.sectionId ?? null
+        [placement.projectId]: placement.sectionId ?? "__unclassified__"
       }))
       setProjectCardHighlightId(placement.id)
       if (projectCardHighlightTimer.current)

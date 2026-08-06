@@ -553,7 +553,11 @@ export default function CardRenderer({
             sx={{
               color: "text.secondary",
               fontSize: "0.75rem",
-              letterSpacing: "0.03em"
+              letterSpacing: "0.03em",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              minWidth: 0
             }}>
             {item.type.toUpperCase()}
             {!item.source && !item.pdfSource && " · 自建卡片"}
