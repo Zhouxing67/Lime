@@ -569,8 +569,13 @@ export default function PdfRenderer({
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
-    const ro = new ResizeObserver((entries) => {
-      const { width: w, height: h } = entries[0].contentRect
+    // Use clientWidth/clientHeight — the VISIBLE box. The ResizeObserver's
+    // contentRect.height on a scroll container reports the SCROLL content's
+    // height (it grows with the rendered pages), which would make the fit-page
+    // scale always width-bound (no visible difference).
+    const ro = new ResizeObserver(() => {
+      const w = el.clientWidth
+      const h = el.clientHeight
       if (w !== paneWRef.current) {
         paneWRef.current = w
         setPaneW(w)
