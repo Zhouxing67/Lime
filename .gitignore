@@ -42,3 +42,5 @@ tsconfig.tsbuildinfo
 # deepwork session state
 .slim/deepwork/
 assets/pdfjs/
+
+.opencode

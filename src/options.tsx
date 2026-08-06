@@ -181,6 +181,7 @@ export default function OptionsPage() {
   const pdfScrollToken = useRef(0)
   const [activePdfId, setActivePdfId] = useState<string | null>(null)
   const [pdfCurrentPage, setPdfCurrentPage] = useState(1)
+  const [pdfPageCount, setPdfPageCount] = useState(0)
   const [pdfDeleteTarget, setPdfDeleteTarget] = useState<PdfFile | null>(null)
   const [topicDeleteTarget, setTopicDeleteTarget] = useState<string | null>(
     null
@@ -2446,6 +2447,9 @@ export default function OptionsPage() {
                         onVisiblePageChange={
                           id === activePdfId ? setPdfCurrentPage : undefined
                         }
+                        onPageCountChange={
+                          id === activePdfId ? setPdfPageCount : undefined
+                        }
                       />
                     </Box>
                   ))}
@@ -3086,9 +3090,7 @@ export default function OptionsPage() {
           <FooterBar
             sidebarTab={sidebarTab}
             pdfCurrentPage={pdfCurrentPage}
-            pdfPageCount={
-              pdfs.find((p) => p.id === activePdfId)?.pageCount ?? 0
-            }
+            pdfPageCount={pdfPageCount}
             totalItems={allProjectCardsUnfiltered.length}
             totalProjects={projects.length}
             dueCount={dueCount}

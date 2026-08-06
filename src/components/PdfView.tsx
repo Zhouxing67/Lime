@@ -77,7 +77,8 @@ export default function PdfView({
   outlineDest,
   flashTarget,
   onJumpInPanel,
-  onVisiblePageChange
+  onVisiblePageChange,
+  onPageCountChange
 }: {
   pdfId: string | null
   onOutlineLoaded?: (outline: PdfOutlineItem[] | null) => void
@@ -88,9 +89,16 @@ export default function PdfView({
   onJumpInPanel?: (cardId: string) => void
   /** Report the current visible page (the bottom-bar status). */
   onVisiblePageChange?: (page: number) => void
+  /** Report the loaded document's page count (the bottom-bar total). */
+  onPageCountChange?: (n: number) => void
 }) {
   const { loaded, error } = usePdfDocument(pdfId)
   const [scrollPage, setScrollPage] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (loaded) onPageCountChange?.(loaded.pageCount)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded?.pageCount])
   const [flashAnnId, setFlashAnnId] = useState<string | null>(null)
   const [zoom, setZoom] = useState(1)
   const [annotations, setAnnotations] = useState<PdfAnnotation[]>([])
@@ -100,6 +108,7 @@ export default function PdfView({
   } | null>(null)
   const [frameMode, setFrameMode] = useState(false)
   const [canGoBack, setCanGoBack] = useState(false)
+  const [jumpInput, setJumpInput] = useState("")
   const currentPageRef = useRef(1)
   const navHistoryRef = useRef<number[]>([])
   const [annotMenuAnchor, setAnnotMenuAnchor] = useState<HTMLElement | null>(
@@ -477,15 +486,28 @@ export default function PdfView({
             variant="outlined"
             type="number"
             placeholder="跳转页码"
+            value={jumpInput}
+            inputProps={{ min: 1, max: loaded?.pageCount, step: 1 }}
+            onChange={(e) => {
+              const v = e.target.value
+              if (v === "") {
+                setJumpInput("")
+                return
+              }
+              const n = Number(v)
+              if (!Number.isInteger(n)) return
+              // Clamp as you type — an out-of-range value snaps to the nearest
+              // valid page (-1 → 1, 100000 → pageCount).
+              if (n < 1) setJumpInput("1")
+              else if (loaded && n > loaded.pageCount)
+                setJumpInput(String(loaded.pageCount))
+              else setJumpInput(v)
+            }}
             onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                const n = Number((e.target as HTMLInputElement).value)
-                // Clamp into [1, pageCount] — an out-of-range target converges
-                // to the nearest valid page instead of being silently ignored.
-                if (Number.isInteger(n) && loaded) {
-                  navigateTo(Math.max(1, Math.min(loaded.pageCount, n)))
-                }
-                ;(e.target as HTMLInputElement).value = ""
+              if (e.key === "Enter" && jumpInput !== "") {
+                const n = Number(jumpInput)
+                if (loaded) navigateTo(Math.max(1, Math.min(loaded.pageCount, n)))
+                setJumpInput("")
               }
             }}
             sx={{
