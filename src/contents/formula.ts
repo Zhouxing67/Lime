@@ -1,59 +1,12 @@
-const MATH_SELECTOR =
-  ".katex, mjx-container, .MathJax, math, .ztext-math[data-tex]"
-const OTHER_MATH_SELECTOR = "mjx-container, .MathJax, math, .ztext-math[data-tex]"
+import {
+  MATH_CONTAINER_SELECTOR,
+  MATH_SELECTOR,
+  mathSource,
+  wrapMath
+} from "./mathFormats"
+
 const HIGHLIGHT_CLASS = "lime-math-hover"
 const FLASH_CLASS = "lime-math-flash"
-
-/** Extract the LaTeX source from a KaTeX `.katex` element (its `.katex-mathml
- *  annotation` node always holds `application/x-tex`). */
-function katexSource(el: Element): string | null {
-  const ann = el.querySelector(".katex-mathml annotation")
-  const src = ann?.textContent?.trim()
-  return src && src.length > 0 ? src : null
-}
-
-/** Best-effort source for MathJax / native MathML containers. */
-function fallbackMathSource(el: Element): string | null {
-  const ann = el.querySelector("annotation")
-  if (ann?.textContent?.trim()) return ann.textContent.trim()
-  const label = el.getAttribute("aria-label")
-  if (label?.trim()) return label.trim()
-  const rendered = el.textContent?.trim()
-  return rendered && rendered.length > 0 ? rendered : null
-}
-
-/** Source from a `data-tex` container (Zhihu's simplified MathJax keeps the
- *  LaTeX in the `data-tex` attribute). */
-function dataTexSource(el: Element): string | null {
-  const src = el.getAttribute("data-tex")
-  return src && src.length > 0 ? src : null
-}
-
-/** LaTeX source (or best-effort text) of any math container. */
-export function mathSource(el: Element): string | null {
-  if (el.classList.contains("katex")) return katexSource(el)
-  if (el.hasAttribute("data-tex")) return dataTexSource(el)
-  return fallbackMathSource(el)
-}
-
-function isDisplayMath(el: Element): boolean {
-  if (
-    el.closest?.(".katex-display") != null ||
-    el.closest?.(".MathJax_Display") != null ||
-    el.matches?.('[display="block"], [display="true"]') === true
-  ) {
-    return true
-  }
-  // Zhihu block math uses `\begin{…}` environments.
-  const src = el.getAttribute?.("data-tex")
-  if (src && /\\begin\{/.test(src)) return true
-  return false
-}
-
-/** Wrap a source with inline/display delimiters. */
-export function wrapMath(el: Element, src: string): string {
-  return isDisplayMath(el) ? `$$${src}$$` : `$${src}$`
-}
 
 /** Element under the given page coordinates that is a math container. */
 export function mathAtPoint(x: number, y: number): Element | null {
@@ -66,12 +19,7 @@ export function mathAtPoint(x: number, y: number): Element | null {
 /** Replace every math container in a cloned root with its `$…$`/`$$…$$` source
  *  and return the normalized text. Shared by selection and paragraph capture. */
 function mathTextFromClone(clone: Element | DocumentFragment): string {
-  for (const el of Array.from(clone.querySelectorAll(".katex"))) {
-    const src = katexSource(el)
-    if (!src) continue
-    el.replaceWith(document.createTextNode(wrapMath(el, src)))
-  }
-  for (const el of Array.from(clone.querySelectorAll(OTHER_MATH_SELECTOR))) {
+  for (const el of Array.from(clone.querySelectorAll(MATH_SELECTOR))) {
     const src = mathSource(el)
     if (!src) continue
     el.replaceWith(document.createTextNode(wrapMath(el, src)))
@@ -85,9 +33,6 @@ export function selectionWithMath(sel: Selection): string {
   if (!sel.rangeCount || sel.isCollapsed) return sel.toString().trim()
   return mathTextFromClone(sel.getRangeAt(0).cloneContents())
 }
-
-const MATH_CONTAINER_SELECTOR =
-  ".katex, .katex-display, mjx-container, .MathJax, .MathJax_Display, .ztext-math[data-tex]"
 
 function isBlockDisplay(d: string): boolean {
   return d === "block" || d === "flex" || d === "grid" || d === "list-item"

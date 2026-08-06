@@ -1,9 +1,8 @@
+import { mathSource, wrapMath } from "./mathFormats"
 import {
   enclosingParagraph,
   mathBlockText,
-  mathSource,
-  selectionWithMath,
-  wrapMath
+  selectionWithMath
 } from "./formula"
 
 describe("formula", () => {
@@ -115,5 +114,30 @@ describe("formula", () => {
     `
     const para = document.querySelector("p")!
     expect(mathBlockText(para)).toBe("$x$")
+  })
+})
+
+describe("mathFormats registry", () => {
+  it("extracts Zhihu ztext-math from the data-tex attribute", () => {
+    document.body.innerHTML = `
+      <span class="ztext-math" data-tex="E=mc^2"></span>`
+    const el = document.querySelector(".ztext-math")!
+    expect(mathSource(el)).toBe("E=mc^2")
+    expect(wrapMath(el, "E=mc^2")).toBe("$E=mc^2$")
+  })
+
+  it("falls back to alt for a ztext-math img without data-tex", () => {
+    document.body.innerHTML = `<img class="ztext-math" alt="x_1 + x_2" />`
+    const el = document.querySelector(".ztext-math")!
+    expect(mathSource(el)).toBe("x_1 + x_2")
+  })
+
+  it("detects display math via the format's isDisplay hook", () => {
+    document.body.innerHTML = `
+      <div class="katex-display"><span class="katex">
+        <span class="katex-mathml"><annotation>x</annotation></span>
+      </span></div>`
+    const el = document.querySelector(".katex")!
+    expect(wrapMath(el, "x")).toBe("$$x$$")
   })
 })
