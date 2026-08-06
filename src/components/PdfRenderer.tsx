@@ -102,24 +102,29 @@ function drawFlash(
       }
     }
   }
-  // Create the element ONCE per flash — re-creating it restarts the CSS
-  // animation. Re-renders (ready toggling) only re-position it.
-  let flash = flashLayer.querySelector<HTMLElement>(".pdf-ann-flash")
-  if (rects.length === 0) {
-    flash?.remove()
-    return rects
+  // ONE flash element per rect — a multi-line highlight has N rects and the
+  // flash must cover ALL of them (rects[0] only flashed the first line). Keep
+  // the existing elements (create-once, so their animation doesn't restart on
+  // re-renders) and sync positions to the rects.
+  const els = Array.from(
+    flashLayer.querySelectorAll<HTMLElement>(".pdf-ann-flash")
+  )
+  while (els.length > rects.length) {
+    els.pop()?.remove()
   }
-  if (!flash) {
-    flash = document.createElement("div")
-    flash.className = "pdf-ann-flash"
-    flash.style.cssText = "position:absolute;pointer-events:none;"
-    flashLayer.appendChild(flash)
-  }
-  const r = rects[0]
-  flash.style.left = `${r.x}px`
-  flash.style.top = `${r.y}px`
-  flash.style.width = `${r.w}px`
-  flash.style.height = `${r.h}px`
+  rects.forEach((r, i) => {
+    let el = els[i]
+    if (!el) {
+      el = document.createElement("div")
+      el.className = "pdf-ann-flash"
+      el.style.cssText = "position:absolute;pointer-events:none;"
+      flashLayer.appendChild(el)
+    }
+    el.style.left = `${r.x}px`
+    el.style.top = `${r.y}px`
+    el.style.width = `${r.w}px`
+    el.style.height = `${r.h}px`
+  })
   return rects
 }
 
@@ -497,8 +502,6 @@ function PageView({
       return
     }
     const rects = drawFlash(flashLayer, annotations, tl, holder, flashAnnId)
-    const flashEl = flashLayer.querySelector<HTMLElement>(".pdf-ann-flash")
-    console.warn("[lime:flash]", "annId", flashAnnId, "rects", rects.length, "el", !!flashEl, "size", flashEl ? flashEl.style.width + "x" + flashEl.style.height : "-", "zi", flashEl ? getComputedStyle(flashEl).zIndex : "-", "layerZi", getComputedStyle(flashLayer).zIndex)
     const timer = window.setTimeout(() => flashDoneRef.current?.(), 1500)
     if (rects.length > 0) {
       const minX = Math.min(...rects.map((r) => r.x))
