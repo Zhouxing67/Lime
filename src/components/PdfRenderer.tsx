@@ -90,7 +90,9 @@ function appendFlash(overlay: HTMLElement, r: PdfRect): void {
 
 /** The reading column never exceeds this share of the pane width — the pages
  *  are centered with side white space instead of stretching edge-to-edge. */
-const PAGE_RATIO = 0.75
+// Fit-width fills the whole pane (the old 0.75 reading-column margin made
+// the fit-width look 'not full' — 140% zoom reached full width).
+const PAGE_RATIO = 1
 
 const TEXT_LAYER_CSS = `
 .pdf-textlayer {
