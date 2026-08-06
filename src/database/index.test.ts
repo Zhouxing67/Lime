@@ -1218,6 +1218,21 @@ describe("v12 migration: items → three typed stores", () => {
           createdAt: 4
         })
         tx.objectStore("reviews").put({
+          id: "rev-2",
+          itemId: "pdfonly-1",
+          projectId: "",
+          srs: {
+            dueDate: 1,
+            interval: 0,
+            easeFactor: 2.5,
+            reviewCount: 0,
+            lastReviewDate: 0
+          },
+          status: "active",
+          dueDate: 1,
+          addedAt: 3
+        })
+        tx.objectStore("reviews").put({
           id: "rev-1",
           itemId: "placed-1",
           projectId: "p1",
@@ -1271,6 +1286,9 @@ describe("v12 migration: items → three typed stores", () => {
     // The review remapped to the placement id.
     const review = await getReviewByItemId(placed!.projectCardId!)
     expect(review?.id).toBe("rev-1")
+    // A legacy pdf-only card's review is a phantom (only project cards
+    // review) — the migration drops it.
+    expect(await getReviewByItemId("pdfonly-1")).toBeUndefined()
 
     // The old items store is gone; the annotation's itemId → cardId.
     const db = await openRaw(12)
