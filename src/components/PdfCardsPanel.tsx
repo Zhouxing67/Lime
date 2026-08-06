@@ -519,10 +519,10 @@ export default function PdfCardsPanel({
                           sx={{ p: 0.25, color: "text.disabled" }}>
                           {copiedCardId === card.id ? (
                             <CheckRoundedIcon
-                              sx={{ fontSize: 14, color: "success.main" }}
+                              sx={{ fontSize: 16, color: "success.main" }}
                             />
                           ) : (
-                            <ContentCopyRoundedIcon sx={{ fontSize: 14 }} />
+                            <ContentCopyRoundedIcon sx={{ fontSize: 16 }} />
                           )}
                         </IconButton>
                       </Tooltip>
@@ -535,9 +535,9 @@ export default function PdfCardsPanel({
                           }}
                           sx={{ p: 0.25, color: "text.disabled" }}>
                           {expanded ? (
-                            <UnfoldLessRoundedIcon sx={{ fontSize: 14 }} />
+                            <UnfoldLessRoundedIcon sx={{ fontSize: 16 }} />
                           ) : (
-                            <UnfoldMoreRoundedIcon sx={{ fontSize: 14 }} />
+                            <UnfoldMoreRoundedIcon sx={{ fontSize: 16 }} />
                           )}
                         </IconButton>
                       </Tooltip>
@@ -549,7 +549,7 @@ export default function PdfCardsPanel({
                             handleCardEdit(card)
                           }}
                           sx={{ p: 0.25, color: "text.disabled" }}>
-                          <EditRoundedIcon sx={{ fontSize: 14 }} />
+                          <EditRoundedIcon sx={{ fontSize: 16 }} />
                         </IconButton>
                       </Tooltip>
                       {placedProject ? (
@@ -561,7 +561,7 @@ export default function PdfCardsPanel({
                               onUnplace([card.id])
                             }}
                             sx={{ p: 0.25, color: "text.disabled" }}>
-                            <LinkOffRoundedIcon sx={{ fontSize: 14 }} />
+                            <LinkOffRoundedIcon sx={{ fontSize: 16 }} />
                           </IconButton>
                         </Tooltip>
                       ) : (
@@ -576,7 +576,7 @@ export default function PdfCardsPanel({
                               })
                             }}
                             sx={{ p: 0.25, color: "text.disabled" }}>
-                            <DriveFileMoveRoundedIcon sx={{ fontSize: 14 }} />
+                            <DriveFileMoveRoundedIcon sx={{ fontSize: 16 }} />
                           </IconButton>
                         </Tooltip>
                       )}
@@ -590,7 +590,7 @@ export default function PdfCardsPanel({
                         handleCardDelete(card)
                       }}
                       sx={{ p: 0.25, color: "text.disabled" }}>
-                      <DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />
+                      <DeleteOutlineRoundedIcon sx={{ fontSize: 16 }} />
                     </IconButton>
                   </Tooltip>
                 </Box>
