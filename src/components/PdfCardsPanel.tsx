@@ -513,10 +513,33 @@ export default function PdfCardsPanel({
                       }}>
                       <IconButton
                         size="small"
-                        title={copiedCardId === card.id ? "已复制" : "复制内容"}
-                        onClick={(e) => {
+                        title={
+                          copiedCardId === card.id
+                            ? "已复制"
+                            : card.kind === "region"
+                              ? "复制图片"
+                              : "复制内容"
+                        }
+                        onClick={async (e) => {
                           e.stopPropagation()
-                          navigator.clipboard.writeText(`> ${card.content}`)
+                          if (card.kind === "region") {
+                            // A frame card copies the IMAGE itself (ClipboardItem).
+                            try {
+                              const blob = await (
+                                await fetch(card.content)
+                              ).blob()
+                              await navigator.clipboard.write([
+                                new ClipboardItem({
+                                  [blob.type || "image/png"]: blob
+                                })
+                              ])
+                            } catch (err) {
+                              console.warn("[lime] image copy failed:", err)
+                              navigator.clipboard.writeText(card.content)
+                            }
+                          } else {
+                            navigator.clipboard.writeText(`> ${card.content}`)
+                          }
                           setCopiedCardId(card.id)
                           window.setTimeout(() => {
                             setCopiedCardId((cur) =>
