@@ -191,6 +191,7 @@ export default function OptionsPage() {
   // Immersive PDF reading: closes both sidebars; toggling off restores the
   // pre-immersive open/close states.
   const toggleImmersive = useCallback(() => {
+    console.warn("[lime:immersive]", "state", pdfImmersive, "saved", immersiveSavedUiRef.current, "drawer", drawerOpen, "panel", pdfCardsOpen)
     if (pdfImmersive) {
       setDrawerOpen(immersiveSavedUiRef.current?.drawerOpen ?? true)
       setPdfCardsOpen(immersiveSavedUiRef.current?.pdfCardsOpen ?? true)

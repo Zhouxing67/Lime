@@ -347,7 +347,18 @@ function PageView({
 
   useEffect(() => {
     const holder = holderRef.current
-    if (!holder || paneW <= 0) return
+    if (!holder) return
+    // P1: an inactive keep-alive PdfView (display:none) measures 0 width —
+    // release its canvases so memory stays bounded to the ACTIVE PDF; the
+    // scroll/state/doc survive and the pages re-render on re-activation.
+    if (paneW <= 0) {
+      const c = holder.querySelector("canvas")
+      if (c && c.width > 0) {
+        c.width = 0
+        c.height = 0
+      }
+      return
+    }
     let cancelled = false
     let renderTask: pdfjsLib.RenderTask | null = null
     let textLayer: InstanceType<typeof pdfjsLib.TextLayer> | null = null
@@ -430,8 +441,8 @@ function PageView({
     const scrollRoot = holder.closest("[data-pdf-scroll]")
     const obs = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting) {
-          obs.disconnect()
+        const entry = entries[0]
+        if (entry.isIntersecting) {
           const key = `${paneW}x${paneH}x${zoom}x${fitMode}`
           if (!wh || sizeKeyRef.current !== key) {
             sizeKeyRef.current = key
@@ -444,6 +455,15 @@ function PageView({
               if (e instanceof pdfjsLib.AbortException) return
               console.warn("[pdf] page render:", e)
             })
+          }
+        } else {
+          // P2: the page scrolled out of the pre-render margin — release its
+          // canvas (memory stays bounded to the pages near the viewport); it
+          // re-renders on re-entry.
+          const c = holder.querySelector("canvas")
+          if (c && c.width > 0) {
+            c.width = 0
+            c.height = 0
           }
         }
       },
