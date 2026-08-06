@@ -79,6 +79,7 @@ export function FloatingPanel({
   onProjectsChange,
   onSelectedProjectChange,
   onDirtyChange,
+  onCaptureRegion,
   onOpenSidebar
 }: {
   data: PanelData
@@ -100,6 +101,7 @@ export function FloatingPanel({
   onProjectsChange: (projects: Project[]) => void
   onSelectedProjectChange: (id: string) => void
   onDirtyChange?: (isDirty: boolean) => void
+  onCaptureRegion: () => void
   onOpenSidebar: () => void
 }) {
   return (
@@ -125,6 +127,7 @@ export function FloatingPanel({
         onProjectsChange={onProjectsChange}
         onSelectedProjectChange={onSelectedProjectChange}
         onDirtyChange={onDirtyChange}
+        onCaptureRegion={onCaptureRegion}
         onOpenSidebar={onOpenSidebar}
       />
     </PanelErrorBoundary>
@@ -154,6 +157,7 @@ export function FloatingPanelContent({
   onProjectsChange,
   onSelectedProjectChange,
   onDirtyChange,
+  onCaptureRegion,
   onOpenSidebar,
   onBackToPanel
 }: {
@@ -179,6 +183,7 @@ export function FloatingPanelContent({
   onProjectsChange: (projects: Project[]) => void
   onSelectedProjectChange: (id: string) => void
   onDirtyChange?: (isDirty: boolean) => void
+  onCaptureRegion: () => void
   onOpenSidebar?: () => void
   onBackToPanel?: () => void
 }) {
@@ -496,6 +501,7 @@ export function FloatingPanelContent({
         onProjectsChange={onProjectsChange}
         onSelectedProjectChange={onSelectedProjectChange}
         onDirtyChange={onDirtyChange}
+        onCaptureRegion={onCaptureRegion}
         onClose={onClose}
       />
     </div>

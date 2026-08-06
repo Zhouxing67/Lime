@@ -26,6 +26,7 @@ export default function CaptureSidebar({
   onProjectsChange,
   onSelectedProjectChange,
   onDirtyChange,
+  onCaptureRegion,
   onBackToPanel
 }: {
   data: PanelData
@@ -44,6 +45,7 @@ export default function CaptureSidebar({
   onProjectsChange: (projects: Project[]) => void
   onSelectedProjectChange: (id: string) => void
   onDirtyChange?: (isDirty: boolean) => void
+  onCaptureRegion: () => void
   onBackToPanel: () => void
 }) {
   const noop = () => {}
@@ -71,6 +73,7 @@ export default function CaptureSidebar({
         onProjectsChange={onProjectsChange}
         onSelectedProjectChange={onSelectedProjectChange}
         onDirtyChange={onDirtyChange}
+        onCaptureRegion={onCaptureRegion}
         onBackToPanel={onBackToPanel}
       />
     </PanelErrorBoundary>

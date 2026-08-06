@@ -5,6 +5,7 @@ import CaptureSidebar from "../components/CaptureSidebar"
 import FloatingPanel from "../components/FloatingPanel"
 import type { PanelData, PanelPosition } from "../components/FloatingPanel"
 import type { Project } from "../types"
+import { sendMessage } from "../types/messages"
 import { appendMarkdownImage } from "../utils"
 import {
   flashMath,
@@ -18,6 +19,134 @@ import {
 export const config: PlasmoCSConfig = {
   matches: ["https://*/*", "http://*/*"],
   all_frames: false
+}
+
+/** Region-select (框选) capture: a mask overlay + a drag rectangle, then a
+ *  visible-tab screenshot cropped to the rect (in the content script — the
+ *  background SW has no DOM to crop with). */
+async function startRegionSelectCapture(
+  onImage: (dataUrl: string) => void,
+  onCancel: () => void
+): Promise<void> {
+  const mask = document.createElement("div")
+  mask.style.cssText =
+    "position:fixed;inset:0;z-index:2147483645;background:rgba(0,0,0,0.25);cursor:crosshair;"
+  const rectEl = document.createElement("div")
+  rectEl.style.cssText =
+    "position:fixed;border:1.5px dashed #4f46e5;background:rgba(99,102,241,0.15);z-index:2147483646;pointer-events:none;display:none;"
+  document.body.append(mask, rectEl)
+
+  let dragging = false
+  let sx = 0
+  let sy = 0
+  let done = false
+
+  const cleanup = () => {
+    if (done) return
+    done = true
+    document.removeEventListener("mousedown", onDown)
+    document.removeEventListener("mousemove", onMove)
+    document.removeEventListener("mouseup", onUp)
+    document.removeEventListener("keydown", onKey)
+    mask.remove()
+    rectEl.remove()
+  }
+
+  const onDown = (e: MouseEvent) => {
+    if (done) return
+    dragging = true
+    sx = e.clientX
+    sy = e.clientY
+    rectEl.style.display = "block"
+  }
+  const onMove = (e: MouseEvent) => {
+    if (!dragging || done) return
+    const x = Math.min(sx, e.clientX)
+    const y = Math.min(sy, e.clientY)
+    const w = Math.abs(e.clientX - sx)
+    const h = Math.abs(e.clientY - sy)
+    rectEl.style.left = x + "px"
+    rectEl.style.top = y + "px"
+    rectEl.style.width = w + "px"
+    rectEl.style.height = h + "px"
+  }
+  const onUp = async (e: MouseEvent) => {
+    if (!dragging || done) return
+    dragging = false
+    const x = Math.min(sx, e.clientX)
+    const y = Math.min(sy, e.clientY)
+    const w = Math.abs(e.clientX - sx)
+    const h = Math.abs(e.clientY - sy)
+    cleanup()
+    if (w < 16 || h < 16) {
+      onCancel()
+      return
+    }
+    try {
+      const dataUrl = await sendMessage({ kind: "capture-visible-tab" })
+      if (dataUrl) {
+        const cropped = await cropRegion(dataUrl, x, y, w, h)
+        if (cropped) onImage(cropped)
+        else onCancel()
+      } else onCancel()
+    } catch (err) {
+      console.warn("[lime] region capture failed:", err)
+      onCancel()
+    }
+  }
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      cleanup()
+      onCancel()
+    }
+  }
+
+  document.addEventListener("mousedown", onDown)
+  document.addEventListener("mousemove", onMove)
+  document.addEventListener("mouseup", onUp)
+  document.addEventListener("keydown", onKey)
+}
+
+/** Crop a captured viewport screenshot to a CSS-pixel rect (× devicePixelRatio). */
+function cropRegion(
+  dataUrl: string,
+  x: number,
+  y: number,
+  w: number,
+  h: number
+): Promise<string | null> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      try {
+        const dpr = window.devicePixelRatio || 1
+        const c = document.createElement("canvas")
+        c.width = Math.max(1, Math.round(w * dpr))
+        c.height = Math.max(1, Math.round(h * dpr))
+        const ctx = c.getContext("2d")
+        if (!ctx) {
+          resolve(null)
+          return
+        }
+        ctx.drawImage(
+          img,
+          x * dpr,
+          y * dpr,
+          w * dpr,
+          h * dpr,
+          0,
+          0,
+          c.width,
+          c.height
+        )
+        resolve(c.toDataURL("image/png"))
+      } catch {
+        resolve(null)
+      }
+    }
+    img.onerror = () => resolve(null)
+    img.src = dataUrl
+  })
 }
 
 export default function LimePanel() {
@@ -128,6 +257,26 @@ export default function LimePanel() {
 
   // Alt+L: PURE panel open — no capture, no perception. Just bring the panel
   // surface to the front (a fresh open needs a placeholder data for position).
+  // 框选 capture: hide the panel, drag a rectangle over the page, screenshot +
+  // crop it, then reopen the panel with the image draft filled.
+  // 框选 capture: hide the panel, drag a rectangle over the page, screenshot +
+  // crop it, then reopen the panel with the image draft filled.
+  const onCaptureRegion = useCallback(() => {
+    setOpen(false)
+    window.setTimeout(() => {
+      void startRegionSelectCapture(
+        (dataUrl) => {
+          setCaptureType("image")
+          setImageDraft(dataUrl)
+          setOpen(true)
+        },
+        () => {
+          setOpen(true)
+        }
+      )
+    }, 60)
+  }, [])
+
   const openPanel = useCallback(() => {
     setSurface("panel")
     setRestorePanel(false)
@@ -283,7 +432,8 @@ export default function LimePanel() {
     onClose: hide,
     onProjectsChange: setProjects,
     onSelectedProjectChange: setSelectedProjectId,
-    onDirtyChange
+    onDirtyChange,
+    onCaptureRegion
   }
 
   return surface === "panel" ? (

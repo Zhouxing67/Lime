@@ -8,7 +8,7 @@ import {
   extractMarkdownImages,
   removeMarkdownImage
 } from "../utils"
-import { IconPlus } from "./panelIcons"
+import { IconCrop, IconPlus } from "./panelIcons"
 import type { PanelColors } from "./panelTheme"
 import { iconBtnStyle, inputStyle } from "./panelTheme"
 
@@ -30,6 +30,7 @@ export default function PanelForm({
   onProjectsChange,
   onSelectedProjectChange,
   onDirtyChange,
+  onCaptureRegion,
   onClose
 }: {
   colors: PanelColors
@@ -48,6 +49,9 @@ export default function PanelForm({
   /** Reports whether the draft holds content (content or an image draft) — the
    *  entry uses it to decide append-vs-fill on the next Alt+L. */
   onDirtyChange: (isDirty: boolean) => void
+  /** Enter the region-select (框选) capture mode — the entry hides the panel,
+   *  the user drags a rectangle, a screenshot is cropped to it. */
+  onCaptureRegion: () => void
   onClose: () => void
 }) {
   const [saving, setSaving] = useState(false)
@@ -373,6 +377,23 @@ export default function PanelForm({
                   flexShrink: 0
                 }}>
                 ＋
+              </button>
+              <button
+                type="button"
+                title="框选网页区域"
+                onClick={onCaptureRegion}
+                style={{
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "0 9px",
+                  cursor: "pointer",
+                  background: colors.bgHover,
+                  color: colors.textSecondary,
+                  flexShrink: 0,
+                  display: "inline-flex",
+                  alignItems: "center"
+                }}>
+                <IconCrop />
               </button>
             </div>
 
