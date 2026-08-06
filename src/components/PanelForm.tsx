@@ -29,6 +29,7 @@ export default function PanelForm({
   selectedProjectId,
   onProjectsChange,
   onSelectedProjectChange,
+  onDirtyChange,
   onClose
 }: {
   colors: PanelColors
@@ -44,6 +45,9 @@ export default function PanelForm({
   selectedProjectId: string
   onProjectsChange: (projects: Project[]) => void
   onSelectedProjectChange: (id: string) => void
+  /** Reports whether the draft holds content (content or an image draft) — the
+   *  entry uses it to decide append-vs-fill on the next Alt+L. */
+  onDirtyChange: (isDirty: boolean) => void
   onClose: () => void
 }) {
   const [saving, setSaving] = useState(false)
@@ -82,6 +86,13 @@ export default function PanelForm({
   useEffect(() => {
     load()
   }, [load])
+
+  // A draft = content or an image draft (the title is NOT a draft). The entry's
+  // dirtyRef drives Alt+L append-vs-fill — report every change, including the
+  // transition back to empty (a cleared draft must allow overwrite again).
+  useEffect(() => {
+    onDirtyChange(content.trim() !== "" || imageDraft.trim() !== "")
+  }, [content, imageDraft, onDirtyChange])
 
   const save = useCallback(async () => {
     if (!content.trim()) return

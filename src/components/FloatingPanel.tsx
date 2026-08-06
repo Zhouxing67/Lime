@@ -500,6 +500,7 @@ export function FloatingPanelContent({
         selectedProjectId={selectedProjectId}
         onProjectsChange={onProjectsChange}
         onSelectedProjectChange={onSelectedProjectChange}
+        onDirtyChange={onDirtyChange}
         onClose={onClose}
       />
     </div>

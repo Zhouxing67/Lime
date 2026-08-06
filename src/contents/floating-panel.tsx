@@ -50,6 +50,8 @@ export default function LimePanel() {
   // selections are ignored so they can't overwrite the in-progress capture.
   const onDirtyChange = useCallback((isDirty: boolean) => {
     dirtyRef.current = isDirty
+    // A cleared draft must allow overwriting with the same selection again.
+    if (!isDirty) prevSelectionRef.current = ""
   }, [])
 
   const appendToDraft = useCallback(
@@ -76,14 +78,18 @@ export default function LimePanel() {
 
   const show = useCallback(
     (text: string, rect: DOMRect, type: "text" | "image" = "text") => {
-      if (text === prevSelectionRef.current && open && pinnedRef.current) return
       // A draft is already open: APPEND the new capture instead of replacing.
       // Text could be appended by copy-paste, but formulas/images can't be
-      // selected & copied — Alt+L is their only append path.
+      // selected & copied — Alt+L is their only append path. No dedup here —
+      // repeating the same formula is legit. (The dedup below guards the FILL.)
       if (open && dirtyRef.current) {
         appendToDraft(text, type)
         return
       }
+      // Fill path: while the panel is open + pinned, ignore re-showing the same
+      // selection (a misclick). A cleared draft resets prevSelectionRef so the
+      // same content can be captured again.
+      if (text === prevSelectionRef.current && open && pinnedRef.current) return
       prevSelectionRef.current = text
       setData({ text, rect })
       setTitle("")
