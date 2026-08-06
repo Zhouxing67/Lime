@@ -180,7 +180,9 @@ function PageView({
   doc,
   pageNumber,
   paneW,
+  paneH,
   zoom,
+  fitMode,
   pageAspect,
   annotations,
   flashAnnId,
@@ -191,7 +193,9 @@ function PageView({
   doc: pdfjsLib.PDFDocumentProxy
   pageNumber: number
   paneW: number
+  paneH: number
   zoom: number
+  fitMode?: "width" | "page"
   pageAspect: number
   annotations: PdfAnnotation[]
   flashAnnId?: string | null
@@ -298,7 +302,12 @@ function PageView({
       if (cancelled) return
       const baseW = page.getViewport({ scale: 1 }).width
       if (baseW <= 0) return
-      const s = Math.max(0.4, (paneW * PAGE_RATIO * zoom) / baseW)
+      const fitW = (paneW * PAGE_RATIO * zoom) / baseW
+      const baseH = page.getViewport({ scale: 1 }).height
+      const fit = (fitMode === "page" && paneH > 0
+        ? Math.min(fitW, (paneH * zoom) / baseH)
+        : fitW)
+      const s = Math.max(0.4, fit)
       const vp = page.getViewport({ scale: s })
       setScale(s)
       setWh({ w: Math.floor(vp.width), h: Math.floor(vp.height) })
@@ -398,7 +407,7 @@ function PageView({
       (entries) => {
         if (entries[0].isIntersecting) {
           obs.disconnect()
-          const key = `${paneW}x${zoom}`
+          const key = `${paneW}x${paneH}x${zoom}x${fitMode}`
           if (!wh || sizeKeyRef.current !== key) {
             sizeKeyRef.current = key
             computeSize().catch((e) => console.warn("[pdf] page size:", e))
@@ -458,6 +467,7 @@ export default function PdfRenderer({
   scrollTarget,
   zoom,
   onZoomChange,
+  fitMode,
   annotations,
   flashAnnId,
   onFlashDone,
@@ -473,6 +483,8 @@ export default function PdfRenderer({
   zoom?: number
   /** Ctrl+wheel zoom (the toolbar's +/- uses it too). */
   onZoomChange?: (zoom: number) => void
+  /** Fit base: "width" (default) or "page" (whole page visible). */
+  fitMode?: "width" | "page"
   annotations?: PdfAnnotation[]
   flashAnnId?: string | null
   onFlashDone?: () => void
@@ -488,6 +500,7 @@ export default function PdfRenderer({
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [paneW, setPaneW] = useState(0)
+  const [paneH, setPaneH] = useState(0)
   const [pageAspects, setPageAspects] = useState<Map<number, number> | null>(
     null
   )
@@ -552,14 +565,20 @@ export default function PdfRenderer({
   // Measure the pane width (with a tolerance to avoid a scrollbar-induced
   // resize loop when the pages re-render and the vertical scrollbar toggles).
   const paneWRef = useRef(0)
+  const paneHRef = useRef(0)
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
     const ro = new ResizeObserver((entries) => {
-      const w = entries[0].contentRect.width
-      if (w === paneWRef.current) return
-      paneWRef.current = w
-      setPaneW(w)
+      const { width: w, height: h } = entries[0].contentRect
+      if (w !== paneWRef.current) {
+        paneWRef.current = w
+        setPaneW(w)
+      }
+      if (h !== paneHRef.current) {
+        paneHRef.current = h
+        setPaneH(h)
+      }
     })
     ro.observe(el)
     return () => ro.disconnect()
@@ -752,7 +771,9 @@ export default function PdfRenderer({
             doc={doc}
             pageNumber={n}
             paneW={paneW}
+            paneH={paneH}
             zoom={zoom ?? 1}
+            fitMode={fitMode}
             pageAspect={pageAspects?.get(n) ?? 1.414}
             annotations={pageAnnMap.get(n) ?? EMPTY_ANNOTATIONS}
             flashAnnId={flashPage === n ? flashAnnId : null}

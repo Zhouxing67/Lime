@@ -4,6 +4,10 @@ import ChevronLeftRoundedIcon from "@mui/icons-material/ChevronLeftRounded"
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded"
 import EditRoundedIcon from "@mui/icons-material/EditRounded"
 import RemoveRoundedIcon from "@mui/icons-material/RemoveRounded"
+import AspectRatioRoundedIcon from "@mui/icons-material/AspectRatioRounded"
+import FitScreenRoundedIcon from "@mui/icons-material/FitScreenRounded"
+import FullscreenExitRoundedIcon from "@mui/icons-material/FullscreenExitRounded"
+import FullscreenRoundedIcon from "@mui/icons-material/FullscreenRounded"
 import UndoRoundedIcon from "@mui/icons-material/UndoRounded"
 import {
   Box,
@@ -14,6 +18,7 @@ import {
   Paper,
   Popover,
   TextField,
+  Tooltip,
   Typography
 } from "@mui/material"
 import { useCallback, useEffect, useRef, useState } from "react"
@@ -78,7 +83,9 @@ export default function PdfView({
   flashTarget,
   onJumpInPanel,
   onVisiblePageChange,
-  onPageCountChange
+  onPageCountChange,
+  immersive,
+  onToggleImmersive
 }: {
   pdfId: string | null
   onOutlineLoaded?: (outline: PdfOutlineItem[] | null) => void
@@ -91,6 +98,9 @@ export default function PdfView({
   onVisiblePageChange?: (page: number) => void
   /** Report the loaded document's page count (the bottom-bar total). */
   onPageCountChange?: (n: number) => void
+  /** Immersive mode (sidebars closed) — toggled by the options. */
+  immersive?: boolean
+  onToggleImmersive?: () => void
 }) {
   const { loaded, error } = usePdfDocument(pdfId)
   const [scrollPage, setScrollPage] = useState<number | null>(null)
@@ -101,6 +111,13 @@ export default function PdfView({
   }, [loaded?.pageCount])
   const [flashAnnId, setFlashAnnId] = useState<string | null>(null)
   const [zoom, setZoom] = useState(1)
+  // Fit base: "width" (page fits the column width) / "page" (whole page
+  // visible). The toolbar toggle switches it; the zoom resets to 1.
+  const [fitMode, setFitMode] = useState<"width" | "page">("width")
+  const toggleFitMode = useCallback(() => {
+    setFitMode((m) => (m === "width" ? "page" : "width"))
+    setZoom(1)
+  }, [])
   const [annotations, setAnnotations] = useState<PdfAnnotation[]>([])
   const [clickedAnn, setClickedAnn] = useState<{
     ann: PdfAnnotation
@@ -408,7 +425,8 @@ export default function PdfView({
             borderColor: "divider",
             bgcolor: "background.paper"
           }}>
-          {/* search — far left, fixed comfortable width (PDF name moved to the AppHeader) */}
+          {/* left: search (flex:1 keeps the center group truly centered) */}
+          <Box sx={{ flex: 1, minWidth: 0, display: "flex" }}>
           <SearchField
             placeholder="搜索 PDF 全文…"
             defaultValue={searchState.query}
@@ -485,9 +503,22 @@ export default function PdfView({
                 </>
               )}
             />
-          {/* jump to page */}
-          <Box sx={{ flex: 1 }} />
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+          </Box>
+          {/* center: fit toggle + the jump */}
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+            <Tooltip title={fitMode === "width" ? "适应页面大小" : "适应宽度"}>
+              <IconButton
+                size="small"
+                onClick={toggleFitMode}
+                sx={{ p: 0.5, color: "text.secondary", "&:hover": { color: "primary.main" } }}>
+                {fitMode === "width" ? (
+                  <FitScreenRoundedIcon sx={{ fontSize: 16 }} />
+                ) : (
+                  <AspectRatioRoundedIcon sx={{ fontSize: 16 }} />
+                )}
+              </IconButton>
+            </Tooltip>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
             <TextField
               size="small"
               variant="outlined"
@@ -538,7 +569,17 @@ export default function PdfView({
               sx={{ fontSize: "0.75rem", color: "text.disabled", whiteSpace: "nowrap" }}>
               / {loaded?.pageCount ?? "…"}
             </Typography>
+            </Box>
           </Box>
+          {/* right: 回跳 / 批注 / 缩放 / 沉浸式 */}
+          <Box
+            sx={{
+              flex: 1,
+              display: "flex",
+              justifyContent: "flex-end",
+              alignItems: "center",
+              gap: 0.5
+            }}>
           {/* 回跳 */}
           <IconButton
             size="small"
@@ -612,6 +653,24 @@ export default function PdfView({
               <AddRoundedIcon sx={{ fontSize: 16 }} />
             </IconButton>
           </Box>
+          <Tooltip title={immersive ? "退出沉浸式阅读" : "沉浸式阅读"}>
+            <IconButton
+              size="small"
+              onClick={onToggleImmersive}
+              sx={{
+                p: 0.5,
+                ml: 0.5,
+                color: immersive ? "primary.main" : "text.secondary",
+                "&:hover": { color: "primary.main" }
+              }}>
+              {immersive ? (
+                <FullscreenExitRoundedIcon sx={{ fontSize: 16 }} />
+              ) : (
+                <FullscreenRoundedIcon sx={{ fontSize: 16 }} />
+              )}
+            </IconButton>
+          </Tooltip>
+          </Box>
           <Menu
             anchorEl={annotMenuAnchor}
             open={!!annotMenuAnchor}
@@ -670,6 +729,7 @@ export default function PdfView({
             scrollTarget={scrollPage}
             zoom={zoom}
             onZoomChange={setZoom}
+            fitMode={fitMode}
             annotations={annotations}
             flashAnnId={flashAnnId}
             onFlashDone={() => setFlashAnnId(null)}

@@ -182,6 +182,26 @@ export default function OptionsPage() {
   const [activePdfId, setActivePdfId] = useState<string | null>(null)
   const [pdfCurrentPage, setPdfCurrentPage] = useState(1)
   const [pdfPageCount, setPdfPageCount] = useState(0)
+  const [pdfImmersive, setPdfImmersive] = useState(false)
+  const immersiveSavedUiRef = useRef<{
+    drawerOpen: boolean
+    pdfCardsOpen: boolean
+  } | null>(null)
+
+  // Immersive PDF reading: closes both sidebars; toggling off restores the
+  // pre-immersive open/close states.
+  const toggleImmersive = useCallback(() => {
+    if (pdfImmersive) {
+      setDrawerOpen(immersiveSavedUiRef.current?.drawerOpen ?? true)
+      setPdfCardsOpen(immersiveSavedUiRef.current?.pdfCardsOpen ?? true)
+      immersiveSavedUiRef.current = null
+    } else {
+      immersiveSavedUiRef.current = { drawerOpen, pdfCardsOpen }
+      setDrawerOpen(false)
+      setPdfCardsOpen(false)
+    }
+    setPdfImmersive(!pdfImmersive)
+  }, [pdfImmersive, drawerOpen, pdfCardsOpen])
   const [pdfDeleteTarget, setPdfDeleteTarget] = useState<PdfFile | null>(null)
   const [topicDeleteTarget, setTopicDeleteTarget] = useState<string | null>(
     null
@@ -1655,11 +1675,14 @@ export default function OptionsPage() {
         // Leaving the PDF view: the full reload was skipped while in it, so
         // refresh once so the card grid / counts reflect any writes.
         if (sidebarTabRef.current === "pdf") refreshRef.current()
+        // Immersive is PDF-scoped — leaving auto-exits it (restores the bars).
+        if (sidebarTabRef.current === "pdf" && pdfImmersive)
+          toggleImmersive()
         setSidebarTab(tab)
         setDrawerOpen(true)
       }
     },
-    [sidebarTab]
+    [sidebarTab, pdfImmersive, toggleImmersive]
   )
 
   // Persist tree/nav state across sessions
@@ -2453,6 +2476,8 @@ export default function OptionsPage() {
                         onPageCountChange={
                           id === activePdfId ? setPdfPageCount : undefined
                         }
+                        immersive={pdfImmersive}
+                        onToggleImmersive={toggleImmersive}
                       />
                     </Box>
                   ))}
