@@ -160,7 +160,7 @@ export default function CardGrid({
                       bgcolor: "primary.main",
                       borderRadius: 1,
                       zIndex: 2,
-                      boxShadow: 1
+                      boxShadow: "0 0 0 1px rgba(255,255,255,0.4)"
                     }}
                   />
                 )}
@@ -175,7 +175,7 @@ export default function CardGrid({
                       bgcolor: "primary.main",
                       borderRadius: 1,
                       zIndex: 2,
-                      boxShadow: 1
+                      boxShadow: "0 0 0 1px rgba(255,255,255,0.4)"
                     }}
                   />
                 )}
@@ -189,11 +189,14 @@ export default function CardGrid({
                     }}
                     onClick={(e) => e.stopPropagation()}>
                     <Checkbox
+                      size="small"
                       checked={selectedIds.includes(it.id)}
                       onChange={() => onSelectItem(it.id)}
                       sx={{
+                        p: 0.25,
                         bgcolor: "background.paper",
                         borderRadius: 1,
+                        "& .MuiSvgIcon-root": { fontSize: 16 },
                         "&:hover": { bgcolor: "action.hover" }
                       }}
                     />
@@ -223,7 +226,7 @@ export default function CardGrid({
               </Box>
             )
           })}
-          {ci === items.length % cols && onNewCard && items.length > 0 && (
+          {!selectMode && ci === items.length % cols && onNewCard && items.length > 0 && (
             <DashedTile
               icon={<AddRoundedIcon sx={{ fontSize: 20 }} />}
               label="新建卡片"

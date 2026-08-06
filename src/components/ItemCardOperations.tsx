@@ -54,7 +54,7 @@ export default function ItemCardOperations({
           pointerEvents: visible ? "auto" : "none",
           transition: "opacity 0.2s"
         }}>
-        <Tooltip title={copied ? "已复制" : "剪贴板"}>
+        <Tooltip title={copied ? "已复制" : "复制内容"}>
           <IconButton
             size="small"
             onClick={(e) => {

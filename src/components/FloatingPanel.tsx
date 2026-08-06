@@ -218,11 +218,6 @@ export function FloatingPanelContent({
 
   const colors = useMemo(() => buildColors(preset, dark), [preset, dark])
 
-  // ---- Report whether the panel holds a draft (blocks auto-fill) ----
-  useEffect(() => {
-    onDirtyChange?.(Boolean(content.trim()))
-  }, [content, onDirtyChange])
-
   // ---- Resize clamp ----
   useEffect(() => {
     if (variant !== "float") return

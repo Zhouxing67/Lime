@@ -511,6 +511,7 @@ export default function PdfCardsPanel({
                       }}>
                       <IconButton
                         size="small"
+                        title={expanded ? "收起内容" : "展开内容"}
                         onClick={(e) => {
                           e.stopPropagation()
                           toggleExpand(card.id)
@@ -524,6 +525,7 @@ export default function PdfCardsPanel({
                       </IconButton>
                       <IconButton
                         size="small"
+                        title="编辑"
                         onClick={(e) => {
                           e.stopPropagation()
                           handleCardEdit(card)
@@ -561,6 +563,7 @@ export default function PdfCardsPanel({
                   )}
                   <IconButton
                     size="small"
+                    title="删除"
                     onClick={(e) => {
                       e.stopPropagation()
                       handleCardDelete(card)

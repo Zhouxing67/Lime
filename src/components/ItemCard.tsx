@@ -73,7 +73,7 @@ export default function ItemCard({
         },
         "&:active": {
           transform: "scale(0.99)",
-          transition: "transform 0.08s"
+          transition: "transform 0.15s"
         }
       })}
       onClick={onClick}>
@@ -90,6 +90,7 @@ export default function ItemCard({
           {draggable && onGripPointerDown && (
             <Box
               component="span"
+              title="拖拽排序"
               onPointerDown={(e) => onGripPointerDown(e, item)}
               onClick={(e) => e.stopPropagation()}
               sx={{
@@ -181,23 +182,7 @@ export default function ItemCard({
           justifyContent: "space-between",
           gap: 1
         }}>
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 0.6,
-            minWidth: 0,
-            flex: 1
-          }}>
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              color: "text.disabled",
-              flexShrink: 0
-            }}>
-            {typeIcon(item.type)}
-          </Box>
+        
           {item.source ? (
             <Link
               href={item.source.url}
@@ -237,7 +222,6 @@ export default function ItemCard({
               自建卡片
             </Typography>
           )}
-        </Box>
         <Typography
           variant="caption"
           sx={{ color: "text.disabled", fontSize: "0.7rem", flexShrink: 0 }}>

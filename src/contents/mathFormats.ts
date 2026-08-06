@@ -57,16 +57,23 @@ function mathjaxSvgSource(el: Element): string | null {
   }
   const label = el.getAttribute("aria-label")
   if (label?.trim()) return label.trim()
-  // Reconstruct the rendered text from the glyph names.
+  // Reconstruct the rendered text from the glyph names. MathJax v2 names glyphs
+  // #MJMATHI-<hex>/#MJMAIN-<hex>; v3 emits #MJX-<n>-TEX-<font>-<hex>. The char
+  // code is the last dash-separated hex segment either way.
   const chars: string[] = []
   for (const use of Array.from(el.querySelectorAll("use"))) {
     const href =
       use.getAttribute("xlink:href") ?? use.getAttribute("href") ?? ""
     const name = href.slice(1)
-    if (!name.startsWith("MJMATHI") && !name.startsWith("MJMAIN")) continue
+    if (
+      !name.startsWith("MJMATHI") &&
+      !name.startsWith("MJMAIN") &&
+      !name.startsWith("MJX")
+    )
+      continue
     const hex = name.slice(name.lastIndexOf("-") + 1)
     const code = parseInt(hex, 16)
-    if (!Number.isNaN(code) && code > 0) chars.push(String.fromCharCode(code))
+    if (!Number.isNaN(code) && code > 0) chars.push(String.fromCodePoint(code))
   }
   const text = chars.join("")
   return text.length > 0 ? text : null

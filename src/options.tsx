@@ -2724,7 +2724,7 @@ export default function OptionsPage() {
                               />
                             }
                             title="此章节暂无卡片"
-                            subtitle="选中卡片后拖入侧栏对应章节，或使用「移动到章节」"
+                            subtitle="使用「移动到章节」整理卡片到具体章节"
                           />
                         )}
 
@@ -2809,44 +2809,14 @@ export default function OptionsPage() {
                 onSave={handleSaveNewCard}
               />
 
-              <Dialog
+              <DialogShell
                 open={Boolean(reviewTitlePending)}
                 onClose={() => setReviewTitlePending(null)}
+                title="加入复习"
                 maxWidth="xs"
-                fullWidth
-                slotProps={{ paper: { sx: { borderRadius: 2 } } }}>
-                <DialogTitle sx={{ fontSize: "1rem" }}>加入复习</DialogTitle>
-                <DialogContent>
-                  <Typography
-                    variant="body2"
-                    sx={{ mb: 2, color: "text.secondary" }}>
-                    请先为卡片设置摘要
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    autoFocus
-                    placeholder="输入卡片摘要…"
-                    value={reviewTitleDraft}
-                    onChange={(e) => setReviewTitleDraft(e.target.value)}
-                    sx={{
-                      mb: 2,
-                      "& .MuiOutlinedInput-root": { borderRadius: 1 }
-                    }}
-                  />
-                  <Stack direction="row" spacing={1} justifyContent="flex-end">
-                    <Button
-                      size="small"
-                      onClick={() => setReviewTitlePending(null)}
-                      sx={{ borderRadius: 1 }}>
-                      取消
-                    </Button>
-                    <Button
-                      size="small"
-                      variant="contained"
-                      disabled={!reviewTitleDraft.trim()}
-                      sx={{ borderRadius: 1 }}
-                      onClick={async () => {
+                confirmLabel="加入复习"
+                confirmDisabled={!reviewTitleDraft.trim()}
+                onConfirm={async () => {
                         const card = allProjectCardsUnfiltered.find(
                           (i) => i.id === reviewTitlePending
                         )
@@ -2881,12 +2851,25 @@ export default function OptionsPage() {
                         setSnackbarMsg(
                           alreadyInReview ? "已在复习中" : "已加入复习"
                         )
-                      }}>
-                      加入复习
-                    </Button>
-                  </Stack>
-                </DialogContent>
-              </Dialog>
+                }}>
+                  <Typography
+                    variant="body2"
+                    sx={{ mb: 2, color: "text.secondary" }}>
+                    请先为卡片设置摘要
+                  </Typography>
+                  <TextField
+                  fullWidth
+                  size="small"
+                  autoFocus
+                  placeholder="输入卡片摘要…"
+                  value={reviewTitleDraft}
+                  onChange={(e) => setReviewTitleDraft(e.target.value)}
+                  sx={{
+                    mb: 2,
+                    "& .MuiOutlinedInput-root": { borderRadius: 1 }
+                  }}
+                />
+              </DialogShell>
 
               <DeleteConfirmDialog
                 open={Boolean(projectDeleteTarget)}

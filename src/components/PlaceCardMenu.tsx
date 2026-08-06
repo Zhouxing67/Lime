@@ -70,7 +70,7 @@ export default function PlaceCardMenu({
       open={Boolean(anchor)}
       onClose={handleClose}
       slotProps={{
-        paper: { sx: { py: 0.5, borderRadius: 1, minWidth: 200 } }
+        paper: { sx: { py: 0.5, borderRadius: 1, minWidth: 220 } }
       }}>
       <Typography
         sx={{
@@ -110,7 +110,9 @@ export default function PlaceCardMenu({
           {showAllProjects ? "收起" : `全部项目（${sortedProjects.length}）`}
         </MenuItem>
       )}
-      <Box sx={{ borderTop: "1px solid", borderColor: "divider", my: 0.5 }} />
+      {visibleProjects.length > 0 && (
+        <Box sx={{ borderTop: "1px solid", borderColor: "divider", my: 0.5 }} />
+      )}
       {newProjectOpen ? (
         <Box sx={{ px: 1, py: 0.5 }}>
           <TextField

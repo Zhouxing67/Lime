@@ -177,9 +177,10 @@ export default function LimePanel() {
       if (e.altKey && e.key.toLowerCase() === "s") {
         e.preventDefault()
         const sel = window.getSelection()
-        const rawText = sel?.toString().trim() ?? ""
         // Mode A: a real selection — rebuild it with any formulas as $…$.
-        if (sel && !sel.isCollapsed && rawText.length >= 5) {
+        // Gate ONLY on the substituted text (a selection can pass a raw-text
+        // floor and vanish after the formula substitution).
+        if (sel && !sel.isCollapsed && sel.toString().trim().length > 0) {
           const text = selectionWithMath(sel)
           if (text.length < 5 || text.length > 2000) return
           const rect = sel.getRangeAt(0).getBoundingClientRect()

@@ -60,7 +60,7 @@ export default function MoveToSectionMenu({
       open={Boolean(anchor)}
       onClose={onClose}
       slotProps={{
-        paper: { sx: { py: 0.5, borderRadius: 1, minWidth: 200 } }
+        paper: { sx: { py: 0.5, borderRadius: 1, minWidth: 220 } }
       }}>
       <Typography
         sx={{
@@ -86,15 +86,19 @@ export default function MoveToSectionMenu({
           ))}
         </Fragment>
       ))}
-      <Box sx={{ borderTop: "1px solid", borderColor: "divider", my: 0.5 }} />
-      <MenuItem
-        onClick={() => {
-          onMove(null)
-          onClose()
-        }}
-        sx={{ gap: 1, fontSize: "0.8rem", color: "text.secondary" }}>
-        {currentSectionId !== null ? "移回未分类" : "移动到未分类"}
-      </MenuItem>
+      {currentSectionId !== null && (
+        <>
+          <Box sx={{ borderTop: "1px solid", borderColor: "divider", my: 0.5 }} />
+          <MenuItem
+            onClick={() => {
+              onMove(null)
+              onClose()
+            }}
+            sx={{ gap: 1, fontSize: "0.8rem", color: "text.secondary" }}>
+            移回未分类
+          </MenuItem>
+        </>
+      )}
     </Menu>
   )
 }

@@ -227,7 +227,7 @@ export default function PanelForm({
             }}>
             {projects.length === 0 && (
               <option value="" disabled>
-                加载中…
+                暂无项目，请先新建
               </option>
             )}
             {projects.map((p) => (
@@ -354,6 +354,7 @@ export default function PanelForm({
               <button
                 type="button"
                 disabled={!imageDraft.trim()}
+                title="插入图片"
                 onClick={() => {
                   addImage(imageDraft)
                   setImageDraft("")
