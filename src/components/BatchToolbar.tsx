@@ -29,7 +29,7 @@ export default function BatchToolbar({
   actions
 }: BatchToolbarProps) {
   return (
-    <Stack direction="row" spacing={1} alignItems="center" flexShrink={0}>
+    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
       <Typography
         variant="body2"
         color="text.secondary"
