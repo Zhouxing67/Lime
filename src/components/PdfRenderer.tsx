@@ -193,10 +193,12 @@ const TEXT_LAYER_CSS = `
   border-radius: 2px;
 }
 .pdf-ann-flash-layer {
+  /* Above the annotation overlay (z-index 2) so the jump flash is ALWAYS the
+     topmost page layer — rendered last, nothing covers it. */
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 2;
+  z-index: 3;
 }
 .pdf-ann-flash {
   /* The original annotation marks show through a too-transparent fill and read
