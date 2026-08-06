@@ -28,13 +28,16 @@ async function startRegionSelectCapture(
   onImage: (dataUrl: string) => void,
   onCancel: () => void
 ): Promise<void> {
-  const mask = document.createElement("div")
-  mask.style.cssText =
-    "position:fixed;inset:0;z-index:2147483645;background:rgba(0,0,0,0.25);cursor:crosshair;"
+  // The drag rectangle carries the dimming via a huge box-shadow — the
+  // SURROUNDING area darkens while the selected region stays clear (a full-page
+  // mask would darken the selection too, and end up in the screenshot).
   const rectEl = document.createElement("div")
   rectEl.style.cssText =
-    "position:fixed;border:1.5px dashed #4f46e5;background:rgba(99,102,241,0.15);z-index:2147483646;pointer-events:none;display:none;"
-  document.body.append(mask, rectEl)
+    "position:fixed;border:1.5px dashed #4f46e5;background:transparent;box-shadow:0 0 0 9999px rgba(0,0,0,0.25);z-index:2147483646;pointer-events:none;display:none;"
+  const dimEl = document.createElement("div")
+  dimEl.style.cssText =
+    "position:fixed;inset:0;z-index:2147483645;background:rgba(0,0,0,0.25);cursor:crosshair;"
+  document.body.append(dimEl, rectEl)
 
   let dragging = false
   let sx = 0
@@ -48,7 +51,7 @@ async function startRegionSelectCapture(
     document.removeEventListener("mousemove", onMove)
     document.removeEventListener("mouseup", onUp)
     document.removeEventListener("keydown", onKey)
-    mask.remove()
+    dimEl.remove()
     rectEl.remove()
   }
 
@@ -82,6 +85,11 @@ async function startRegionSelectCapture(
       onCancel()
       return
     }
+    // Wait for the overlays' removal to actually paint — capturing in the same
+    // tick would snapshot the dimming into the final image.
+    await new Promise<void>((r) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => r()))
+    )
     try {
       const dataUrl = await sendMessage({ kind: "capture-visible-tab" })
       if (dataUrl) {
@@ -226,10 +234,12 @@ export default function LimePanel() {
       setImageDraft("")
       setCaptureType(type)
       setRestorePanel(false)
-      setSurface(lastClosedRef.current)
+      // When the panel is already open (e.g. the sidebar surface) a capture
+      // keeps the CURRENT surface; a fresh open restores the last-closed one.
+      setSurface(open ? surface : lastClosedRef.current)
       setOpen(true)
     },
-    [open, appendToDraft]
+    [open, surface, appendToDraft]
   )
 
   const hide = useCallback(() => {
