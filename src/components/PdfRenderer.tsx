@@ -90,9 +90,10 @@ function appendFlash(overlay: HTMLElement, r: PdfRect): void {
 
 /** The reading column never exceeds this share of the pane width — the pages
  *  are centered with side white space instead of stretching edge-to-edge. */
-// Fit-width fills the whole pane (the old 0.75 reading-column margin made
-// the fit-width look 'not full' — 140% zoom reached full width).
-const PAGE_RATIO = 1
+// The DEFAULT view is the reading column (0.75 = the side margins / 留白).
+// The fit-width / fit-page modes fill the whole pane (1.0).
+const PAGE_RATIO = 0.75
+const FIT_RATIO = 1
 
 const TEXT_LAYER_CSS = `
 .pdf-textlayer {
@@ -197,7 +198,7 @@ function PageView({
   paneW: number
   paneH: number
   zoom: number
-  fitMode?: "width" | "page"
+  fitMode?: "reading" | "width" | "page"
   pageAspect: number
   annotations: PdfAnnotation[]
   flashAnnId?: string | null
@@ -281,9 +282,12 @@ function PageView({
       holder.querySelector(".pdf-selection")?.replaceChildren()
     }
   }, [])
+  const ratio = fitMode === "reading" ? PAGE_RATIO : FIT_RATIO
   const placeholderH =
     paneW > 0
-      ? Math.floor(paneW * PAGE_RATIO * zoom * pageAspect)
+      ? Math.floor(
+          Math.min(paneW * ratio * zoom * pageAspect, paneH > 0 ? paneH * zoom : Infinity)
+        )
       : 0
   // Tracks the size inputs a page was LAST sized/render for. A loaded page
   // (wh set) would otherwise render with stale scale/wh when zoom or paneW
@@ -304,11 +308,12 @@ function PageView({
       if (cancelled) return
       const baseW = page.getViewport({ scale: 1 }).width
       if (baseW <= 0) return
-      const fitW = (paneW * PAGE_RATIO * zoom) / baseW
+      const ratio = fitMode === "reading" ? PAGE_RATIO : FIT_RATIO
+      const fitW = (paneW * ratio * zoom) / baseW
       const baseH = page.getViewport({ scale: 1 }).height
-      const fit = (fitMode === "page" && paneH > 0
+      const fit = fitMode === "page" && paneH > 0
         ? Math.min(fitW, (paneH * zoom) / baseH)
-        : fitW)
+        : fitW
       const s = Math.max(0.4, fit)
       const vp = page.getViewport({ scale: s })
       setScale(s)
@@ -486,7 +491,7 @@ export default function PdfRenderer({
   /** Ctrl+wheel zoom (the toolbar's +/- uses it too). */
   onZoomChange?: (zoom: number) => void
   /** Fit base: "width" (default) or "page" (whole page visible). */
-  fitMode?: "width" | "page"
+  fitMode?: "reading" | "width" | "page"
   annotations?: PdfAnnotation[]
   flashAnnId?: string | null
   onFlashDone?: () => void

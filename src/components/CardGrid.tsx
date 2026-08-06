@@ -70,9 +70,12 @@ export default function CardGrid({
   onNewCard
 }: CardGridProps) {
   const theme = useTheme()
+  const isXl = useMediaQuery("(min-width: 1800px)")
   const isMd = useMediaQuery(theme.breakpoints.up(900))
   const isSm = useMediaQuery(theme.breakpoints.up(600))
-  const cols = isMd ? 3 : isSm ? 2 : 1
+  // ≥1800px (e.g. a 2560×1440 window with the sidebar open): 4 columns so the
+  // cards don't stretch to ~700px each.
+  const cols = isXl ? 4 : isMd ? 3 : isSm ? 2 : 1
   const columns = roundRobinCols(items, cols)
   const rootRef = useRef<HTMLDivElement>(null)
 
