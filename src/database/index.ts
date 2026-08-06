@@ -1653,6 +1653,8 @@ export async function deletePdfCards(cards: PdfCard[]): Promise<void> {
             r.onsuccess = () => {
               if (r.result) stores.reviews.delete(r.result as string)
             }
+            r.onerror = () =>
+              console.warn("[lime] deletePdfCards: review lookup failed")
             stores.projectCards.delete(card.projectCardId)
           }
           const d = stores.pdfCards.delete(card.id)

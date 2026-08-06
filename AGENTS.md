@@ -51,7 +51,7 @@ src/
   components/       # MUI components
   hooks/            # useProjects, useReview, useSrs, useBackupSync, useNewCard, useCardDragReorder
   database/         # IndexedDB via withStore() + tx() wrappers
-  types/            # Item, Project, ReviewEntry, SearchQuery, ExtensionMessage
+  types/            # ProjectCard/PdfCard/TodoCard, Project, ReviewEntry, SearchQuery, ExtensionMessage
   contents/         # content script entry (not src/content-scripts/)
   background/       # SW-only: context menus (menus.ts)
   import/           # ZIP/JSON import
@@ -63,13 +63,14 @@ src/
 ## Database (IndexedDB)
 
 - `withStore(name, mode, fn)` — opens/closes DB, auto-broadcasts changes
-- `tx(storeMap, fn)` — multi-store atomic transaction (items, projects, reviews)
-- Active stores: `items`, `projects`, `reviews` (v8; `categories`/`sources` removed in v6, `review_session` removed)
-- Any `readwrite` transaction auto-broadcasts via `chrome.storage.local.set({_dbi|_dbp: Date.now()})`
+- `tx(storeMap, fn)` — multi-store atomic transaction across the card/project stores
+- Active stores (v12): `projectCards`, `pdfCards`, `todos`, `projects`, `reviews`, `pdfs`, `pdfAnnotations` (the old monolithic `items` was split into the three typed card stores)
+- Card types: `ProjectCard` (projectId/sectionId/order/content), `PdfCard` (pdfId/page/annotationId/pdfOrder/content/idea), `TodoCard` (dueDate/content); a placed PDF card is TWO records — a `pdfCard` source + a `projectCard` placement with mutual references (`pdfCardId` ↔ `projectCardId`, 1:1). The placement carries NO content (resolved via the pdfCard at render/search); `stripPlacementContent()` guards every write.
+- Any `readwrite` transaction auto-broadcasts: `projectCards`/`todos` → `_dbi`, `pdfCards`/`pdfs`/`pdfAnnotations` → `_dbpdf`, `projects` → `_dbp`, `reviews` → `_dbr`
 - All contexts listen to `chrome.storage.onChanged` for these keys — no manual notify
-- Item dedup: same `hash` + `source.url` within same `projectId` skips insert (addItem returns false)
-- `searchItems(q)` — filters by keyword, type, site, projectId, date range
-- `bulkReplace(remoteItems, remoteProjects, remoteReviews, localItems, localProjects, localReviews)` — diff-based sync in single atomic tx: upsert remote, delete local-not-in-remote
+- ProjectCard dedup: same `hash` + `source.url` within same `projectId` skips insert (`addProjectCard` returns false); placements + todos are identity-unique (`skipDedup`)
+- `searchProjectCards(q)` — filters by keyword/type/site/projectId/date; placed cards' keyword matches resolve the linked pdfCard's content/idea
+- `bulkReplace(remoteProjectCards, remotePdfCards, remoteTodos, remoteProjects, remoteReviews, localProjectCards, localPdfCards, localTodos, localProjects, localReviews)` — diff-based sync in single atomic tx: upsert remote, delete local-not-in-remote
 
 ## Messaging
 
@@ -139,8 +140,8 @@ Layout is three columns: **NavRail | Sidebar | Main**.
 - Empty states → `EmptyState` component (not inline Box/Typography)
 - Card content rendering → `CardRenderer` with `mode` prop (`preview`|`front`|`back`|`full`)
 - Backup export → `useBackupSync.handleExportBackup` (ZIP via `utils/zip.ts`, `export.json` inside), triggered from SidebarFilters
-- Item creation → `createItem()` factory in `background.ts` (not inline `id: crypto.randomUUID()` in 3 places)
-- Mixed cards (text+images) → `Item.images: string[]` on any type; `computeItemHash` takes images as optional 3rd param (different images = different card); UI entry is `NewCardDialog` (URL paste) + `ItemDialog`→`DialogEditMode`; shared `ImageUrlInput` component
+- Card creation → `createProjectCard`/`createPdfCard`/`createTodoCard` factories in `utils` (single id/field source; DB auto-assigns order)
+- Mixed cards (text+images) → `ProjectCard.images: string[]`; `computeItemHash` takes images as optional 3rd param; UI entry is `NewCardDialog` (URL paste) + `ItemDialog`→`DialogEditMode`; shared `ImageUrlInput` component
 - `refreshAllData()` wraps `loadProjects()` + `onSearch()` — call for import/sync-download operations
 - `~` path alias maps to root (used in imports as `~/src/...`)
 - Card drag-reorder → `useCardDragReorder` (pointer events, same-section only); never use HTML5 `draggable` for cards
@@ -216,7 +217,7 @@ Layout is three columns: **NavRail | Sidebar | Main**.
 - **Three levels** (v2.3): `1=不认识` (fail, relearn immediately), `2=模糊` (slow ×1.3), `3=认识` (×1.6); legacy `4` reads as 认识. First-review baselines: 模糊 1d / 认识 2d
 - **Strict first-rating-of-the-day**: only the day's FIRST rating writes the schedule; same-day re-ratings are practice — a re-pass moves the failure's dueDate to tomorrow, a re-fail keeps the session loop. Detection via `reviewHistory` dayKey + session `firstSrsRef`
 - Review data stored in separate `reviews` store (ReviewEntry with itemId unique index)
-- Card must have `Item.title` before it can be added to review
+- Card must have `ProjectCard.title` before it can be added to review
 - `rateSrs(srs, 1|2|3|4)` — pure function applying the algorithm to SrsData; `defaultSrs()` exports a fresh entry
 - `updateReviewSrs(itemId, srs)` — persists rating; auto-promotes to `mastered` at interval ≥ 365 (never demotes — known gap)
 - Get due cards via `getDueReviews()` (dueDate index query, active status only)
