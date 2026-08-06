@@ -20,9 +20,9 @@ interface ItemCardOperationsProps {
   onDelete: (id: string) => void
   onToggleReview?: (id: string) => void
   onReReview?: (id: string) => void
-  onCopyToProject?: (id: string) => void
+  onCopyToProject?: (id: string, anchor: HTMLElement) => void
   /** Move the card to another section of the active project. */
-  onMoveToSection?: (id: string) => void
+  onMoveToSection?: (id: string, anchor: HTMLElement) => void
 }
 
 export default function ItemCardOperations({
@@ -78,7 +78,7 @@ export default function ItemCardOperations({
                   size="small"
                   onClick={(e) => {
                     e.stopPropagation()
-                    onCopyToProject(item.id)
+                    onCopyToProject(item.id, e.currentTarget)
                   }}
                   sx={{ p: 0.75 }}>
                   <FileCopyOutlinedIcon sx={{ fontSize: 16 }} />
@@ -104,7 +104,7 @@ export default function ItemCardOperations({
                   size="small"
                   onClick={(e) => {
                     e.stopPropagation()
-                    onMoveToSection(item.id)
+                    onMoveToSection(item.id, e.currentTarget)
                   }}
                   sx={{ p: 0.75 }}>
                   <DriveFileMoveOutlinedIcon sx={{ fontSize: 16 }} />

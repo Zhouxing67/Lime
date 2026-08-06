@@ -37,9 +37,9 @@ export default function ItemCard({
   onClick?: () => void
   onToggleReview?: (id: string) => void
   onReReview?: (id: string) => void
-  onCopyToProject?: (id: string) => void
+  onCopyToProject?: (id: string, anchor: HTMLElement) => void
   onOpenPdfSource?: (item: DisplayCard) => void
-  onMoveToSection?: (id: string) => void
+  onMoveToSection?: (id: string, anchor: HTMLElement) => void
   highlighted?: boolean
 }) {
   const [hovered, setHovered] = useState(false)

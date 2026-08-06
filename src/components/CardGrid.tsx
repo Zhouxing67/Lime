@@ -33,9 +33,9 @@ interface CardGridProps {
   onOpenDialog: (item: DisplayCard) => void
   onToggleReview?: (id: string) => void
   onReReview?: (id: string) => void
-  onCopyToProject?: (id: string) => void
+  onCopyToProject?: (id: string, anchor: HTMLElement) => void
   onOpenPdfSource?: (item: DisplayCard) => void
-  onMoveToSection?: (id: string) => void
+  onMoveToSection?: (id: string, anchor: HTMLElement) => void
   highlightedId?: string | null
 }
 

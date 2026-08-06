@@ -1,11 +1,11 @@
 import DoneAllRoundedIcon from "@mui/icons-material/DoneAllRounded"
-import { Button, Divider, Stack, Typography, type ButtonOwnProps } from "@mui/material"
+import { Button, Checkbox, Divider, Stack, Typography, type ButtonOwnProps } from "@mui/material"
 import { Fragment, type ReactElement } from "react"
 
 export interface BatchAction {
   label: string
   icon: ReactElement
-  onClick: () => void
+  onClick: (e: React.MouseEvent<HTMLButtonElement>) => void
   dividerBefore?: boolean
   disabled?: boolean
   variant?: ButtonOwnProps["variant"]
@@ -36,12 +36,24 @@ export default function BatchToolbar({
         sx={{ fontSize: "0.82rem", whiteSpace: "nowrap" }}>
         已选 {selectedCount} {countLabel}
       </Typography>
+      <Checkbox
+        size="small"
+        checked={allSelected}
+        indeterminate={selectedCount > 0 && !allSelected}
+        onChange={onSelectAll}
+        sx={{
+          p: 0.25,
+          color: "text.disabled",
+          "&.Mui-checked": { color: "error.main" },
+          "&.MuiCheckbox-indeterminate": { color: "error.main" },
+          "& .MuiSvgIcon-root": { fontSize: 18 }
+        }}
+      />
       <Button
         size="small"
         variant="text"
         sx={{ borderRadius: 1, fontSize: "0.75rem", whiteSpace: "nowrap" }}
         onClick={onSelectAll}>
-        <DoneAllRoundedIcon sx={{ fontSize: 16, mr: 0.5 }} />
         {allSelected ? "取消全选" : "全选"}
       </Button>
       {actions.map((btn) => (
@@ -53,7 +65,7 @@ export default function BatchToolbar({
             color={btn.color ?? "primary"}
             sx={{ borderRadius: 1, fontSize: "0.75rem", whiteSpace: "nowrap" }}
             disabled={btn.disabled}
-            onClick={btn.onClick}>
+            onClick={(e) => btn.onClick(e)}>
             {btn.icon}
             {btn.label}
           </Button>

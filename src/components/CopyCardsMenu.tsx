@@ -1,33 +1,26 @@
-import {
-  Box,
-  Button,
-  DialogActions,
-  List,
-  ListItemButton,
-  ListItemText,
-  TextField,
-  Typography
-} from "@mui/material"
+import { Box, Menu, MenuItem, TextField, Typography } from "@mui/material"
 import AddRoundedIcon from "@mui/icons-material/AddRounded"
+import FolderRoundedIcon from "@mui/icons-material/FolderRounded"
 import { useMemo, useState } from "react"
 
 import type { Project } from "../types"
 import { byRecency } from "../utils"
-import DialogShell from "./DialogShell"
 
-export default function CopyCardsDialog({
-  open,
+/** The copy-to-project picker as a lightweight Menu (same surface as the
+ *  PlaceCardMenu): recent-first, top 7 + 全部项目（N）fold, ellipsis names,
+ *  and an inline 新建项目 input. */
+export default function CopyCardsMenu({
+  anchor,
   title,
   projects,
   onSelect,
   onCreateProject,
   onClose
 }: {
-  open: boolean
+  anchor: HTMLElement | null
   title: string
   projects: Project[]
   onSelect: (projectId: string) => void
-  /** Create a new project inline (returns its id, or null on failure). */
   onCreateProject?: (name: string) => Promise<string | null>
   onClose: () => void
 }) {
@@ -36,9 +29,6 @@ export default function CopyCardsDialog({
   const [showAllProjects, setShowAllProjects] = useState(false)
   const [name, setName] = useState("")
 
-  // Same 收纳 pattern as the sidebar tree / place menu: recent-first, top 7 +
-  // a 全部项目 (N) fold, ellipsis-truncated names — a long project list stays
-  // scannable instead of a 300px scroll wall.
   const sortedProjects = useMemo(
     () =>
       [...projects].sort(
@@ -68,52 +58,68 @@ export default function CopyCardsDialog({
     }
   }
 
+  const handleClose = () => {
+    setNewProjectOpen(false)
+    setName("")
+    setShowAllProjects(false)
+    onClose()
+  }
+
   return (
-    <DialogShell
-      open={open}
-      onClose={onClose}
-      title={title}
-      maxWidth="xs"
-      actions={
-        <DialogActions sx={{ px: 3, py: 2 }}>
-          <Button onClick={onClose}>取消</Button>
-        </DialogActions>
-      }>
-      {projects.length === 0 ? (
-        <Typography variant="body2" sx={{ color: "text.secondary", py: 2 }}>
+    <Menu
+      anchorEl={anchor}
+      open={Boolean(anchor)}
+      onClose={handleClose}
+      slotProps={{
+        paper: { sx: { py: 0.5, borderRadius: 1, minWidth: 220 } }
+      }}>
+      <Typography
+        sx={{
+          fontSize: "0.68rem",
+          color: "text.disabled",
+          px: 1.5,
+          pt: 0.5,
+          pb: 0.25
+        }}>
+        {title}
+      </Typography>
+      {visibleProjects.length === 0 && (
+        <Typography
+          sx={{ fontSize: "0.75rem", color: "text.secondary", px: 1.5, py: 1 }}>
           没有其他项目
         </Typography>
-      ) : (
-        <List disablePadding sx={{ maxHeight: 300, overflowY: "auto" }}>
-          {visibleProjects.map((p) => (
-            <ListItemButton
-              key={p.id}
-              onClick={() => onSelect(p.id)}
-              title={p.name}
-              sx={{ borderRadius: 1, my: 0.25 }}>
-              <ListItemText
-                primary={p.name}
-                secondary={p.note || undefined}
-                primaryTypographyProps={{ fontSize: "0.85rem", noWrap: true }}
-                secondaryTypographyProps={{
-                  fontSize: "0.75rem",
-                  noWrap: true
-                }}
-              />
-            </ListItemButton>
-          ))}
-          {hiddenProjects > 0 && (
-            <ListItemButton
-              onClick={() => setShowAllProjects((s) => !s)}
-              sx={{ borderRadius: 1, fontSize: "0.75rem", color: "text.secondary" }}>
-              {showAllProjects ? "收起" : `全部项目（${sortedProjects.length}）`}
-            </ListItemButton>
-          )}
-        </List>
+      )}
+      {visibleProjects.map((p) => (
+        <MenuItem
+          key={p.id}
+          onClick={() => {
+            onSelect(p.id)
+            handleClose()
+          }}
+          title={p.name}
+          sx={{ gap: 1, fontSize: "0.8rem", maxWidth: 260 }}>
+          <FolderRoundedIcon sx={{ fontSize: 15 }} />
+          <Box
+            component="span"
+            sx={{
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap"
+            }}>
+            {p.name}
+          </Box>
+        </MenuItem>
+      ))}
+      {hiddenProjects > 0 && (
+        <MenuItem
+          onClick={() => setShowAllProjects((s) => !s)}
+          sx={{ gap: 1, fontSize: "0.75rem", color: "text.secondary" }}>
+          {showAllProjects ? "收起" : `全部项目（${sortedProjects.length}）`}
+        </MenuItem>
       )}
       {onCreateProject && (
         <>
-          <Box sx={{ borderTop: "1px solid", borderColor: "divider", my: 1 }} />
+          <Box sx={{ borderTop: "1px solid", borderColor: "divider", my: 0.5 }} />
           {newProjectOpen ? (
             <Box sx={{ px: 1, py: 0.5 }}>
               <TextField
@@ -132,15 +138,15 @@ export default function CopyCardsDialog({
               />
             </Box>
           ) : (
-            <ListItemButton
+            <MenuItem
               onClick={() => setNewProjectOpen(true)}
-              sx={{ gap: 1, borderRadius: 1, fontSize: "0.8rem" }}>
+              sx={{ gap: 1, fontSize: "0.8rem" }}>
               <AddRoundedIcon sx={{ fontSize: 15 }} />
               新建项目
-            </ListItemButton>
+            </MenuItem>
           )}
         </>
       )}
-    </DialogShell>
+    </Menu>
   )
 }

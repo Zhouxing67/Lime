@@ -299,15 +299,20 @@ export default function PdfCardsPanel({
           摘录（{sortedCards.length}）
         </Typography>
         <Box sx={{ flex: 1 }} />
-        {!batchMode ? (
-          <IconButton
-            size="small"
-            title="批量选择"
-            onClick={() => setBatchMode(true)}
-            sx={{ p: 0.25, color: "text.secondary" }}>
-            <DoneAllRoundedIcon sx={{ fontSize: 18 }} />
-          </IconButton>
-        ) : (
+        <IconButton
+          size="small"
+          title={batchMode ? "取消批量选择" : "批量选择"}
+          onClick={() => {
+            setBatchMode((b) => !b)
+            if (batchMode) setSelected(new Set())
+          }}
+          sx={{
+            p: 0.25,
+            color: batchMode ? "error.main" : "text.secondary"
+          }}>
+          <DoneAllRoundedIcon sx={{ fontSize: 18 }} />
+        </IconButton>
+        {batchMode && (
           <Box
             sx={{
               display: "flex",
@@ -319,6 +324,7 @@ export default function PdfCardsPanel({
             <Checkbox
               size="small"
               checked={allSelected}
+              indeterminate={selected.size > 0 && !allSelected}
               onChange={() =>
                 setSelected(
                   allSelected
@@ -326,7 +332,13 @@ export default function PdfCardsPanel({
                     : new Set(sortedCards.map((c) => c.id))
                 )
               }
-              sx={{ p: 0.25, "& .MuiSvgIcon-root": { fontSize: 16 } }}
+              sx={{
+                p: 0.25,
+                color: "text.disabled",
+                "&.Mui-checked": { color: "error.main" },
+                "&.MuiCheckbox-indeterminate": { color: "error.main" },
+                "& .MuiSvgIcon-root": { fontSize: 16 }
+              }}
             />
             <Box>{selected.size} 已选</Box>
             <IconButton
@@ -347,14 +359,6 @@ export default function PdfCardsPanel({
               sx={{ p: 0.25, color: "text.disabled" }}>
               <DriveFileMoveRoundedIcon sx={{ fontSize: 15 }} />
             </IconButton>
-            <Box
-              onClick={() => {
-                setBatchMode(false)
-                setSelected(new Set())
-              }}
-              sx={{ cursor: "pointer", px: 0.5, "&:hover": { color: "primary.main" } }}>
-              完成
-            </Box>
           </Box>
         )}
       </Box>

@@ -48,9 +48,9 @@ import EmptyState from "./components/EmptyState"
 import FilterChips from "./components/FilterChips"
 import FooterBar from "./components/FooterBar"
 import ItemDialog from "./components/ItemDialog"
-import CopyCardsDialog from "./components/CopyCardsDialog"
+import CopyCardsMenu from "./components/CopyCardsMenu"
 import MergeConfirmDialog from "./components/MergeConfirmDialog"
-import MoveToSectionDialog from "./components/MoveToSectionDialog"
+import MoveToSectionMenu from "./components/MoveToSectionMenu"
 import NavRail from "./components/NavRail"
 import type { SidebarTab } from "./components/NavRail"
 import NewCardDialog from "./components/NewCardDialog"
@@ -224,8 +224,14 @@ export default function OptionsPage() {
   const loadMoreRef = useRef<HTMLDivElement>(null)
   const [copyCardId, setCopyCardId] = useState<string | null>(null)
   const [moveSectionCardId, setMoveSectionCardId] = useState<string | null>(null)
-  const [batchCopyOpen, setBatchCopyOpen] = useState(false)
-  const [batchMoveOpen, setBatchMoveOpen] = useState(false)
+  const [copyMenu, setCopyMenu] = useState<{
+    anchor: HTMLElement
+    mode: "single" | "batch"
+  } | null>(null)
+  const [moveMenu, setMoveMenu] = useState<{
+    anchor: HTMLElement
+    mode: "single" | "batch"
+  } | null>(null)
   const [snackbarMsg, setSnackbarMsg] = useState("")
   const [backupSelectedIds, setBackupSelectedIds] = useState<string[]>([])
   const [backupScope, setBackupScope] = useState<"projects" | "pdfs">(
@@ -1763,7 +1769,7 @@ export default function OptionsPage() {
       return { id: c.id, sectionId: sectionId ?? undefined, order: runningMax }
     })
     await batchUpdateProjectCards(updates)
-    setBatchMoveOpen(false)
+    setMoveMenu(null)
     setSelectMode(false)
     setSelectedIds([])
     onSearch()
@@ -1788,8 +1794,6 @@ export default function OptionsPage() {
     }
   }, [])
 
-  const handleBatchCopy = () => setBatchCopyOpen(true)
-
   const handleBatchCopyCards = async (targetProjectId: string) => {
     let skipped = 0
     for (const id of selectedIds) {
@@ -1804,7 +1808,7 @@ export default function OptionsPage() {
       const saved = await addProjectCard(newCard)
       if (!saved) skipped++
     }
-    setBatchCopyOpen(false)
+    setCopyMenu(null)
     setSelectMode(false)
     setSelectedIds([])
     if (skipped > 0) setSnackbarMsg(`跳过 ${skipped} 条重复内容`)
@@ -1964,9 +1968,15 @@ export default function OptionsPage() {
     onOpenDialog: setDialogCard,
     onToggleReview: handleToggleReview,
     onReReview: handleReReview,
-    onCopyToProject: setCopyCardId,
+    onCopyToProject: (id: string, anchor: HTMLElement) => {
+      setCopyCardId(id)
+      setCopyMenu({ anchor, mode: "single" })
+    },
     onOpenPdfSource: handleOpenPdfFromCard,
-    onMoveToSection: setMoveSectionCardId,
+    onMoveToSection: (id: string, anchor: HTMLElement) => {
+      setMoveSectionCardId(id)
+      setMoveMenu({ anchor, mode: "single" })
+    },
     highlightedId: projectCardHighlightId
   }
 
@@ -2242,7 +2252,11 @@ export default function OptionsPage() {
                             sx={{ fontSize: 16, mr: 0.5 }}
                           />
                         ),
-                        onClick: handleBatchCopy,
+                        onClick: (e) =>
+                          setCopyMenu({
+                            anchor: e.currentTarget,
+                            mode: "batch"
+                          }),
                         dividerBefore: true,
                         disabled: selectedIds.length === 0
                       },
@@ -2253,7 +2267,11 @@ export default function OptionsPage() {
                             sx={{ fontSize: 16, mr: 0.5 }}
                           />
                         ),
-                        onClick: () => setBatchMoveOpen(true),
+                        onClick: (e) =>
+                          setMoveMenu({
+                            anchor: e.currentTarget,
+                            mode: "batch"
+                          }),
                         disabled: selectedIds.length === 0
                       },
                       {
@@ -3005,44 +3023,37 @@ export default function OptionsPage() {
                 onClose={() => setSnackbarMsg("")}
               />
 
-              <CopyCardsDialog
-                open={Boolean(copyCardId)}
-                title="复制到项目"
+              <CopyCardsMenu
+                anchor={copyMenu?.anchor ?? null}
+                title={
+                  copyMenu?.mode === "batch" ? "批量复制到项目" : "复制到项目"
+                }
                 projects={otherProjects}
-                onSelect={handleCopyCard}
+                onSelect={(pid) => {
+                  if (copyMenu?.mode === "batch") handleBatchCopyCards(pid)
+                  else handleCopyCard(pid)
+                  setCopyMenu(null)
+                }}
                 onCreateProject={handleCreateProjectAndCopy}
-                onClose={() => setCopyCardId(null)}
+                onClose={() => setCopyMenu(null)}
               />
 
-              <MoveToSectionDialog
-                open={Boolean(moveSectionCardId)}
+              <MoveToSectionMenu
+                anchor={moveMenu?.anchor ?? null}
                 sections={activeProject?.sections ?? []}
                 currentSectionId={
-                  moveSectionCardId
+                  moveMenu?.mode === "single" && moveSectionCardId
                     ? (allProjectCardsUnfiltered.find(
                         (i) => i.id === moveSectionCardId
                       )?.sectionId ?? null)
                     : null
                 }
-                onMove={handleMoveCardConfirm}
-                onClose={() => setMoveSectionCardId(null)}
-              />
-
-              <MoveToSectionDialog
-                open={batchMoveOpen}
-                sections={activeProject?.sections ?? []}
-                currentSectionId={null}
-                onMove={handleBatchMoveConfirm}
-                onClose={() => setBatchMoveOpen(false)}
-              />
-
-              <CopyCardsDialog
-                open={batchCopyOpen}
-                onCreateProject={handleCreateProjectAndCopy}
-                title="批量复制到项目"
-                projects={otherProjects}
-                onSelect={handleBatchCopyCards}
-                onClose={() => setBatchCopyOpen(false)}
+                onMove={(sid) => {
+                  if (moveMenu?.mode === "batch") handleBatchMoveConfirm(sid)
+                  else handleMoveCardConfirm(sid)
+                  setMoveMenu(null)
+                }}
+                onClose={() => setMoveMenu(null)}
               />
               <input
                 ref={backupFileInputRef}
