@@ -433,7 +433,7 @@ function PageView({
       if (flashTimer !== null) window.clearTimeout(flashTimer)
       unregisterTextLayer(pageNumber)
     }
-  }, [doc, pageNumber, paneW, zoom, wh, scale, annotations, flashAnnId, searchFlash])
+  }, [doc, pageNumber, paneW, paneH, zoom, fitMode, wh, scale, annotations, flashAnnId, searchFlash])
 
   return (
     <div
