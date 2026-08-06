@@ -1,6 +1,7 @@
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
 import DeleteSweepRoundedIcon from "@mui/icons-material/DeleteSweepRounded"
 import DoneAllRoundedIcon from "@mui/icons-material/DoneAllRounded"
+import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded"
 import DriveFileMoveRoundedIcon from "@mui/icons-material/DriveFileMoveRounded"
 import FolderRoundedIcon from "@mui/icons-material/FolderRounded"
 import EditRoundedIcon from "@mui/icons-material/EditRounded"
@@ -31,7 +32,7 @@ import BatchToolbar from "./BatchToolbar"
 import PdfCardBody from "./PdfCardBody"
 import PlaceCardMenu from "./PlaceCardMenu"
 import PdfEditDialog from "./PdfEditDialog"
-import { MARK_DOT, MARK_LABEL } from "./pdfTheme"
+import { MARK_DOT } from "./pdfTheme"
 
 /** The PDF view's right-side cards panel — a peer of the sidebar/workspace:
  *  collapsible, resizable (240–520), a built-in batch bar, and the annotated
@@ -82,6 +83,7 @@ export default function PdfCardsPanel({
   const [editCard, setEditCard] = useState<PdfCard | null>(null)
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [highlightId, setHighlightId] = useState<string | null>(null)
+  const [copiedCardId, setCopiedCardId] = useState<string | null>(null)
   const [batchMode, setBatchMode] = useState(false)
   const [mainAreaW, setMainAreaW] = useState(0)
   const maxPanelWRef = useRef(0)
@@ -465,7 +467,6 @@ export default function PdfCardsPanel({
                           background: MARK_DOT[ann.type]
                         }}
                       />
-                      {MARK_LABEL[ann.type]}
                     </Box>
                   )}
                   {placedProject && (
@@ -510,6 +511,22 @@ export default function PdfCardsPanel({
                         opacity: 0,
                         transition: "opacity 0.15s"
                       }}>
+                      <IconButton
+                        size="small"
+                        title={copiedCardId === card.id ? "已复制" : "复制内容"}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          navigator.clipboard.writeText(`> ${card.content}`)
+                          setCopiedCardId(card.id)
+                          window.setTimeout(() => {
+                            setCopiedCardId((cur) =>
+                              cur === card.id ? null : cur
+                            )
+                          }, 1200)
+                        }}
+                        sx={{ p: 0.25, color: "text.disabled" }}>
+                        <ContentCopyRoundedIcon sx={{ fontSize: 14 }} />
+                      </IconButton>
                       <IconButton
                         size="small"
                         title={expanded ? "收起内容" : "展开内容"}
