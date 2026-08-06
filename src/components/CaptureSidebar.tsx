@@ -1,14 +1,11 @@
 import type React from "react"
 
 import type { Project } from "../types"
-import {
-  FloatingPanelContent,
-  PanelErrorBoundary
-} from "./FloatingPanel"
-import type { PanelData, PanelPosition } from "./FloatingPanel"
+import { FloatingPanelContent, PanelErrorBoundary } from "./FloatingPanel"
+import type { PanelData } from "./FloatingPanel"
 
-/** Right-docked capture surface (switch model: only one of the floating
- *  panel / this sidebar is mounted at a time, sharing the same draft). */
+/** The right-docked capture sidebar — the single capture surface (the floating
+ *  panel was removed). Shares the lifted draft with the entry. */
 export default function CaptureSidebar({
   data,
   width,
@@ -26,8 +23,7 @@ export default function CaptureSidebar({
   onProjectsChange,
   onSelectedProjectChange,
   onDirtyChange,
-  onCaptureRegion,
-  onBackToPanel
+  onCaptureRegion
 }: {
   data: PanelData
   width: number
@@ -46,18 +42,13 @@ export default function CaptureSidebar({
   onSelectedProjectChange: (id: string) => void
   onDirtyChange?: (isDirty: boolean) => void
   onCaptureRegion: () => void
-  onBackToPanel: () => void
 }) {
-  const noop = () => {}
   return (
     <PanelErrorBoundary>
       <FloatingPanelContent
-        variant="sidebar"
         data={data}
         width={width}
         onWidthChange={onWidthChange}
-        pinned={false}
-        position={{ left: 0, top: 0 } as PanelPosition}
         projects={projects}
         selectedProjectId={selectedProjectId}
         title={title}
@@ -68,13 +59,10 @@ export default function CaptureSidebar({
         setImageDraft={setImageDraft}
         captureType={captureType}
         onClose={onClose}
-        onPinChange={noop}
-        onPositionChange={noop}
         onProjectsChange={onProjectsChange}
         onSelectedProjectChange={onSelectedProjectChange}
         onDirtyChange={onDirtyChange}
         onCaptureRegion={onCaptureRegion}
-        onBackToPanel={onBackToPanel}
       />
     </PanelErrorBoundary>
   )

@@ -195,6 +195,7 @@ export default function PanelForm({
           alignItems: "center",
           gap: 6,
           padding: "8px 12px",
+          background: colors.bgDefault,
           borderBottom: `1px solid ${colors.divider}`
         }}>
         <span
@@ -267,7 +268,13 @@ export default function PanelForm({
 
       {/* Create project */}
       {creating && (
-        <div style={{ display: "flex", gap: 4, padding: "8px 12px 0" }}>
+        <div
+          style={{
+            display: "flex",
+            gap: 4,
+            padding: "8px 12px",
+            background: colors.bgDefault
+          }}>
           <input
             className="lime-input"
             placeholder="项目名称…"
@@ -336,7 +343,14 @@ export default function PanelForm({
             />
 
             {/* Image URL input — plain DOM, no MUI (content-script bundle) */}
-            <div style={{ display: "flex", gap: 4, marginTop: 8 }}>
+            <div
+              style={{
+                display: "flex",
+                gap: 4,
+                marginTop: 10,
+                paddingTop: 8,
+                borderTop: `1px solid ${colors.divider}`
+              }}>
               <input
                 className="lime-input"
                 placeholder="图片 URL（可选，回车插入）"

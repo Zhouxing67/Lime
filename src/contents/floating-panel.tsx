@@ -2,8 +2,7 @@ import type { PlasmoCSConfig } from "plasmo"
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import CaptureSidebar from "../components/CaptureSidebar"
-import FloatingPanel from "../components/FloatingPanel"
-import type { PanelData, PanelPosition } from "../components/FloatingPanel"
+import type { PanelData } from "../components/FloatingPanel"
 import type { Project } from "../types"
 import { sendMessage } from "../types/messages"
 import { appendMarkdownImage } from "../utils"
@@ -160,31 +159,19 @@ function cropRegion(
 export default function LimePanel() {
   const [open, setOpen] = useState(false)
   const [data, setData] = useState<PanelData | null>(null)
-  const [pinned, setPinned] = useState(false)
   const [projects, setProjects] = useState<Project[]>([])
   const [selectedProjectId, setSelectedProjectId] = useState("")
-  const [position, setPosition] = useState<PanelPosition>({ left: 0, top: 0 })
-  // Which capture surface is active (switch model — never both).
-  const [surface, setSurface] = useState<"panel" | "sidebar">("panel")
-  const [restorePanel, setRestorePanel] = useState(false)
   const [sidebarWidth, setSidebarWidth] = useState(360)
-  // Lifted draft shared by both surfaces.
+  // Lifted draft shared by the capture surface.
   const [title, setTitle] = useState("")
   const [content, setContent] = useState("")
   const [imageDraft, setImageDraft] = useState("")
   const [captureType, setCaptureType] = useState<"text" | "image">("text")
   const prevSelectionRef = useRef("")
-  const pinnedRef = useRef(pinned)
   const dirtyRef = useRef(false)
-  // Remember which surface was last dismissed so the next Alt+L reopens it.
-  const lastClosedRef = useRef<"panel" | "sidebar">("panel")
 
-  useEffect(() => {
-    pinnedRef.current = pinned
-  }, [pinned])
-
-  // The panel reports whether it holds a draft; while it does, new Alt+L
-  // selections are ignored so they can't overwrite the in-progress capture.
+  // The form reports whether it holds a draft; while it does, new Alt+S
+  // selections are appended so they can't overwrite the in-progress capture.
   const onDirtyChange = useCallback((isDirty: boolean) => {
     dirtyRef.current = isDirty
     // A cleared draft must allow overwriting with the same selection again.
@@ -217,60 +204,41 @@ export default function LimePanel() {
     (text: string, rect: DOMRect, type: "text" | "image" = "text") => {
       // A draft is already open: APPEND the new capture instead of replacing.
       // Text could be appended by copy-paste, but formulas/images can't be
-      // selected & copied — Alt+L is their only append path. No dedup here —
-      // repeating the same formula is legit. (The dedup below guards the FILL.)
+      // selected & copied — Alt+S is their only append path.
       if (open && dirtyRef.current) {
         appendToDraft(text, type)
         return
       }
-      // Fill path: while the panel is open + pinned, ignore re-showing the same
-      // selection (a misclick). A cleared draft resets prevSelectionRef so the
-      // same content can be captured again.
-      if (text === prevSelectionRef.current && open && pinnedRef.current) return
       prevSelectionRef.current = text
       setData({ text, rect })
       setTitle("")
       setContent(text)
       setImageDraft("")
       setCaptureType(type)
-      setRestorePanel(false)
-      // When the panel is already open (e.g. the sidebar surface) a capture
-      // keeps the CURRENT surface; a fresh open restores the last-closed one.
-      setSurface(open ? surface : lastClosedRef.current)
       setOpen(true)
     },
-    [open, surface, appendToDraft]
+    [open, appendToDraft]
   )
 
   const hide = useCallback(() => {
-    lastClosedRef.current = surface
     dirtyRef.current = false
     prevSelectionRef.current = ""
     setTitle("")
     setContent("")
     setImageDraft("")
     setOpen(false)
-  }, [surface])
-
-  const onPinChange = useCallback((next: boolean) => {
-    setPinned(next)
   }, [])
 
-  const switchToSidebar = useCallback(() => {
-    setSurface("sidebar")
-  }, [])
+  // Alt+L: open the capture sidebar (no capture, no perception).
+  const openPanel = useCallback(() => {
+    if (!data) {
+      setData({ text: "", rect: new DOMRect(0, 0, 0, 0) })
+    }
+    setOpen(true)
+  }, [data])
 
-  const switchToPanel = useCallback(() => {
-    setRestorePanel(true)
-    setSurface("panel")
-  }, [])
-
-  // Alt+L: PURE panel open — no capture, no perception. Just bring the panel
-  // surface to the front (a fresh open needs a placeholder data for position).
-  // 框选 capture: hide the panel, drag a rectangle over the page, screenshot +
-  // crop it, then reopen the panel with the image draft filled.
-  // 框选 capture: hide the panel, drag a rectangle over the page, screenshot +
-  // crop it, then reopen the panel with the image draft filled.
+  // 框选 capture: hide the sidebar, drag a rectangle over the page, screenshot +
+  // crop it, then reopen the sidebar with the image draft filled.
   const onCaptureRegion = useCallback(() => {
     setOpen(false)
     window.setTimeout(() => {
@@ -290,58 +258,25 @@ export default function LimePanel() {
     }, 60)
   }, [])
 
-  const openPanel = useCallback(() => {
-    setSurface("panel")
-    setRestorePanel(false)
-    if (!data) {
-      const vw = window.innerWidth
-      const vh = window.innerHeight
-      setData({
-        text: "",
-        rect: new DOMRect(
-          Math.round(vw / 2),
-          Math.round(vh / 2),
-          0,
-          0
-        )
-      })
-    }
-    setOpen(true)
-  }, [data])
-
   useEffect(() => {
-    const handleMouseUp = (e: MouseEvent) => {
-      const insidePanel = e.composedPath().some((el) => {
-        if (!(el instanceof Element)) return false
-        return el.closest?.("[data-lime-panel]") != null
-      })
-      if (insidePanel) return
-      // 浮动面板点击外部关闭（钉住时保持）；侧栏只在 ✕/Escape 关闭
-      if (surface === "panel" && !pinnedRef.current) hide()
-    }
-
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        if (pinnedRef.current) setPinned(false)
         hide()
         return
       }
-      // Alt+L: PURE panel open — no capture, no perception. If the panel is
-      // already open this is a no-op (brings the panel surface to the front).
+      // Alt+L: PURE sidebar open — no capture, no perception.
       if (e.altKey && e.key.toLowerCase() === "l") {
         e.preventDefault()
         openPanel()
         return
       }
       // Alt+S: CAPTURE — the perception modes (selection/formula/image).
-      // Fill when the draft is empty (or the panel is closed), append when the
-      // panel is open with a draft.
+      // Fill when the draft is empty (or the sidebar is closed), append when it
+      // is open with a draft.
       if (e.altKey && e.key.toLowerCase() === "s") {
         e.preventDefault()
         const sel = window.getSelection()
         // Mode A: a real selection — rebuild it with any formulas as $…$.
-        // Gate ONLY on the substituted text (a selection can pass a raw-text
-        // floor and vanish after the formula substitution).
         if (sel && !sel.isCollapsed && sel.toString().trim().length > 0) {
           const text = selectionWithMath(sel)
           if (text.length < 5 || text.length > 2000) return
@@ -379,13 +314,11 @@ export default function LimePanel() {
       }
     }
 
-    document.addEventListener("mouseup", handleMouseUp)
     document.addEventListener("keydown", handleKeyDown)
     return () => {
-      document.removeEventListener("mouseup", handleMouseUp)
       document.removeEventListener("keydown", handleKeyDown)
     }
-  }, [show, hide, surface, openPanel])
+  }, [show, hide, openPanel])
 
   // Reload content script on extension update
   useEffect(() => {
@@ -420,9 +353,7 @@ export default function LimePanel() {
   }, [])
 
   // Plasmo's overlay host (`#__plasmo`) sets aria-hidden="true" by default.
-  // Our panel is interactive, so clear the attribute while open — otherwise the
-  // focused buttons inside trigger a "Blocked aria-hidden on focused element"
-  // a11y warning.
+  // The sidebar is interactive, so clear the attribute while open.
   useEffect(() => {
     if (!open) return
     const host = document.getElementById("__plasmo")
@@ -449,22 +380,11 @@ export default function LimePanel() {
     onCaptureRegion
   }
 
-  return surface === "panel" ? (
-    <FloatingPanel
-      {...sharedProps}
-      pinned={pinned}
-      position={position}
-      restorePosition={restorePanel}
-      onPinChange={onPinChange}
-      onPositionChange={setPosition}
-      onOpenSidebar={switchToSidebar}
-    />
-  ) : (
+  return (
     <CaptureSidebar
       {...sharedProps}
       width={sidebarWidth}
       onWidthChange={setSidebarWidth}
-      onBackToPanel={switchToPanel}
     />
   )
 }
