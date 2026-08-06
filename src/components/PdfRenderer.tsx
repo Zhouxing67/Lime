@@ -327,13 +327,19 @@ function PageView({
       const canvas = holder.querySelector("canvas")
       if (!canvas) return
       // DPR crispness: physical canvas = logical × dpr, CSS = logical.
-      canvas.width = Math.floor(wh.w * dpr)
-      canvas.height = Math.floor(wh.h * dpr)
+      // Low-scale supersampling: when the page is rendered smaller than 1.5×
+      // (fit-page / zoomed out) the text is tiny and the canvas's grayscale AA
+      // looks soft vs Edge's native ClearType — render at 2× the effective
+      // resolution and let the CSS downscale smooth it. At larger scales the
+      // glyphs are already big, so skip the 4× pixel cost.
+      const ss = scale < 1.5 ? 2 : 1
+      canvas.width = Math.floor(wh.w * dpr * ss)
+      canvas.height = Math.floor(wh.h * dpr * ss)
       canvas.style.width = `${wh.w}px`
       canvas.style.height = `${wh.h}px`
       renderTask = page.render({
         canvas,
-        viewport: page.getViewport({ scale: scale * dpr })
+        viewport: page.getViewport({ scale: scale * dpr * ss })
       })
       await renderTask.promise
       if (cancelled) return
