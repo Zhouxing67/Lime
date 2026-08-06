@@ -332,7 +332,7 @@ function PageView({
       // looks soft vs Edge's native ClearType — render at 2× the effective
       // resolution and let the CSS downscale smooth it. At larger scales the
       // glyphs are already big, so skip the 4× pixel cost.
-      const ss = scale < 1.5 ? 2 : 1
+      const ss = scale < 2 ? 2 : 1
       canvas.width = Math.floor(wh.w * dpr * ss)
       canvas.height = Math.floor(wh.h * dpr * ss)
       canvas.style.width = `${wh.w}px`
