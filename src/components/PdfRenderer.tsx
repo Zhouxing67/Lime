@@ -497,6 +497,8 @@ function PageView({
       return
     }
     const rects = drawFlash(flashLayer, annotations, tl, holder, flashAnnId)
+    const flashEl = flashLayer.querySelector<HTMLElement>(".pdf-ann-flash")
+    console.warn("[lime:flash]", "annId", flashAnnId, "rects", rects.length, "el", !!flashEl, "size", flashEl ? flashEl.style.width + "x" + flashEl.style.height : "-", "zi", flashEl ? getComputedStyle(flashEl).zIndex : "-", "layerZi", getComputedStyle(flashLayer).zIndex)
     const timer = window.setTimeout(() => flashDoneRef.current?.(), 1500)
     if (rects.length > 0) {
       const minX = Math.min(...rects.map((r) => r.x))
