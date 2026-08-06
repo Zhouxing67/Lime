@@ -126,6 +126,27 @@ export default function LimePanel() {
     setSurface("panel")
   }, [])
 
+  // Alt+L: PURE panel open — no capture, no perception. Just bring the panel
+  // surface to the front (a fresh open needs a placeholder data for position).
+  const openPanel = useCallback(() => {
+    setSurface("panel")
+    setRestorePanel(false)
+    if (!data) {
+      const vw = window.innerWidth
+      const vh = window.innerHeight
+      setData({
+        text: "",
+        rect: new DOMRect(
+          Math.round(vw / 2),
+          Math.round(vh / 2),
+          0,
+          0
+        )
+      })
+    }
+    setOpen(true)
+  }, [data])
+
   useEffect(() => {
     const handleMouseUp = (e: MouseEvent) => {
       const insidePanel = e.composedPath().some((el) => {
@@ -143,7 +164,17 @@ export default function LimePanel() {
         hide()
         return
       }
+      // Alt+L: PURE panel open — no capture, no perception. If the panel is
+      // already open this is a no-op (brings the panel surface to the front).
       if (e.altKey && e.key.toLowerCase() === "l") {
+        e.preventDefault()
+        openPanel()
+        return
+      }
+      // Alt+S: CAPTURE — the perception modes (selection/formula/image).
+      // Fill when the draft is empty (or the panel is closed), append when the
+      // panel is open with a draft.
+      if (e.altKey && e.key.toLowerCase() === "s") {
         e.preventDefault()
         const sel = window.getSelection()
         const rawText = sel?.toString().trim() ?? ""
@@ -191,7 +222,7 @@ export default function LimePanel() {
       document.removeEventListener("mouseup", handleMouseUp)
       document.removeEventListener("keydown", handleKeyDown)
     }
-  }, [show, hide, surface])
+  }, [show, hide, surface, openPanel])
 
   // Reload content script on extension update
   useEffect(() => {
