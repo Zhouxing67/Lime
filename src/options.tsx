@@ -315,6 +315,13 @@ export default function OptionsPage() {
     [allPdfCards]
   )
 
+  // PDF name for the placed-card footer (PDF名 · 第 X 页).
+  const pdfNameById = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const p of pdfs) m.set(p.id, p.name)
+    return m
+  }, [pdfs])
+
   const resolveDisplay = useCallback(
     (card: ProjectCard): DisplayCard => {
       if (!card.pdfCardId) return card
@@ -325,11 +332,15 @@ export default function OptionsPage() {
             ...card,
             content: resolved.content,
             idea: resolved.idea,
-            pdfSource: { pdfId: pdfCard.pdfId, page: pdfCard.page }
+            pdfSource: {
+              pdfId: pdfCard.pdfId,
+              page: pdfCard.page,
+              pdfName: pdfNameById.get(pdfCard.pdfId)
+            }
           }
         : { ...card, content: resolved.content, idea: resolved.idea }
     },
-    [pdfById]
+    [pdfById, pdfNameById]
   )
 
   /** The current scope's render list (search results / project scope). */

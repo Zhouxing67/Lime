@@ -211,9 +211,15 @@ export default function ItemCard({
                 color: "text.secondary",
                 fontSize: "0.72rem",
                 cursor: "pointer",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                maxWidth: "100%",
                 "&:hover": { color: "primary.main" }
               }}>
-              PDF · 第 {item.pdfSource.page} 页
+              {item.pdfSource.pdfName
+                ? `${item.pdfSource.pdfName} · 第 ${item.pdfSource.page} 页`
+                : `PDF · 第 ${item.pdfSource.page} 页`}
             </Typography>
           ) : (
             <Typography

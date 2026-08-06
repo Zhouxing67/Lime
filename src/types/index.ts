@@ -93,7 +93,7 @@ export type AnyCard = ProjectCard | PdfCard | TodoCard
  *  stripPlacementContent() before persisting a DisplayCard. */
 export type DisplayCard = ProjectCard & {
   idea?: string
-  pdfSource?: { pdfId: string; page: number }
+  pdfSource?: { pdfId: string; page: number; pdfName?: string }
 }
 
 export type PdfMark = "highlight" | "underline" | "wavy" | "strike" | "frame"

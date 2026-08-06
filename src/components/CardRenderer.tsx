@@ -140,6 +140,14 @@ function ImageGallery({ images }: { images: string[] }) {
   )
 }
 
+/** Placed-card source label: the PDF name when known (truncated by the
+ *  caller's ellipsis), else a generic PDF marker. */
+function pdfSourceLabel(item: DisplayCard): string {
+  const s = item.pdfSource
+  if (!s) return ""
+  return s.pdfName ? `${s.pdfName} · 第 ${s.page} 页` : `PDF · 第 ${s.page} 页`
+}
+
 function ContentBlock({ item }: { item: DisplayCard }) {
   if (item.type === "image") {
     return (
@@ -432,7 +440,7 @@ export default function CardRenderer({
                   : {})
               }}>
               {item.pdfSource
-                ? `PDF · 第 ${item.pdfSource.page} 页`
+                ? pdfSourceLabel(item)
                 : `↗ ${item.source.title || prettyUrl(item.source.url)}`}
             </Typography>
           </>
@@ -490,7 +498,7 @@ export default function CardRenderer({
                   cursor: item.pdfSource ? "pointer" : "pointer"
                 }}>
                 {item.pdfSource
-                  ? `PDF · 第 ${item.pdfSource.page} 页`
+                  ? pdfSourceLabel(item)
                   : `↗ ${item.source?.title || prettyUrl(item.source?.url ?? "")}`}
               </Typography>
             </Box>
@@ -549,7 +557,7 @@ export default function CardRenderer({
             }}>
             {item.type.toUpperCase()}
             {!item.source && !item.pdfSource && " · 自建卡片"}
-            {item.pdfSource && ` · PDF · 第 ${item.pdfSource.page} 页`}
+            {item.pdfSource && ` · ${pdfSourceLabel(item)}`}
             {" · "}
             {new Date(item.createdAt).toLocaleDateString("zh-CN", {
               year: "numeric",
@@ -593,7 +601,7 @@ export default function CardRenderer({
                 : {})
             }}>
             {item.pdfSource
-              ? `PDF · 第 ${item.pdfSource.page} 页`
+              ? pdfSourceLabel(item)
               : `↗ ${item.source?.title || prettyUrl(item.source?.url ?? "")}`}
           </Typography>
         </>
