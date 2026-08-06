@@ -687,6 +687,21 @@ export default function PdfRenderer({
     dragCleanupRef.current = cleanup
   }, [frameMode, onFrameRegion])
 
+  // Ctrl+wheel zooms the PDF instead of the browser's page zoom — a native
+  // passive:false listener so the default (browser zoom) can be prevented.
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey) return
+      e.preventDefault()
+      const step = e.deltaY < 0 ? 0.1 : -0.1
+      onZoomChange?.(Math.max(0.5, Math.min(3, +(zoom + step).toFixed(2))))
+    }
+    el.addEventListener("wheel", onWheel, { passive: false })
+    return () => el.removeEventListener("wheel", onWheel)
+  }, [zoom, onZoomChange])
+
   return (
     <div
       ref={containerRef}
