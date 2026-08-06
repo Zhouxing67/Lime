@@ -2217,7 +2217,7 @@ export default function OptionsPage() {
                     }}
                     actions={[
                       {
-                        label: "复制到",
+                        label: "复制到项目",
                         icon: (
                           <FileCopyOutlinedIcon
                             sx={{ fontSize: 16, mr: 0.5 }}
@@ -2988,7 +2988,7 @@ export default function OptionsPage() {
 
               <CopyCardsDialog
                 open={Boolean(copyCardId)}
-                title="复制到…"
+                title="复制到项目"
                 projects={otherProjects}
                 onSelect={handleCopyCard}
                 onClose={() => setCopyCardId(null)}
@@ -3018,7 +3018,7 @@ export default function OptionsPage() {
 
               <CopyCardsDialog
                 open={batchCopyOpen}
-                title="批量复制到…"
+                title="批量复制到项目"
                 projects={otherProjects}
                 onSelect={handleBatchCopyCards}
                 onClose={() => setBatchCopyOpen(false)}
