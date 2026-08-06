@@ -199,7 +199,10 @@ const TEXT_LAYER_CSS = `
   z-index: 2;
 }
 .pdf-ann-flash {
-  background: rgba(99,102,241,0.4);
+  /* The original annotation marks show through a too-transparent fill and read
+     as "covered" — a stronger fill + a ring makes the jump hint unmistakable. */
+  background: rgba(99,102,241,0.55);
+  box-shadow: inset 0 0 0 2px rgba(99,102,241,0.9);
   border-radius: 2px;
   animation: pdfAnnFlash 1.4s ease-out forwards;
 }
