@@ -38,6 +38,7 @@ import BatchToolbar from "./components/BatchToolbar"
 import DeleteSweepRoundedIcon from "@mui/icons-material/DeleteSweepRounded"
 import FileCopyOutlinedIcon from "@mui/icons-material/FileCopyOutlined"
 import FileDownloadRoundedIcon from "@mui/icons-material/FileDownloadRounded"
+import DriveFileMoveOutlinedIcon from "@mui/icons-material/DriveFileMoveOutlined"
 import MergeTypeRoundedIcon from "@mui/icons-material/MergeTypeRounded"
 import CardGrid from "./components/CardGrid"
 import DateRangeFilter from "./components/DateRangeFilter"
@@ -224,6 +225,7 @@ export default function OptionsPage() {
   const [copyCardId, setCopyCardId] = useState<string | null>(null)
   const [moveSectionCardId, setMoveSectionCardId] = useState<string | null>(null)
   const [batchCopyOpen, setBatchCopyOpen] = useState(false)
+  const [batchMoveOpen, setBatchMoveOpen] = useState(false)
   const [snackbarMsg, setSnackbarMsg] = useState("")
   const [backupSelectedIds, setBackupSelectedIds] = useState<string[]>([])
   const [backupScope, setBackupScope] = useState<"projects" | "pdfs">(
@@ -1748,6 +1750,25 @@ export default function OptionsPage() {
     onSearch()
   }
 
+  // Batch move-to-section: the selected cards land in the target section
+  // (or 未分类) with sequential orders after the section's current max.
+  const handleBatchMoveConfirm = async (sectionId: string | null) => {
+    if (selectedIds.length === 0) return
+    const cards = allProjectCardsUnfiltered.filter((c) =>
+      selectedIds.includes(c.id)
+    )
+    let runningMax = await getMaxOrderInSection(sectionId ?? undefined)
+    const updates = cards.map((c) => {
+      runningMax += 1
+      return { id: c.id, sectionId: sectionId ?? undefined, order: runningMax }
+    })
+    await batchUpdateProjectCards(updates)
+    setBatchMoveOpen(false)
+    setSelectMode(false)
+    setSelectedIds([])
+    onSearch()
+  }
+
   const handleBatchCopy = () => setBatchCopyOpen(true)
 
   const handleBatchCopyCards = async (targetProjectId: string) => {
@@ -2204,6 +2225,16 @@ export default function OptionsPage() {
                         ),
                         onClick: handleBatchCopy,
                         dividerBefore: true,
+                        disabled: selectedIds.length === 0
+                      },
+                      {
+                        label: "移动到章节",
+                        icon: (
+                          <DriveFileMoveOutlinedIcon
+                            sx={{ fontSize: 16, mr: 0.5 }}
+                          />
+                        ),
+                        onClick: () => setBatchMoveOpen(true),
                         disabled: selectedIds.length === 0
                       },
                       {
@@ -2975,6 +3006,14 @@ export default function OptionsPage() {
                 }
                 onMove={handleMoveCardConfirm}
                 onClose={() => setMoveSectionCardId(null)}
+              />
+
+              <MoveToSectionDialog
+                open={batchMoveOpen}
+                sections={activeProject?.sections ?? []}
+                currentSectionId={null}
+                onMove={handleBatchMoveConfirm}
+                onClose={() => setBatchMoveOpen(false)}
               />
 
               <CopyCardsDialog

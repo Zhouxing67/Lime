@@ -76,21 +76,19 @@ export default function MoveToSectionDialog({
           ))}
         </List>
       )}
-      {currentSectionId !== null && (
-        <ListItemButton
-          sx={{
-            borderRadius: 1,
-            mx: 1,
-            color: "text.secondary",
-            "&:hover": { bgcolor: "action.hover" }
-          }}
-          onClick={() => onMove(null)}>
-          <ListItemText
-            primary="移回未分类"
-            primaryTypographyProps={{ fontSize: "0.85rem" }}
-          />
-        </ListItemButton>
-      )}
+      <ListItemButton
+        sx={{
+          borderRadius: 1,
+          mx: 1,
+          color: "text.secondary",
+          "&:hover": { bgcolor: "action.hover" }
+        }}
+        onClick={() => onMove(null)}>
+        <ListItemText
+          primary={currentSectionId !== null ? "移回未分类" : "移动到未分类"}
+          primaryTypographyProps={{ fontSize: "0.85rem" }}
+        />
+      </ListItemButton>
     </DialogShell>
   )
 }
