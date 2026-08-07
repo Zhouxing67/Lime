@@ -117,8 +117,10 @@ export function resolveCardContent(
     return { content: card.content, title: card.title }
   }
   const src = pdfById.get(card.pdfCardId)
+  // Cards no longer carry content — the placement resolves an EMPTY body (the
+  // PDF page shows the annotation); only the editable idea survives.
   return {
-    content: src?.content ?? card.content,
+    content: "",
     idea: src?.idea,
     title: card.title
   }

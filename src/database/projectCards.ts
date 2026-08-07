@@ -1,6 +1,6 @@
 import { tx, withStore } from "./core"
 import { safeHostname } from "./helpers"
-import type { PdfCard, ProjectCard, SearchQuery } from "../types"
+import type { PdfAnnotation, PdfCard, ProjectCard, SearchQuery } from "../types"
 import { computeItemHash } from "../utils"
 
 /** Highest `order` in a section (未分类 = no sectionId), -1 when empty. The
@@ -98,19 +98,23 @@ export async function addProjectCard(
 
 export async function searchProjectCards(q: SearchQuery): Promise<ProjectCard[]> {
   // Placed cards carry NO content (reference model) — to keyword-search their
-  // PDF quotes, resolve the linked pdfCards BEFORE opening the projectCards
-  // transaction (a nested transaction would commit the outer one on the await
-  // gap → InvalidStateError).
+  // PDF quotes, resolve the linked annotations' text (the quote lives on the
+  // pdfAnnotation now) BEFORE opening the projectCards transaction (a nested
+  // transaction would commit the outer one on the await gap →
+  // InvalidStateError).
   const keyword = q.keyword?.toLowerCase()
-  const pdfById = keyword
-    ? await withStore("pdfCards", "readonly", (pdfStore) =>
-        new Promise<Map<string, PdfCard>>((resolveMap) => {
-          const map = new Map<string, PdfCard>()
-          const allReq = pdfStore.openCursor()
+  // pdfCardId → the annotation's quote text (the pdfAnnotation.cardId links
+  // back to its pdfCard). Resolved BEFORE the projectCards transaction.
+  const quoteByPdfCardId = keyword
+    ? await withStore("pdfAnnotations", "readonly", (annStore) =>
+        new Promise<Map<string, string>>((resolveMap) => {
+          const map = new Map<string, string>()
+          const allReq = annStore.openCursor()
           allReq.onsuccess = () => {
             const c = allReq.result
             if (c) {
-              map.set((c.value as PdfCard).id, c.value as PdfCard)
+              const a = c.value as PdfAnnotation
+              if (a.text && a.cardId) map.set(a.cardId, a.text)
               c.continue()
             } else resolveMap(map)
           }
@@ -144,14 +148,14 @@ export async function searchProjectCards(q: SearchQuery): Promise<ProjectCard[]>
         const card = cursor.value as ProjectCard
         let kwMatch = true
         if (keyword) {
-          const src = card.pdfCardId ? pdfById?.get(card.pdfCardId) : undefined
+          const quote = card.pdfCardId
+            ? quoteByPdfCardId?.get(card.pdfCardId)
+            : undefined
           kwMatch =
             card.content?.toLowerCase().includes(keyword) ||
             card.title?.toLowerCase().includes(keyword) ||
             card.source?.title?.toLowerCase().includes(keyword) ||
-            !!src &&
-              (src.content?.toLowerCase().includes(keyword) ||
-                src.idea?.toLowerCase().includes(keyword))
+            !!quote && quote.toLowerCase().includes(keyword)
         }
         if (
           (!q.type || card.type === q.type) &&

@@ -61,8 +61,14 @@ export interface PdfCard {
   kind: "text" | "region"
   type: PdfMark
   annotationId: string
-  /** The original quote (text) or the frame data-URL (region) — read-only. */
-  content: string
+  /**
+   * LEGACY read-compat: the original quote (text) or frame data-URL (region)
+   * was stored on the card pre-6.0. Cards no longer carry content (the PDF
+   * page itself shows the annotation; the card is a compact marker + idea).
+   * Existing cards keep their old value (invisible) until the one-time
+   * cleanup strips it; new cards never populate it.
+   */
+  content?: string
   /** Personal note / 补充说明 (markdown) — the editable part, shared by both views. */
   idea?: string
   /** Position in the PDF (page-major + in-page offset/rect-y) — the panel sorts by this. */
@@ -93,7 +99,14 @@ export type AnyCard = ProjectCard | PdfCard | TodoCard
  *  stripPlacementContent() before persisting a DisplayCard. */
 export type DisplayCard = ProjectCard & {
   idea?: string
-  pdfSource?: { pdfId: string; page: number; pdfName?: string }
+  pdfSource?: {
+    pdfId: string
+    page: number
+    pdfName?: string
+    /** The linked pdfCard's mark type (for the compact placed-card marker). */
+    type?: PdfMark
+    kind?: "text" | "region"
+  }
 }
 
 export type PdfMark = "highlight" | "underline" | "wavy" | "strike" | "frame"

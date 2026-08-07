@@ -229,8 +229,8 @@ function validatePdfCard(raw: unknown): { card: PdfCard } | { error: string } {
   if (typeof obj.page !== "number") {
     return { error: "page 缺失" }
   }
-  if (typeof obj.content !== "string" || obj.content.length === 0) {
-    return { error: "content 缺失或为空" }
+  if (obj.content !== undefined && typeof obj.content !== "string") {
+    return { error: "content 类型错误" }
   }
   if (typeof obj.annotationId !== "string" || obj.annotationId.length === 0) {
     return { error: "annotationId 缺失" }
@@ -248,7 +248,9 @@ function validatePdfCard(raw: unknown): { card: PdfCard } | { error: string } {
     ? (obj.type as PdfMark)
     : "highlight"
   card.annotationId = obj.annotationId
-  card.content = obj.content
+  // Legacy read-compat: cards no longer carry content; strip it on import so
+  // old backups don't reintroduce the storage/display bloat.
+  delete card.content
   card.idea =
     typeof obj.idea === "string" && obj.idea.length > 0 ? obj.idea : undefined
   card.pdfOrder =

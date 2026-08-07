@@ -1,15 +1,11 @@
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
 import DeleteSweepRoundedIcon from "@mui/icons-material/DeleteSweepRounded"
 import DoneAllRoundedIcon from "@mui/icons-material/DoneAllRounded"
-import CheckRoundedIcon from "@mui/icons-material/CheckRounded"
-import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded"
 import DriveFileMoveRoundedIcon from "@mui/icons-material/DriveFileMoveRounded"
 import FolderRoundedIcon from "@mui/icons-material/FolderRounded"
 import EditRoundedIcon from "@mui/icons-material/EditRounded"
 import LinkOffRoundedIcon from "@mui/icons-material/LinkOffRounded"
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
-import UnfoldLessRoundedIcon from "@mui/icons-material/UnfoldLessRounded"
-import UnfoldMoreRoundedIcon from "@mui/icons-material/UnfoldMoreRounded"
 import {
   Box,
   Checkbox,
@@ -79,13 +75,9 @@ export default function PdfCardsPanel({
   onCreateProject,
   onJumpToProject
 }: PdfCardsPanelProps) {
-  const [expandedCards, setExpandedCards] = useState<Set<string>>(
-    () => new Set()
-  )
   const [editCard, setEditCard] = useState<PdfCard | null>(null)
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [highlightId, setHighlightId] = useState<string | null>(null)
-  const [copiedCardId, setCopiedCardId] = useState<string | null>(null)
   const [batchMode, setBatchMode] = useState(false)
   const [mainAreaW, setMainAreaW] = useState(0)
   const maxPanelWRef = useRef(0)
@@ -119,15 +111,6 @@ export default function PdfCardsPanel({
       ),
     [cards]
   )
-
-  const toggleExpand = useCallback((id: string) => {
-    setExpandedCards((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }, [])
 
   const handleCardEdit = useCallback((card: PdfCard) => {
     setEditCard(card)
@@ -376,7 +359,6 @@ export default function PdfCardsPanel({
         ) : (
           sortedCards.map((card) => {
             const ann = annotations.find((x) => x.id === card.annotationId)
-            const expanded = expandedCards.has(card.id)
             const isSelected = selected.has(card.id)
             const highlighted = highlightId === card.id
             const placement = card.projectCardId
@@ -479,68 +461,6 @@ export default function PdfCardsPanel({
                         opacity: 0,
                         transition: "opacity 0.15s"
                       }}>
-                      <Tooltip
-                        title={
-                          copiedCardId === card.id
-                            ? "已复制"
-                            : card.kind === "region"
-                              ? "复制图片"
-                              : "复制内容"
-                        }>
-                        <IconButton
-                          size="small"
-                          onClick={async (e) => {
-                            e.stopPropagation()
-                            if (card.kind === "region") {
-                              // A frame card copies the IMAGE itself (ClipboardItem).
-                              try {
-                                const blob = await (
-                                  await fetch(card.content)
-                                ).blob()
-                                await navigator.clipboard.write([
-                                  new ClipboardItem({
-                                    [blob.type || "image/png"]: blob
-                                  })
-                                ])
-                              } catch (err) {
-                                console.warn("[lime] image copy failed:", err)
-                                navigator.clipboard.writeText(card.content)
-                              }
-                            } else {
-                              navigator.clipboard.writeText(`> ${card.content}`)
-                            }
-                            setCopiedCardId(card.id)
-                            window.setTimeout(() => {
-                              setCopiedCardId((cur) =>
-                                cur === card.id ? null : cur
-                              )
-                            }, 1200)
-                          }}
-                          sx={{ p: 0.75, color: "text.disabled" }}>
-                          {copiedCardId === card.id ? (
-                            <CheckRoundedIcon
-                              sx={{ fontSize: 16, color: "success.main" }}
-                            />
-                          ) : (
-                            <ContentCopyRoundedIcon sx={{ fontSize: 16 }} />
-                          )}
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title={expanded ? "收起内容" : "展开内容"}>
-                        <IconButton
-                          size="small"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            toggleExpand(card.id)
-                          }}
-                          sx={{ p: 0.75, color: "text.disabled" }}>
-                          {expanded ? (
-                            <UnfoldLessRoundedIcon sx={{ fontSize: 16 }} />
-                          ) : (
-                            <UnfoldMoreRoundedIcon sx={{ fontSize: 16 }} />
-                          )}
-                        </IconButton>
-                      </Tooltip>
                       <Tooltip title="编辑">
                         <IconButton
                           size="small"
@@ -596,7 +516,7 @@ export default function PdfCardsPanel({
                 </Box>
                 <PdfCardBody
                   item={card}
-                  maxLines={expanded ? undefined : 4}
+                  maxLines={4}
                 />
                 {placedProject && (
                   <Box

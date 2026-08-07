@@ -867,15 +867,14 @@ describe("pdf annotations ↔ cards", () => {
 })
 
 describe("pdf region annotations (框选)", () => {
-  it("creates a frame annotation + image card atomically", async () => {
+  it("creates a frame annotation + compact card atomically (no image)", async () => {
     const { card, annotation } = await createRegionAnnotationCard({
       pdfId: "pdf-region",
       page: 2,
-      rects: [{ x: 0.1, y: 0.2, w: 0.5, h: 0.3 }],
-      imageDataUrl: "data:image/png;base64,AAAA"
+      rects: [{ x: 0.1, y: 0.2, w: 0.5, h: 0.3 }]
     })
     expect(card.kind).toBe("region")
-    expect(card.content).toBe("data:image/png;base64,AAAA")
+    expect(card.content).toBeUndefined()
     expect(card.pdfId).toBe("pdf-region")
     expect(annotation.kind).toBe("region")
     expect(annotation.type).toBe("frame")

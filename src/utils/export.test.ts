@@ -134,7 +134,7 @@ describe("buildScopeData + buildProjectMarkdown", () => {
     expect(skippedImages).toBe(0)
   })
 
-  it("resolves a placed card's quote from its linked pdfCard", () => {
+  it("exports a placed card WITHOUT its quote (cards no longer carry content)", () => {
     const pdfCard: PdfCard = {
       id: "pc-1",
       pdfId: "pdf-1",
@@ -142,7 +142,6 @@ describe("buildScopeData + buildProjectMarkdown", () => {
       kind: "text",
       type: "highlight",
       annotationId: "a-1",
-      content: "原文摘录",
       pdfOrder: 3000000,
       createdAt: 1000
     }
@@ -153,7 +152,9 @@ describe("buildScopeData + buildProjectMarkdown", () => {
       buildScopeData(proj, cards, null, [pdfCard])
     )
     expect(markdown).toContain("## 放置卡")
-    expect(markdown).toContain("原文摘录")
+    // The placed card's quote was deliberately removed from the model — the
+    // markdown export carries only the placement's own fields (title/source).
+    expect(markdown).not.toContain("原文摘录")
     expect(skippedImages).toBe(0)
   })
 

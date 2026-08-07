@@ -371,7 +371,8 @@ export function createPdfCard(data: {
   kind: "text" | "region"
   type: PdfMark
   annotationId: string
-  content: string
+  /** Legacy read-compat — cards no longer carry content. */
+  content?: string
   pdfOrder: number
   idea?: string
 }): PdfCard {
@@ -382,7 +383,7 @@ export function createPdfCard(data: {
     kind: data.kind,
     type: data.type,
     annotationId: data.annotationId,
-    content: data.content,
+    ...(data.content ? { content: data.content } : {}),
     pdfOrder: data.pdfOrder,
     ...(data.idea ? { idea: data.idea } : {}),
     createdAt: Date.now()

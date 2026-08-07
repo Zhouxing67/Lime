@@ -23,6 +23,7 @@
     "@mui/material": "^7.3.5",
     "jszip": "^3.10.1",
     "katex": "^0.18.1",
+    "konva": "^9.0.0",
     "marked-react": "^4.0.0",
     "pdfjs-dist": "^6.2.108",
     "plasmo": "0.90.5",

@@ -6,6 +6,7 @@ import LinkRoundedIcon from "@mui/icons-material/LinkRounded"
 import { Box, Chip, Typography } from "@mui/material"
 
 import type { DisplayCard } from "../types"
+import { MARK_DOT, MARK_LABEL } from "./pdfTheme"
 import { extractMarkdownImages, prettyUrl, truncateText } from "../utils"
 import MarkdownRenderer from "./MarkdownRenderer"
 
@@ -60,6 +61,51 @@ function legacyImages(item: DisplayCard): string[] {
 /** Shared "原文" section (label + quote block + images) used by both the full
  *  and review-back views so the back card reads like the full card. */
 function OriginalBlock({ item }: { item: DisplayCard }) {
+  // A placed PDF card no longer carries content — the PDF page shows the
+  // annotation; render a compact marker instead of an empty/legacy block.
+  if (item.pdfSource && !item.content && !legacyImages(item).length) {
+    const mark = item.pdfSource.type
+    return (
+      <Box>
+        <Typography
+          variant="caption"
+          sx={{
+            color: "text.secondary",
+            fontSize: "0.75rem",
+            letterSpacing: "0.05em",
+            mb: 0.5,
+            display: "block"
+          }}>
+          原文
+        </Typography>
+        <Box
+          sx={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 0.6,
+            px: 1,
+            py: 0.4,
+            borderRadius: 1,
+            bgcolor: "action.hover",
+            color: "text.secondary",
+            fontSize: "0.75rem"
+          }}>
+          {mark && (
+            <Box
+              sx={{
+                width: 7,
+                height: 7,
+                borderRadius: 1,
+                background: MARK_DOT[mark],
+                flexShrink: 0
+              }}
+            />
+          )}
+          <span>PDF 批注{mark ? ` · ${MARK_LABEL[mark]}` : ""} · 第 {item.pdfSource.page} 页</span>
+        </Box>
+      </Box>
+    )
+  }
   return (
     <Box>
       <Typography

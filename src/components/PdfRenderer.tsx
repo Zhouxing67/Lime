@@ -1,80 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import * as pdfjsLib from "pdfjs-dist"
+import Konva from "konva"
 
-import type { PdfAnnotation, PdfMark } from "../types"
-import { MARK_COLOR } from "./pdfTheme"
+import type { PdfAnnotation } from "../types"
 import { registerTextLayer, unregisterTextLayer } from "./pdfRegistry"
 import { mergeRects, textLayerOffsets, textLayerRects } from "./pdfText"
 import type { PdfRect } from "./pdfText"
+import { drawMarks, markSignature, marksAt, removeMark, upsertMark } from "./pdfMarksKonva"
+import { createKonvaStage } from "../pdf/konvaStage"
 
 // Low-saturation annotation colors (align with the app's RATING_META family).
 const EMPTY_ANNOTATIONS: PdfAnnotation[] = []
-
-function drawAnnotation(
-  overlay: HTMLElement,
-  type: PdfMark,
-  rect: PdfRect,
-  annId: string
-): void {
-  const el = document.createElement("div")
-  el.className = "pdf-ann"
-  el.dataset.annId = annId
-  el.style.cssText = `position:absolute;left:${rect.x}px;top:${rect.y}px;width:${rect.w}px;height:${rect.h}px;`
-  if (type === "highlight") {
-    el.style.background = MARK_COLOR.highlight
-    el.style.borderRadius = "2px"
-  } else if (type === "underline") {
-    el.style.borderBottom = `1.5px solid ${MARK_COLOR.underline}`
-  } else if (type === "wavy") {
-    el.innerHTML = `<svg width="${rect.w}" height="${rect.h}" style="position:absolute;left:0;top:${rect.h - 3}px;overflow:visible"><path d="${wavyPath(rect.w)}" stroke="${MARK_COLOR.wavy}" stroke-width="1.5" fill="none"/></svg>`
-  } else if (type === "strike") {
-    el.innerHTML = `<div style="position:absolute;top:${rect.h / 2 - 1}px;left:0;right:0;height:1.5px;background:${MARK_COLOR.strike}"></div>`
-  } else if (type === "frame") {
-    el.style.border = `1.5px solid ${MARK_COLOR.frame}`
-    el.style.borderRadius = "2px"
-  }
-  overlay.appendChild(el)
-}
-
-function wavyPath(w: number): string {
-  const amp = 2
-  const period = 6
-  const half = period / 2
-  let d = `M0 0`
-  let x = 0
-  while (x < w) {
-    d += ` Q${x + half / 2} ${-amp} ${x + half} 0`
-    d += ` Q${x + (half + half / 2)} ${amp} ${x + period} 0`
-    x += period
-  }
-  return d
-}
-
-function drawPageAnnotations(
-  overlay: HTMLElement,
-  annotations: PdfAnnotation[],
-  textLayer: InstanceType<typeof pdfjsLib.TextLayer>,
-  holder: HTMLElement
-): void {
-  overlay.replaceChildren()
-  const holderRect = holder.getBoundingClientRect()
-  const hw = holderRect.width || 1
-  const hh = holderRect.height || 1
-  for (const ann of annotations) {
-    if (ann.kind === "text") {
-      if (ann.startOffset == null || ann.endOffset == null) continue
-      const rects = textLayerRects(textLayer, holder, ann.startOffset, ann.endOffset)
-      for (const r of rects) drawAnnotation(overlay, ann.type, r, ann.id)
-    } else if (ann.kind === "region") {
-      // Frame rects are stored normalized (0-1 fractions of the page box).
-      for (const r of ann.rects ?? []) {
-        const rect = { x: r.x * hw, y: r.y * hh, w: r.w * hw, h: r.h * hh }
-        drawAnnotation(overlay, ann.type, rect, ann.id)
-      }
-    }
-  }
-}
 
 /** The annotation-jump flash lives on its own layer (a direct holder child) so
  *  the annotation overlay's replaceChildren can't re-create it — re-creating
@@ -218,18 +155,19 @@ const TEXT_LAYER_CSS = `
   100% { opacity: 0; }
 }
 .pdf-annotations {
-  /* Above the text layer (z-index 0 + spans pointer-events auto) so clicks
-     reach the annotations instead of being swallowed by the selectable text. */
+  /* Above the text layer (z-index 0 + spans pointer-events auto). The Konva
+     mark canvas is pointer-transparent too — text selection must pass through
+     to the text layer; mark clicks/hover are hit-tested via the Konva hit
+     graph instead of DOM events. */
   position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: 2;
 }
-.pdf-ann {
-  pointer-events: auto;
-  cursor: pointer;
+.pdf-annotations .konvajs-content,
+.pdf-annotations .konvajs-content canvas {
+  pointer-events: none !important;
 }
-.pdf-ann:hover { filter: brightness(0.92); }
 `
 
 /** Render one page lazily (IntersectionObserver) at DPR crispness + text layer.
@@ -278,20 +216,67 @@ function PageView({
     null
   )
 
-  // Click an annotation → jump to its card + open the annotation actions popover.
+  // Click an annotation → jump to its card + open the annotation actions
+  // popover. The Konva mark layer is pointer-transparent (so text selection
+  // still reaches the text layer); clicks/hover hit-test the Konva hit graph.
+  const marksStageRef = useRef<Konva.Stage | null>(null)
+  // Hover: dim the hovered annotation's shapes (brightness(0.92) equivalent).
+  const hoverRef = useRef<(annId: string | null) => void>(() => {})
+  // Last draw context so annotation-list changes can re-draw without re-rendering.
+  const drawCtxRef = useRef<{
+    tl: InstanceType<typeof pdfjsLib.TextLayer>
+    holder: HTMLElement
+    w: number
+    h: number
+  } | null>(null)
+
+  const redrawMarks = useCallback(() => {
+    const stage = marksStageRef.current
+    const ctx = drawCtxRef.current
+    if (!stage || !ctx) return
+    drawMarks(
+      stage,
+      annotations,
+      (ann) =>
+        ann.kind === "text"
+          ? textLayerRects(ctx.tl, ctx.holder, ann.startOffset ?? 0, ann.endOffset ?? 0)
+          : (ann.rects ?? []).map((r) => ({
+              x: r.x * ctx.w,
+              y: r.y * ctx.h,
+              w: r.w * ctx.w,
+              h: r.h * ctx.h
+            })),
+      ctx.w,
+      ctx.h
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [annotations])
+
   useEffect(() => {
-    const overlay = holderRef.current?.querySelector(".pdf-annotations")
-    if (!overlay) return
+    const holder = holderRef.current
+    if (!holder) return
+    const marksDiv = holder.querySelector<HTMLElement>(".pdf-annotations")
+    const rect = () => marksDiv?.getBoundingClientRect()
     const onClick = (e: MouseEvent) => {
-      const target = (e.target as HTMLElement).closest("[data-ann-id]")
-      if (!target) return
-      onAnnotationClickRef.current?.(
-        target.getAttribute("data-ann-id")!,
-        { x: e.clientX, y: e.clientY }
-      )
+      const r = rect()
+      const stage = marksStageRef.current
+      if (!r || !stage) return
+      const id = marksAt(stage, r, e.clientX, e.clientY)
+      if (!id) return
+      onAnnotationClickRef.current?.(id, { x: e.clientX, y: e.clientY })
     }
-    overlay.addEventListener("click", onClick)
-    return () => overlay.removeEventListener("click", onClick)
+    const onMove = (e: MouseEvent) => {
+      const r = rect()
+      const stage = marksStageRef.current
+      if (!r || !stage) return
+      hoverRef.current(marksAt(stage, r, e.clientX, e.clientY))
+    }
+    holder.addEventListener("click", onClick)
+    holder.addEventListener("mousemove", onMove)
+    return () => {
+      holder.removeEventListener("click", onClick)
+      holder.removeEventListener("mousemove", onMove)
+    }
   }, [])
 
   // Custom unified selection highlight: draw the merged selection rects on the
@@ -433,13 +418,50 @@ function PageView({
         // Enforce the exact page box (setLayerDimensions may round the width).
         layerDiv.style.width = `${wh.w}px`
         layerDiv.style.height = `${wh.h}px`
-        // Draw the page's annotations from the text spans (the flash + the
+        // Draw the page's annotations on the Konva mark layer (the flash + the
         // search highlight live in their OWN effects — a flash/search change
         // must NOT re-render the canvas + text layer, which caused the laggy
-        // "page first, then center" two-step jump).
-        const annDiv = holder.querySelector<HTMLElement>(".pdf-annotations")
+        // "page first, then center" two-step jump). Canvas marks have zero DOM
+        // nodes, so hundreds of annotations don't churn layout.
+        const annDiv = holder.querySelector<HTMLDivElement>(".pdf-annotations")
         if (annDiv) {
-          drawPageAnnotations(annDiv, annotations, textLayer, holder)
+          if (!marksStageRef.current) {
+            const stage = createKonvaStage(annDiv, {
+              width: wh.w,
+              height: wh.h,
+              scale: 1
+            })
+            marksStageRef.current = stage
+            // Hover: dim the hovered group (brightness(0.92) equivalent) —
+            // a translucent overlay rect over the group's bounding box.
+            hoverRef.current = (annId: string | null) => {
+              const layer = stage.getLayers()[0]
+              if (!layer) return
+              const prev = layer.findOne(".pdf-mark-hover")
+              if (prev) prev.destroy()
+              if (annId) {
+                const g = layer.findOne(`#${annId}`)
+                if (g) {
+                  const r = g.getClientRect()
+                  layer.add(
+                    new Konva.Rect({
+                      x: r.x,
+                      y: r.y,
+                      width: r.width,
+                      height: r.height,
+                      fill: "rgba(0,0,0,0.08)",
+                      name: "pdf-mark-hover",
+                      listening: false,
+                      cornerRadius: 2
+                    })
+                  )
+                }
+              }
+              layer.draw()
+            }
+          }
+          drawCtxRef.current = { tl: textLayer, holder, w: wh.w, h: wh.h }
+          redrawMarks()
         }
         setReady(true)
         // Expose for the toolbar's selection→offset mapping.
@@ -485,6 +507,9 @@ function PageView({
       obs.disconnect()
       renderTask?.cancel()
       textLayer?.cancel()
+      marksStageRef.current?.destroy()
+      marksStageRef.current = null
+      drawCtxRef.current = null
       unregisterTextLayer(pageNumber)
     }
   }, [doc, pageNumber, paneW, paneH, zoom, fitMode, wh, scale, annotations])
@@ -525,17 +550,58 @@ function PageView({
   }, [flashAnnId, ready, annotations])
 
   // Search-match highlight — also decoupled so navigating matches doesn't
-  // re-render the canvas.
+  // re-render the canvas. Redraws the Konva marks (annotation list may have
+  // changed) + adds the DOM flash on its own layer.
   useEffect(() => {
     if (!searchFlash || !ready) return
     const holder = holderRef.current
     const tl = textLayerRef.current
-    const annDiv = holder?.querySelector<HTMLElement>(".pdf-annotations")
-    if (!holder || !tl || !annDiv) return
-    drawPageAnnotations(annDiv, annotations, tl, holder)
+    const flashLayer = holder?.querySelector<HTMLElement>(".pdf-ann-flash-layer")
+    if (!holder || !tl || !flashLayer) return
+    redrawMarks()
     const rects = textLayerRects(tl, holder, searchFlash.start, searchFlash.end)
-    for (const r of rects) appendFlash(annDiv, r)
+    for (const r of rects) appendFlash(flashLayer, r)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchFlash, ready, annotations])
+
+  // Annotation-list changes (create/edit/delete broadcasts) update ONLY the
+  // changed groups on the Konva layer — the page canvas + text layer never
+  // re-render, and unchanged annotations don't rebuild.
+  const prevMarksSigRef = useRef<Map<string, string> | null>(null)
+  useEffect(() => {
+    if (!ready) return
+    const stage = marksStageRef.current
+    const ctx = drawCtxRef.current
+    if (!stage || !ctx) return
+    const prev = prevMarksSigRef.current ?? new Map<string, string>()
+    const cur = new Map<string, string>()
+    for (const ann of annotations) {
+      const sig = markSignature(ann)
+      cur.set(ann.id, sig)
+      if (prev.get(ann.id) !== sig) {
+        upsertMark(
+          stage,
+          ann,
+          (a) =>
+            a.kind === "text"
+              ? textLayerRects(ctx.tl, ctx.holder, a.startOffset ?? 0, a.endOffset ?? 0)
+              : (a.rects ?? []).map((r) => ({
+                  x: r.x * ctx.w,
+                  y: r.y * ctx.h,
+                  w: r.w * ctx.w,
+                  h: r.h * ctx.h
+                })),
+          ctx.w,
+          ctx.h
+        )
+      }
+    }
+    for (const id of Array.from(prev.keys())) {
+      if (!cur.has(id)) removeMark(stage, id)
+    }
+    prevMarksSigRef.current = cur
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [annotations, ready])
 
   return (
     <div
@@ -595,7 +661,6 @@ export default function PdfRenderer({
   onFrameRegion?: (result: {
     page: number
     rects: PdfRect[]
-    imageDataUrl: string
   }) => void
   searchFlash?: { page: number; start: number; end: number } | null
   onVisiblePageChange?: (page: number) => void
@@ -681,8 +746,9 @@ export default function PdfRenderer({
     // scale always width-bound (no visible difference).
     // Debounce the pane size: dragging a sidebar/panel changes the width every
     // frame and each change re-fits + re-renders every visible page (the drag
-    // lag). Defer the fit until the drag pauses (100ms trailing) — the layout
-    // follows the pointer smoothly, the PDF re-renders once at the end.
+    // lag — InkLayer avoids this by fixing its sidebar size). Defer the fit
+    // until the drag truly settles (250ms trailing) so mid-drag pauses never
+    // re-render; the holder's width clamp keeps pages inside the pane meanwhile.
     let resizeTimer: number | null = null
     const ro = new ResizeObserver(() => {
       const w = el.clientWidth
@@ -690,15 +756,16 @@ export default function PdfRenderer({
       if (resizeTimer !== null) window.clearTimeout(resizeTimer)
       resizeTimer = window.setTimeout(() => {
         resizeTimer = null
-        if (w !== paneWRef.current) {
+        // Ignore sub-2px drift (fractional layout churn).
+        if (Math.abs(w - paneWRef.current) > 2) {
           paneWRef.current = w
           setPaneW(w)
         }
-        if (h !== paneHRef.current) {
+        if (Math.abs(h - paneHRef.current) > 2) {
           paneHRef.current = h
           setPaneH(h)
         }
-      }, 100)
+      }, 250)
     })
     ro.observe(el)
     return () => {
@@ -819,27 +886,6 @@ export default function PdfRenderer({
       const rw = Math.min(Math.abs(ev.clientX - d.startX), hr.width - rx)
       const rh = Math.min(Math.abs(ev.clientY - d.startY), hr.height - ry)
       if (rw < 4 || rh < 4) return
-      const canvas = d.holder.querySelector("canvas")
-      // Guard: a lazy page that hasn't rendered yet has a 0-size canvas — the
-      // crop would be blank.
-      if (!canvas || canvas.width === 0 || canvas.height === 0) return
-      const dpr = window.devicePixelRatio || 1
-      const crop = document.createElement("canvas")
-      crop.width = Math.max(1, Math.floor(rw * dpr))
-      crop.height = Math.max(1, Math.floor(rh * dpr))
-      const ctx = crop.getContext("2d")
-      if (!ctx) return
-      ctx.drawImage(
-        canvas,
-        rx * dpr,
-        ry * dpr,
-        rw * dpr,
-        rh * dpr,
-        0,
-        0,
-        crop.width,
-        crop.height
-      )
       onFrameRegion?.({
         page: Number(d.holder.getAttribute("data-page")),
         rects: [
@@ -849,8 +895,7 @@ export default function PdfRenderer({
             w: rw / hr.width,
             h: rh / hr.height
           }
-        ],
-        imageDataUrl: crop.toDataURL("image/png")
+        ]
       })
     }
     document.addEventListener("pointermove", mv)

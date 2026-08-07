@@ -1,11 +1,12 @@
 import { Box } from "@mui/material"
-import { alpha } from "@mui/material/styles"
 
 import type { PdfCard } from "../types"
+import { MARK_LABEL } from "./pdfTheme"
 import MarkdownRenderer from "./MarkdownRenderer"
 
-/** Unified PDF-card body: the read-only `content` (text → quote block,
- *  image → contained) + the editable `idea` note below. */
+/** Unified PDF-card body: a compact type/page marker + the editable `idea`
+ *  note. The annotation's content (quote / frame image) is deliberately NOT
+ *  displayed — the PDF page itself shows it; the card is a management marker. */
 export default function PdfCardBody({
   item,
   maxLines
@@ -16,47 +17,38 @@ export default function PdfCardBody({
   const showIdea = !!item.idea
   return (
     <Box>
-      {item.kind === "region" ? (
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 0.6,
+          fontSize: "0.72rem",
+          color: "text.secondary",
+          mb: showIdea ? 1.25 : 0
+        }}>
         <Box
           sx={{
+            px: 0.75,
+            py: 0.15,
             borderRadius: 1,
-            bgcolor: (t) => t.custom.surface2,
-            display: "flex",
-            justifyContent: "center",
-            p: 0.5,
-            mb: showIdea ? 1.5 : 0
+            bgcolor: "action.hover",
+            flexShrink: 0
           }}>
-          <Box
-            component="img"
-            src={item.content}
-            alt=""
-            loading="lazy"
-            sx={{
-              maxWidth: "100%",
-              maxHeight: 160,
-              objectFit: "contain",
-              display: "block"
-            }}
-          />
+          {MARK_LABEL[item.type] ?? item.type}
         </Box>
-      ) : (
-        <Box
-          sx={{
-            borderLeft: "3px solid",
-            borderColor: "primary.main",
-            bgcolor: (t) => alpha(t.palette.primary.main, 0.04),
-            borderRadius: 1,
-            px: 1.5,
-            py: 1,
-            mb: showIdea ? 1.5 : 0
-          }}>
-          <MarkdownRenderer content={item.content} maxLines={maxLines} />
+        <Box component="span" sx={{ flexShrink: 0 }}>
+          P{item.page}
         </Box>
-      )}
+        {!showIdea && (
+          <Box component="span" sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            阅读批注 · 点击跳转
+          </Box>
+        )}
+      </Box>
       {showIdea && (
-        <Box sx={{ mt: item.kind === "region" ? 1.5 : 0 }}>
+        <Box>
           {/* The note is the user's own content — always fully visible. */}
-          <MarkdownRenderer content={item.idea!} />
+          <MarkdownRenderer content={item.idea!} maxLines={maxLines} />
         </Box>
       )}
     </Box>

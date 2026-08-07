@@ -357,7 +357,9 @@ export default function OptionsPage() {
             pdfSource: {
               pdfId: pdfCard.pdfId,
               page: pdfCard.page,
-              pdfName: pdfNameById.get(pdfCard.pdfId)
+              pdfName: pdfNameById.get(pdfCard.pdfId),
+              type: pdfCard.type,
+              kind: pdfCard.kind
             }
           }
         : { ...card, content: resolved.content, idea: resolved.idea }

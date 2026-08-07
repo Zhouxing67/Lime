@@ -273,6 +273,7 @@ function openDb(version?: number): Promise<IDBDatabase> {
     req.onsuccess = async () => {
       const db = req.result
       await migratePdfIdsIfNeeded(db)
+      await migratePdfCardContentIfNeeded(db)
       resolve(db)
     }
     req.onerror = () => reject(req.error)
@@ -392,6 +393,50 @@ async function migratePdfIdsIfNeeded(db: IDBDatabase): Promise<void> {
     await chrome.storage.local.set({ _pdfIdMigrated: Date.now() })
   } catch (e) {
     console.warn("[lime] pdf id migration failed:", e)
+  }
+}
+
+// ---- One-time cleanup: strip `content` from legacy pdfCards. Cards no longer
+// carry the quote/frame-image (the PDF page itself shows the annotation); old
+// cards still hold it and waste storage. Idempotent, uses the already-open db.
+
+async function migratePdfCardContentIfNeeded(db: IDBDatabase): Promise<void> {
+  try {
+    const data = await chrome.storage.local.get("_pdfCardContentCleaned")
+    if (data?._pdfCardContentCleaned) return
+
+    const cards = await new Promise<PdfCard[]>((resolve, reject) => {
+      const tx = db.transaction("pdfCards", "readonly")
+      const store = tx.objectStore("pdfCards")
+      const out: PdfCard[] = []
+      const r = store.openCursor()
+      r.onsuccess = () => {
+        const c = r.result
+        if (c) {
+          out.push(c.value as PdfCard)
+          c.continue()
+        } else resolve(out)
+      }
+      r.onerror = () => reject(r.error)
+    })
+
+    const dirty = cards.filter((c) => typeof c.content === "string")
+    if (dirty.length > 0) {
+      await new Promise<void>((resolve, reject) => {
+        const idbTx = db.transaction("pdfCards", "readwrite")
+        const store = idbTx.objectStore("pdfCards")
+        for (const c of dirty) {
+          const { content: _drop, ...clean } = c
+          store.put(clean as PdfCard)
+        }
+        idbTx.oncomplete = () => resolve()
+        idbTx.onerror = () => reject(idbTx.error)
+        idbTx.onabort = () => reject(idbTx.error)
+      })
+    }
+    await chrome.storage.local.set({ _pdfCardContentCleaned: Date.now() })
+  } catch (e) {
+    console.warn("[lime] pdf card content cleanup failed:", e)
   }
 }
 

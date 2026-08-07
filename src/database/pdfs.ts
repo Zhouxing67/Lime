@@ -241,7 +241,6 @@ export async function createTextAnnotationCard(input: {
     kind: "text",
     type: input.type,
     annotationId: annotation.id,
-    content: input.text,
     pdfOrder: input.page * PDF_ORDER_BASE + input.startOffset
   })
   annotation.cardId = card.id
@@ -267,7 +266,6 @@ export async function createRegionAnnotationCard(input: {
   pdfId: string
   page: number
   rects: { x: number; y: number; w: number; h: number }[]
-  imageDataUrl: string
 }): Promise<{ card: PdfCard; annotation: PdfAnnotation }> {
   const annotation: PdfAnnotation = {
     id: crypto.randomUUID(),
@@ -285,7 +283,6 @@ export async function createRegionAnnotationCard(input: {
     kind: "region",
     type: "frame",
     annotationId: annotation.id,
-    content: input.imageDataUrl,
     pdfOrder: input.page * PDF_ORDER_BASE + Math.round(y * 1e6)
   })
   annotation.cardId = card.id

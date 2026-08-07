@@ -377,20 +377,18 @@ export default function PdfView({
     setFrameMode((f) => !f)
   }, [])
 
-  // 框选 release → crop image → frame annotation + image card.
+  // 框选 release → frame annotation + compact card (no image crop).
   const handleFrameRegion = useCallback(
     async (result: {
       page: number
       rects: { x: number; y: number; w: number; h: number }[]
-      imageDataUrl: string
     }) => {
       if (!pdfId) return
       try {
         await createRegionAnnotationCard({
           pdfId,
           page: result.page,
-          rects: result.rects,
-          imageDataUrl: result.imageDataUrl
+          rects: result.rects
         })
         setFrameMode(false)
         navigateTo(result.page)
