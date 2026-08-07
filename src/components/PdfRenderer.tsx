@@ -7,7 +7,8 @@ import type { PdfAnnotation } from "../types"
 import { registerTextLayer, unregisterTextLayer } from "./pdfRegistry"
 import { mergeRects, textLayerOffsets, textLayerRects } from "./pdfText"
 import type { PdfRect } from "./pdfText"
-import { drawMarks, markSignature, marksAt, removeMark, upsertMark } from "./pdfMarksKonva"
+import { clearSelection, drawMarks, markSignature, marksAt, removeMark, selectMark, upsertMark } from "./pdfMarksKonva"
+import { updateAnnotationPos } from "../database"
 import { createKonvaStage } from "../pdf/konvaStage"
 
 // Low-saturation annotation colors (align with the app's RATING_META family).
@@ -17,14 +18,15 @@ const EMPTY_ANNOTATIONS: PdfAnnotation[] = []
  *  the annotation overlay's replaceChildren can't re-create it — re-creating
  *  restarts the CSS animation ("flashes twice"). Created once per flash, then
  *  re-positioned. */
-function drawFlash(
-  flashLayer: HTMLElement,
+/** The jump target's rects (for centering) — the persistent selection ring is
+ *  the visual feedback now; no DOM flash. */
+function jumpRects(
   annotations: PdfAnnotation[],
   textLayer: InstanceType<typeof pdfjsLib.TextLayer>,
   holder: HTMLElement,
-  flashAnnId: string
+  annId: string
 ): PdfRect[] {
-  const target = annotations.find((a) => a.id === flashAnnId)
+  const target = annotations.find((a) => a.id === annId)
   const rects: PdfRect[] = []
   if (target) {
     if (target.kind === "text") {
@@ -39,29 +41,6 @@ function drawFlash(
       }
     }
   }
-  // ONE flash element per rect — a multi-line highlight has N rects and the
-  // flash must cover ALL of them (rects[0] only flashed the first line). Keep
-  // the existing elements (create-once, so their animation doesn't restart on
-  // re-renders) and sync positions to the rects.
-  const els = Array.from(
-    flashLayer.querySelectorAll<HTMLElement>(".pdf-ann-flash")
-  )
-  while (els.length > rects.length) {
-    els.pop()?.remove()
-  }
-  rects.forEach((r, i) => {
-    let el = els[i]
-    if (!el) {
-      el = document.createElement("div")
-      el.className = "pdf-ann-flash"
-      el.style.cssText = "position:absolute;pointer-events:none;"
-      flashLayer.appendChild(el)
-    }
-    el.style.left = `${r.x}px`
-    el.style.top = `${r.y}px`
-    el.style.width = `${r.w}px`
-    el.style.height = `${r.h}px`
-  })
   return rects
 }
 
@@ -168,6 +147,21 @@ const TEXT_LAYER_CSS = `
 .pdf-annotations .konvajs-content canvas {
   pointer-events: none !important;
 }
+.pdf-freetext-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+.pdf-freetext {
+  position: absolute;
+  font-size: 12px;
+  line-height: 1.3;
+  color: rgba(0, 0, 0, 0.82);
+  white-space: pre-wrap;
+  overflow: hidden;
+  pointer-events: none;
+}
 `
 
 /** Render one page lazily (IntersectionObserver) at DPR crispness + text layer.
@@ -186,7 +180,10 @@ function PageView({
   annotations,
   flashAnnId,
   onFlashDone,
+  annotDrawMode,
   searchFlash,
+  selectedAnnId,
+  onAnnotationDeselect,
   onAnnotationClick
 }: {
   doc: pdfjsLib.PDFDocumentProxy
@@ -197,9 +194,12 @@ function PageView({
   fitMode?: "reading" | "width" | "page"
   pageAspect: number
   annotations: PdfAnnotation[]
-  flashAnnId?: string | null
   onFlashDone?: () => void
+  annotDrawMode?: "frame" | "freetext" | "freehand" | "free-highlight" | null
+  flashAnnId?: string | null
   searchFlash?: { page: number; start: number; end: number } | null
+  selectedAnnId?: string | null
+  onAnnotationDeselect?: () => void
   onAnnotationClick?: (annId: string, pos: { x: number; y: number }) => void
 }) {
   const holderRef = useRef<HTMLDivElement>(null)
@@ -208,10 +208,12 @@ function PageView({
   // Set once the text layer is built — the flash/search effects wait on it so
   // a flash/search change never re-renders the canvas.
   const [ready, setReady] = useState(false)
-  const flashDoneRef = useRef(onFlashDone)
-  flashDoneRef.current = onFlashDone
   const onAnnotationClickRef = useRef(onAnnotationClick)
   onAnnotationClickRef.current = onAnnotationClick
+  const onAnnotationDeselectRef = useRef(onAnnotationDeselect)
+  onAnnotationDeselectRef.current = onAnnotationDeselect
+  const onFlashDoneRef = useRef(onFlashDone)
+  onFlashDoneRef.current = onFlashDone
   const textLayerRef = useRef<InstanceType<typeof pdfjsLib.TextLayer> | null>(
     null
   )
@@ -262,8 +264,12 @@ function PageView({
       const stage = marksStageRef.current
       if (!r || !stage) return
       const id = marksAt(stage, r, e.clientX, e.clientY)
-      if (!id) return
-      onAnnotationClickRef.current?.(id, { x: e.clientX, y: e.clientY })
+      if (id) {
+        onAnnotationClickRef.current?.(id, { x: e.clientX, y: e.clientY })
+      } else {
+        // Empty area → clear the persistent selection.
+        onAnnotationDeselectRef.current?.()
+      }
     }
     const onMove = (e: MouseEvent) => {
       const r = rect()
@@ -328,6 +334,53 @@ function PageView({
       holder.querySelector(".pdf-selection")?.replaceChildren()
     }
   }, [])
+  // Custom drag-selection: the text layer is `user-select: none` (so Edge's
+  // native selection never appears / triggers its search popup), so selecting
+  // is driven here — a programmatic Selection is built from the pointer path
+  // via caretRangeFromPoint; the rAF overlay above draws its highlight, and
+  // textLayerOffsets/annotation-creation keep working on the real Selection.
+  const customSelRef = useRef<Range | null>(null)
+  const handleTextMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (annotDrawMode) return
+      const holder = holderRef.current
+      const tlEl = holder?.querySelector<HTMLElement>(".pdf-textlayer")
+      if (!tlEl || !tlEl.contains(e.target as Node)) return
+      if (e.button !== 0) return
+      // preventDefault stops the browser's NATIVE selection from starting —
+      // that gesture is what triggers Edge's search popup. Our custom handler
+      // builds a programmatic Selection instead (no popup).
+      e.preventDefault()
+      const anchor = document.caretRangeFromPoint(e.clientX, e.clientY)
+      if (!anchor) return
+      customSelRef.current = anchor
+      // Clear any stale drag listeners (a mouseup outside the window lingers).
+      const mv = (ev: MouseEvent) => {
+        const a = customSelRef.current
+        const end = document.caretRangeFromPoint(ev.clientX, ev.clientY)
+        if (!a || !end) return
+        const sel = document.getSelection()
+        if (!sel) return
+        sel.removeAllRanges()
+        const r = document.createRange()
+        const after = a.compareBoundaryPoints(Range.START_TO_START, end) <= 0
+        const start = after ? a : end
+        const finish = after ? end : a
+        r.setStart(start.startContainer, start.startOffset)
+        r.setEnd(finish.startContainer, finish.startOffset)
+        sel.addRange(r)
+      }
+      const up = () => {
+        document.removeEventListener("mousemove", mv)
+        document.removeEventListener("mouseup", up)
+      }
+      document.removeEventListener("mousemove", mv)
+      document.removeEventListener("mouseup", up)
+      document.addEventListener("mousemove", mv)
+      document.addEventListener("mouseup", up)
+    },
+    [annotDrawMode]
+  )
   const ratio = fitMode === "reading" ? PAGE_RATIO : FIT_RATIO
   const placeholderH =
     paneW > 0
@@ -462,6 +515,7 @@ function PageView({
           }
           drawCtxRef.current = { tl: textLayer, holder, w: wh.w, h: wh.h }
           redrawMarks()
+          backfillPositions(annotations, textLayer, holder, pageNumber)
         }
         setReady(true)
         // Expose for the toolbar's selection→offset mapping.
@@ -512,22 +566,64 @@ function PageView({
       drawCtxRef.current = null
       unregisterTextLayer(pageNumber)
     }
-  }, [doc, pageNumber, paneW, paneH, zoom, fitMode, wh, scale, annotations])
+    // `annotations` is intentionally NOT a dep: an annotation-list reload
+    // (e.g. touchPdf's _dbpdf broadcast on any card click) must NOT re-render
+    // the page canvas/text layer + all marks — the incremental effect updates
+    // the Konva marks in place. The render() closure captures the fresh list.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc, pageNumber, paneW, paneH, zoom, fitMode, wh, scale])
 
-  // Annotation-jump flash: draw on its own layer + center the annotation the
-  // MOMENT the text layer exists — NO canvas re-render, so a jump to an
-  // already-rendered page is one direct centered scroll instead of the laggy
-  // "page first, then center" two-step.
+  // Jump target → center the page on the annotation (the persistent selection
+  // ring is the visual feedback; no DOM flash).
+
+  // One-time backfill of `pos` for annotations created before pos existed —
+  // resolved from the rendered text layer so two-column sorting works on
+  // existing papers too. updateAnnotationPos guards (skips if already set),
+  // so re-renders are cheap no-ops.
+  async function backfillPositions(
+    annotations: PdfAnnotation[],
+    textLayer: InstanceType<typeof pdfjsLib.TextLayer>,
+    holder: HTMLElement,
+    page: number
+  ): Promise<void> {
+    for (const a of annotations) {
+      if (a.page !== page || a.pos) continue
+      const rects =
+        a.kind === "text"
+          ? textLayerRects(textLayer, holder, a.startOffset ?? 0, a.endOffset ?? 0).map(
+              (r) => ({
+                x: r.x / holder.clientWidth,
+                y: r.y / holder.clientHeight,
+                w: r.w / holder.clientWidth,
+                h: r.h / holder.clientHeight
+              })
+            )
+          : (a.rects ?? [])
+      if (rects.length === 0) continue
+      let minX = Infinity
+      let minY = Infinity
+      let maxX = -Infinity
+      let maxY = -Infinity
+      for (const r of rects) {
+        minX = Math.min(minX, r.x)
+        minY = Math.min(minY, r.y)
+        maxX = Math.max(maxX, r.x + r.w)
+        maxY = Math.max(maxY, r.y + r.h)
+      }
+      const pos = { x: (minX + maxX) / 2, y: (minY + maxY) / 2 }
+      try {
+        await updateAnnotationPos(a.id, pos)
+      } catch (e) {
+        console.warn("[lime] pos backfill failed", a.id, e)
+      }
+    }
+  }
+
   useEffect(() => {
     const holder = holderRef.current
     const tl = textLayerRef.current
-    const flashLayer = holder?.querySelector<HTMLElement>(".pdf-ann-flash-layer")
-    if (!holder || !tl || !flashLayer || !ready || !flashAnnId) {
-      flashLayer?.replaceChildren()
-      return
-    }
-    const rects = drawFlash(flashLayer, annotations, tl, holder, flashAnnId)
-    const timer = window.setTimeout(() => flashDoneRef.current?.(), 1500)
+    if (!holder || !tl || !ready || !flashAnnId) return
+    const rects = jumpRects(annotations, tl, holder, flashAnnId)
     if (rects.length > 0) {
       const minX = Math.min(...rects.map((r) => r.x))
       const minY = Math.min(...rects.map((r) => r.y))
@@ -545,13 +641,18 @@ function PageView({
           behavior: "auto"
         })
       }
+      // ONE-SHOT: without this, flashAnnId stays set forever and EVERY later
+      // annotations change / page re-render re-centers the view here (the
+      // "jumps on its own" bug). Clear it after the first successful scroll.
+      onFlashDoneRef.current?.()
     }
-    return () => window.clearTimeout(timer)
-  }, [flashAnnId, ready, annotations])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flashAnnId, ready])
 
   // Search-match highlight — also decoupled so navigating matches doesn't
-  // re-render the canvas. Redraws the Konva marks (annotation list may have
-  // changed) + adds the DOM flash on its own layer.
+  // re-render the canvas. Redraws the Konva marks + adds the DOM flash on its
+  // own layer. NOT dependent on `annotations`: an annotation edit while a
+  // search is active must not rebuild every mark or duplicate the flashes.
   useEffect(() => {
     if (!searchFlash || !ready) return
     const holder = holderRef.current
@@ -559,10 +660,11 @@ function PageView({
     const flashLayer = holder?.querySelector<HTMLElement>(".pdf-ann-flash-layer")
     if (!holder || !tl || !flashLayer) return
     redrawMarks()
+    flashLayer.replaceChildren()
     const rects = textLayerRects(tl, holder, searchFlash.start, searchFlash.end)
     for (const r of rects) appendFlash(flashLayer, r)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchFlash, ready, annotations])
+  }, [searchFlash, ready])
 
   // Annotation-list changes (create/edit/delete broadcasts) update ONLY the
   // changed groups on the Konva layer — the page canvas + text layer never
@@ -603,6 +705,20 @@ function PageView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [annotations, ready])
 
+  // Persistent selection (P4): when the selected annotation changes, light it
+  // up on this page's Konva layer (a ring around its group) or clear it. Only
+  // the page that actually carries the annotation draws anything.
+  useEffect(() => {
+    if (!ready) return
+    const stage = marksStageRef.current
+    if (!stage) return
+    if (selectedAnnId) {
+      selectMark(stage, selectedAnnId)
+    } else {
+      clearSelection(stage)
+    }
+  }, [selectedAnnId, ready])
+
   return (
     <div
       ref={holderRef}
@@ -639,12 +755,14 @@ export default function PdfRenderer({
   fitMode,
   annotations,
   flashAnnId,
-  onFlashDone,
-  frameMode,
-  onFrameRegion,
+  annotDrawMode,
+  onAnnotDraw,
   searchFlash,
+  selectedAnnId,
+  onAnnotationDeselect,
   onVisiblePageChange,
-  onAnnotationClick
+  onAnnotationClick,
+  onFlashDone
 }: {
   doc: pdfjsLib.PDFDocumentProxy
   pageCount: number
@@ -656,15 +774,21 @@ export default function PdfRenderer({
   fitMode?: "reading" | "width" | "page"
   annotations?: PdfAnnotation[]
   flashAnnId?: string | null
-  onFlashDone?: () => void
-  frameMode?: boolean
-  onFrameRegion?: (result: {
+  /** Active pointer-draw tool: drag a rect (frame/freetext) or a free path
+   *  (freehand / free-highlight). null = normal pan/select. */
+  annotDrawMode?: "frame" | "freetext" | "freehand" | "free-highlight" | null
+  onAnnotDraw?: (result: {
     page: number
+    kind: "rect" | "path"
     rects: PdfRect[]
+    path?: { x: number; y: number }[]
   }) => void
   searchFlash?: { page: number; start: number; end: number } | null
+  selectedAnnId?: string | null
+  onAnnotationDeselect?: () => void
   onVisiblePageChange?: (page: number) => void
   onAnnotationClick?: (annId: string, pos: { x: number; y: number }) => void
+  onFlashDone?: () => void
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [paneW, setPaneW] = useState(0)
@@ -699,6 +823,11 @@ export default function PdfRenderer({
     }
   }, [doc, pageCount])
   const [dragRect, setDragRect] = useState<PdfRect | null>(null)
+  const [dragPath, setDragPath] = useState<{ x: number; y: number }[] | null>(
+    null
+  )
+  const dragPathRef = useRef<{ x: number; y: number }[] | null>(null)
+  if (dragPath !== dragPathRef.current) dragPathRef.current = dragPath
   const dragState = useRef<{
     startX: number
     startY: number
@@ -838,70 +967,128 @@ export default function PdfRenderer({
     ? annotations?.find((a) => a.id === flashAnnId)?.page ?? null
     : null
 
-  // 框选 mode: pointer-drag a rectangle over a page → crop → frame annotation.
-  const handlePointerDown = useCallback((e: React.PointerEvent) => {
-    if (!frameMode) return
-    const holder = (e.target as HTMLElement).closest(
-      "[data-page]"
-    ) as HTMLElement | null
-    if (!holder) return
-    e.preventDefault()
-    dragState.current = {
-      startX: e.clientX,
-      startY: e.clientY,
-      holder
-    }
-    setDragRect({ x: e.clientX, y: e.clientY, w: 0, h: 0 })
-    document.body.style.userSelect = "none"
-    const mv = (ev: PointerEvent) => {
-      const d = dragState.current
-      if (!d) return
-      setDragRect({
-        x: Math.min(d.startX, ev.clientX),
-        y: Math.min(d.startY, ev.clientY),
-        w: Math.abs(ev.clientX - d.startX),
-        h: Math.abs(ev.clientY - d.startY)
-      })
-    }
-    const cleanup = () => {
-      document.body.style.userSelect = ""
-      document.removeEventListener("pointermove", mv)
-      document.removeEventListener("pointerup", up)
-    }
-    const up = (ev: PointerEvent) => {
-      cleanup()
-      dragCleanupRef.current = null
-      const d = dragState.current
-      dragState.current = null
-      setDragRect(null)
-      if (
-        !d ||
-        Math.abs(ev.clientX - d.startX) < 6 ||
-        Math.abs(ev.clientY - d.startY) < 6
-      )
-        return
-      const hr = d.holder.getBoundingClientRect()
-      const rx = Math.max(0, Math.min(Math.min(d.startX, ev.clientX) - hr.left, hr.width))
-      const ry = Math.max(0, Math.min(Math.min(d.startY, ev.clientY) - hr.top, hr.height))
-      const rw = Math.min(Math.abs(ev.clientX - d.startX), hr.width - rx)
-      const rh = Math.min(Math.abs(ev.clientY - d.startY), hr.height - ry)
-      if (rw < 4 || rh < 4) return
-      onFrameRegion?.({
-        page: Number(d.holder.getAttribute("data-page")),
-        rects: [
-          {
-            x: rx / hr.width,
-            y: ry / hr.height,
-            w: rw / hr.width,
-            h: rh / hr.height
+  // Pointer-draw mode (frame/freetext = rect drag; freehand/free-highlight =
+  // free path capture).
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (!annotDrawMode) return
+      const holder = (e.target as HTMLElement).closest(
+        "[data-page]"
+      ) as HTMLElement | null
+      if (!holder) return
+      e.preventDefault()
+      const isPath = annotDrawMode === "freehand" || annotDrawMode === "free-highlight"
+      dragState.current = {
+        startX: e.clientX,
+        startY: e.clientY,
+        holder
+      }
+      if (isPath) {
+        setDragPath([{ x: e.clientX, y: e.clientY }])
+      } else {
+        setDragRect({ x: e.clientX, y: e.clientY, w: 0, h: 0 })
+      }
+      document.body.style.userSelect = "none"
+      const mv = (ev: PointerEvent) => {
+        const d = dragState.current
+        if (!d) return
+        if (isPath) {
+          setDragPath((cur) => [
+            ...(cur ?? []),
+            { x: ev.clientX, y: ev.clientY }
+          ])
+        } else {
+          setDragRect({
+            x: Math.min(d.startX, ev.clientX),
+            y: Math.min(d.startY, ev.clientY),
+            w: Math.abs(ev.clientX - d.startX),
+            h: Math.abs(ev.clientY - d.startY)
+          })
+        }
+      }
+      const cleanup = () => {
+        document.body.style.userSelect = ""
+        document.removeEventListener("pointermove", mv)
+        document.removeEventListener("pointerup", up)
+      }
+      const up = (ev: PointerEvent) => {
+        cleanup()
+        dragCleanupRef.current = null
+        const d = dragState.current
+        dragState.current = null
+        setDragRect(null)
+        setDragPath(null)
+        if (
+          !d ||
+          Math.abs(ev.clientX - d.startX) < 6 ||
+          Math.abs(ev.clientY - d.startY) < 6
+        )
+          return
+        const hr = d.holder.getBoundingClientRect()
+        const page = Number(d.holder.getAttribute("data-page"))
+        const norm = (px: number, py: number) => ({
+          x: Math.max(0, Math.min((px - hr.left) / hr.width, 1)),
+          y: Math.max(0, Math.min((py - hr.top) / hr.height, 1))
+        })
+        if (isPath) {
+          const path = [norm(d.startX, d.startY)]
+          for (const p of dragPathRef.current ?? []) path.push(norm(p.x, p.y))
+          path.push(norm(ev.clientX, ev.clientY))
+          let minX = Infinity
+          let minY = Infinity
+          let maxX = -Infinity
+          let maxY = -Infinity
+          for (const p of path) {
+            minX = Math.min(minX, p.x)
+            minY = Math.min(minY, p.y)
+            maxX = Math.max(maxX, p.x)
+            maxY = Math.max(maxY, p.y)
           }
-        ]
-      })
-    }
-    document.addEventListener("pointermove", mv)
-    document.addEventListener("pointerup", up)
-    dragCleanupRef.current = cleanup
-  }, [frameMode, onFrameRegion])
+          onAnnotDraw?.({
+            page,
+            kind: "path",
+            path,
+            rects: [
+              {
+                x: minX,
+                y: minY,
+                w: maxX - minX,
+                h: maxY - minY
+              }
+            ]
+          })
+        } else {
+          const rx = Math.max(
+            0,
+            Math.min(Math.min(d.startX, ev.clientX) - hr.left, hr.width)
+          )
+          const ry = Math.max(
+            0,
+            Math.min(Math.min(d.startY, ev.clientY) - hr.top, hr.height)
+          )
+          const rw = Math.min(Math.abs(ev.clientX - d.startX), hr.width - rx)
+          const rh = Math.min(Math.abs(ev.clientY - d.startY), hr.height - ry)
+          if (rw < 4 || rh < 4) return
+          onAnnotDraw?.({
+            page,
+            kind: "rect",
+            rects: [
+              {
+                x: rx / hr.width,
+                y: ry / hr.height,
+                w: rw / hr.width,
+                h: rh / hr.height
+              }
+            ]
+          })
+        }
+      }
+      document.addEventListener("pointermove", mv)
+      document.addEventListener("pointerup", up)
+      dragCleanupRef.current = cleanup
+    },
+    [annotDrawMode, onAnnotDraw]
+  )
 
   // Ctrl+wheel zooms the PDF instead of the browser's page zoom — a native
   // passive:false listener so the default (browser zoom) can be prevented.
@@ -930,7 +1117,7 @@ export default function PdfRenderer({
         overflowX: "auto",
         background: "#f0efec",
         padding: "16px 0",
-        cursor: frameMode ? "crosshair" : "default"
+        cursor: annotDrawMode ? "crosshair" : "default"
       }}>
       {paneW > 0 &&
         Array.from({ length: pageCount }, (_, i) => i + 1).map((n) => (
@@ -945,9 +1132,12 @@ export default function PdfRenderer({
             pageAspect={pageAspects?.get(n) ?? 1.414}
             annotations={pageAnnMap.get(n) ?? EMPTY_ANNOTATIONS}
             flashAnnId={flashPage === n ? flashAnnId : null}
-            onFlashDone={onFlashDone}
             searchFlash={searchFlash?.page === n ? searchFlash : null}
+            selectedAnnId={selectedAnnId}
+            onAnnotationDeselect={onAnnotationDeselect}
             onAnnotationClick={onAnnotationClick}
+            onFlashDone={onFlashDone}
+            annotDrawMode={annotDrawMode}
           />
         ))}
       {dragRect && (
@@ -964,6 +1154,27 @@ export default function PdfRenderer({
             zIndex: 20
           }}
         />
+      )}
+      {dragPath && dragPath.length > 1 && (
+        <svg
+          style={{
+            position: "fixed",
+            left: 0,
+            top: 0,
+            width: "100vw",
+            height: "100vh",
+            pointerEvents: "none",
+            zIndex: 20
+          }}>
+          <polyline
+            points={dragPath.map((p) => `${p.x},${p.y}`).join(" ")}
+            fill="none"
+            stroke={annotDrawMode === "free-highlight" ? "rgba(183,149,91,0.6)" : "rgba(99,102,241,0.7)"}
+            strokeWidth={annotDrawMode === "free-highlight" ? 14 : 2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
       )}
     </div>
   )

@@ -2,6 +2,11 @@ import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
 import DeleteSweepRoundedIcon from "@mui/icons-material/DeleteSweepRounded"
 import DoneAllRoundedIcon from "@mui/icons-material/DoneAllRounded"
 import DriveFileMoveRoundedIcon from "@mui/icons-material/DriveFileMoveRounded"
+import AccessTimeRoundedIcon from "@mui/icons-material/AccessTimeRounded"
+import UnfoldLessRoundedIcon from "@mui/icons-material/UnfoldLessRounded"
+import UnfoldMoreRoundedIcon from "@mui/icons-material/UnfoldMoreRounded"
+import ViewAgendaRoundedIcon from "@mui/icons-material/ViewAgendaRounded"
+import ViewColumnRoundedIcon from "@mui/icons-material/ViewColumnRounded"
 import FolderRoundedIcon from "@mui/icons-material/FolderRounded"
 import EditRoundedIcon from "@mui/icons-material/EditRounded"
 import LinkOffRoundedIcon from "@mui/icons-material/LinkOffRounded"
@@ -11,11 +16,24 @@ import {
   Checkbox,
   Divider,
   IconButton,
+  Menu,
+  MenuItem,
   Paper,
   Tooltip,
   Typography
 } from "@mui/material"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { sortPdfCards } from "../utils/cards"
+/** Compact card date: always YYYY-MM-DD HH:MM. */
+function formatCardDate(ts?: number): string {
+  if (!ts) return ""
+  const d = new Date(ts)
+  const p = (n: number) => String(n).padStart(2, "0")
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(
+    d.getHours()
+  )}:${p(d.getMinutes())}`
+}
+
 
 import type {
   PdfAnnotation,
@@ -30,7 +48,7 @@ import BatchToolbar from "./BatchToolbar"
 import PdfCardBody from "./PdfCardBody"
 import PlaceCardMenu from "./PlaceCardMenu"
 import PdfEditDialog from "./PdfEditDialog"
-import { MARK_DOT, MARK_LABEL } from "./pdfTheme"
+import { MARK_BLOCK } from "./pdfTheme"
 
 /** The PDF view's right-side cards panel — a peer of the sidebar/workspace:
  *  collapsible, resizable (240–520), a built-in batch bar, and the annotated
@@ -75,9 +93,21 @@ export default function PdfCardsPanel({
   onCreateProject,
   onJumpToProject
 }: PdfCardsPanelProps) {
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(
+    () => new Set()
+  )
   const [editCard, setEditCard] = useState<PdfCard | null>(null)
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [highlightId, setHighlightId] = useState<string | null>(null)
+  const [sortMode, setSortMode] = useState<"single" | "two" | "time">("single")
+  const [sortMenuAnchor, setSortMenuAnchor] = useState<HTMLElement | null>(null)
+  useEffect(() => {
+    void chrome.storage.local.get("_uiPdfSort").then((r) => {
+      if (r._uiPdfSort === "two" || r._uiPdfSort === "single" || r._uiPdfSort === "time") {
+        setSortMode(r._uiPdfSort)
+      }
+    })
+  }, [])
   const [batchMode, setBatchMode] = useState(false)
   const [mainAreaW, setMainAreaW] = useState(0)
   const maxPanelWRef = useRef(0)
@@ -101,15 +131,9 @@ export default function PdfCardsPanel({
     []
   )
 
-  // Sort by the card's pdfOrder (the annotation's position in the PDF).
   const sortedCards = useMemo(
-    () =>
-      [...cards].sort(
-        (a, b) =>
-          a.pdfOrder - b.pdfOrder ||
-          a.annotationId.localeCompare(b.annotationId)
-      ),
-    [cards]
+    () => sortPdfCards(cards, annotations, sortMode),
+    [cards, annotations, sortMode]
   )
 
   const handleCardEdit = useCallback((card: PdfCard) => {
@@ -289,6 +313,46 @@ export default function PdfCardsPanel({
           摘录（{sortedCards.length}）
         </Typography>
         <Box sx={{ flex: 1 }} />
+        <Tooltip title="排序方式">
+          <IconButton
+            size="small"
+            onClick={(e) => setSortMenuAnchor(e.currentTarget)}>
+            {sortMode === "two" ? (
+              <ViewColumnRoundedIcon sx={{ fontSize: 16 }} />
+            ) : sortMode === "time" ? (
+              <AccessTimeRoundedIcon sx={{ fontSize: 16 }} />
+            ) : (
+              <ViewAgendaRoundedIcon sx={{ fontSize: 16 }} />
+            )}
+          </IconButton>
+        </Tooltip>
+        <Menu
+          anchorEl={sortMenuAnchor}
+          open={Boolean(sortMenuAnchor)}
+          onClose={() => setSortMenuAnchor(null)}
+          slotProps={{
+            paper: { sx: { py: 0.5, borderRadius: 1, minWidth: 132 } }
+          }}>
+          {(
+            [
+              ["single", "按位置排序"],
+              ["two", "双栏排序"],
+              ["time", "按时间排序"]
+            ] as const
+          ).map(([mode, label]) => (
+            <MenuItem
+              key={mode}
+              selected={sortMode === mode}
+              onClick={() => {
+                setSortMode(mode)
+                setSortMenuAnchor(null)
+                void chrome.storage.local.set({ _uiPdfSort: mode })
+              }}
+              sx={{ fontSize: "0.8rem", gap: 1 }}>
+              {label}
+            </MenuItem>
+          ))}
+        </Menu>
         <IconButton
           size="small"
           title={batchMode ? "取消批量选择" : "批量选择"}
@@ -357,8 +421,9 @@ export default function PdfCardsPanel({
             subtitle="在左侧选中文字后点标记，自动生成卡片"
           />
         ) : (
-          sortedCards.map((card) => {
+          sortedCards.map((card, idx) => {
             const ann = annotations.find((x) => x.id === card.annotationId)
+            const expanded = expandedCards.has(card.id)
             const isSelected = selected.has(card.id)
             const highlighted = highlightId === card.id
             const placement = card.projectCardId
@@ -424,29 +489,23 @@ export default function PdfCardsPanel({
                   )}
                   <Box
                     sx={{
-                      px: 0.5,
-                      py: 0.1,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      minWidth: 26,
+                      px: 0.6,
+                      py: 0.4,
+                      mr: 1,
+                      flexShrink: 0,
                       borderRadius: 1,
-                      bgcolor: "action.hover",
-                      fontSize: "0.66rem",
-                      color: "text.secondary",
-                      flexShrink: 0
+                      lineHeight: 1,
+                      bgcolor: ann ? MARK_BLOCK[ann.type]?.bg : "action.hover",
+                      color: ann ? MARK_BLOCK[ann.type]?.fg : "text.secondary",
+                      fontSize: "0.74rem",
+                      fontWeight: 600
                     }}>
-                    P{card.page}
+                    #{idx + 1}
                   </Box>
-                  {ann && (
-                    <Tooltip title={MARK_LABEL[ann.type]}>
-                      <Box
-                        sx={{
-                          width: 7,
-                          height: 7,
-                          borderRadius: 1,
-                          background: MARK_DOT[ann.type],
-                          flexShrink: 0
-                        }}
-                      />
-                    </Tooltip>
-                  )}
                   <Box sx={{ flex: 1 }} />
                   {!batchMode && (
                     <Box
@@ -461,6 +520,28 @@ export default function PdfCardsPanel({
                         opacity: 0,
                         transition: "opacity 0.15s"
                       }}>
+                      {card.idea && (
+                        <Tooltip title={expanded ? "收起" : "展开"}>
+                          <IconButton
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setExpandedCards((prev) => {
+                                const next = new Set(prev)
+                                if (next.has(card.id)) next.delete(card.id)
+                                else next.add(card.id)
+                                return next
+                              })
+                            }}
+                            sx={{ p: 0.75, color: "text.disabled" }}>
+                            {expanded ? (
+                              <UnfoldLessRoundedIcon sx={{ fontSize: 16 }} />
+                            ) : (
+                              <UnfoldMoreRoundedIcon sx={{ fontSize: 16 }} />
+                            )}
+                          </IconButton>
+                        </Tooltip>
+                      )}
                       <Tooltip title="编辑">
                         <IconButton
                           size="small"
@@ -516,40 +597,70 @@ export default function PdfCardsPanel({
                 </Box>
                 <PdfCardBody
                   item={card}
-                  maxLines={4}
+                  maxLines={expanded ? undefined : 4}
                 />
-                {placedProject && (
+                <Box
+                  sx={{
+                    mt: 1.25,
+                    pt: 1,
+                    borderTop: "1px solid",
+                    borderColor: "divider",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 0.5
+                  }}>
                   <Box
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onJumpToProject?.(card)
-                    }}
+                    component="span"
                     sx={{
-                      mt: 1.25,
-                      pt: 1,
-                      borderTop: "1px solid",
-                      borderColor: "divider",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 0.3,
-                      color: "primary.main",
-                      fontSize: "0.7rem",
-                      cursor: "pointer",
-                      overflow: "hidden",
-                      "&:hover": { textDecoration: "underline" }
+                      fontSize: "0.66rem",
+                      color: "text.disabled",
+                      flexShrink: 0
                     }}>
-                    <FolderRoundedIcon sx={{ fontSize: 12, flexShrink: 0 }} />
-                    <Box
-                      component="span"
-                      sx={{
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap"
-                      }}>
-                      项目：{placedProject.name}
-                    </Box>
+                    {formatCardDate(ann?.updatedAt ?? ann?.createdAt)}
                   </Box>
-                )}
+                  <Box sx={{ flex: 1 }} />
+                  {placedProject && (
+                    <Tooltip title={`跳转到项目「${placedProject.name}」`}>
+                      <Box
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onJumpToProject?.(card)
+                        }}
+                        sx={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 0.5,
+                          maxWidth: "60%",
+                          px: 1,
+                          py: 0.35,
+                          borderRadius: 1,
+                          border: "1px dashed",
+                          borderColor: "divider",
+                          color: "text.secondary",
+                          fontSize: "0.7rem",
+                          cursor: "pointer",
+                          overflow: "hidden",
+                          transition: "all 0.2s",
+                          "&:hover": {
+                            color: "primary.main",
+                            borderColor: "primary.main",
+                            bgcolor: "action.hover"
+                          }
+                        }}>
+                        <FolderRoundedIcon sx={{ fontSize: 12, flexShrink: 0 }} />
+                        <Box
+                          component="span"
+                          sx={{
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap"
+                          }}>
+                          {placedProject.name}
+                        </Box>
+                      </Box>
+                    </Tooltip>
+                  )}
+                </Box>
               </Paper>
             )
           })

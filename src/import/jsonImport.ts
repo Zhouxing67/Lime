@@ -39,7 +39,10 @@ const VALID_MARKS: PdfMark[] = [
   "underline",
   "wavy",
   "strike",
-  "frame"
+  "frame",
+  "free-highlight",
+  "freehand",
+  "freetext"
 ]
 
 /** A legacy monolithic card (the old `items` array). Validated loosely — the

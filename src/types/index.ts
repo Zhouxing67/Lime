@@ -109,7 +109,15 @@ export type DisplayCard = ProjectCard & {
   }
 }
 
-export type PdfMark = "highlight" | "underline" | "wavy" | "strike" | "frame"
+export type PdfMark =
+  | "highlight"
+  | "underline"
+  | "wavy" // legacy (removed from creation; kept for data-compat)
+  | "strike"
+  | "frame"
+  | "free-highlight"
+  | "freehand"
+  | "freetext"
 
 export interface PdfFile {
   id: string
@@ -140,9 +148,16 @@ export interface PdfAnnotation {
   /** region (框选) annotations: rects are NORMALIZED 0-1 fractions of the page
    *  box (scale-independent); render multiplies by the holder's displayed size */
   rects?: { x: number; y: number; w: number; h: number }[]
+  /** freehand / free-highlight strokes: NORMALIZED (0-1) points of the path. */
+  path?: { x: number; y: number }[]
   color?: string
+  /** Normalized (0-1) center of the mark — enables column-aware panel sorting
+   *  (two-column papers: x<0.5 = left column, then top-to-bottom by y). */
+  pos?: { x: number; y: number }
   /** Linked PdfCard id (annotation ↔ pdfCard are 1:1). */
   cardId?: string
+  /** Last modification time (type/color/idea edits) — display date. */
+  updatedAt?: number
   createdAt: number
 }
 

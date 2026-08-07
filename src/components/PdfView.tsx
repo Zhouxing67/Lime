@@ -11,7 +11,12 @@ import FullscreenRoundedIcon from "@mui/icons-material/FullscreenRounded"
 import UndoRoundedIcon from "@mui/icons-material/UndoRounded"
 import {
   Box,
+  Button,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   IconButton,
   Menu,
   MenuItem,
@@ -30,13 +35,14 @@ import {
   createTextAnnotationCard,
   deleteAnnotationWithCard,
   getAnnotationsByPdf,
+  updateAnnotationText,
   updateAnnotationType,
 } from "../database"
 import type { PdfAnnotation, PdfMark } from "../types"
 import { usePdfDocument } from "../hooks/usePdfDocument"
 import { MARK_DOT, MARK_LABEL } from "./pdfTheme"
 import { getTextLayer } from "./pdfRegistry"
-import { searchPdfText, textLayerOffsets } from "./pdfText"
+import { searchPdfText, textLayerOffsets, textLayerRects } from "./pdfText"
 import type { PdfSearchMatch } from "./pdfText"
 import PdfRenderer from "./PdfRenderer"
 import SearchField from "./SearchField"
@@ -50,8 +56,15 @@ export type PdfOutlineItem = {
 const TEXT_TOOLS: Exclude<PdfMark, "frame">[] = [
   "highlight",
   "underline",
-  "wavy",
   "strike"
+]
+
+/** Pointer-draw tools (drag on the page). */
+const DRAW_TOOLS: Array<"frame" | "freehand" | "free-highlight" | "freetext"> = [
+  "frame",
+  "freehand",
+  "free-highlight",
+  "freetext"
 ]
 
 /** Resolve an outline item's `.dest` to a 1-based page number. Only named
@@ -110,6 +123,10 @@ export default function PdfView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded?.pageCount])
   const [flashAnnId, setFlashAnnId] = useState<string | null>(null)
+  const annSigRef = useRef("")
+  /** Shared selection state (P4): the jump target annotation stays lit on the
+   *  Konva layer until the user clicks elsewhere (InkLayer's model). */
+  const [selectedAnnId, setSelectedAnnId] = useState<string | null>(null)
   const [zoom, setZoom] = useState(1)
   // Fit base: "width" (page fits the column width) / "page" (whole page
   // visible). The toolbar toggle switches it; the zoom resets to 1.
@@ -123,7 +140,15 @@ export default function PdfView({
     ann: PdfAnnotation
     pos: { x: number; y: number }
   } | null>(null)
-  const [frameMode, setFrameMode] = useState(false)
+  const [annotDrawMode, setAnnotDrawMode] = useState<
+    "frame" | "freehand" | "free-highlight" | "freetext" | null
+  >(null)
+  const [freetextDraft, setFreetextDraft] = useState<{
+    page: number
+    rects: { x: number; y: number; w: number; h: number }[]
+  } | null>(null)
+  const [freetextEdit, setFreetextEdit] = useState<PdfAnnotation | null>(null)
+  const [freetextText, setFreetextText] = useState("")
   const [canGoBack, setCanGoBack] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   // The jump input: NOT focused → shows the live current page; focused →
@@ -157,7 +182,23 @@ export default function PdfView({
   const reloadPdfData = useCallback(async () => {
     if (!pdfId) return
     const ann = await getAnnotationsByPdf(pdfId)
-    setAnnotations(ann)
+    // Cheap dedup: broadcasts (_dbpdf) fire on ANY pdfs-store write (touchPdf,
+    // annotation CRUD) — a reload that yields the same annotations must not
+    // churn the array (which re-runs the incremental/search/selection effects).
+    const sig = ann
+      .map(
+        (a) =>
+          `${a.id}|${a.type}|${a.color ?? ""}|${a.startOffset ?? ""}|${
+            a.endOffset ?? ""
+          }|${a.rects?.map((r) => `${r.x},${r.y},${r.w},${r.h}`).join(";") ?? ""}|${
+            a.pos ? `${a.pos.x},${a.pos.y}` : ""
+          }|${a.updatedAt ?? ""}|${a.path?.length ?? 0}|${a.text ?? ""}`
+      )
+      .join("~")
+    if (sig !== annSigRef.current) {
+      annSigRef.current = sig
+      setAnnotations(ann)
+    }
   }, [pdfId])
 
   useEffect(() => {
@@ -202,6 +243,7 @@ export default function PdfView({
     if (!flashTarget) return
     navigateTo(flashTarget.page)
     setFlashAnnId(flashTarget.annId)
+    setSelectedAnnId(flashTarget.annId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flashTarget?.token])
 
@@ -233,6 +275,26 @@ export default function PdfView({
     }
   }, [outlineDest, loaded, navigateTo])
 
+
+function posOfRects(
+  rects: { x: number; y: number; w: number; h: number }[],
+  norm?: { w: number; h: number }
+): { x: number; y: number } | undefined {
+  if (!rects || rects.length === 0) return undefined
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const r of rects) {
+    minX = Math.min(minX, r.x)
+    minY = Math.min(minY, r.y)
+    maxX = Math.max(maxX, r.x + r.w)
+    maxY = Math.max(maxY, r.y + r.h)
+  }
+  const cx = (minX + maxX) / 2
+  const cy = (minY + maxY) / 2
+  return norm ? { x: cx / norm.w, y: cy / norm.h } : { x: cx, y: cy }
+}
   // Apply an annotation tool to the current text selection → auto-card.
   const handleTool = useCallback(
     async (type: Exclude<PdfMark, "frame">) => {
@@ -251,13 +313,19 @@ export default function PdfView({
       const text = sel.toString().trim()
       if (!text) return
       try {
+        const rects = textLayerRects(entry.textLayer, holder, offsets.start, offsets.end)
+        const pos = posOfRects(rects, {
+          w: holder.clientWidth,
+          h: holder.clientHeight
+        })
         await createTextAnnotationCard({
           pdfId,
           page,
           type,
           text,
           startOffset: offsets.start,
-          endOffset: offsets.end
+          endOffset: offsets.end,
+          pos
         })
         sel.removeAllRanges()
         // The write broadcasts _dbpdf → the storage listener reloads.
@@ -277,10 +345,15 @@ export default function PdfView({
       const ann = annotations.find((a) => a.id === annId)
       if (!ann) return
       setClickedAnn({ ann, pos })
+      setSelectedAnnId(annId)
       if (ann.cardId) onJumpInPanelRef.current?.(ann.cardId)
     },
     [annotations]
   )
+
+  const handleAnnotationDeselect = useCallback(() => {
+    setSelectedAnnId(null)
+  }, [])
 
   const handleAnnotationTypeChange = useCallback(
     async (type: Exclude<PdfMark, "frame">) => {
@@ -361,6 +434,9 @@ export default function PdfView({
 
   const handleAnnotTool = useCallback(
     (type: Exclude<PdfMark, "frame">) => {
+      // Move focus off the closing menu item before hiding the popover — MUI
+      // warns (aria-hidden on a focused element) otherwise.
+      ;(document.activeElement as HTMLElement | null)?.blur?.()
       if (capturedRangeRef.current) {
         const sel = window.getSelection()
         sel?.removeAllRanges()
@@ -372,33 +448,78 @@ export default function PdfView({
     [handleTool]
   )
 
-  const handleAnnotFrame = useCallback(() => {
-    setAnnotMenuAnchor(null)
-    setFrameMode((f) => !f)
-  }, [])
+  const handleAnnotDraw = useCallback(
+    (mode: "frame" | "freehand" | "free-highlight" | "freetext") => {
+      ;(document.activeElement as HTMLElement | null)?.blur?.()
+      setAnnotMenuAnchor(null)
+      setAnnotDrawMode((cur) => (cur === mode ? null : mode))
+    },
+    []
+  )
 
-  // 框选 release → frame annotation + compact card (no image crop).
-  const handleFrameRegion = useCallback(
+  // Pointer-draw release → create the annotation + compact card (no image crop).
+  const handleAnnotDrawComplete = useCallback(
     async (result: {
       page: number
+      kind: "rect" | "path"
       rects: { x: number; y: number; w: number; h: number }[]
+      path?: { x: number; y: number }[]
     }) => {
-      if (!pdfId) return
+      if (!pdfId || !annotDrawMode) return
       try {
+        if (annotDrawMode === "freetext") {
+          setFreetextDraft({ page: result.page, rects: result.rects })
+          return
+        }
         await createRegionAnnotationCard({
           pdfId,
           page: result.page,
-          rects: result.rects
+          rects: result.rects,
+          type: annotDrawMode,
+          path: annotDrawMode === "freehand" || annotDrawMode === "free-highlight" ? result.path : undefined,
+          pos: posOfRects(result.rects)
         })
-        setFrameMode(false)
+        setAnnotDrawMode(null)
         navigateTo(result.page)
         // The write broadcasts _dbpdf → the storage listener reloads.
       } catch (e) {
         console.warn("[pdf] create region annotation failed:", e)
       }
     },
-    [pdfId]
+    [pdfId, annotDrawMode]
   )
+
+  const saveFreetext = useCallback(async () => {
+    if (!pdfId || !freetextDraft || !freetextText.trim()) return
+    try {
+      await createRegionAnnotationCard({
+        pdfId,
+        page: freetextDraft.page,
+        rects: freetextDraft.rects,
+        type: "freetext",
+        text: freetextText.trim(),
+        pos: posOfRects(freetextDraft.rects)
+      })
+      const page = freetextDraft.page
+      setFreetextDraft(null)
+      setFreetextText("")
+      setAnnotDrawMode(null)
+      navigateTo(page)
+    } catch (e) {
+      console.warn("[pdf] create freetext failed:", e)
+    }
+  }, [pdfId, freetextDraft, freetextText])
+
+  const saveFreetextEdit = useCallback(async () => {
+    if (!freetextEdit) return
+    try {
+      await updateAnnotationText(freetextEdit.id, freetextText)
+      setFreetextEdit(null)
+      setFreetextText("")
+    } catch (e) {
+      console.warn("[pdf] update freetext failed:", e)
+    }
+  }, [freetextEdit, freetextText])
 
   return (
     <Box sx={{ display: "flex", height: "100%", minHeight: 0 }}>
@@ -605,8 +726,8 @@ export default function PdfView({
               borderRadius: 1,
               cursor: "pointer",
               fontSize: "0.72rem",
-              bgcolor: frameMode ? "action.selected" : "transparent",
-              color: frameMode ? "text.primary" : "text.secondary",
+              bgcolor: annotDrawMode ? "action.selected" : "transparent",
+              color: annotDrawMode ? "text.primary" : "text.secondary",
               "&:hover": { bgcolor: "action.hover" }
             }}>
             <EditRoundedIcon sx={{ fontSize: 16 }} />
@@ -690,30 +811,33 @@ export default function PdfView({
                 {MARK_LABEL[t]}
               </MenuItem>
             ))}
-            <MenuItem
-              onClick={handleAnnotFrame}
-              sx={{ gap: 1, fontSize: "0.82rem" }}>
-              <Box
-                sx={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: 1,
-                  background: MARK_DOT.frame
-                }}
-              />
-              {MARK_LABEL.frame}
-              {frameMode && <Box sx={{ flex: 1 }} />}
-              {frameMode && (
+            {DRAW_TOOLS.map((t) => (
+              <MenuItem
+                key={t}
+                onClick={() => handleAnnotDraw(t)}
+                sx={{ gap: 1, fontSize: "0.82rem" }}>
                 <Box
                   sx={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: "50%",
-                    bgcolor: "primary.main"
+                    width: 8,
+                    height: 8,
+                    borderRadius: 1,
+                    background: MARK_DOT[t]
                   }}
                 />
-              )}
-            </MenuItem>
+                {MARK_LABEL[t]}
+                {annotDrawMode === t && <Box sx={{ flex: 1 }} />}
+                {annotDrawMode === t && (
+                  <Box
+                    sx={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: "50%",
+                      bgcolor: "primary.main"
+                    }}
+                  />
+                )}
+              </MenuItem>
+            ))}
           </Menu>
         </Box>
         {error ? (
@@ -731,9 +855,11 @@ export default function PdfView({
             annotations={annotations}
             flashAnnId={flashAnnId}
             onFlashDone={() => setFlashAnnId(null)}
-            frameMode={frameMode}
-            onFrameRegion={handleFrameRegion}
+            annotDrawMode={annotDrawMode}
+            onAnnotDraw={handleAnnotDrawComplete}
             searchFlash={searchFlash}
+            selectedAnnId={selectedAnnId}
+            onAnnotationDeselect={handleAnnotationDeselect}
             onVisiblePageChange={handleVisiblePageChange}
             onAnnotationClick={handleAnnotationClick}
           />
@@ -791,6 +917,18 @@ export default function PdfView({
             ))}
           </>
         )}
+        {clickedAnn?.ann.type === "freetext" && (
+          <MenuItem
+            onClick={() => {
+              setFreetextText(clickedAnn.ann.text ?? "")
+              setFreetextEdit(clickedAnn.ann)
+              setClickedAnn(null)
+            }}
+            sx={{ gap: 1, fontSize: "0.8rem" }}>
+            <EditRoundedIcon sx={{ fontSize: 15 }} />
+            编辑文本
+          </MenuItem>
+        )}
         <MenuItem
           onClick={handleAnnotationDelete}
           sx={{ gap: 1, fontSize: "0.8rem", color: "error.main" }}>
@@ -798,6 +936,65 @@ export default function PdfView({
           删除批注
         </MenuItem>
       </Popover>
+
+      <Dialog
+        open={Boolean(freetextDraft)}
+        onClose={() => setFreetextDraft(null)}
+        fullWidth
+        maxWidth="sm">
+        <DialogTitle sx={{ fontSize: "0.95rem" }}>文本框内容</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            multiline
+            minRows={2}
+            fullWidth
+            size="small"
+            placeholder="输入文本内容…"
+            value={freetextText}
+            onChange={(e) => setFreetextText(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setFreetextDraft(null)} size="small">
+            取消
+          </Button>
+          <Button
+            onClick={saveFreetext}
+            size="small"
+            color="primary"
+            disabled={!freetextText.trim()}>
+            确定
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(freetextEdit)}
+        onClose={() => setFreetextEdit(null)}
+        fullWidth
+        maxWidth="sm">
+        <DialogTitle sx={{ fontSize: "0.95rem" }}>编辑文本框</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            multiline
+            minRows={2}
+            fullWidth
+            size="small"
+            value={freetextText}
+            onChange={(e) => setFreetextText(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setFreetextEdit(null)} size="small">
+            取消
+          </Button>
+          <Button onClick={saveFreetextEdit} size="small" color="primary">
+            保存
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }

@@ -1,4 +1,4 @@
-import type { PdfCard, PdfMark, ProjectCard, TodoCard } from "../types"
+import type { PdfAnnotation, PdfCard, PdfMark, ProjectCard, TodoCard } from "../types"
 
 /** A legacy monolithic card (the pre-v12 Item shape) — as stored in old DBs,
  *  old ZIP exports, and old v4 sync payloads. */
@@ -131,4 +131,41 @@ export function resolveCardContent(
  *  write so a save can't corrupt the placement. */
 export function stripPlacementContent(card: ProjectCard): ProjectCard {
   return card.pdfCardId ? { ...card, content: "" } : card
+}
+
+/** Column-aware panel sort for PDF annotation cards. "single" = the legacy
+ *  pdfOrder (page → page-internal y/offset). "two" = two-column papers: group
+ *  by column (center x < 0.5 = left), then top-to-bottom within the column.
+ *  "time" = creation/update time, earliest first. Annotations without pos
+ *  (created before pos existed) degrade to the single-column order. */
+export function sortPdfCards(
+  cards: PdfCard[],
+  annotations: PdfAnnotation[],
+  mode: "single" | "two" | "time"
+): PdfCard[] {
+  const annById = new Map(annotations.map((a) => [a.id, a]))
+  return [...cards].sort((a, b) => {
+    if (mode === "time") {
+      const da = annById.get(a.annotationId)
+      const db = annById.get(b.annotationId)
+      const ta = da?.updatedAt ?? da?.createdAt ?? 0
+      const tb = db?.updatedAt ?? db?.createdAt ?? 0
+      return ta - tb || a.annotationId.localeCompare(b.annotationId)
+    }
+    const single =
+      a.pdfOrder - b.pdfOrder || a.annotationId.localeCompare(b.annotationId)
+    if (mode !== "two") return single
+    const an = annById.get(a.annotationId)
+    const bn = annById.get(b.annotationId)
+    const ca = an?.pos ? (an.pos.x < 0.5 ? 0 : 1) : 0
+    const cb = bn?.pos ? (bn.pos.x < 0.5 ? 0 : 1) : 0
+    const ya = an?.pos?.y ?? an?.rects?.[0]?.y ?? an?.startOffset ?? 0
+    const yb = bn?.pos?.y ?? bn?.rects?.[0]?.y ?? bn?.startOffset ?? 0
+    return (
+      a.page - b.page ||
+      ca - cb ||
+      ya - yb ||
+      a.annotationId.localeCompare(b.annotationId)
+    )
+  })
 }

@@ -194,9 +194,30 @@ export async function addPdfCard(card: PdfCard): Promise<void> {
 /** Persist a pdfCard edit (e.g. the idea/备注 for a placed card). Broadcasts
  *  _dbpdf → the options page reloads the panel + the resolved display. */
 export async function updatePdfCard(card: PdfCard): Promise<void> {
-  await withStore("pdfCards", "readwrite", (store) => {
-    store.put(card)
-  })
+  await tx(
+    { pdfCards: "readwrite", pdfAnnotations: "readwrite" },
+    async (stores) => {
+      await new Promise<void>((resolve, reject) => {
+        const r1 = stores.pdfCards.put(card)
+        r1.onsuccess = () => {
+          const r2 = stores.pdfAnnotations.get(card.annotationId)
+          r2.onsuccess = () => {
+            const ann = r2.result as PdfAnnotation | undefined
+            if (ann) {
+              ann.updatedAt = Date.now()
+              const r3 = stores.pdfAnnotations.put(ann)
+              r3.onsuccess = () => resolve()
+              r3.onerror = () => reject(r3.error)
+            } else {
+              resolve()
+            }
+          }
+          r2.onerror = () => reject(r2.error)
+        }
+        r1.onerror = () => reject(r1.error)
+      })
+    }
+  )
 }
 
 /** All pdfCards belonging to a PDF (via the pdfId index), unsorted. */
@@ -223,6 +244,8 @@ export async function createTextAnnotationCard(input: {
   startOffset: number
   endOffset: number
   title?: string
+  /** Normalized (0-1) center — for column-aware panel sorting. */
+  pos?: { x: number; y: number }
 }): Promise<{ card: PdfCard; annotation: PdfAnnotation }> {
   const annotation: PdfAnnotation = {
     id: crypto.randomUUID(),
@@ -233,6 +256,7 @@ export async function createTextAnnotationCard(input: {
     startOffset: input.startOffset,
     endOffset: input.endOffset,
     text: input.text,
+    pos: input.pos,
     createdAt: Date.now()
   }
   const card = createPdfCard({
@@ -266,14 +290,26 @@ export async function createRegionAnnotationCard(input: {
   pdfId: string
   page: number
   rects: { x: number; y: number; w: number; h: number }[]
+  /** Normalized (0-1) center — for column-aware panel sorting. */
+  pos?: { x: number; y: number }
+  /** Mark type: frame (default) / freehand / free-highlight / freetext. */
+  type?: PdfMark
+  /** freehand / free-highlight stroke points (normalized 0-1). */
+  path?: { x: number; y: number }[]
+  /** freetext content. */
+  text?: string
 }): Promise<{ card: PdfCard; annotation: PdfAnnotation }> {
+  const type = input.type ?? "frame"
   const annotation: PdfAnnotation = {
     id: crypto.randomUUID(),
     pdfId: input.pdfId,
     page: input.page,
     kind: "region",
-    type: "frame",
+    type,
     rects: input.rects,
+    path: input.path,
+    text: input.text,
+    pos: input.pos,
     createdAt: Date.now()
   }
   const y = input.rects.length > 0 ? input.rects[0].y : 0
@@ -281,7 +317,7 @@ export async function createRegionAnnotationCard(input: {
     pdfId: input.pdfId,
     page: input.page,
     kind: "region",
-    type: "frame",
+    type,
     annotationId: annotation.id,
     pdfOrder: input.page * PDF_ORDER_BASE + Math.round(y * 1e6)
   })
@@ -589,6 +625,50 @@ export async function updateAnnotationType(
     })
     if (!ann) return
     ann.type = type
+    ann.updatedAt = Date.now()
+    await new Promise<void>((resolve, reject) => {
+      const r = store.put(ann)
+      r.onsuccess = () => resolve()
+      r.onerror = () => reject(r.error)
+    })
+  })
+}
+
+/** Backfill an annotation's normalized center (for two-column sorting). */
+export async function updateAnnotationPos(
+  id: string,
+  pos: { x: number; y: number }
+): Promise<void> {
+  return withStore("pdfAnnotations", "readwrite", async (store) => {
+    const ann = await new Promise<PdfAnnotation | undefined>((resolve, reject) => {
+      const r = store.get(id)
+      r.onsuccess = () => resolve(r.result as PdfAnnotation | undefined)
+      r.onerror = () => reject(r.error)
+    })
+    if (!ann || ann.pos) return
+    ann.pos = pos
+    await new Promise<void>((resolve, reject) => {
+      const r = store.put(ann)
+      r.onsuccess = () => resolve()
+      r.onerror = () => reject(r.error)
+    })
+  })
+}
+
+/** Edit a freetext annotation's content. */
+export async function updateAnnotationText(
+  id: string,
+  text: string
+): Promise<void> {
+  return withStore("pdfAnnotations", "readwrite", async (store) => {
+    const ann = await new Promise<PdfAnnotation | undefined>((resolve, reject) => {
+      const r = store.get(id)
+      r.onsuccess = () => resolve(r.result as PdfAnnotation | undefined)
+      r.onerror = () => reject(r.error)
+    })
+    if (!ann) return
+    ann.text = text
+    ann.updatedAt = Date.now()
     await new Promise<void>((resolve, reject) => {
       const r = store.put(ann)
       r.onsuccess = () => resolve()

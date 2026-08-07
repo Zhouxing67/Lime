@@ -1,12 +1,11 @@
 import { Box } from "@mui/material"
 
 import type { PdfCard } from "../types"
-import { MARK_LABEL } from "./pdfTheme"
 import MarkdownRenderer from "./MarkdownRenderer"
 
-/** Unified PDF-card body: a compact type/page marker + the editable `idea`
- *  note. The annotation's content (quote / frame image) is deliberately NOT
- *  displayed — the PDF page itself shows it; the card is a management marker. */
+/** Unified PDF-card body: the editable `idea` note (+ a compact affordance hint
+ *  when empty). The annotation's content / type / page are deliberately NOT
+ *  shown — the order chip + the PDF page itself carry that info. */
 export default function PdfCardBody({
   item,
   maxLines
@@ -15,42 +14,24 @@ export default function PdfCardBody({
   maxLines?: number
 }) {
   const showIdea = !!item.idea
-  return (
-    <Box>
+  if (!showIdea) {
+    return (
       <Box
         sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: 0.6,
-          fontSize: "0.72rem",
-          color: "text.secondary",
-          mb: showIdea ? 1.25 : 0
+          fontSize: "0.7rem",
+          color: "text.disabled",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap"
         }}>
-        <Box
-          sx={{
-            px: 0.75,
-            py: 0.15,
-            borderRadius: 1,
-            bgcolor: "action.hover",
-            flexShrink: 0
-          }}>
-          {MARK_LABEL[item.type] ?? item.type}
-        </Box>
-        <Box component="span" sx={{ flexShrink: 0 }}>
-          P{item.page}
-        </Box>
-        {!showIdea && (
-          <Box component="span" sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            阅读批注 · 点击跳转
-          </Box>
-        )}
+        阅读批注 · 点击跳转
       </Box>
-      {showIdea && (
-        <Box>
-          {/* The note is the user's own content — always fully visible. */}
-          <MarkdownRenderer content={item.idea!} maxLines={maxLines} />
-        </Box>
-      )}
+    )
+  }
+  return (
+    <Box>
+      {/* The note is the user's own content — always fully visible. */}
+      <MarkdownRenderer content={item.idea!} maxLines={maxLines} />
     </Box>
   )
 }
