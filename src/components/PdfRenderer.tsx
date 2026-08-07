@@ -181,6 +181,7 @@ function PageView({
   flashAnnId,
   onFlashDone,
   annotDrawMode,
+  onTextSelected,
   searchFlash,
   selectedAnnId,
   onAnnotationDeselect,
@@ -196,6 +197,7 @@ function PageView({
   annotations: PdfAnnotation[]
   onFlashDone?: () => void
   annotDrawMode?: "frame" | "freetext" | "freehand" | "free-highlight" | null
+  onTextSelected?: (range: Range) => void
   flashAnnId?: string | null
   searchFlash?: { page: number; start: number; end: number } | null
   selectedAnnId?: string | null
@@ -340,6 +342,8 @@ function PageView({
   // via caretRangeFromPoint; the rAF overlay above draws its highlight, and
   // textLayerOffsets/annotation-creation keep working on the real Selection.
   const customSelRef = useRef<Range | null>(null)
+  const onTextSelectedRef = useRef(onTextSelected)
+  onTextSelectedRef.current = onTextSelected
   const handleTextMouseDown = useCallback(
     (e: React.MouseEvent) => {
       if (annotDrawMode) return
@@ -373,6 +377,18 @@ function PageView({
       const up = () => {
         document.removeEventListener("mousemove", mv)
         document.removeEventListener("mouseup", up)
+        // The release ALSO fires a click — its default (moving the caret)
+        // would collapse our programmatic selection and dismiss the selection
+        // bar before it shows. Swallow that one click.
+        const swallowClick = (ce: MouseEvent) => {
+          ce.preventDefault()
+          document.removeEventListener("click", swallowClick, true)
+        }
+        document.addEventListener("click", swallowClick, true)
+        const sel = document.getSelection()
+        if (sel && !sel.isCollapsed && sel.rangeCount > 0) {
+          onTextSelectedRef.current?.(sel.getRangeAt(0))
+        }
       }
       document.removeEventListener("mousemove", mv)
       document.removeEventListener("mouseup", up)
@@ -723,6 +739,7 @@ function PageView({
     <div
       ref={holderRef}
       data-page={pageNumber}
+      onMouseDown={handleTextMouseDown}
       style={{
         position: "relative",
         margin: "0 auto 12px",
@@ -762,7 +779,8 @@ export default function PdfRenderer({
   onAnnotationDeselect,
   onVisiblePageChange,
   onAnnotationClick,
-  onFlashDone
+  onFlashDone,
+  onTextSelected
 }: {
   doc: pdfjsLib.PDFDocumentProxy
   pageCount: number
@@ -789,6 +807,7 @@ export default function PdfRenderer({
   onVisiblePageChange?: (page: number) => void
   onAnnotationClick?: (annId: string, pos: { x: number; y: number }) => void
   onFlashDone?: () => void
+  onTextSelected?: (range: Range) => void
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [paneW, setPaneW] = useState(0)
@@ -1138,6 +1157,7 @@ export default function PdfRenderer({
             onAnnotationClick={onAnnotationClick}
             onFlashDone={onFlashDone}
             annotDrawMode={annotDrawMode}
+            onTextSelected={onTextSelected}
           />
         ))}
       {dragRect && (

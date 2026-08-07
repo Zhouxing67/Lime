@@ -2,6 +2,10 @@ import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
 import AddRoundedIcon from "@mui/icons-material/AddRounded"
 import ChevronLeftRoundedIcon from "@mui/icons-material/ChevronLeftRounded"
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded"
+import CropFreeRoundedIcon from "@mui/icons-material/CropFreeRounded"
+import GestureRoundedIcon from "@mui/icons-material/GestureRounded"
+import HighlightRoundedIcon from "@mui/icons-material/HighlightRounded"
+import NotesRoundedIcon from "@mui/icons-material/NotesRounded"
 import EditRoundedIcon from "@mui/icons-material/EditRounded"
 import RemoveRoundedIcon from "@mui/icons-material/RemoveRounded"
 import AspectRatioRoundedIcon from "@mui/icons-material/AspectRatioRounded"
@@ -14,6 +18,7 @@ import {
   Button,
   CircularProgress,
   Dialog,
+  Divider,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -40,7 +45,7 @@ import {
 } from "../database"
 import type { PdfAnnotation, PdfMark } from "../types"
 import { usePdfDocument } from "../hooks/usePdfDocument"
-import { MARK_DOT, MARK_LABEL } from "./pdfTheme"
+import { MARK_BLOCK, MARK_DOT, MARK_LABEL } from "./pdfTheme"
 import { getTextLayer } from "./pdfRegistry"
 import { searchPdfText, textLayerOffsets, textLayerRects } from "./pdfText"
 import type { PdfSearchMatch } from "./pdfText"
@@ -57,14 +62,6 @@ const TEXT_TOOLS: Exclude<PdfMark, "frame">[] = [
   "highlight",
   "underline",
   "strike"
-]
-
-/** Pointer-draw tools (drag on the page). */
-const DRAW_TOOLS: Array<"frame" | "freehand" | "free-highlight" | "freetext"> = [
-  "frame",
-  "freehand",
-  "free-highlight",
-  "freetext"
 ]
 
 /** Resolve an outline item's `.dest` to a 1-based page number. Only named
@@ -158,10 +155,11 @@ export default function PdfView({
   const [jumpDraft, setJumpDraft] = useState("")
   const currentPageRef = useRef(1)
   const navHistoryRef = useRef<number[]>([])
-  const [annotMenuAnchor, setAnnotMenuAnchor] = useState<HTMLElement | null>(
-    null
-  )
   const capturedRangeRef = useRef<Range | null>(null)
+  /** The text-selection bar (高亮/下划线/删除线) anchor — appears at the
+   *  selected text so the text tools live WHERE the selection is. */
+  const [selBar, setSelBar] = useState<{ x: number; y: number } | null>(null)
+  const selBarOpenedAtRef = useRef(0)
   const [searchFlash, setSearchFlash] = useState<{
     page: number
     start: number
@@ -420,17 +418,13 @@ function posOfRects(
     [jumpToSearchMatch]
   )
 
-  // ---- annotation menu (批注 → 5 tools) ----
-  const openAnnotMenu = (e: React.MouseEvent<HTMLElement>) => {
-    // Capture the selection BEFORE the mousedown clears it.
-    const sel = window.getSelection()
-    if (sel && !sel.isCollapsed && sel.rangeCount > 0) {
-      capturedRangeRef.current = sel.getRangeAt(0).cloneRange()
-    } else {
-      capturedRangeRef.current = null
-    }
-    setAnnotMenuAnchor(e.currentTarget)
-  }
+  // Text selection → show the selection bar at the selected text.
+  const handleTextSelected = useCallback((range: Range) => {
+    const rect = range.getBoundingClientRect()
+    if (rect.width < 2 || rect.height < 2) return
+    selBarOpenedAtRef.current = Date.now()
+    setSelBar({ x: rect.left + rect.width / 2, y: rect.top })
+  }, [])
 
   const handleAnnotTool = useCallback(
     (type: Exclude<PdfMark, "frame">) => {
@@ -442,16 +436,28 @@ function posOfRects(
         sel?.removeAllRanges()
         sel?.addRange(capturedRangeRef.current)
       }
-      setAnnotMenuAnchor(null)
+      setSelBar(null)
       handleTool(type)
     },
     [handleTool]
   )
 
+  const handleSelBarTool = useCallback(
+    (type: Exclude<PdfMark, "frame">) => {
+      const sel = window.getSelection()
+      if (sel && !sel.isCollapsed && sel.rangeCount > 0) {
+        capturedRangeRef.current = sel.getRangeAt(0).cloneRange()
+      }
+      setSelBar(null)
+      handleAnnotTool(type)
+    },
+    [handleAnnotTool]
+  )
+
   const handleAnnotDraw = useCallback(
     (mode: "frame" | "freehand" | "free-highlight" | "freetext") => {
       ;(document.activeElement as HTMLElement | null)?.blur?.()
-      setAnnotMenuAnchor(null)
+      setSelBar(null)
       setAnnotDrawMode((cur) => (cur === mode ? null : mode))
     },
     []
@@ -713,25 +719,60 @@ function posOfRects(
             }}>
             <UndoRoundedIcon sx={{ fontSize: 16 }} />
           </IconButton>
-          {/* 批注 menu (二级) */}
-          <Box
-            onClick={openAnnotMenu}
-            title="批注"
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 0.5,
-              px: 0.75,
-              py: 0.25,
-              borderRadius: 1,
-              cursor: "pointer",
-              fontSize: "0.72rem",
-              bgcolor: annotDrawMode ? "action.selected" : "transparent",
-              color: annotDrawMode ? "text.primary" : "text.secondary",
-              "&:hover": { bgcolor: "action.hover" }
-            }}>
-            <EditRoundedIcon sx={{ fontSize: 16 }} />
-          </Box>
+          <Divider orientation="vertical" flexItem sx={{ mx: 0.5, height: 16, alignSelf: "center" }} />
+          {/* 绘制批注工具（拖拽类，直接上工具栏） */}
+          <Tooltip title="框选">
+            <IconButton
+              size="small"
+              onClick={() => handleAnnotDraw("frame")}
+              sx={{
+                p: 0.5,
+                color: annotDrawMode === "frame" ? "primary.main" : "text.secondary",
+                bgcolor: annotDrawMode === "frame" ? "action.selected" : "transparent",
+                "&:hover": { color: "primary.main" }
+              }}>
+              <CropFreeRoundedIcon sx={{ fontSize: 17 }} />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="自由画笔">
+            <IconButton
+              size="small"
+              onClick={() => handleAnnotDraw("freehand")}
+              sx={{
+                p: 0.5,
+                color: annotDrawMode === "freehand" ? "primary.main" : "text.secondary",
+                bgcolor: annotDrawMode === "freehand" ? "action.selected" : "transparent",
+                "&:hover": { color: "primary.main" }
+              }}>
+              <GestureRoundedIcon sx={{ fontSize: 17 }} />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="自由高亮">
+            <IconButton
+              size="small"
+              onClick={() => handleAnnotDraw("free-highlight")}
+              sx={{
+                p: 0.5,
+                color: annotDrawMode === "free-highlight" ? "primary.main" : "text.secondary",
+                bgcolor: annotDrawMode === "free-highlight" ? "action.selected" : "transparent",
+                "&:hover": { color: "primary.main" }
+              }}>
+              <HighlightRoundedIcon sx={{ fontSize: 17 }} />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="文本框">
+            <IconButton
+              size="small"
+              onClick={() => handleAnnotDraw("freetext")}
+              sx={{
+                p: 0.5,
+                color: annotDrawMode === "freetext" ? "primary.main" : "text.secondary",
+                bgcolor: annotDrawMode === "freetext" ? "action.selected" : "transparent",
+                "&:hover": { color: "primary.main" }
+              }}>
+              <NotesRoundedIcon sx={{ fontSize: 17 }} />
+            </IconButton>
+          </Tooltip>
           {/* zoom */}
           <Box
             sx={{
@@ -790,55 +831,42 @@ function posOfRects(
             </IconButton>
           </Tooltip>
           </Box>
-          <Menu
-            anchorEl={annotMenuAnchor}
-            open={!!annotMenuAnchor}
-            onClose={() => setAnnotMenuAnchor(null)}
-            slotProps={{ paper: { sx: { py: 0.5, borderRadius: 1, minWidth: 148 } } }}>
-            {TEXT_TOOLS.map((t) => (
-              <MenuItem
-                key={t}
-                onClick={() => handleAnnotTool(t)}
-                sx={{ gap: 1, fontSize: "0.82rem" }}>
+          {/* 文本选区工具条：出现在选中的文字旁 */}
+          <Popover
+            open={Boolean(selBar)}
+            anchorReference="anchorPosition"
+            anchorPosition={{ top: (selBar?.y ?? 0) - 8, left: selBar?.x ?? 0 }}
+            onClose={() => {
+              // Ignore the drag-ending click that fires the same frame the bar
+              // opens — a real dismissal is a later click (on the bar/toolbar).
+              if (Date.now() - selBarOpenedAtRef.current < 300) return
+              setSelBar(null)
+            }}
+            anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+            transformOrigin={{ vertical: "bottom", horizontal: "center" }}
+            slotProps={{ paper: { sx: { py: 0.5, borderRadius: 1, minWidth: 170 } } }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, px: 0.5 }}>
+              {TEXT_TOOLS.map((t) => (
                 <Box
+                  key={t}
+                  onClick={() => handleSelBarTool(t)}
                   sx={{
-                    width: 8,
-                    height: 8,
+                    px: 1,
+                    py: 0.4,
                     borderRadius: 1,
-                    background: MARK_DOT[t]
-                  }}
-                />
-                {MARK_LABEL[t]}
-              </MenuItem>
-            ))}
-            {DRAW_TOOLS.map((t) => (
-              <MenuItem
-                key={t}
-                onClick={() => handleAnnotDraw(t)}
-                sx={{ gap: 1, fontSize: "0.82rem" }}>
-                <Box
-                  sx={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: 1,
-                    background: MARK_DOT[t]
-                  }}
-                />
-                {MARK_LABEL[t]}
-                {annotDrawMode === t && <Box sx={{ flex: 1 }} />}
-                {annotDrawMode === t && (
-                  <Box
-                    sx={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: "50%",
-                      bgcolor: "primary.main"
-                    }}
-                  />
-                )}
-              </MenuItem>
-            ))}
-          </Menu>
+                    bgcolor: MARK_BLOCK[t]?.bg ?? "action.hover",
+                    color: MARK_BLOCK[t]?.fg ?? "text.secondary",
+                    fontSize: "0.78rem",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    transition: "filter 0.15s",
+                    "&:hover": { filter: "brightness(1.08)" }
+                  }}>
+                  {MARK_LABEL[t]}
+                </Box>
+              ))}
+            </Box>
+          </Popover>
         </Box>
         {error ? (
           <Box sx={{ p: 3, color: "error.main", fontSize: "0.85rem" }}>
@@ -857,6 +885,7 @@ function posOfRects(
             onFlashDone={() => setFlashAnnId(null)}
             annotDrawMode={annotDrawMode}
             onAnnotDraw={handleAnnotDrawComplete}
+            onTextSelected={handleTextSelected}
             searchFlash={searchFlash}
             selectedAnnId={selectedAnnId}
             onAnnotationDeselect={handleAnnotationDeselect}
