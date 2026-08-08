@@ -348,7 +348,20 @@ export default function OptionsPage() {
 
   const resolveDisplay = useCallback(
     (card: ProjectCard): DisplayCard => {
-      if (!card.pdfCardId) return card
+      if (!card.pdfCardId) {
+        // Legacy image cards (pre card-type-v2 migration): the dataURL lives in
+        // content. Derive the readonly image field at display so the full/
+        // preview render it as an image, not a raw link.
+        if (
+          card.type === "image" &&
+          !card.image &&
+          typeof card.content === "string" &&
+          card.content.startsWith("data:image")
+        ) {
+          return { ...card, image: card.content }
+        }
+        return card
+      }
       const resolved = resolveCardContent(card, pdfById)
       const pdfCard = pdfById.get(card.pdfCardId)
       const ann = pdfCard ? annotationById.get(pdfCard.annotationId) : undefined
@@ -1305,12 +1318,16 @@ export default function OptionsPage() {
         setSnackbarMsg(
           `已置入 ${cardIds.length} 张卡片到「${project?.name ?? ""}」`
         )
+        // The placement happens in the pdf view, where the full reload is
+        // gated off — refresh the search scope right away when the target
+        // project is the one on screen so the new cards appear immediately.
+        if (projectId === activeProjectId) onSearch()
       } catch (e) {
         console.warn("[lime] place failed:", e)
         setSnackbarMsg("置入失败，请重试")
       }
     },
-    [projects]
+    [projects, activeProjectId, onSearch]
   )
 
   const handleCreateProjectAndPlace = useCallback(

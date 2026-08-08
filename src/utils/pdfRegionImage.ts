@@ -34,12 +34,16 @@ function annotationBbox(
   return { x, y, w: (maxX - minX) * baseW, h: (maxY - minY) * baseH }
 }
 
-/** Draw the annotation's visual onto the crop context (crop coords). */
+/** Draw the annotation's visual onto the crop context (crop coords). The path
+ *  points are NORMALIZED to the whole page — map them via the page size minus
+ *  the crop's bbox origin, or the stroke would be compressed toward the top-left. */
 function drawOverlay(
   ctx: CanvasRenderingContext2D,
   ann: PdfAnnotation,
   bbox: { x: number; y: number; w: number; h: number },
-  scale: number
+  scale: number,
+  pageW: number,
+  pageH: number
 ): void {
   ctx.lineCap = "round"
   ctx.lineJoin = "round"
@@ -63,8 +67,8 @@ function drawOverlay(
     ctx.stroke()
   } else if (ann.type === "freehand" || ann.type === "free-highlight") {
     const pts = (ann.path ?? []).map((p) => ({
-      x: (p.x * bbox.w) * scale,
-      y: (p.y * bbox.h) * scale
+      x: (p.x * pageW - bbox.x) * scale,
+      y: (p.y * pageH - bbox.y) * scale
     }))
     if (pts.length < 2) return
     ctx.strokeStyle = MARK_COLOR[ann.type]
@@ -102,7 +106,7 @@ export async function renderRegionImage(
       const vp1 = page.getViewport({ scale: 1 })
       const bbox = annotationBbox(ann, vp1.width, vp1.height)
       if (!bbox || bbox.w <= 0 || bbox.h <= 0) return null
-      const scale = 2
+      const scale = 3
       const vp = page.getViewport({ scale })
       const full = document.createElement("canvas")
       full.width = Math.ceil(vp.width)
@@ -124,7 +128,7 @@ export async function renderRegionImage(
         crop.width,
         crop.height
       )
-      drawOverlay(ctx, ann, bbox, scale)
+      drawOverlay(ctx, ann, bbox, scale, vp1.width, vp1.height)
       return crop.toDataURL("image/png")
     } finally {
       task.destroy().catch(() => {})

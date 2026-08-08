@@ -599,7 +599,16 @@ export default function CardRenderer({
             只读原始内容
           </Typography>
           {item.image ? (
-            <Box sx={{ display: "flex", justifyContent: "center" }}>
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "center",
+                p: 1,
+                borderRadius: 1,
+                border: "1px solid",
+                borderColor: "divider",
+                bgcolor: "action.hover"
+              }}>
               <img
                 src={item.image}
                 alt={item.source?.title || ""}
