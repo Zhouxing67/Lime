@@ -197,7 +197,8 @@ function PageView({
   searchFlash,
   selectedAnnId,
   onAnnotationDeselect,
-  onAnnotationClick
+  onAnnotationClick,
+  renderRegistry
 }: {
   doc: pdfjsLib.PDFDocumentProxy
   pageNumber: number
@@ -207,6 +208,7 @@ function PageView({
   fitMode?: "reading" | "width" | "page"
   pageAspect: number
   annotations: PdfAnnotation[]
+  renderRegistry?: React.MutableRefObject<Map<number, () => Promise<void> | void>>
   onFlashDone?: () => void
   annotDrawMode?: "frame" | "freetext" | "freehand" | "free-highlight" | null
   onTextSelected?: (range: Range) => void
@@ -514,8 +516,14 @@ function PageView({
             })
             marksStageRef.current = stage
             // Hover: dim the hovered group (brightness(0.92) equivalent) —
-            // a translucent overlay rect over the group's bounding box.
+            // a translucent overlay rect over the group's bounding box. Only
+            // rebuild it when the hovered id CHANGES — every mousemove within
+            // a thin group's bbox (删除线/自由画笔) otherwise destroys +
+            // re-adds + redraws the same rect, which reads as a flicker.
+            let prevHoverId: string | null = null
             hoverRef.current = (annId: string | null) => {
+              if (annId === prevHoverId) return
+              prevHoverId = annId
               const layer = stage.getLayers()[0]
               if (!layer) return
               const prev = layer.findOne(".pdf-mark-hover")
@@ -552,6 +560,13 @@ function PageView({
       }
     }
 
+    // Jump pre-render: let the parent force this page's render BEFORE scrolling
+    // to it (a far page's released canvas would otherwise re-render AFTER the
+    // jump lands, showing a blank/black flash).
+    if (renderRegistry) {
+      renderRegistry.current.set(pageNumber, () => render())
+    }
+
     const scrollRoot = holder.closest("[data-pdf-scroll]")
     const obs = new IntersectionObserver(
       (entries) => {
@@ -562,7 +577,11 @@ function PageView({
             sizeKeyRef.current = key
             computeSize().catch((e) => console.warn("[pdf] page size:", e))
           } else {
-            render().catch((e) => {
+            const t0 = performance.now()
+            console.log("[lime-flash] render page", pageNumber, "start")
+            render()
+              .then(() => console.log("[lime-flash] render page", pageNumber, "done in", Math.round(performance.now() - t0), "ms"))
+              .catch((e) => {
               // Cancelled renders are expected on scroll/re-render, not errors
               // (canvas → RenderingCancelledException, TextLayer → AbortException).
               if (e instanceof pdfjsLib.RenderingCancelledException) return
@@ -587,6 +606,7 @@ function PageView({
     return () => {
       cancelled = true
       obs.disconnect()
+      renderRegistry?.current.delete(pageNumber)
       renderTask?.cancel()
       textLayer?.cancel()
       marksStageRef.current?.destroy()
@@ -641,7 +661,11 @@ function PageView({
   useEffect(() => {
     const holder = holderRef.current
     const tl = textLayerRef.current
-    if (!holder || !tl || !ready || !flashAnnId) return
+    if (!flashAnnId) return
+    if (!holder || !tl || !ready) {
+      console.log("[lime-flash] flashAnnId", flashAnnId, "on page", pageNumber, "NOT READY (holder", !!holder, "tl", !!tl, "ready", !!ready, ")")
+      return
+    }
     const rects = jumpRects(annotations, tl, holder, flashAnnId)
     if (rects.length > 0) {
       const minX = Math.min(...rects.map((r) => r.x))
@@ -820,6 +844,7 @@ export default function PdfRenderer({
   onTextSelected?: (range: Range) => void
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const renderRegistryRef = useRef(new Map<number, () => Promise<void> | void>())
   const [paneW, setPaneW] = useState(0)
   const [paneH, setPaneH] = useState(0)
   const [pageAspects, setPageAspects] = useState<Map<number, number> | null>(
@@ -937,6 +962,7 @@ export default function PdfRenderer({
   // mount lazily, so a far target may not exist yet: retry until it appears.
   useEffect(() => {
     if (!scrollTarget) return
+    console.log("[lime-flash] scrollTarget ->", scrollTarget)
     let tries = 0
     const el = () =>
       containerRef.current?.querySelector(`[data-page="${scrollTarget}"]`)
@@ -944,11 +970,32 @@ export default function PdfRenderer({
       const target = el()
       if (target) {
         target.scrollIntoView({ behavior: "auto", block: "start" })
+        console.log("[lime-flash] scrolled to page", scrollTarget)
         return true
       }
       return false
     }
-    if (scroll()) return
+    // Pre-render the target BEFORE scrolling — a far page's released canvas
+    // otherwise re-renders after the jump lands, showing a blank/black flash.
+    // A never-sized page has no registered render fn yet; the IO path renders
+    // it normally (the scroll still happens immediately).
+    const renderFn = renderRegistryRef.current.get(scrollTarget)
+    const doScroll = () => {
+      if (scroll()) return
+      const timer = window.setInterval(() => {
+        tries++
+        if (scroll() || tries > 30) window.clearInterval(timer)
+      }, 150)
+    }
+    if (renderFn) {
+      Promise.resolve(renderFn())
+        .then(doScroll)
+        .catch(doScroll)
+      return () => {
+        /* no interval to clear yet */
+      }
+    }
+    doScroll()
     const timer = window.setInterval(() => {
       tries++
       if (scroll() || tries > 30) window.clearInterval(timer)
@@ -1152,6 +1199,7 @@ export default function PdfRenderer({
         Array.from({ length: pageCount }, (_, i) => i + 1).map((n) => (
           <PageView
             key={n}
+            renderRegistry={renderRegistryRef}
             doc={doc}
             pageNumber={n}
             paneW={paneW}

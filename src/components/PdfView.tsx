@@ -376,6 +376,10 @@ export default function PdfView({
 
   // Text selection → show the selection bar at the selected text.
   const handleTextSelected = useCallback((range: Range) => {
+    // Capture the range AT SELECTION TIME — the bar's button mousedown collapses
+    // the live browser selection, so reading it at the bar-click is too late
+    // (the 高亮/下划线/删除线 tools silently no-oped).
+    capturedRangeRef.current = range.cloneRange()
     const rect = range.getBoundingClientRect()
     if (rect.width < 2 || rect.height < 2) return
     selBarOpenedAtRef.current = Date.now()

@@ -183,6 +183,7 @@ export function drawMarks(
           group.add(shape)
       }
       setMarkBbox(group, rects)
+      addHitRect(group)
       layer.add(group)
       syncFreetextDom(stage, ann, holderW, holderH)
     } catch (e) {
@@ -220,6 +221,32 @@ function setMarkBbox(
   }
 }
 
+/** Give the group an invisible FULL-bbox hit rect (the visible thin-line shapes
+ *  are a sub-rect of the text row, so the Konva hit graph only registers a thin
+ *  strip — the mouse alternating on/off it made the hover dim flicker for
+ *  删除线/自由画笔). The rect is `listening: true`; the visible shapes become
+ *  `listening: false`. The Konva canvas is pointer-transparent, so the hit
+ *  rects only affect the programmatic hit-testing (hover/click), never the
+ *  text selection. */
+function addHitRect(group: Konva.Group): void {
+  const b = group.getAttr("data-rect") as
+    | { x: number; y: number; width: number; height: number }
+    | undefined
+  if (!b) return
+  group.children.forEach((c) => c.listening(false))
+  group.add(
+    new Konva.Rect({
+      x: b.x,
+      y: b.y,
+      width: b.width,
+      height: b.height,
+      fill: "rgba(0,0,0,0)",
+      name: "pdf-mark-hit",
+      listening: true
+    })
+  )
+}
+
 /** Build one annotation's Konva.Group (no stage access — jsdom-testable). */
 export function buildMarkGroup(
   ann: PdfAnnotation,
@@ -233,6 +260,7 @@ export function buildMarkGroup(
     for (const shape of shapesFor(ann, r, box)) group.add(shape)
   }
   setMarkBbox(group, rects)
+  addHitRect(group)
   return group
 }
 
