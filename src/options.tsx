@@ -1450,10 +1450,25 @@ export default function OptionsPage() {
       loadPdfPanelData()
     }, 100)
   }, [loadPdfPanelData])
+
+  // Coalesce `_dbpdf` bursts (a legacy-annotation backfill, a batch
+  // place/unplace): the library list + pdfCard cache + panel data all reload
+  // through ONE debounced pass instead of per-broadcast store scans.
+  const pdfDataTimerRef = useRef<number | null>(null)
+  const schedulePdfDataReload = useCallback(() => {
+    if (pdfDataTimerRef.current) window.clearTimeout(pdfDataTimerRef.current)
+    pdfDataTimerRef.current = window.setTimeout(() => {
+      pdfDataTimerRef.current = null
+      loadPdfs()
+      getAllPdfCards().then(setAllPdfCards)
+      loadPdfPanelData()
+    }, 100)
+  }, [loadPdfs, loadPdfPanelData])
   useEffect(
     () => () => {
       if (pdfPanelTimerRef.current)
         window.clearTimeout(pdfPanelTimerRef.current)
+      if (pdfDataTimerRef.current) window.clearTimeout(pdfDataTimerRef.current)
     },
     []
   )
@@ -1513,9 +1528,9 @@ export default function OptionsPage() {
       // PDF writes broadcast `_dbpdf`: refresh the PDF library + the cards panel
       // + the pdfCard cache (placed cards' resolved content/idea re-render).
       if (changes._dbpdf) {
-        loadPdfs()
-        getAllPdfCards().then(setAllPdfCards)
-        schedulePdfPanelReload()
+        // Debounced: a burst (backfill / batch place) coalesces into ONE
+        // library + cards + panel reload instead of per-broadcast store scans.
+        schedulePdfDataReload()
       }
       // Metadata-only (touchPdf/lastOpened): re-sort the library WITHOUT the
       // card/panel reload chain — opening a PDF must not rescan the cards.
@@ -1525,7 +1540,7 @@ export default function OptionsPage() {
     }
     chrome.storage.onChanged.addListener(onChange)
     return () => chrome.storage.onChanged.removeListener(onChange)
-  }, [loadPdfs, loadPdfPanelData, schedulePdfPanelReload, refreshLiteCounts])
+  }, [loadPdfs, loadPdfPanelData, schedulePdfPanelReload, schedulePdfDataReload, refreshLiteCounts])
 
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null
 

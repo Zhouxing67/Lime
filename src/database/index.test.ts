@@ -11,7 +11,6 @@ import type {
 } from "../types"
 import {
   addAnnotation,
-  updateAnnotationPos,
   updateAnnotationText,
   updateAnnotationType,
   addPdf,
@@ -1330,18 +1329,9 @@ describe("searchProjectCards resolves placed cards' PDF quotes", () => {
 describe("broadcast write detection", () => {
   const storageSet = chrome.storage.local.set as jest.Mock
 
-  it("skips the broadcast when a guarded write no-ops (already-set pos)", async () => {
-    const { annotation } = await createTextAnnotationCard({
-      pdfId: "pdf-bc",
-      page: 1,
-      type: "highlight",
-      text: "x",
-      startOffset: 0,
-      endOffset: 1,
-      pos: { x: 0.5, y: 0.5 }
-    })
+  it("skips the broadcast when a guarded write no-ops (missing annotation)", async () => {
     storageSet.mockClear()
-    await updateAnnotationPos(annotation.id, { x: 0.9, y: 0.9 })
+    await updateAnnotationType("missing-ann", "highlight")
     expect(storageSet.mock.calls.some((c) => "_dbpdf" in c[0])).toBe(false)
   })
 

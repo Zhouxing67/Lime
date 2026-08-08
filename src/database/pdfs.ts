@@ -643,27 +643,6 @@ export async function updateAnnotationType(
   })
 }
 
-/** Backfill an annotation's normalized center (for two-column sorting). */
-export async function updateAnnotationPos(
-  id: string,
-  pos: { x: number; y: number }
-): Promise<boolean | void> {
-  return withStore("pdfAnnotations", "readwrite", async (store) => {
-    const ann = await new Promise<PdfAnnotation | undefined>((resolve, reject) => {
-      const r = store.get(id)
-      r.onsuccess = () => resolve(r.result as PdfAnnotation | undefined)
-      r.onerror = () => reject(r.error)
-    })
-    if (!ann || ann.pos) return false
-    ann.pos = pos
-    await new Promise<void>((resolve, reject) => {
-      const r = store.put(ann)
-      r.onsuccess = () => resolve()
-      r.onerror = () => reject(r.error)
-    })
-  })
-}
-
 /** Edit a freetext annotation's content. */
 export async function updateAnnotationText(
   id: string,

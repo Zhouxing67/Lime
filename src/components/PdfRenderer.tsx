@@ -10,7 +10,7 @@ import { mergeRects, textLayerOffsets, textLayerRects } from "./pdfText"
 import type { PdfRect } from "./pdfText"
 import { rectsUnionCenter } from "../utils/geometry"
 import { clearSelection, drawMarks, markSignature, marksAt, removeMark, selectMark, upsertMark } from "./pdfMarksKonva"
-import { updateAnnotationPos } from "../database"
+
 import { createKonvaStage } from "../pdf/konvaStage"
 
 // Low-saturation annotation colors (align with the app's RATING_META family).
@@ -551,7 +551,6 @@ function PageView({
           }
           drawCtxRef.current = { tl: textLayer, holder, w: wh.w, h: wh.h }
           redrawMarks()
-          backfillPositions(annotations, textLayer, holder, pageNumber)
         }
         setReady(true)
         // Expose for the toolbar's selection→offset mapping.
@@ -626,37 +625,6 @@ function PageView({
 
   // One-time backfill of `pos` for annotations created before pos existed —
   // resolved from the rendered text layer so two-column sorting works on
-  // existing papers too. updateAnnotationPos guards (skips if already set),
-  // so re-renders are cheap no-ops.
-  async function backfillPositions(
-    annotations: PdfAnnotation[],
-    textLayer: InstanceType<typeof pdfjsLib.TextLayer>,
-    holder: HTMLElement,
-    page: number
-  ): Promise<void> {
-    for (const a of annotations) {
-      if (a.page !== page || a.pos) continue
-      const rects =
-        a.kind === "text"
-          ? textLayerRects(textLayer, holder, a.startOffset ?? 0, a.endOffset ?? 0).map(
-              (r) => ({
-                x: r.x / holder.clientWidth,
-                y: r.y / holder.clientHeight,
-                w: r.w / holder.clientWidth,
-                h: r.h / holder.clientHeight
-              })
-            )
-          : (a.rects ?? [])
-      if (rects.length === 0) continue
-      const pos = rectsUnionCenter(rects)
-      if (!pos) continue
-      try {
-        await updateAnnotationPos(a.id, pos)
-      } catch (e) {
-        console.warn("[lime] pos backfill failed", a.id, e)
-      }
-    }
-  }
 
   useEffect(() => {
     const holder = holderRef.current
