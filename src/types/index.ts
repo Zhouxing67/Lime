@@ -101,6 +101,8 @@ export type AnyCard = ProjectCard | PdfCard | TodoCard
  *  stripPlacementContent() before persisting a DisplayCard. */
 export type DisplayCard = ProjectCard & {
   comment?: string
+  /** The placed region annotation's crop image (from the linked annotation). */
+  image?: string
   pdfSource?: {
     pdfId: string
     page: number
@@ -159,6 +161,10 @@ export interface PdfAnnotation {
   rects?: { x: number; y: number; w: number; h: number }[]
   /** freehand / free-highlight strokes: NORMALIZED (0-1) points of the path. */
   path?: { x: number; y: number }[]
+  /** Optional region crop image (frame/free-hand/free-highlight) — generated
+   *  when the annotation is placed into a project, so the placed card can show
+   *  the annotated region's visual without re-rendering the PDF. */
+  image?: string
   color?: string
   /** Normalized (0-1) center of the mark — enables column-aware panel sorting
    *  (two-column papers: x<0.5 = left column, then top-to-bottom by y). */

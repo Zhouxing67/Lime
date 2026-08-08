@@ -9,6 +9,7 @@ import type {
   ProjectCard
 } from "../types"
 import { createPdfCard, sha256Bytes } from "../utils"
+import { renderRegionImage } from "../utils/pdfRegionImage"
 
 /** Add or "fill" a PDF. The id is the SHA-256 content hash of the bytes (a
  *  stable cross-device identity). If a record with the same id already holds
@@ -455,6 +456,7 @@ export async function placePdfCards(
   if (pdfCardIds.length === 0) return
   const maxOrder = await getMaxOrderInSection(undefined)
   let runningMax = maxOrder
+  const regionCards: PdfCard[] = []
   await tx(
     { pdfCards: "readwrite", projectCards: "readwrite" },
     async (stores) => {
@@ -464,7 +466,9 @@ export async function placePdfCards(
         runningMax += 1
         const placement: ProjectCard = {
           id: crypto.randomUUID(),
-          type: pdfCard.kind === "region" ? "image" : "text",
+          // Region annotations (frame/free-hand/free-highlight) once carried a
+          // cropped image; the crop is gone, so ALL placements are text cards.
+          type: "text",
           content: "",
           projectId,
           sectionId: undefined,
@@ -474,9 +478,53 @@ export async function placePdfCards(
         }
         stores.projectCards.put(placement)
         stores.pdfCards.put({ ...pdfCard, projectCardId: placement.id })
+        if (pdfCard.kind === "region") regionCards.push(pdfCard)
       }
     }
   )
+  // Post-pass: generate + persist the region crop images so placed region cards
+  // can show the annotated area (renderRegionImage needs the pdf bytes + the
+  // annotation geometry; the annotation is the single content source).
+  await ensureRegionImages(regionCards)
+}
+
+/** Generate + store the crop image for region annotations that don't have one
+ *  yet (idempotent — the image is the immutable visual of the region mark). */
+async function ensureRegionImages(cards: PdfCard[]): Promise<void> {
+  for (const card of cards) {
+    try {
+      const ann = await getAnnotation(card.annotationId)
+      if (!ann || ann.image) continue
+      const pdf = await getPdf(card.pdfId)
+      if (!pdf?.bytes) continue
+      const image = await renderRegionImage(pdf.bytes, ann)
+      if (image) await updateAnnotationImage(card.annotationId, image)
+    } catch (e) {
+      console.warn("[lime] region image:", e)
+    }
+  }
+}
+
+/** Store a region crop on an annotation (single write + ONE _dbpdf broadcast). */
+export async function updateAnnotationImage(
+  id: string,
+  image: string
+): Promise<boolean | void> {
+  return withStore("pdfAnnotations", "readwrite", async (store) => {
+    const ann = await new Promise<PdfAnnotation | undefined>((resolve, reject) => {
+      const r = store.get(id)
+      r.onsuccess = () => resolve(r.result as PdfAnnotation | undefined)
+      r.onerror = () => reject(r.error)
+    })
+    if (!ann || ann.image === image) return false
+    ann.image = image
+    ann.updatedAt = Date.now()
+    await new Promise<void>((resolve, reject) => {
+      const r = store.put(ann)
+      r.onsuccess = () => resolve()
+      r.onerror = () => reject(r.error)
+    })
+  })
 }
 
 /** Place a single pdfCard (thin wrapper). */

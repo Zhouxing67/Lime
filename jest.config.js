@@ -14,7 +14,8 @@ module.exports = {
   moduleNameMapper: {
     "\\.(css|less|scss|sass)$": "identity-obj-proxy",
     "\\.(jpg|jpeg|png|gif|svg)$": "<rootDir>/src/test/__mocks__/fileMock.js",
-    "^konva$": "konva/lib/index.js"
+    "^konva$": "konva/lib/index.js",
+    "^pdfjs-dist$": "<rootDir>/src/test/__mocks__/pdfjs-dist.js"
   },
   transform: {
     "^.+\\.tsx?$": [

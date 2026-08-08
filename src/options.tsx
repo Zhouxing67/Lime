@@ -81,6 +81,7 @@ import {
   deletePdfCards,
   deleteTodo,
   ensureOrder,
+  getAllAnnotations,
   getAllPdfCards,
   getAllProjectCards,
   getAllReviews,
@@ -222,6 +223,9 @@ export default function OptionsPage() {
     ProjectCard[]
   >([])
   const [allPdfCards, setAllPdfCards] = useState<PdfCard[]>([])
+  const [annotationById, setAnnotationById] = useState<
+    Map<string, import("./types").PdfAnnotation>
+  >(new Map())
   const [allTodos, setAllTodos] = useState<TodoCard[]>([])
   const [todoEditingId, setTodoEditingId] = useState<string | null>(null)
   const [focusNewTaskId, setFocusNewTaskId] = useState<string | null>(null)
@@ -344,11 +348,13 @@ export default function OptionsPage() {
       if (!card.pdfCardId) return card
       const resolved = resolveCardContent(card, pdfById)
       const pdfCard = pdfById.get(card.pdfCardId)
+      const ann = pdfCard ? annotationById.get(pdfCard.annotationId) : undefined
       return pdfCard
         ? {
             ...card,
             content: resolved.content,
             comment: resolved.comment,
+            image: ann?.image,
             pdfSource: {
               pdfId: pdfCard.pdfId,
               page: pdfCard.page,
@@ -357,9 +363,14 @@ export default function OptionsPage() {
               kind: pdfCard.kind
             }
           }
-        : { ...card, content: resolved.content, comment: resolved.comment }
+        : {
+            ...card,
+            content: resolved.content,
+            comment: resolved.comment,
+            image: ann?.image
+          }
     },
-    [pdfById, pdfNameById]
+    [pdfById, pdfNameById, annotationById]
   )
 
   /** The current scope's render list (search results / project scope). */
@@ -500,6 +511,9 @@ export default function OptionsPage() {
   useEffect(() => {
     getAllProjectCards().then(setAllProjectCardsUnfiltered)
     getAllPdfCards().then(setAllPdfCards)
+    getAllAnnotations().then((list) =>
+      setAnnotationById(new Map(list.map((a) => [a.id, a])))
+    )
   }, [])
 
   // Load review states (refresh when items or review data change)

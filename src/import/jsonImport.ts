@@ -365,6 +365,8 @@ function validatePdfAnnotation(raw: unknown): PdfAnnotation | null {
     typeof obj.cardId === "string" && obj.cardId.length > 0
       ? obj.cardId
       : undefined
+  ann.image =
+    typeof obj.image === "string" && obj.image.length > 0 ? obj.image : undefined
   return ann
 }
 

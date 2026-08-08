@@ -280,7 +280,30 @@ export default function CardRenderer({
     const previewGallery = allImages(item)
     const renderBody = () => (
       <>
-        {item.type === "image" && item.content ? (
+        {item.image ? (
+          <Box
+            sx={{
+              mb: 1.5,
+              borderRadius: 1,
+              overflow: "hidden",
+              bgcolor: "action.hover",
+              display: "flex",
+              justifyContent: "center",
+              maxHeight: 220
+            }}>
+            <img
+              src={item.image}
+              alt={item.source?.title || ""}
+              loading="lazy"
+              style={{
+                maxWidth: "100%",
+                maxHeight: 220,
+                objectFit: "contain",
+                display: "block"
+              }}
+            />
+          </Box>
+        ) : item.type === "image" && item.content ? (
           <Box
             sx={{
               mb: 1.5,
@@ -570,6 +593,20 @@ export default function CardRenderer({
             }}>
             {item.title}
           </Typography>
+        </Box>
+      )}
+      {item.image && (
+        <Box sx={{ display: "flex", justifyContent: "center" }}>
+          <img
+            src={item.image}
+            alt={item.source?.title || ""}
+            style={{
+              maxWidth: "100%",
+              maxHeight: 420,
+              objectFit: "contain",
+              borderRadius: 1
+            }}
+          />
         </Box>
       )}
       <Box>
