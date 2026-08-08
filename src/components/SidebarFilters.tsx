@@ -1,15 +1,9 @@
 import AddRoundedIcon from "@mui/icons-material/AddRounded"
-import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded"
-import CloseRoundedIcon from "@mui/icons-material/CloseRounded"
-import MenuRoundedIcon from "@mui/icons-material/MenuRounded"
 import CloudDownloadRoundedIcon from "@mui/icons-material/CloudDownloadRounded"
 import CloudUploadRoundedIcon from "@mui/icons-material/CloudUploadRounded"
-import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded"
 import FileUploadRoundedIcon from "@mui/icons-material/FileUploadRounded"
 import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded"
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
-import UnfoldLessRoundedIcon from "@mui/icons-material/UnfoldLessRounded"
-import UnfoldMoreRoundedIcon from "@mui/icons-material/UnfoldMoreRounded"
 import {
   Box,
   Button,
@@ -24,7 +18,6 @@ import type { ReactNode } from "react"
 import type { SxProps, Theme } from "@mui/material"
 
 import type { PdfFile, Project, TodoFilter, TodoStats } from "../types"
-import type { PdfOutlineItem } from "./PdfView"
 import type { SidebarTab } from "./NavRail"
 import { RECENT_TOTAL as RECENT_TOTAL_SHARED } from "../constants"
 import Well from "./Well"
@@ -43,13 +36,9 @@ interface SidebarFiltersProps {
   pdfs: PdfFile[]
   countByPdf: Record<string, number>
   activePdfId: string | null
-  pdfOutline: PdfOutlineItem[] | null
-  tocOpen: boolean
-  onToggleToc: (open: boolean) => void
   onTodoFilterChange: (filter: TodoFilter) => void
   onOpenPdfClick: () => void
   onOpenPdf: (id: string) => void
-  onOutlineClick: (item: PdfOutlineItem) => void
   children?: ReactNode
   onReviewDateClick: (dateKey: string | null) => void
   onWidthChange: (w: number) => void
@@ -90,134 +79,22 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 /** Recursive PDF outline (TOC) tree — collapse is controlled from above so a
  *  single "全部折叠/展开" toggle works across the whole tree. */
-function OutlineTree({
-  item,
-  depth,
-  onSelect,
-  collapsedKeys,
-  onToggleKey
-}: {
-  item: PdfOutlineItem
-  depth: number
-  onSelect: (item: PdfOutlineItem) => void
-  collapsedKeys: Set<string>
-  onToggleKey: (key: string) => void
-}) {
-  const key = item.title + item.dest
-  const hasChildren = !!item.items?.length
-  const collapsed = collapsedKeys.has(key)
-  return (
-    <>
-      <Box
-        onClick={() => onSelect(item)}
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: 0.25,
-          pl: 1 + depth * 1.25,
-          pr: 1,
-          py: 0.5,
-          borderRadius: 1,
-          cursor: "pointer",
-          color: "text.secondary",
-          "&:hover": { bgcolor: "action.hover", color: "text.primary" }
-        }}>
-        {hasChildren ? (
-          <Box
-            component="span"
-            onClick={(e) => {
-              e.stopPropagation()
-              onToggleKey(key)
-            }}
-            sx={{
-              display: "inline-flex",
-              color: "text.disabled",
-              cursor: "pointer",
-              "&:hover": { color: "text.secondary" }
-            }}>
-            {collapsed ? (
-              <ChevronRightRoundedIcon sx={{ fontSize: 14 }} />
-            ) : (
-              <ExpandMoreRoundedIcon sx={{ fontSize: 14 }} />
-            )}
-          </Box>
-        ) : (
-          <Box component="span" sx={{ width: 14 }} />
-        )}
-        <Typography
-          variant="body2"
-          sx={{
-            fontSize: "0.8rem",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap"
-          }}>
-          {item.title}
-        </Typography>
-      </Box>
-      {!collapsed &&
-        item.items?.map((child) => (
-          <OutlineTree
-            key={child.title + child.dest}
-            item={child}
-            depth={depth + 1}
-            onSelect={onSelect}
-            collapsedKeys={collapsedKeys}
-            onToggleKey={onToggleKey}
-          />
-        ))}
-    </>
-  )
-}
-
-
-
-function collectTocKeys(items: PdfOutlineItem[]): string[] {
-  const keys: string[] = []
-  const walk = (list: PdfOutlineItem[]) => {
-    for (const item of list) {
-      if (item.items?.length) {
-        keys.push(item.title + item.dest)
-        walk(item.items)
-      }
-    }
-  }
-  walk(items)
-  return keys
-}
-
 /** PDF sidebar tab: TOC (with one-click collapse/expand) or the library. */
 function PdfTab({
   activePdfId,
-  pdfOutline,
-  tocOpen,
-  onToggleToc,
   pdfs,
   countByPdf,
-  onOutlineClick,
   onOpenPdfClick,
   onOpenPdf
 }: {
   activePdfId: string | null
-  pdfOutline: PdfOutlineItem[] | null
-  tocOpen: boolean
-  onToggleToc: (open: boolean) => void
   pdfs: PdfFile[]
   countByPdf: Record<string, number>
-  onOutlineClick: (item: PdfOutlineItem) => void
   onOpenPdfClick: () => void
   onOpenPdf: (id: string) => void
 }) {
-  const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(new Set())
   const [showAll, setShowAll] = useState(false)
   const RECENT_TOTAL = RECENT_TOTAL_SHARED
-  const toggleKey = (key: string) =>
-    setCollapsedKeys((prev) => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
   // Active PDF pins to the top (like the project tree's active project).
   const byLastOpened = byRecency<PdfFile>(
     (p) => p.lastOpened,
@@ -233,85 +110,7 @@ function PdfTab({
 
   return (
     <Box sx={{ py: 1 }}>
-      {activePdfId && tocOpen && pdfOutline && pdfOutline.length > 0 ? (
-        <Well>
-          <Box sx={{ display: "flex", alignItems: "center", mb: 0.5 }}>
-            <SectionLabel>目录</SectionLabel>
-            <Box sx={{ flex: 1 }} />
-            <Box
-              onClick={() => onToggleToc(false)}
-              title="关闭目录，显示 PDF 列表"
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: 0.25,
-                fontSize: "0.68rem",
-                color: "text.disabled",
-                cursor: "pointer",
-                px: 0.5,
-                mr: 0.5,
-                "&:hover": { color: "text.primary" }
-              }}>
-              <CloseRoundedIcon sx={{ fontSize: 14 }} />
-            </Box>
-            <Box
-              onClick={() =>
-                collapsedKeys.size > 0
-                  ? setCollapsedKeys(new Set())
-                  : setCollapsedKeys(new Set(collectTocKeys(pdfOutline)))
-              }
-              title={collapsedKeys.size > 0 ? "全部展开" : "全部折叠"}
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: 0.25,
-                fontSize: "0.68rem",
-                color: "text.disabled",
-                cursor: "pointer",
-                px: 0.5,
-                "&:hover": { color: "text.primary" }
-              }}>
-              {collapsedKeys.size > 0 ? (
-                <UnfoldMoreRoundedIcon sx={{ fontSize: 15 }} />
-              ) : (
-                <UnfoldLessRoundedIcon sx={{ fontSize: 15 }} />
-              )}
-            </Box>
-          </Box>
-          {pdfOutline.map((item) => (
-            <OutlineTree
-              key={item.title + item.dest}
-              item={item}
-              depth={0}
-              onSelect={onOutlineClick}
-              collapsedKeys={collapsedKeys}
-              onToggleKey={toggleKey}
-            />
-          ))}
-        </Well>
-      ) : (
-        <>
-          {activePdfId && (
-            <Box
-              onClick={() => onToggleToc(true)}
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: 0.5,
-                fontSize: "0.72rem",
-                color: "text.secondary",
-                cursor: "pointer",
-                px: 1,
-                py: 0.5,
-                borderRadius: 1,
-                mb: 0.5,
-                "&:hover": { bgcolor: "action.hover", color: "primary.main" }
-              }}>
-              <MenuRoundedIcon sx={{ fontSize: 15 }} />
-              显示目录
-            </Box>
-          )}
-          <Well>
+<Well>
             <Box sx={{ display: "flex", alignItems: "center", mb: 0.5 }}>
               <SectionLabel>最近</SectionLabel>
               <Box sx={{ flex: 1 }} />
@@ -423,9 +222,7 @@ function PdfTab({
               </Typography>
             </Stack>
           </Well>
-        </>
-      )}
-    </Box>
+        </Box>
   )
 }
 
@@ -442,13 +239,9 @@ export default function SidebarFilters({
   pdfs,
   countByPdf,
   activePdfId,
-  pdfOutline,
-  tocOpen,
-  onToggleToc,
   onTodoFilterChange,
   onOpenPdfClick,
   onOpenPdf,
-  onOutlineClick,
   children,
   onReviewDateClick,
   onWidthChange,
@@ -721,16 +514,12 @@ export default function SidebarFilters({
               </Well>
             </Box>
           ) : sidebarTab === "pdf" ? (
-            /* PDF tab: TOC when a PDF is open, otherwise the library */
+            /* PDF tab: the library (TOC moved to the reader panel) */
             <PdfTab
               key={activePdfId ?? "none"}
               activePdfId={activePdfId}
-              pdfOutline={pdfOutline}
-              tocOpen={tocOpen}
-              onToggleToc={onToggleToc}
               pdfs={pdfs}
               countByPdf={countByPdf}
-              onOutlineClick={onOutlineClick}
               onOpenPdfClick={onOpenPdfClick}
               onOpenPdf={onOpenPdf}
             />

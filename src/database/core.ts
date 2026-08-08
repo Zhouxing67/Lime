@@ -25,22 +25,27 @@ type TableNames =
 // Any successful write transaction automatically broadcasts a version stamp
 // via chrome.storage.local. All extension bundles (SW, options, popups) listen
 // to chrome.storage.onChanged, so every context gets notified without bridges.
-export async function broadcastDbChange(name: TableNames): Promise<void> {
+async function broadcastStamp(key: string): Promise<void> {
   try {
     if (typeof chrome?.storage?.local?.set === "function") {
-      const key =
-        name === "projects"
-          ? "_dbp"
-          : name === "reviews"
-            ? "_dbr"
-            : name === "pdfs" ||
-                name === "pdfAnnotations" ||
-                name === "pdfCards"
-              ? "_dbpdf"
-              : "_dbi"
       await chrome.storage.local.set({ [key]: Date.now() })
     }
   } catch {}
+}
+export async function broadcastDbChange(name: TableNames): Promise<void> {
+  const key =
+    name === "projects"
+      ? "_dbp"
+      : name === "reviews"
+        ? "_dbr"
+        : name === "todos"
+          ? "_dbt"
+          : name === "pdfs" ||
+              name === "pdfAnnotations" ||
+              name === "pdfCards"
+            ? "_dbpdf"
+            : "_dbi"
+  await broadcastStamp(key)
 }
 // ---- End change notification ----
 
@@ -444,7 +449,7 @@ export async function withStore<T>(
   name: TableNames,
   mode: IDBTransactionMode,
   fn: (store: IDBObjectStore) => Promise<T> | T,
-  _retry = true
+  opts?: { retry?: boolean; broadcastKey?: string }
 ): Promise<T> {
   let db: IDBDatabase | null = null
   try {
@@ -454,7 +459,12 @@ export async function withStore<T>(
     const result = await fn(store)
     await new Promise<void>((resolve, reject) => {
       tx.oncomplete = () => {
-        if (mode === "readwrite") broadcastDbChange(name)
+        // Only broadcast if the fn actually WROTE — a guard fn that returns
+        // `false` (skip/no-op) must not fire a reload chain.
+        if (mode === "readwrite" && result !== false) {
+          if (opts?.broadcastKey) void broadcastStamp(opts.broadcastKey)
+          else void broadcastDbChange(name)
+        }
         resolve()
       }
       tx.onerror = () => reject(tx.error ?? new Error("Transaction failed"))
@@ -463,10 +473,10 @@ export async function withStore<T>(
     return result
   } catch (err) {
     // If the store doesn't exist, force a version upgrade to create it
-    if (_retry && err instanceof DOMException && err.name === "NotFoundError") {
+    if (opts?.retry !== false && err instanceof DOMException && err.name === "NotFoundError") {
       const upDb = await openDb(DB_VERSION + 1)
       upDb.close()
-      return withStore(name, mode, fn, false)
+      return withStore(name, mode, fn, { retry: false, broadcastKey: opts?.broadcastKey })
     }
     throw err
   } finally {
@@ -504,7 +514,7 @@ export async function tx<T>(
     const result = await fn(stores)
     await new Promise<void>((resolve, reject) => {
       idbTx.oncomplete = () => {
-        if (mode === "readwrite") {
+        if (mode === "readwrite" && result !== false) {
           for (const name of names) broadcastDbChange(name)
         }
         resolve()

@@ -7,14 +7,18 @@ export async function addReview(entry: ReviewEntry): Promise<void> {
   })
 }
 
-export async function removeReview(itemId: string): Promise<void> {
+export async function removeReview(itemId: string): Promise<boolean | void> {
   await withStore("reviews", "readwrite", (store) => {
     const idx = store.index("itemId")
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<boolean | void>((resolve, reject) => {
       const req = idx.getKey(itemId)
       req.onsuccess = () => {
-        if (req.result) store.delete(req.result as string)
-        resolve()
+        if (req.result) {
+          store.delete(req.result as string)
+          resolve()
+        } else {
+          resolve(false)
+        }
       }
       req.onerror = () => reject(req.error)
     })
@@ -84,10 +88,10 @@ export async function getAllReviews(): Promise<ReviewEntry[]> {
 export async function updateReviewSrs(
   itemId: string,
   srs: SrsData
-): Promise<void> {
+): Promise<boolean | void> {
   await withStore("reviews", "readwrite", (store) => {
     const idx = store.index("itemId")
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<boolean | void>((resolve, reject) => {
       const req = idx.get(itemId)
       req.onsuccess = () => {
         const entry = req.result as ReviewEntry
@@ -109,8 +113,10 @@ export async function updateReviewSrs(
             entry.status = "mastered"
           }
           store.put(entry)
+          resolve()
+        } else {
+          resolve(false)
         }
-        resolve()
       }
       req.onerror = () => reject(req.error)
     })

@@ -23,6 +23,7 @@ import {
   Typography
 } from "@mui/material"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { usePanelDragResize } from "../hooks/usePanelDragResize"
 import { sortPdfCards } from "../utils/cards"
 /** Compact card date: always YYYY-MM-DD HH:MM. */
 function formatCardDate(ts?: number): string {
@@ -120,10 +121,7 @@ export default function PdfCardsPanel({
   const listRef = useRef<HTMLDivElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
   const jumpTimerRef = useRef<number | null>(null)
-  const dragRef = useRef<{ startX: number; startW: number } | null>(null)
-  const dragCleanupRef = useRef<(() => void) | null>(null)
 
-  useEffect(() => () => dragCleanupRef.current?.(), [])
   useEffect(
     () => () => {
       if (jumpTimerRef.current) window.clearTimeout(jumpTimerRef.current)
@@ -225,33 +223,12 @@ export default function PdfCardsPanel({
     return () => ro.disconnect()
   }, [])
 
-  // Right-anchored width drag: dragging the left edge left widens the panel.
-  // No width transition while dragging — instant reflow so the PDF's re-scale
-  // starts immediately (a transitioned width would lag the pointer + the PDF
-  // would appear covered).
-  const startDrag = useCallback(
-    (e: React.PointerEvent) => {
-      e.preventDefault()
-      dragRef.current = { startX: e.clientX, startW: width }
-      const mv = (ev: PointerEvent) => {
-        const d = dragRef.current
-        if (!d) return
-        const next = Math.max(
-          240,
-          Math.min(maxPanelWRef.current, d.startW - (ev.clientX - d.startX))
-        )
-        onWidthChange(next)
-      }
-      const up = () => {
-        dragRef.current = null
-        document.removeEventListener("pointermove", mv)
-        document.removeEventListener("pointerup", up)
-      }
-      document.addEventListener("pointermove", mv)
-      document.addEventListener("pointerup", up)
-      dragCleanupRef.current = up
-    },
-    [width, onWidthChange, maxPanelW]
+  // Right-anchored width drag (shared with the search panel): dragging the
+  // left edge widens/narrows the panel; no width transition while dragging.
+  const startDrag = usePanelDragResize(
+    width,
+    onWidthChange,
+    () => maxPanelWRef.current
   )
 
   return (

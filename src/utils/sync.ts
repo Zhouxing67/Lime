@@ -172,12 +172,14 @@ async function hasChangesSince(lastSync: number): Promise<boolean> {
     "_dbi",
     "_dbp",
     "_dbr",
+    "_dbt",
     "_dbpdf"
   ])
   return (
     (data._dbi ?? 0) > lastSync ||
     (data._dbp ?? 0) > lastSync ||
     (data._dbr ?? 0) > lastSync ||
+    (data._dbt ?? 0) > lastSync ||
     (data._dbpdf ?? 0) > lastSync
   )
 }

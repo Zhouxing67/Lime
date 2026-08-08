@@ -1,6 +1,8 @@
 import {
   buildTextLayerIndex,
+  extractLines,
   mergeRects,
+  scanText,
   textLayerOffsets,
   textLayerRects
 } from "./pdfText"
@@ -88,5 +90,68 @@ describe("textLayer index + offsets + rects", () => {
     const rects = textLayerRects(textLayer, holder, 3, 6) // "def"
     expect(rects).toHaveLength(1)
     expect(rects[0].x).toBeCloseTo(30)
+  })
+})
+
+describe("extractLines (hasEOL line splitting)", () => {
+  it("splits items into lines at hasEOL boundaries", () => {
+    const { full, lines } = extractLines([
+      { str: "hello", hasEOL: false },
+      { str: " world", hasEOL: true },
+      { str: "second", hasEOL: true },
+      { str: "third" }
+    ])
+    expect(full).toBe("hello worldsecondthird")
+    expect(lines).toEqual([
+      { start: 0, end: 11 },
+      { start: 11, end: 17 },
+      { start: 17, end: 22 }
+    ])
+  })
+})
+
+describe("scanText (line-unit entries + snippet)", () => {
+  const { full, lines } = extractLines([
+    { str: "alpha beta alpha", hasEOL: true },
+    { str: "gamma delta", hasEOL: true },
+    { str: "alphabet" }
+  ])
+
+  it("one line with multiple hits = ONE entry (first hit)", () => {
+    const { matches, entries } = scanText(full, lines, "alpha", {})
+    // "alpha" appears twice on line 1 + once in "alphabet" (line 3).
+    expect(matches).toHaveLength(3)
+    expect(entries).toHaveLength(2)
+    expect(entries[0].lineText).toBe("alpha beta alpha")
+    expect(entries[0].hitInLine).toBe(0)
+  })
+
+  it("caseSensitive excludes lower-case matches", () => {
+    const { matches } = scanText(full, lines, "ALPHA", { caseSensitive: true })
+    expect(matches).toHaveLength(0)
+    const lower = scanText(full, lines, "alpha", { caseSensitive: false })
+    expect(lower.matches.length).toBeGreaterThan(0)
+  })
+
+  it("wholeWord excludes matches inside words", () => {
+    const { matches } = scanText(full, lines, "alpha", { wholeWord: true })
+    // "alphabet" contains alpha but not as a whole word → excluded.
+    expect(matches).toHaveLength(2)
+  })
+
+  it("snippet: ~10 chars before the hit, ~40 total, trailing ellipsis", () => {
+    const longLine = "x".repeat(30) + "KEY" + "y".repeat(40)
+    const { entries } = scanText(longLine, [{ start: 0, end: longLine.length }], "KEY", {})
+    const e = entries[0]
+    expect(e.hitInLine).toBe(30)
+    expect(e.snippet.startsWith("x".repeat(10))).toBe(true)
+    expect(e.snippet.endsWith("…")).toBe(true)
+    expect(e.snippet.length).toBeLessThanOrEqual(41)
+  })
+
+  it("no trailing ellipsis when the line ends right after the snippet", () => {
+    const short = "prefix KEY tail"
+    const { entries } = scanText(short, [{ start: 0, end: short.length }], "KEY", {})
+    expect(entries[0].snippet.endsWith("…")).toBe(false)
   })
 })

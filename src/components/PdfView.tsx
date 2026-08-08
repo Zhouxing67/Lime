@@ -2,6 +2,11 @@ import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
 import AddRoundedIcon from "@mui/icons-material/AddRounded"
 import ChevronLeftRoundedIcon from "@mui/icons-material/ChevronLeftRounded"
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded"
+import MenuOpenRoundedIcon from "@mui/icons-material/MenuOpenRounded"
+import SwipeRightRoundedIcon from "@mui/icons-material/SwipeRightRounded"
+import SearchRoundedIcon from "@mui/icons-material/SearchRounded"
+import PdfReaderPanel from "./PdfReaderPanel"
+import { usePdfSearch } from "../hooks/usePdfSearch"
 import CropFreeRoundedIcon from "@mui/icons-material/CropFreeRounded"
 import GestureRoundedIcon from "@mui/icons-material/GestureRounded"
 import HighlightRoundedIcon from "@mui/icons-material/HighlightRounded"
@@ -10,8 +15,6 @@ import EditRoundedIcon from "@mui/icons-material/EditRounded"
 import RemoveRoundedIcon from "@mui/icons-material/RemoveRounded"
 import AspectRatioRoundedIcon from "@mui/icons-material/AspectRatioRounded"
 import FitScreenRoundedIcon from "@mui/icons-material/FitScreenRounded"
-import FullscreenExitRoundedIcon from "@mui/icons-material/FullscreenExitRounded"
-import FullscreenRoundedIcon from "@mui/icons-material/FullscreenRounded"
 import UndoRoundedIcon from "@mui/icons-material/UndoRounded"
 import {
   Box,
@@ -43,20 +46,14 @@ import {
   updateAnnotationText,
   updateAnnotationType,
 } from "../database"
-import type { PdfAnnotation, PdfMark } from "../types"
+import { rectsUnionCenter } from "../utils/geometry"
+import type { PdfAnnotation, PdfMark, PdfOutlineItem } from "../types"
 import { usePdfDocument } from "../hooks/usePdfDocument"
 import { MARK_BLOCK, MARK_DOT, MARK_LABEL } from "./pdfTheme"
 import { getTextLayer } from "./pdfRegistry"
 import { searchPdfText, textLayerOffsets, textLayerRects } from "./pdfText"
-import type { PdfSearchMatch } from "./pdfText"
+import type { PdfSearchEntry, PdfSearchMatch } from "./pdfText"
 import PdfRenderer from "./PdfRenderer"
-import SearchField from "./SearchField"
-
-export type PdfOutlineItem = {
-  title: string
-  dest: unknown
-  items?: PdfOutlineItem[]
-}
 
 const TEXT_TOOLS: Exclude<PdfMark, "frame">[] = [
   "highlight",
@@ -94,8 +91,14 @@ export default function PdfView({
   onJumpInPanel,
   onVisiblePageChange,
   onPageCountChange,
-  immersive,
-  onToggleImmersive
+  onSearchClick,
+  searchRequest,
+  onSearchResults,
+  jumpRequest,
+  readerOpen,
+  onToggleReader,
+  onSwapLeft,
+  onOutlineClick
 }: {
   pdfId: string | null
   onOutlineLoaded?: (outline: PdfOutlineItem[] | null) => void
@@ -108,9 +111,24 @@ export default function PdfView({
   onVisiblePageChange?: (page: number) => void
   /** Report the loaded document's page count (the bottom-bar total). */
   onPageCountChange?: (n: number) => void
-  /** Immersive mode (sidebars closed) — toggled by the options. */
-  immersive?: boolean
-  onToggleImmersive?: () => void
+  /** Toolbar search icon → open the right-sidebar search view. */
+  onSearchClick?: () => void
+  /** A new search to run. `seq` is the bump counter — CALLERS MUST INCREMENT it
+   *  on every explicit search action (Enter / checkbox change) or the effect
+   *  below won't re-run (the same query won't retrigger on equal values). */
+  searchRequest?: { query: string; caseSensitive: boolean; wholeWord: boolean; seq: number } | null
+  /** Report the search results back to the options root. */
+  onSearchResults?: (res: { entries: PdfSearchEntry[]; matches: PdfSearchMatch[] }) => void
+  /** Navigate to a search entry. `seq` is the bump counter (same rule as
+   *  searchRequest — increment per entry click / prev-next). */
+  jumpRequest?: { index: number; seq: number } | null
+  /** Reader navigation panel (TOC | thumbnails) open state. */
+  readerOpen?: boolean
+  onToggleReader?: () => void
+  /** Swap the left slot: reader panel ↔ left sidebar (mutually exclusive). */
+  onSwapLeft?: () => void
+  /** TOC click → resolve + navigate (options sets the outline dest). */
+  onOutlineClick?: (item: PdfOutlineItem) => void
 }) {
   const { loaded, error } = usePdfDocument(pdfId)
   const [scrollPage, setScrollPage] = useState<number | null>(null)
@@ -160,22 +178,6 @@ export default function PdfView({
    *  selected text so the text tools live WHERE the selection is. */
   const [selBar, setSelBar] = useState<{ x: number; y: number } | null>(null)
   const selBarOpenedAtRef = useRef(0)
-  const [searchFlash, setSearchFlash] = useState<{
-    page: number
-    start: number
-    end: number
-  } | null>(null)
-  const [searchState, setSearchState] = useState<{
-    query: string
-    matches: PdfSearchMatch[]
-    index: number
-    loading: boolean
-  }>({ query: "", matches: [], index: 0, loading: false })
-  const searchAbortRef = useRef<AbortController | null>(null)
-  useEffect(() => {
-    return () => searchAbortRef.current?.abort()
-  }, [])
-
   // Load this PDF's annotations (the overlay). The cards live in the panel.
   const reloadPdfData = useCallback(async () => {
     if (!pdfId) return
@@ -236,6 +238,15 @@ export default function PdfView({
     setScrollPage(page)
   }, [])
 
+  // PDF full-text search (state + execution coordinated with the options root).
+  const searchFlash = usePdfSearch(
+    loaded?.doc ?? null,
+    searchRequest,
+    onSearchResults,
+    jumpRequest,
+    navigateTo
+  )
+
   // External card-click (the cards panel) → navigate + flash the annotation.
   useEffect(() => {
     if (!flashTarget) return
@@ -274,25 +285,6 @@ export default function PdfView({
   }, [outlineDest, loaded, navigateTo])
 
 
-function posOfRects(
-  rects: { x: number; y: number; w: number; h: number }[],
-  norm?: { w: number; h: number }
-): { x: number; y: number } | undefined {
-  if (!rects || rects.length === 0) return undefined
-  let minX = Infinity
-  let minY = Infinity
-  let maxX = -Infinity
-  let maxY = -Infinity
-  for (const r of rects) {
-    minX = Math.min(minX, r.x)
-    minY = Math.min(minY, r.y)
-    maxX = Math.max(maxX, r.x + r.w)
-    maxY = Math.max(maxY, r.y + r.h)
-  }
-  const cx = (minX + maxX) / 2
-  const cy = (minY + maxY) / 2
-  return norm ? { x: cx / norm.w, y: cy / norm.h } : { x: cx, y: cy }
-}
   // Apply an annotation tool to the current text selection → auto-card.
   const handleTool = useCallback(
     async (type: Exclude<PdfMark, "frame">) => {
@@ -312,7 +304,7 @@ function posOfRects(
       if (!text) return
       try {
         const rects = textLayerRects(entry.textLayer, holder, offsets.start, offsets.end)
-        const pos = posOfRects(rects, {
+        const pos = rectsUnionCenter(rects, {
           w: holder.clientWidth,
           h: holder.clientHeight
         })
@@ -378,45 +370,7 @@ function posOfRects(
     }
   }, [clickedAnn])
 
-  // ---- PDF text search ----
-  const jumpToSearchMatch = useCallback(
-    (matches: PdfSearchMatch[], index: number) => {
-      const m = matches[index]
-      if (!m) return
-      navigateTo(m.page)
-      setSearchFlash({ page: m.page, start: m.start, end: m.end })
-    },
-    [navigateTo]
-  )
-
-  const handleSearch = useCallback(
-    async (query: string) => {
-      if (!loaded) return
-      const q = query.trim()
-      if (!q) return
-      searchAbortRef.current?.abort()
-      const ac = new AbortController()
-      searchAbortRef.current = ac
-      setSearchState((s) => ({ ...s, query: q, loading: true }))
-      const matches = await searchPdfText(loaded.doc, q, 500, ac.signal)
-      if (ac.signal.aborted) return
-      setSearchState({ query: q, matches, index: 0, loading: false })
-      jumpToSearchMatch(matches, 0)
-    },
-    [loaded, jumpToSearchMatch]
-  )
-
-  const handleSearchNav = useCallback(
-    (dir: 1 | -1) => {
-      setSearchState((s) => {
-        if (s.matches.length === 0) return s
-        const next = (s.index + dir + s.matches.length) % s.matches.length
-        jumpToSearchMatch(s.matches, next)
-        return { ...s, index: next }
-      })
-    },
-    [jumpToSearchMatch]
-  )
+  // ---- PDF text search (moved to the right-sidebar panel via options) ----
 
   // Text selection → show the selection bar at the selected text.
   const handleTextSelected = useCallback((range: Range) => {
@@ -483,7 +437,7 @@ function posOfRects(
           rects: result.rects,
           type: annotDrawMode,
           path: annotDrawMode === "freehand" || annotDrawMode === "free-highlight" ? result.path : undefined,
-          pos: posOfRects(result.rects)
+          pos: rectsUnionCenter(result.rects)
         })
         setAnnotDrawMode(null)
         navigateTo(result.page)
@@ -504,7 +458,7 @@ function posOfRects(
         rects: freetextDraft.rects,
         type: "freetext",
         text: freetextText.trim(),
-        pos: posOfRects(freetextDraft.rects)
+        pos: rectsUnionCenter(freetextDraft.rects)
       })
       const page = freetextDraft.page
       setFreetextDraft(null)
@@ -550,87 +504,43 @@ function posOfRects(
             borderColor: "divider",
             bgcolor: "background.paper"
           }}>
-          {/* left: search (flex:1 keeps the center group truly centered) */}
-          <Box sx={{ flex: 1, minWidth: 0, display: "flex" }}>
-          <SearchField
-            placeholder="搜索 PDF 全文…"
-            defaultValue={searchState.query}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                handleSearch((e.target as HTMLInputElement).value)
-              }
-            }}
-            sx={{ width: 260 }}
-            endAdornment={(
-              <>
-                {searchState.loading ? (
-                  <Box
-                    sx={{
-                      fontSize: "0.7rem",
-                      color: "text.disabled",
-                      whiteSpace: "nowrap",
-                      mr: 0.5
-                    }}>
-                    搜索中…
-                  </Box>
-                ) : searchState.matches.length > 0 ? (
-                    <Box
-                      sx={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 0.25,
-                        ml: 0.5
-                      }}>
-                      <Box
-                        onClick={() => handleSearchNav(-1)}
-                        title="上一个匹配"
-                        sx={{
-                          display: "flex",
-                          color: "text.secondary",
-                          cursor: "pointer",
-                          px: 0.25,
-                          "&:hover": { color: "primary.main" }
-                        }}>
-                        <ChevronLeftRoundedIcon sx={{ fontSize: 16 }} />
-                      </Box>
-                      <Box
-                        sx={{
-                          fontSize: "0.7rem",
-                          color: "text.disabled",
-                          whiteSpace: "nowrap"
-                        }}>
-                        {searchState.index + 1}/{searchState.matches.length}
-                      </Box>
-                      <Box
-                        onClick={() => handleSearchNav(1)}
-                        title="下一个匹配"
-                        sx={{
-                          display: "flex",
-                          color: "text.secondary",
-                          cursor: "pointer",
-                          px: 0.25,
-                          "&:hover": { color: "primary.main" }
-                        }}>
-                        <ChevronRightRoundedIcon sx={{ fontSize: 16 }} />
-                      </Box>
-                    </Box>
-                  ) : searchState.query ? (
-                    <Box
-                      sx={{
-                        fontSize: "0.7rem",
-                        color: "text.disabled",
-                        whiteSpace: "nowrap",
-                        mr: 0.5
-                      }}>
-                       无结果
-                    </Box>
-                  ) : null}
-                </>
-              )}
-            />
-          </Box>
-          {/* center: fit toggle + the jump */}
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+          {/* left: nav + view controls */}
+          <Box sx={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 0.5 }}>
+            <Tooltip title={readerOpen ? "收起导航面板" : "目录 / 缩略图"}>
+              <IconButton
+                size="small"
+                onClick={onToggleReader}
+                sx={{
+                  p: 0.5,
+                  color: readerOpen ? "primary.main" : "text.secondary",
+                  bgcolor: readerOpen ? "action.selected" : "transparent",
+                  "&:hover": { color: "primary.main" }
+                }}>
+                <MenuOpenRoundedIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="切换导航面板（目录 ↔ 侧栏）">
+              <IconButton
+                size="small"
+                onClick={onSwapLeft}
+                sx={{ p: 0.5, color: "text.secondary", "&:hover": { color: "primary.main" } }}>
+                <SwipeRightRoundedIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
+            <IconButton
+              size="small"
+              onClick={handleGoBack}
+              disabled={!canGoBack}
+              title="回跳到上一页"
+              sx={{
+                p: 0.5,
+                color: "text.secondary",
+                "&:hover": { color: "primary.main" },
+                "&.Mui-disabled": { color: "text.disabled", opacity: 0.35 }
+              }}>
+              <UndoRoundedIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+            <Divider orientation="vertical" flexItem sx={{ mx: 0.5, height: 16 }} />
             <Tooltip title={fitMode === "width" ? "适应页面大小" : "适应宽度"}>
               <IconButton
                 size="small"
@@ -643,7 +553,48 @@ function posOfRects(
                 )}
               </IconButton>
             </Tooltip>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 0.25,
+                ml: 0.5,
+                px: 0.5,
+                py: 0.25,
+                borderRadius: 1,
+                bgcolor: "action.hover",
+                color: "text.secondary"
+              }}>
+              <IconButton
+                size="small"
+                title="缩小"
+                onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.1).toFixed(2)))}
+                sx={{ p: 0.5 }}>
+                <RemoveRoundedIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+              <Typography
+                title="适应宽度"
+                onClick={() => setZoom(1)}
+                sx={{
+                  fontSize: "0.68rem",
+                  minWidth: 38,
+                  textAlign: "center",
+                  cursor: "pointer",
+                  "&:hover": { color: "primary.main" }
+                }}>
+                {Math.round(zoom * 100)}%
+              </Typography>
+              <IconButton
+                size="small"
+                title="放大"
+                onClick={() => setZoom((z) => Math.min(3, +(z + 0.1).toFixed(2)))}
+                sx={{ p: 0.5 }}>
+                <AddRoundedIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Box>
+          </Box>
+          {/* center: page indicator */}
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
             <TextField
               size="small"
               variant="outlined"
@@ -663,9 +614,6 @@ function posOfRects(
               onKeyDown={(e) => {
                 if (e.key === "Enter" && jumpDraft !== "") {
                   const n = Number(jumpDraft)
-                  // Only a VALID in-range integer navigates. Anything else
-                  // (0, negatives, beyond the max, non-integers) is rejected —
-                  // the input simply snaps back to the current page.
                   if (
                     Number.isInteger(n) &&
                     loaded &&
@@ -694,9 +642,8 @@ function posOfRects(
               sx={{ fontSize: "0.75rem", color: "text.disabled", whiteSpace: "nowrap" }}>
               / {loaded?.pageCount ?? "…"}
             </Typography>
-            </Box>
           </Box>
-          {/* right: 回跳 / 批注 / 缩放 / 沉浸式 */}
+          {/* right: annotation tools + search */}
           <Box
             sx={{
               flex: 1,
@@ -705,131 +652,68 @@ function posOfRects(
               alignItems: "center",
               gap: 0.5
             }}>
-          {/* 回跳 */}
-          <IconButton
-            size="small"
-            onClick={handleGoBack}
-            disabled={!canGoBack}
-            title="回跳到上一页"
-            sx={{
-              p: 0.5,
-              color: "text.secondary",
-              "&:hover": { color: "primary.main" },
-              "&.Mui-disabled": { color: "text.disabled", opacity: 0.35 }
-            }}>
-            <UndoRoundedIcon sx={{ fontSize: 16 }} />
-          </IconButton>
-          <Divider orientation="vertical" flexItem sx={{ mx: 0.5, height: 16, alignSelf: "center" }} />
-          {/* 绘制批注工具（拖拽类，直接上工具栏） */}
-          <Tooltip title="框选">
-            <IconButton
-              size="small"
-              onClick={() => handleAnnotDraw("frame")}
-              sx={{
-                p: 0.5,
-                color: annotDrawMode === "frame" ? "primary.main" : "text.secondary",
-                bgcolor: annotDrawMode === "frame" ? "action.selected" : "transparent",
-                "&:hover": { color: "primary.main" }
-              }}>
-              <CropFreeRoundedIcon sx={{ fontSize: 17 }} />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="自由画笔">
-            <IconButton
-              size="small"
-              onClick={() => handleAnnotDraw("freehand")}
-              sx={{
-                p: 0.5,
-                color: annotDrawMode === "freehand" ? "primary.main" : "text.secondary",
-                bgcolor: annotDrawMode === "freehand" ? "action.selected" : "transparent",
-                "&:hover": { color: "primary.main" }
-              }}>
-              <GestureRoundedIcon sx={{ fontSize: 17 }} />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="自由高亮">
-            <IconButton
-              size="small"
-              onClick={() => handleAnnotDraw("free-highlight")}
-              sx={{
-                p: 0.5,
-                color: annotDrawMode === "free-highlight" ? "primary.main" : "text.secondary",
-                bgcolor: annotDrawMode === "free-highlight" ? "action.selected" : "transparent",
-                "&:hover": { color: "primary.main" }
-              }}>
-              <HighlightRoundedIcon sx={{ fontSize: 17 }} />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="文本框">
-            <IconButton
-              size="small"
-              onClick={() => handleAnnotDraw("freetext")}
-              sx={{
-                p: 0.5,
-                color: annotDrawMode === "freetext" ? "primary.main" : "text.secondary",
-                bgcolor: annotDrawMode === "freetext" ? "action.selected" : "transparent",
-                "&:hover": { color: "primary.main" }
-              }}>
-              <NotesRoundedIcon sx={{ fontSize: 17 }} />
-            </IconButton>
-          </Tooltip>
-          {/* zoom */}
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 0.25,
-              ml: 0.5,
-              px: 0.5,
-              py: 0.25,
-              borderRadius: 1,
-              bgcolor: "action.hover",
-              color: "text.secondary"
-            }}>
-            <IconButton
-              size="small"
-              title="缩小"
-              onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.1).toFixed(2)))}
-              sx={{ p: 0.5 }}>
-              <RemoveRoundedIcon sx={{ fontSize: 16 }} />
-            </IconButton>
-            <Typography
-              title="适应宽度"
-              onClick={() => setZoom(1)}
-              sx={{
-                fontSize: "0.68rem",
-                minWidth: 38,
-                textAlign: "center",
-                cursor: "pointer",
-                "&:hover": { color: "primary.main" }
-              }}>
-              {Math.round(zoom * 100)}%
-            </Typography>
-            <IconButton
-              size="small"
-              title="放大"
-              onClick={() => setZoom((z) => Math.min(3, +(z + 0.1).toFixed(2)))}
-              sx={{ p: 0.5 }}>
-              <AddRoundedIcon sx={{ fontSize: 16 }} />
-            </IconButton>
-          </Box>
-          <Tooltip title={immersive ? "退出沉浸式阅读" : "沉浸式阅读"}>
-            <IconButton
-              size="small"
-              onClick={onToggleImmersive}
-              sx={{
-                p: 0.5,
-                ml: 0.5,
-                color: immersive ? "primary.main" : "text.secondary",
-                "&:hover": { color: "primary.main" }
-              }}>
-              {immersive ? (
-                <FullscreenExitRoundedIcon sx={{ fontSize: 16 }} />
-              ) : (
-                <FullscreenRoundedIcon sx={{ fontSize: 16 }} />
-              )}
-            </IconButton>
-          </Tooltip>
+            <Divider orientation="vertical" flexItem sx={{ mx: 0.5, height: 16 }} />
+            <Tooltip title="框选">
+              <IconButton
+                size="small"
+                onClick={() => handleAnnotDraw("frame")}
+                sx={{
+                  p: 0.5,
+                  color: annotDrawMode === "frame" ? "primary.main" : "text.secondary",
+                  bgcolor: annotDrawMode === "frame" ? "action.selected" : "transparent",
+                  "&:hover": { color: "primary.main" }
+                }}>
+                <CropFreeRoundedIcon sx={{ fontSize: 17 }} />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="自由画笔">
+              <IconButton
+                size="small"
+                onClick={() => handleAnnotDraw("freehand")}
+                sx={{
+                  p: 0.5,
+                  color: annotDrawMode === "freehand" ? "primary.main" : "text.secondary",
+                  bgcolor: annotDrawMode === "freehand" ? "action.selected" : "transparent",
+                  "&:hover": { color: "primary.main" }
+                }}>
+                <GestureRoundedIcon sx={{ fontSize: 17 }} />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="自由高亮">
+              <IconButton
+                size="small"
+                onClick={() => handleAnnotDraw("free-highlight")}
+                sx={{
+                  p: 0.5,
+                  color: annotDrawMode === "free-highlight" ? "primary.main" : "text.secondary",
+                  bgcolor: annotDrawMode === "free-highlight" ? "action.selected" : "transparent",
+                  "&:hover": { color: "primary.main" }
+                }}>
+                <HighlightRoundedIcon sx={{ fontSize: 17 }} />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="文本框">
+              <IconButton
+                size="small"
+                onClick={() => handleAnnotDraw("freetext")}
+                sx={{
+                  p: 0.5,
+                  color: annotDrawMode === "freetext" ? "primary.main" : "text.secondary",
+                  bgcolor: annotDrawMode === "freetext" ? "action.selected" : "transparent",
+                  "&:hover": { color: "primary.main" }
+                }}>
+                <NotesRoundedIcon sx={{ fontSize: 17 }} />
+              </IconButton>
+            </Tooltip>
+            <Divider orientation="vertical" flexItem sx={{ mx: 0.5, height: 16 }} />
+            <Tooltip title="搜索全文">
+              <IconButton
+                size="small"
+                onClick={onSearchClick}
+                sx={{ p: 0.5, color: "text.secondary", "&:hover": { color: "primary.main" } }}>
+                <SearchRoundedIcon sx={{ fontSize: 17 }} />
+              </IconButton>
+            </Tooltip>
           </Box>
           {/* 文本选区工具条：出现在选中的文字旁 */}
           <Popover
@@ -868,41 +752,52 @@ function posOfRects(
             </Box>
           </Popover>
         </Box>
-        {error ? (
-          <Box sx={{ p: 3, color: "error.main", fontSize: "0.85rem" }}>
-            {error}
-          </Box>
-        ) : loaded ? (
-          <PdfRenderer
-            doc={loaded.doc}
-            pageCount={loaded.pageCount}
-            scrollTarget={scrollPage}
-            zoom={zoom}
-            onZoomChange={setZoom}
-            fitMode={fitMode}
-            annotations={annotations}
-            flashAnnId={flashAnnId}
-            onFlashDone={() => setFlashAnnId(null)}
-            annotDrawMode={annotDrawMode}
-            onAnnotDraw={handleAnnotDrawComplete}
-            onTextSelected={handleTextSelected}
-            searchFlash={searchFlash}
-            selectedAnnId={selectedAnnId}
-            onAnnotationDeselect={handleAnnotationDeselect}
-            onVisiblePageChange={handleVisiblePageChange}
-            onAnnotationClick={handleAnnotationClick}
-          />
-        ) : (
-          <Box
-            sx={{
-              flex: 1,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center"
-            }}>
-            <CircularProgress size={28} />
-          </Box>
-        )}
+        <Box sx={{ flex: 1, display: "flex", minHeight: 0 }}>
+          {readerOpen && loaded && (
+            <PdfReaderPanel
+              outline={loaded.outline as PdfOutlineItem[] | null}
+              doc={loaded.doc}
+              currentPage={currentPage}
+              onOutlineClick={onOutlineClick ?? (() => {})}
+              onJumpPage={navigateTo}
+            />
+          )}
+          {error ? (
+            <Box sx={{ p: 3, color: "error.main", fontSize: "0.85rem" }}>
+              {error}
+            </Box>
+          ) : loaded ? (
+            <PdfRenderer
+              doc={loaded.doc}
+              pageCount={loaded.pageCount}
+              scrollTarget={scrollPage}
+              zoom={zoom}
+              onZoomChange={setZoom}
+              fitMode={fitMode}
+              annotations={annotations}
+              flashAnnId={flashAnnId}
+              onFlashDone={() => setFlashAnnId(null)}
+              annotDrawMode={annotDrawMode}
+              onAnnotDraw={handleAnnotDrawComplete}
+              onTextSelected={handleTextSelected}
+              searchFlash={searchFlash}
+              selectedAnnId={selectedAnnId}
+              onAnnotationDeselect={handleAnnotationDeselect}
+              onVisiblePageChange={handleVisiblePageChange}
+              onAnnotationClick={handleAnnotationClick}
+            />
+          ) : (
+            <Box
+              sx={{
+                flex: 1,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center"
+              }}>
+              <CircularProgress size={28} />
+            </Box>
+          )}
+        </Box>
       </Box>
 
       <Popover

@@ -72,7 +72,7 @@ function notifySystem(text: string) {
 
 // Listen for database changes broadcast via storage
 chrome.storage.onChanged.addListener((changes) => {
-  if (changes._dbi || changes._dbr) {
+  if (changes._dbi || changes._dbr || changes._dbt) {
     updateBadge()
   }
 })

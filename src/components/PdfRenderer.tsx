@@ -7,6 +7,7 @@ import type { PdfAnnotation } from "../types"
 import { registerTextLayer, unregisterTextLayer } from "./pdfRegistry"
 import { mergeRects, textLayerOffsets, textLayerRects } from "./pdfText"
 import type { PdfRect } from "./pdfText"
+import { rectsUnionCenter } from "../utils/geometry"
 import { clearSelection, drawMarks, markSignature, marksAt, removeMark, selectMark, upsertMark } from "./pdfMarksKonva"
 import { updateAnnotationPos } from "../database"
 import { createKonvaStage } from "../pdf/konvaStage"
@@ -44,9 +45,9 @@ function jumpRects(
   return rects
 }
 
-function appendFlash(overlay: HTMLElement, r: PdfRect): void {
+function appendFlash(overlay: HTMLElement, r: PdfRect, current = false): void {
   const flash = document.createElement("div")
-  flash.className = "pdf-ann-flash"
+  flash.className = current ? "pdf-ann-flash current" : "pdf-ann-flash"
   flash.style.cssText = `position:absolute;left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;pointer-events:none;`
   overlay.appendChild(flash)
 }
@@ -122,11 +123,14 @@ const TEXT_LAYER_CSS = `
   z-index: 3;
 }
 .pdf-ann-flash {
-  /* The original annotation marks show through a too-transparent fill and read
-     as "covered" — a stronger fill + a ring makes the jump hint unmistakable. */
+  /* ALL search matches: a subtle persistent highlight. */
+  background: rgba(99,102,241,0.12);
+  border-radius: 2px;
+}
+.pdf-ann-flash.current {
+  /* The current match: a stronger fill + a ring, fading after a moment. */
   background: rgba(99,102,241,0.55);
   box-shadow: inset 0 0 0 2px rgba(99,102,241,0.9);
-  border-radius: 2px;
   animation: pdfAnnFlash 1.4s ease-out forwards;
 }
 @keyframes pdfAnnFlash {
@@ -199,7 +203,7 @@ function PageView({
   annotDrawMode?: "frame" | "freetext" | "freehand" | "free-highlight" | null
   onTextSelected?: (range: Range) => void
   flashAnnId?: string | null
-  searchFlash?: { page: number; start: number; end: number } | null
+  searchFlash?: { page: number; matches: { start: number; end: number }[]; current: number } | null
   selectedAnnId?: string | null
   onAnnotationDeselect?: () => void
   onAnnotationClick?: (annId: string, pos: { x: number; y: number }) => void
@@ -583,7 +587,7 @@ function PageView({
       unregisterTextLayer(pageNumber)
     }
     // `annotations` is intentionally NOT a dep: an annotation-list reload
-    // (e.g. touchPdf's _dbpdf broadcast on any card click) must NOT re-render
+    // (a _dbpdf broadcast on any card/annotation write) must NOT re-render
     // the page canvas/text layer + all marks — the incremental effect updates
     // the Konva marks in place. The render() closure captures the fresh list.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -616,17 +620,8 @@ function PageView({
             )
           : (a.rects ?? [])
       if (rects.length === 0) continue
-      let minX = Infinity
-      let minY = Infinity
-      let maxX = -Infinity
-      let maxY = -Infinity
-      for (const r of rects) {
-        minX = Math.min(minX, r.x)
-        minY = Math.min(minY, r.y)
-        maxX = Math.max(maxX, r.x + r.w)
-        maxY = Math.max(maxY, r.y + r.h)
-      }
-      const pos = { x: (minX + maxX) / 2, y: (minY + maxY) / 2 }
+      const pos = rectsUnionCenter(rects)
+      if (!pos) continue
       try {
         await updateAnnotationPos(a.id, pos)
       } catch (e) {
@@ -677,8 +672,14 @@ function PageView({
     if (!holder || !tl || !flashLayer) return
     redrawMarks()
     flashLayer.replaceChildren()
-    const rects = textLayerRects(tl, holder, searchFlash.start, searchFlash.end)
-    for (const r of rects) appendFlash(flashLayer, r)
+    // ALL matches on the page get a subtle persistent highlight; the CURRENT
+    // match gets the stronger one (fades after a moment).
+    searchFlash.matches.forEach((m, i) => {
+      const current = i === searchFlash.current
+      for (const r of textLayerRects(tl, holder, m.start, m.end)) {
+        appendFlash(flashLayer, r, current)
+      }
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchFlash, ready])
 
@@ -801,7 +802,7 @@ export default function PdfRenderer({
     rects: PdfRect[]
     path?: { x: number; y: number }[]
   }) => void
-  searchFlash?: { page: number; start: number; end: number } | null
+  searchFlash?: { page: number; matches: { start: number; end: number }[]; current: number } | null
   selectedAnnId?: string | null
   onAnnotationDeselect?: () => void
   onVisiblePageChange?: (page: number) => void

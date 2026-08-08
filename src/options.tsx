@@ -59,8 +59,11 @@ import ProjectHub from "./components/ProjectHub"
 import BackupView from "./components/BackupView"
 import PdfHub from "./components/PdfHub"
 import PdfCardsPanel from "./components/PdfCardsPanel"
+import PdfSearchPanel from "./components/PdfSearchPanel"
+import { usePdfReaderSidebar } from "./hooks/usePdfReaderSidebar"
+import { usePdfSearchPanel } from "./hooks/usePdfSearchPanel"
 import PdfView from "./components/PdfView"
-import type { PdfOutlineItem } from "./components/PdfView"
+import type { PdfOutlineItem } from "./types"
 import ProjectTree from "./components/ProjectTree"
 import ReviewSession from "./components/ReviewSession"
 import SettingsDialog from "./components/SettingsDialog"
@@ -182,35 +185,32 @@ export default function OptionsPage() {
   const [activePdfId, setActivePdfId] = useState<string | null>(null)
   const [pdfCurrentPage, setPdfCurrentPage] = useState(1)
   const [pdfPageCount, setPdfPageCount] = useState(0)
-  const [pdfImmersive, setPdfImmersive] = useState(false)
+  const [pdfSidebarView, setPdfSidebarView] = useState<"cards" | "search">("cards")
 
-  // Immersive PDF reading: closes both sidebars; toggling off restores the
-  // pre-immersive open/close states.
-  const toggleImmersive = useCallback(() => {
-    if (pdfImmersive) {
-      // Exit: always reopen BOTH sidebars (the immersive is a temporary
-      // distraction-free mode — restoring the pre-state left the panel closed
-      // when it was closed before entering, which read as "no response").
-      setDrawerOpen(true)
-      setPdfCardsOpen(true)
-    } else {
-      setDrawerOpen(false)
-      setPdfCardsOpen(false)
-    }
-    setPdfImmersive(!pdfImmersive)
-  }, [pdfImmersive])
+  // Reader panel (TOC | thumbnails) ↔ left sidebar mutual exclusion + the
+  // right-sidebar search panel state (both coordinated with PdfView).
+  const {
+    readerOpen: pdfReaderOpen,
+    toggleReader,
+    openDrawer,
+    toggleDrawer,
+    swapLeft
+  } = usePdfReaderSidebar(drawerOpen, setDrawerOpen)
+  const {
+    pdfSearch,
+    searchRequest,
+    jumpRequest,
+    handlePdfSearch,
+    handlePdfSearchOptions,
+    handlePdfSearchResults,
+    handlePdfSearchEntry,
+    handlePdfSearchNav
+  } = usePdfSearchPanel()
   const [pdfDeleteTarget, setPdfDeleteTarget] = useState<PdfFile | null>(null)
   const [topicDeleteTarget, setTopicDeleteTarget] = useState<string | null>(
     null
   )
   const [openPdfIds, setOpenPdfIds] = useState<string[]>([])
-  const [pdfTocOpen, setPdfTocOpen] = useState(true)
-  const [pdfOutlineByPdf, setPdfOutlineByPdf] = useState<
-    Record<string, PdfOutlineItem[] | null>
-  >({})
-  const pdfOutline = activePdfId
-    ? (pdfOutlineByPdf[activePdfId] ?? null)
-    : null
   const activePdfIdRef = useRef<string | null>(null)
   activePdfIdRef.current = activePdfId
   const openPdfIdsRef = useRef<string[]>([])
@@ -560,7 +560,7 @@ export default function OptionsPage() {
   }, [reviewItems, sidebarTab])
 
   const handleToggleDrawer = () => {
-    setDrawerOpen((prev) => !prev)
+    toggleDrawer()
   }
 
   const handleOpenProject = (id: string) => {
@@ -1193,11 +1193,6 @@ export default function OptionsPage() {
     if (next.length > MAX_OPEN_PDFS) {
       // LRU: evict the oldest-open PDF when the limit is exceeded.
       const evicted = next[0]
-      setPdfOutlineByPdf((o) => {
-        const c = { ...o }
-        delete c[evicted]
-        return c
-      })
       trimmed = next.slice(1)
     }
     setOpenPdfIds(trimmed)
@@ -1206,11 +1201,6 @@ export default function OptionsPage() {
   const handleOpenPdf = openPdf
   const handleClosePdf = useCallback((id: string) => {
     const next = openPdfIdsRef.current.filter((x) => x !== id)
-    setPdfOutlineByPdf((o) => {
-      const c = { ...o }
-      delete c[id]
-      return c
-    })
     setOpenPdfIds(next)
     if (activePdfIdRef.current === id) {
       setActivePdfId(next.length > 0 ? next[next.length - 1] : null)
@@ -1223,7 +1213,7 @@ export default function OptionsPage() {
     // Switch to the PDF view first — openPdf alone activates the PDF but the
     // main area stays on the current tab, so the PdfView never mounts.
     setSidebarTab("pdf")
-    setDrawerOpen(true)
+    openDrawer()
     openPdf(card.pdfId)
     pdfFlashToken.current += 1
     setPdfFlashTarget({
@@ -1240,7 +1230,7 @@ export default function OptionsPage() {
     (card: DisplayCard) => {
       if (!card.pdfSource) return
       setSidebarTab("pdf")
-      setDrawerOpen(true)
+      openDrawer()
       openPdf(card.pdfSource.pdfId)
       const pdfCard = card.pdfCardId ? pdfById.get(card.pdfCardId) : undefined
       pdfFlashToken.current += 1
@@ -1428,11 +1418,6 @@ export default function OptionsPage() {
     if (!pdfDeleteTarget) return
     await deletePdf(pdfDeleteTarget.id)
     setOpenPdfIds((prev) => prev.filter((x) => x !== pdfDeleteTarget.id))
-    setPdfOutlineByPdf((o) => {
-      const c = { ...o }
-      delete c[pdfDeleteTarget.id]
-      return c
-    })
     if (activePdfId === pdfDeleteTarget.id) setActivePdfId(null)
     setPdfDeleteTarget(null)
   }, [pdfDeleteTarget, activePdfId])
@@ -1478,6 +1463,15 @@ export default function OptionsPage() {
   // broadcasts within ~150ms — debounce them into ONE refreshAllData instead of
   // a full-store re-scan per write.
   const refreshTimerRef = useRef<number | null>(null)
+  const scheduleFullReload = useCallback(() => {
+    if (sidebarTabRef.current !== "pdf") {
+      if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current)
+      refreshTimerRef.current = window.setTimeout(() => {
+        refreshTimerRef.current = null
+        refreshRef.current()
+      }, 150)
+    }
+  }, [])
   useEffect(() => {
     return () => {
       if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current)
@@ -1490,26 +1484,26 @@ export default function OptionsPage() {
     const onChange = (
       changes: Record<string, chrome.storage.StorageChange>
     ) => {
-      if (changes._dbi || changes._dbp) {
+      if (changes._dbp) {
+        loadProjects()
         schedulePdfPanelReload()
         refreshLiteCounts()
-        // Light-refresh the project cards UNCONDITIONALLY — the PDF panel's
-        // placed-project chip + 移出项目 derive from the placements map (built
-        // from allProjectCardsUnfiltered), so a place/unplace while IN the PDF
-        // view must update them even though the heavy full reload is gated.
+        if (sidebarTabRef.current !== "pdf") scheduleFullReload()
+      }
+      // projectCards writes: refresh the placements + the grids. The heavy
+      // full reload stays gated behind the pdf view (the panel reload covers
+      // the pdf-side needs there).
+      if (changes._dbi) {
         getAllProjectCards().then(setAllProjectCardsUnfiltered)
-        if (changes._dbp) loadProjects()
-        // In the PDF view the sidebar shows the TOC/library — the full
-        // refreshAllData (5 store scans + full re-render) is wasted work on
-        // every card write; other views get the coalesced full reload.
-        if (sidebarTabRef.current !== "pdf") {
-          if (refreshTimerRef.current)
-            window.clearTimeout(refreshTimerRef.current)
-          refreshTimerRef.current = window.setTimeout(() => {
-            refreshTimerRef.current = null
-            refreshRef.current()
-          }, 150)
-        }
+        schedulePdfPanelReload()
+        refreshLiteCounts()
+        if (sidebarTabRef.current !== "pdf") scheduleFullReload()
+      }
+      // todos writes: light — refresh the todo list + the badge only, never
+      // the project-card scan / full reload chain.
+      if (changes._dbt) {
+        loadTodos()
+        refreshLiteCounts()
       }
       // Review writes broadcast `_dbr`: reload only review state (light),
       // never the full refreshAllData chain.
@@ -1523,6 +1517,11 @@ export default function OptionsPage() {
         loadPdfs()
         getAllPdfCards().then(setAllPdfCards)
         schedulePdfPanelReload()
+      }
+      // Metadata-only (touchPdf/lastOpened): re-sort the library WITHOUT the
+      // card/panel reload chain — opening a PDF must not rescan the cards.
+      if (changes._dbpdfTouch) {
+        loadPdfs()
       }
     }
     chrome.storage.onChanged.addListener(onChange)
@@ -1669,19 +1668,16 @@ export default function OptionsPage() {
   const handleSetSidebarTab = useCallback(
     (tab: SidebarTab) => {
       if (tab === sidebarTab) {
-        setDrawerOpen((prev) => !prev)
+        toggleDrawer()
       } else {
         // Leaving the PDF view: the full reload was skipped while in it, so
         // refresh once so the card grid / counts reflect any writes.
         if (sidebarTabRef.current === "pdf") refreshRef.current()
-        // Immersive is PDF-scoped — leaving auto-exits it (restores the bars).
-        if (sidebarTabRef.current === "pdf" && pdfImmersive)
-          toggleImmersive()
         setSidebarTab(tab)
-        setDrawerOpen(true)
+        openDrawer()
       }
     },
-    [sidebarTab, pdfImmersive, toggleImmersive]
+    [toggleDrawer, openDrawer]
   )
 
   // Persist tree/nav state across sessions
@@ -2062,13 +2058,9 @@ export default function OptionsPage() {
           pdfs={pdfs}
           countByPdf={countByPdf}
           activePdfId={activePdfId}
-          pdfOutline={pdfOutline}
-          tocOpen={pdfTocOpen}
-          onToggleToc={setPdfTocOpen}
           onTodoFilterChange={setTodoFilter}
           onOpenPdfClick={() => pdfFileInputRef.current?.click()}
           onOpenPdf={handleOpenPdf}
-          onOutlineClick={setPdfOutlineDest}
           onWidthChange={(w) => setDrawerWidth(w)}
           onNewProjectClick={() => setCreateDialogOpen(true)}
           backupScope={backupScope}
@@ -2460,13 +2452,11 @@ export default function OptionsPage() {
                       }}>
                       <PdfView
                         pdfId={id}
-                        onOutlineLoaded={(o) =>
-                          setPdfOutlineByPdf((prev) => ({
-                            ...prev,
-                            [id]: o
-                          }))
-                        }
                         outlineDest={pdfOutlineDest}
+                        onOutlineClick={(item) => setPdfOutlineDest(item)}
+                        readerOpen={pdfReaderOpen && id === activePdfId}
+                        onToggleReader={toggleReader}
+                        onSwapLeft={swapLeft}
                         flashTarget={id === activePdfId ? pdfFlashTarget : null}
                         onJumpInPanel={handleJumpInPanel}
                         onVisiblePageChange={
@@ -2475,8 +2465,16 @@ export default function OptionsPage() {
                         onPageCountChange={
                           id === activePdfId ? setPdfPageCount : undefined
                         }
-                        immersive={pdfImmersive}
-                        onToggleImmersive={toggleImmersive}
+                        onSearchClick={() => setPdfSidebarView("search")}
+                        searchRequest={
+                          id === activePdfId ? searchRequest : null
+                        }
+                        onSearchResults={
+                          id === activePdfId ? handlePdfSearchResults : undefined
+                        }
+                        jumpRequest={
+                          id === activePdfId ? jumpRequest : null
+                        }
                       />
                     </Box>
                   ))}
@@ -3132,23 +3130,42 @@ export default function OptionsPage() {
             }
           />
         </Box>
-        <PdfCardsPanel
-          open={pdfCardsOpen && sidebarTab === "pdf" && Boolean(activePdfId)}
-          width={pdfCardsWidth}
-          onWidthChange={setPdfCardsWidth}
-          onCollapse={() => setPdfCardsOpen(false)}
-          cards={pdfPanelCards}
-          annotations={pdfPanelAnnotations}
-          onCardClick={handlePanelCardClick}
-          scrollTarget={pdfScrollTarget}
-          projects={projects}
-          placements={placements}
-          onPlace={handlePlaceCards}
-          onUnplace={handleUnplaceCards}
-          onDelete={handleDeletePdfCards}
-          onCreateProject={handleCreateProjectAndPlace}
-          onJumpToProject={handleJumpToProject}
-        />
+        {pdfSidebarView === "search" ? (
+          <PdfSearchPanel
+            width={pdfCardsWidth}
+            onWidthChange={setPdfCardsWidth}
+            onCollapse={() => setPdfCardsOpen(false)}
+            query={pdfSearch.query}
+            caseSensitive={pdfSearch.caseSensitive}
+            wholeWord={pdfSearch.wholeWord}
+            entries={pdfSearch.entries}
+            loading={pdfSearch.loading}
+            currentIndex={pdfSearch.currentIndex}
+            onOptionsChange={handlePdfSearchOptions}
+            onSearch={(query) => handlePdfSearch(query)}
+            onEntryClick={handlePdfSearchEntry}
+            onNav={handlePdfSearchNav}
+            onBack={() => setPdfSidebarView("cards")}
+          />
+        ) : (
+          <PdfCardsPanel
+            open={pdfCardsOpen && sidebarTab === "pdf" && Boolean(activePdfId)}
+            width={pdfCardsWidth}
+            onWidthChange={setPdfCardsWidth}
+            onCollapse={() => setPdfCardsOpen(false)}
+            cards={pdfPanelCards}
+            annotations={pdfPanelAnnotations}
+            onCardClick={handlePanelCardClick}
+            scrollTarget={pdfScrollTarget}
+            projects={projects}
+            placements={placements}
+            onPlace={handlePlaceCards}
+            onUnplace={handleUnplaceCards}
+            onDelete={handleDeletePdfCards}
+            onCreateProject={handleCreateProjectAndPlace}
+            onJumpToProject={handleJumpToProject}
+          />
+        )}
       </Box>
     </ThemeProvider>
   )

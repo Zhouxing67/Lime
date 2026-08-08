@@ -11,6 +11,8 @@ import type {
 } from "../types"
 import {
   addAnnotation,
+  updateAnnotationPos,
+  updateAnnotationText,
   updateAnnotationType,
   addPdf,
   updatePdfTopic,
@@ -1322,5 +1324,49 @@ describe("searchProjectCards resolves placed cards' PDF quotes", () => {
       projectId: "proj-search"
     })
     expect(hits.map((c) => c.id)).toContain(placed.projectCardId)
+  })
+})
+
+describe("broadcast write detection", () => {
+  const storageSet = chrome.storage.local.set as jest.Mock
+
+  it("skips the broadcast when a guarded write no-ops (already-set pos)", async () => {
+    const { annotation } = await createTextAnnotationCard({
+      pdfId: "pdf-bc",
+      page: 1,
+      type: "highlight",
+      text: "x",
+      startOffset: 0,
+      endOffset: 1,
+      pos: { x: 0.5, y: 0.5 }
+    })
+    storageSet.mockClear()
+    await updateAnnotationPos(annotation.id, { x: 0.9, y: 0.9 })
+    expect(storageSet.mock.calls.some((c) => "_dbpdf" in c[0])).toBe(false)
+  })
+
+  it("broadcasts when a write actually changes data", async () => {
+    const { annotation } = await createTextAnnotationCard({
+      pdfId: "pdf-bc2",
+      page: 1,
+      type: "highlight",
+      text: "x",
+      startOffset: 0,
+      endOffset: 1
+    })
+    storageSet.mockClear()
+    await updateAnnotationType(annotation.id, "underline")
+    expect(storageSet).toHaveBeenCalledWith({ _dbpdf: expect.any(Number) })
+  })
+})
+
+describe("todos broadcast `_dbt`", () => {
+  const storageSet = chrome.storage.local.set as jest.Mock
+
+  it("a todo write broadcasts the todo stamp, not the card stamp", async () => {
+    storageSet.mockClear()
+    await addTodo(createTestTodoCard({ id: "todo-bc" }))
+    expect(storageSet.mock.calls.some((c) => "_dbt" in c[0])).toBe(true)
+    expect(storageSet.mock.calls.some((c) => "_dbi" in c[0])).toBe(false)
   })
 })

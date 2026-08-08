@@ -119,14 +119,14 @@ export async function deleteProject(id: string): Promise<void> {
   )
 }
 
-export async function touchProject(id: string): Promise<void> {
+export async function touchProject(id: string): Promise<boolean | void> {
   await withStore("projects", "readwrite", (store) => {
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<boolean | void>((resolve, reject) => {
       const r = store.get(id)
       r.onsuccess = () => {
         const project = r.result as Project | undefined
         if (!project) {
-          resolve()
+          resolve(false)
           return
         }
         project.lastOpened = Date.now()
@@ -151,18 +151,18 @@ export async function touchProject(id: string): Promise<void> {
 export async function deleteSection(
   projectId: string,
   sectionId: string
-): Promise<void> {
+): Promise<boolean | void> {
   await tx({ projects: "readwrite", projectCards: "readwrite" }, async (stores) => {
     const project = await new Promise<Project | undefined>((resolve) => {
       const req = stores.projects.get(projectId)
       req.onsuccess = () => resolve(req.result as Project | undefined)
       req.onerror = () => resolve(undefined)
     })
-    if (!project || !project.sections) return
+    if (!project || !project.sections) return false
 
     const sections = project.sections
     const target = sections.find((s) => s.id === sectionId)
-    if (!target) return
+    if (!target) return false
 
     const deletedIds = new Set<string>([sectionId])
     if (target.level === 1) {

@@ -43,35 +43,44 @@ export async function addPdf(pdf: PdfFile): Promise<string> {
 }
 
 /** Mark a PDF as just-opened (drives recent-first ordering in the sidebar/hub). */
-export async function touchPdf(id: string): Promise<void> {
-  return withStore("pdfs", "readwrite", async (store) => {
-    const pdf = await new Promise<PdfFile | undefined>((resolve, reject) => {
-      const r = store.get(id)
-      r.onsuccess = () => resolve(r.result as PdfFile | undefined)
-      r.onerror = () => reject(r.error)
-    })
-    if (!pdf) return
-    pdf.lastOpened = Date.now()
-    await new Promise<void>((resolve, reject) => {
-      const r = store.put(pdf)
-      r.onsuccess = () => resolve()
-      r.onerror = () => reject(r.error)
-    })
-  })
+export async function touchPdf(id: string): Promise<boolean | void> {
+  // lastOpened is metadata-only — the lightweight `_dbpdfTouch` stamp re-sorts
+  // the library without reloading the cards/annotations (open every PDF would
+  // otherwise fire the full card-panel reload chain).
+  return withStore(
+    "pdfs",
+    "readwrite",
+    async (store) => {
+      const pdf = await new Promise<PdfFile | undefined>((resolve, reject) => {
+        const r = store.get(id)
+        r.onsuccess = () => resolve(r.result as PdfFile | undefined)
+        r.onerror = () => reject(r.error)
+      })
+      if (!pdf) return false
+      pdf.lastOpened = Date.now()
+      await new Promise<void>((resolve, reject) => {
+        const r = store.put(pdf)
+        r.onsuccess = () => resolve()
+        r.onerror = () => reject(r.error)
+      })
+    },
+    { broadcastKey: "_dbpdfTouch" }
+  )
 }
 
-/** Set a PDF's topic (undefined → 未分类). Broadcasts _dbpdf → the library reloads. */
+/** Set a PDF's topic (undefined → 未分类). Metadata-only → the lightweight
+ *  `_dbpdfTouch` stamp re-sorts the library without reloading the cards. */
 export async function updatePdfTopic(
   id: string,
   topic: string | undefined
-): Promise<void> {
+): Promise<boolean | void> {
   return withStore("pdfs", "readwrite", async (store) => {
     const pdf = await new Promise<PdfFile | undefined>((resolve, reject) => {
       const r = store.get(id)
       r.onsuccess = () => resolve(r.result as PdfFile | undefined)
       r.onerror = () => reject(r.error)
     })
-    if (!pdf) return
+    if (!pdf) return false
     if (topic) pdf.topic = topic
     else delete pdf.topic
     await new Promise<void>((resolve, reject) => {
@@ -79,7 +88,7 @@ export async function updatePdfTopic(
       r.onsuccess = () => resolve()
       r.onerror = () => reject(r.error)
     })
-  })
+  }, { broadcastKey: "_dbpdfTouch" })
 }
 
 export async function getPdf(id: string): Promise<PdfFile | undefined> {
@@ -616,14 +625,14 @@ export async function applyPdfSync(
 export async function updateAnnotationType(
   id: string,
   type: PdfMark
-): Promise<void> {
+): Promise<boolean | void> {
   return withStore("pdfAnnotations", "readwrite", async (store) => {
     const ann = await new Promise<PdfAnnotation | undefined>((resolve, reject) => {
       const r = store.get(id)
       r.onsuccess = () => resolve(r.result as PdfAnnotation | undefined)
       r.onerror = () => reject(r.error)
     })
-    if (!ann) return
+    if (!ann) return false
     ann.type = type
     ann.updatedAt = Date.now()
     await new Promise<void>((resolve, reject) => {
@@ -638,14 +647,14 @@ export async function updateAnnotationType(
 export async function updateAnnotationPos(
   id: string,
   pos: { x: number; y: number }
-): Promise<void> {
+): Promise<boolean | void> {
   return withStore("pdfAnnotations", "readwrite", async (store) => {
     const ann = await new Promise<PdfAnnotation | undefined>((resolve, reject) => {
       const r = store.get(id)
       r.onsuccess = () => resolve(r.result as PdfAnnotation | undefined)
       r.onerror = () => reject(r.error)
     })
-    if (!ann || ann.pos) return
+    if (!ann || ann.pos) return false
     ann.pos = pos
     await new Promise<void>((resolve, reject) => {
       const r = store.put(ann)
@@ -659,14 +668,14 @@ export async function updateAnnotationPos(
 export async function updateAnnotationText(
   id: string,
   text: string
-): Promise<void> {
+): Promise<boolean | void> {
   return withStore("pdfAnnotations", "readwrite", async (store) => {
     const ann = await new Promise<PdfAnnotation | undefined>((resolve, reject) => {
       const r = store.get(id)
       r.onsuccess = () => resolve(r.result as PdfAnnotation | undefined)
       r.onerror = () => reject(r.error)
     })
-    if (!ann) return
+    if (!ann) return false
     ann.text = text
     ann.updatedAt = Date.now()
     await new Promise<void>((resolve, reject) => {
@@ -697,7 +706,7 @@ export async function renamePdfTopic(
         r.onerror = () => reject(r.error)
       })
     }
-  })
+  }, { broadcastKey: "_dbpdfTouch" })
 }
 
 /** Clear a topic from every PDF carrying it (→ 未分类). */
@@ -717,5 +726,5 @@ export async function clearPdfTopic(topic: string): Promise<void> {
         r.onerror = () => reject(r.error)
       })
     }
-  })
+  }, { broadcastKey: "_dbpdfTouch" })
 }

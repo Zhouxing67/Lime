@@ -8,37 +8,141 @@ export interface PdfSearchMatch {
 
 type TextLayer = InstanceType<typeof pdfjsLib.TextLayer>
 
-/** Case-insensitive text search across all pages. Offsets are into each page's
- *  concatenated textContent (same coordinate space as textLayerRects), capped
- *  at MAX_MATCHES. */
+export interface PdfSearchEntry {
+  page: number
+  /** The full text line containing the first hit. */
+  lineText: string
+  /** Display snippet: ~10 chars before the hit, total ~40, trailing "…". */
+  snippet: string
+  /** Hit offsets into the page's concatenated text (for the PDF highlight). */
+  start: number
+  end: number
+  /** Hit position within lineText (for the panel's bold highlight). */
+  hitInLine: number
+}
+
+export interface PdfSearchOptions {
+  caseSensitive?: boolean
+  wholeWord?: boolean
+}
+
+export interface PdfSearchResult {
+  /** ALL hits (for the PDF highlight + navigation). */
+  matches: PdfSearchMatch[]
+  /** One entry per line-with-hits (the panel list unit). */
+  entries: PdfSearchEntry[]
+}
+
+const WORD_CHAR = /[A-Za-z0-9\u4e00-\u9fff]/
+
+export interface TextLine {
+  start: number
+  end: number
+}
+
+/** Split text-content items into the concatenated string + line boundaries
+ *  (a hasEOL item ends a line). Offsets in `full` are the SAME coordinate
+ *  space as textLayerRects. */
+export function extractLines(
+  items: { str?: string; hasEOL?: boolean }[]
+): { full: string; lines: TextLine[] } {
+  let pos = 0
+  const lines: TextLine[] = []
+  let lineStart = 0
+  for (const item of items) {
+    const len = item.str?.length ?? 0
+    if (item.hasEOL) {
+      lines.push({ start: lineStart, end: pos + len })
+      lineStart = pos + len
+    }
+    pos += len
+  }
+  if (lineStart < pos) lines.push({ start: lineStart, end: pos })
+  return { full: items.map((i) => i.str ?? "").join(""), lines }
+}
+
+/** Pure per-page scan: all hits + one line-entry per line-with-hits. */
+export function scanText(
+  full: string,
+  lines: TextLine[],
+  q: string,
+  opts: PdfSearchOptions = {}
+): { matches: PdfSearchMatch[]; entries: PdfSearchEntry[] } {
+  const matches: PdfSearchMatch[] = []
+  const entries: PdfSearchEntry[] = []
+  const coveredLines = new Set<number>()
+  const needle = opts.caseSensitive ? q : q.toLowerCase()
+  const haystack = opts.caseSensitive ? full : full.toLowerCase()
+  // Hits scan in ascending order → a forward line pointer is O(lines + hits).
+  let linePtr = 0
+  let idx = haystack.indexOf(needle)
+  while (idx >= 0) {
+    const end = idx + needle.length
+    while (linePtr < lines.length && lines[linePtr].end <= idx) linePtr++
+    const lineIdx =
+      linePtr < lines.length && lines[linePtr].start <= idx ? linePtr : -1
+    if (opts.wholeWord) {
+      // Line breaks act as separators (hasEOL concatenates without a space).
+      const line = lineIdx >= 0 ? lines[lineIdx] : undefined
+      const before = line && idx === line.start ? "" : idx > 0 ? haystack[idx - 1] : ""
+      const after = line && end === line.end ? "" : end < haystack.length ? haystack[end] : ""
+      if (WORD_CHAR.test(before) || WORD_CHAR.test(after)) {
+        idx = haystack.indexOf(needle, idx + 1)
+        continue
+      }
+    }
+    matches.push({ page: 0, start: idx, end })
+    if (lineIdx >= 0 && !coveredLines.has(lineIdx)) {
+      coveredLines.add(lineIdx)
+      const line = lines[lineIdx]
+      const lineText = full.slice(line.start, line.end)
+      const hitInLine = idx - line.start
+      const from = Math.max(0, hitInLine - 10)
+      let snippet = lineText.slice(from, from + 40)
+      if (from + 40 < lineText.length) snippet += "…"
+      entries.push({ page: 0, lineText, snippet, start: idx, end, hitInLine })
+    }
+    idx = haystack.indexOf(needle, idx + 1)
+  }
+  return { matches, entries }
+}
+
+/** Text search with case/whole-word options. Offsets are into each page's
+ *  concatenated textContent (same coordinate space as textLayerRects). The
+ *  result unit for the panel is a TEXT LINE: one line with several hits counts
+ *  as ONE entry (first hit), while `matches` still carries every hit for the
+ *  PDF highlight. Snippet: ~10 chars before the first hit, ~40 total, "…". */
 export async function searchPdfText(
   doc: pdfjsLib.PDFDocumentProxy,
   query: string,
+  opts: PdfSearchOptions = {},
   maxMatches = 500,
   signal?: AbortSignal
-): Promise<PdfSearchMatch[]> {
-  const q = query.trim().toLowerCase()
-  if (!q) return []
+): Promise<PdfSearchResult> {
+  const q = opts.caseSensitive ? query.trim() : query.trim().toLowerCase()
+  if (!q) return { matches: [], entries: [] }
   const matches: PdfSearchMatch[] = []
+  const entries: PdfSearchEntry[] = []
   for (let p = 1; p <= doc.numPages; p++) {
-    if (signal?.aborted) return matches
+    if (signal?.aborted) return { matches, entries }
     const page = await doc.getPage(p)
     // disableNormalization MUST match the TextLayer's streamTextContent —
     // otherwise ligatures/CJK substitution drift the offsets and the flash
     // highlights the wrong text.
     const tc = await page.getTextContent({ disableNormalization: true })
-    const full = (tc.items as { str?: string }[])
-      .map((i) => i.str ?? "")
-      .join("")
-    const lower = full.toLowerCase()
-    let idx = lower.indexOf(q)
-    while (idx >= 0 && matches.length < maxMatches) {
-      matches.push({ page: p, start: idx, end: idx + q.length })
-      idx = lower.indexOf(q, idx + 1)
+    const items = tc.items as { str?: string; hasEOL?: boolean }[]
+    const { full, lines } = extractLines(items)
+    const res = scanText(full, lines, q, opts)
+    for (const m of res.matches) {
+      if (matches.length >= maxMatches) break
+      matches.push({ ...m, page: p })
+    }
+    for (const e of res.entries) {
+      entries.push({ ...e, page: p })
     }
     if (matches.length >= maxMatches) break
   }
-  return matches
+  return { matches, entries }
 }
 
 export interface PdfRect {

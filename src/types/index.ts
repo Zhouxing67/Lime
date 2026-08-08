@@ -109,6 +109,13 @@ export type DisplayCard = ProjectCard & {
   }
 }
 
+/** A PDF outline (TOC) tree node. */
+export interface PdfOutlineItem {
+  title: string
+  dest: unknown
+  items?: PdfOutlineItem[]
+}
+
 export type PdfMark =
   | "highlight"
   | "underline"
