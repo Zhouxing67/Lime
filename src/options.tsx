@@ -101,6 +101,7 @@ import {
   touchPdf,
   tx,
   unplacePdfCards,
+  ensureRegionImage,
   updatePdfCard,
   updatePdfTopic,
   updateProjectCard,
@@ -515,6 +516,33 @@ export default function OptionsPage() {
       setAnnotationById(new Map(list.map((a) => [a.id, a])))
     )
   }, [])
+
+  // Lazy backfill: a placed region card whose annotation has no crop image
+  // (pre-image placements) generates it on sight + refreshes the annotation
+  // map. Idempotent — after the images land, `missing` is empty and the
+  // effect stops.
+  useEffect(() => {
+    let cancelled = false
+    const missing = allPdfCards.filter((c) => {
+      if (c.kind !== "region") return false
+      const ann = annotationById.get(c.annotationId)
+      return Boolean(ann) && !ann.image
+    })
+    if (missing.length === 0) return
+    ;(async () => {
+      for (const card of missing) {
+        if (cancelled) return
+        await ensureRegionImage(card.annotationId, card.pdfId)
+      }
+      if (cancelled) return
+      const list = await getAllAnnotations()
+      if (!cancelled)
+        setAnnotationById(new Map(list.map((a) => [a.id, a])))
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [allPdfCards, annotationById])
 
   // Load review states (refresh when items or review data change)
   useEffect(() => {
@@ -1466,6 +1494,9 @@ export default function OptionsPage() {
       pdfDataTimerRef.current = null
       loadPdfs()
       getAllPdfCards().then(setAllPdfCards)
+      getAllAnnotations().then((list) =>
+        setAnnotationById(new Map(list.map((a) => [a.id, a])))
+      )
       loadPdfPanelData()
     }, 100)
   }, [loadPdfs, loadPdfPanelData])

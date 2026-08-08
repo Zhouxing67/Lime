@@ -488,21 +488,31 @@ export async function placePdfCards(
   await ensureRegionImages(regionCards)
 }
 
-/** Generate + store the crop image for region annotations that don't have one
- *  yet (idempotent — the image is the immutable visual of the region mark). */
-async function ensureRegionImages(cards: PdfCard[]): Promise<void> {
-  for (const card of cards) {
-    try {
-      const ann = await getAnnotation(card.annotationId)
-      if (!ann || ann.image) continue
-      const pdf = await getPdf(card.pdfId)
-      if (!pdf?.bytes) continue
-      const image = await renderRegionImage(pdf.bytes, ann)
-      if (image) await updateAnnotationImage(card.annotationId, image)
-    } catch (e) {
-      console.warn("[lime] region image:", e)
-    }
+/** Generate + store the crop image for ONE region annotation (idempotent —
+ *  the image is the immutable visual of the region mark). Returns true when a
+ *  new image was stored. */
+export async function ensureRegionImage(
+  annotationId: string,
+  pdfId: string
+): Promise<boolean> {
+  try {
+    const ann = await getAnnotation(annotationId)
+    if (!ann || ann.image) return false
+    const pdf = await getPdf(pdfId)
+    if (!pdf?.bytes) return false
+    const image = await renderRegionImage(pdf.bytes, ann)
+    if (!image) return false
+    await updateAnnotationImage(annotationId, image)
+    return true
+  } catch (e) {
+    console.warn("[lime] region image:", e)
+    return false
   }
+}
+
+/** Batch wrapper used by placePdfCards (the post-tx pass). */
+async function ensureRegionImages(cards: PdfCard[]): Promise<void> {
+  for (const card of cards) await ensureRegionImage(card.annotationId, card.pdfId)
 }
 
 /** Store a region crop on an annotation (single write + ONE _dbpdf broadcast). */
