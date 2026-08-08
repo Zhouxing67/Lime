@@ -549,7 +549,12 @@ export async function placePdfCard(
 export async function unplacePdfCards(pdfCardIds: string[]): Promise<void> {
   if (pdfCardIds.length === 0) return
   await tx(
-    { pdfCards: "readwrite", projectCards: "readwrite", reviews: "readwrite" },
+    {
+      pdfCards: "readwrite",
+      projectCards: "readwrite",
+      reviews: "readwrite",
+      pdfAnnotations: "readwrite"
+    },
     async (stores) => {
       const cards = await getByKeys<PdfCard>(stores.pdfCards, pdfCardIds)
       for (const pdfCard of cards) {
@@ -562,6 +567,16 @@ export async function unplacePdfCards(pdfCardIds: string[]): Promise<void> {
           console.warn("[lime] unplacePdfCards: review lookup failed")
         stores.projectCards.delete(pdfCard.projectCardId)
         stores.pdfCards.put({ ...pdfCard, projectCardId: undefined })
+        // The crop image only matters while the annotation is placed — drop it
+        // on unplace to reclaim storage (the region's visual stays on the PDF).
+        const ann = await new Promise<PdfAnnotation | undefined>(
+          (resolve, reject) => {
+            const g = stores.pdfAnnotations.get(pdfCard.annotationId)
+            g.onsuccess = () => resolve(g.result as PdfAnnotation | undefined)
+            g.onerror = () => reject(g.error)
+          }
+        )
+        if (ann?.image) stores.pdfAnnotations.put({ ...ann, image: undefined })
       }
     }
   )
