@@ -1681,7 +1681,7 @@ export default function OptionsPage() {
         openDrawer()
       }
     },
-    [toggleDrawer, openDrawer]
+    [sidebarTab, toggleDrawer, openDrawer]
   )
 
   // Persist tree/nav state across sessions
