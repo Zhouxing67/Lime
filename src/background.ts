@@ -5,8 +5,7 @@ import {
   getIncompleteTodoCount,
   getRecentProjects,
   listProjects,
-  touchProject,
-  tx
+  touchProject
 } from "./database"
 import type { Project } from "./types"
 import type { ExtensionMessage } from "./types/messages"

@@ -7,7 +7,6 @@ import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
 import {
   Box,
   Button,
-  Checkbox,
   Divider,
   Drawer,
   Stack,
@@ -15,9 +14,8 @@ import {
 } from "@mui/material"
 import { useEffect, useRef, useState } from "react"
 import type { ReactNode } from "react"
-import type { SxProps, Theme } from "@mui/material"
 
-import type { PdfFile, Project, TodoFilter, TodoStats } from "../types"
+import type { PdfFile, TodoFilter, TodoStats } from "../types"
 import type { SidebarTab } from "./NavRail"
 import { RECENT_TOTAL as RECENT_TOTAL_SHARED } from "../constants"
 import Well from "./Well"
@@ -27,7 +25,6 @@ interface SidebarFiltersProps {
   open: boolean
   width: number
   sidebarTab: SidebarTab
-  projects: Project[]
   syncStatus: string
   recentDates: { key: string; label: string; count: number }[]
   reviewDateFilter: string | null
@@ -230,7 +227,6 @@ export default function SidebarFilters({
   open,
   width,
   sidebarTab,
-  projects,
   syncStatus,
   recentDates,
   reviewDateFilter,

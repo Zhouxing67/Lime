@@ -1,6 +1,6 @@
 import AddRoundedIcon from "@mui/icons-material/AddRounded"
 import CheckCircleOutlineRoundedIcon from "@mui/icons-material/CheckCircleOutlineRounded"
-import { Box, Paper, Typography } from "@mui/material"
+import { Box } from "@mui/material"
 
 import type { TodoCard as TodoCardType } from "../types"
 import TodoCard from "./TodoCard"

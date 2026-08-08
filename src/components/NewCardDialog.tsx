@@ -1,4 +1,4 @@
-import { Box, TextField, Typography } from "@mui/material"
+import { TextField, Typography } from "@mui/material"
 
 import DialogShell from "./DialogShell"
 import ImageUrlInput from "./ImageUrlInput"

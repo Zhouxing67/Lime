@@ -11,10 +11,6 @@ import {
   CircularProgress,
   Container,
   CssBaseline,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   Fade,
   IconButton,
   Stack,
@@ -138,8 +134,6 @@ import { sendMessage } from "./types/messages"
 import { DAY_MS, RATING_META, applyBadge, buildMergedContent, cloneProjectCard, compareCards, computeItemHash, createProjectCard, createTodoCard, dueStatus, isTodoComplete, sortAllCards, toggleMarkdownTask, todayLocalDate } from "./utils"
 import { resolveCardContent, stripPlacementContent } from "./utils/cards"
 
-const MIN_DRAWER_WIDTH = 200
-const MAX_DRAWER_WIDTH = 500
 const ITEMS_PER_PAGE = 20
 
 export default function OptionsPage() {
@@ -425,7 +419,6 @@ export default function OptionsPage() {
     handleDeleteSection,
     handleMoveSection
   } = useProjects({
-    onSearch,
     onActivate: (id) => {
       setSelectedIds([])
       setSelectMode(false)
@@ -467,7 +460,6 @@ export default function OptionsPage() {
     onSearch,
     sidebarTab,
     setSidebarTab,
-    reviewItems,
     setReviewItems,
     reviewDateFilter,
     setReviewDateFilter,
@@ -674,7 +666,6 @@ export default function OptionsPage() {
     if (!mergeState || !activeProjectId) return
 
     const selectedItems = mergeState
-    const ids = selectedItems.map((i) => i.id)
 
     // Merge the RESOLVED content (a placed card's body lives on its pdfCard;
     // the placement itself carries none) — the merged card becomes a plain
@@ -1009,7 +1000,7 @@ export default function OptionsPage() {
   )
 
   const onRenameSection = useCallback(
-    (parentId: string | null, sectionId: string, title: string) => {
+    (sectionId: string, title: string) => {
       if (!activeProjectId) return
       handleRenameSection(activeProjectId, sectionId, title)
     },
@@ -1192,7 +1183,6 @@ export default function OptionsPage() {
     let trimmed = next
     if (next.length > MAX_OPEN_PDFS) {
       // LRU: evict the oldest-open PDF when the limit is exceeded.
-      const evicted = next[0]
       trimmed = next.slice(1)
     }
     setOpenPdfIds(trimmed)
@@ -1918,8 +1908,6 @@ export default function OptionsPage() {
 
   // Todo badge = incomplete todos only. Review cards must not inflate the
   // todo icon's number (review has its own due-count badge on the 复习 button).
-  const todoCount = todoStats.incomplete
-
   useEffect(() => {
     const run = () => {
       // The lite counts (badge + NavRail icons) refresh every tick — cheap,
@@ -2064,7 +2052,6 @@ export default function OptionsPage() {
         <SidebarFilters
           open={drawerOpen}
           width={drawerWidth}
-          projects={projects}
           sidebarTab={sidebarTab}
           syncStatus={syncStatus}
           todoStats={todoStats}
@@ -2578,7 +2565,6 @@ export default function OptionsPage() {
                   ) : sidebarTab === "review" ? (
                     <ReviewSession
                       item={reviewItems[0] ?? null}
-                      remaining={reviewProgress.remaining}
                       ratedCount={reviewProgress.rated}
                       passedCount={reviewProgress.passed}
                       flipped={reviewFlipped}
@@ -3166,7 +3152,6 @@ export default function OptionsPage() {
             open={pdfCardsOpen && sidebarTab === "pdf" && Boolean(activePdfId)}
             width={pdfCardsWidth}
             onWidthChange={setPdfCardsWidth}
-            onCollapse={() => setPdfCardsOpen(false)}
             cards={pdfPanelCards}
             annotations={pdfPanelAnnotations}
             onCardClick={handlePanelCardClick}

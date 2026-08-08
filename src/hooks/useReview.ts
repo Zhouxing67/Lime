@@ -24,7 +24,6 @@ interface UseReviewOptions {
   onSearch: () => Promise<void>
   sidebarTab: SidebarTab
   setSidebarTab: (tab: SidebarTab) => void
-  reviewItems: DisplayCard[]
   setReviewItems: (items: DisplayCard[]) => void
   reviewDateFilter: string | null
   setReviewDateFilter: (key: string | null) => void
@@ -39,7 +38,6 @@ export function useReview(options: UseReviewOptions) {
     onSearch,
     sidebarTab,
     setSidebarTab,
-    reviewItems,
     reviewDateFilter,
     setReviewDateFilter,
     setReviewItems,

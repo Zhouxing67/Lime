@@ -1,7 +1,5 @@
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
 import AddRoundedIcon from "@mui/icons-material/AddRounded"
-import ChevronLeftRoundedIcon from "@mui/icons-material/ChevronLeftRounded"
-import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded"
 import MenuOpenRoundedIcon from "@mui/icons-material/MenuOpenRounded"
 import SwipeRightRoundedIcon from "@mui/icons-material/SwipeRightRounded"
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded"
@@ -26,9 +24,7 @@ import {
   DialogContent,
   DialogTitle,
   IconButton,
-  Menu,
   MenuItem,
-  Paper,
   Popover,
   TextField,
   Tooltip,
@@ -52,7 +48,7 @@ import type { PdfAnnotation, PdfMark, PdfOutlineItem } from "../types"
 import { usePdfDocument } from "../hooks/usePdfDocument"
 import { markBlockFor, MARK_DOT, MARK_LABEL } from "./pdfTheme"
 import { getTextLayer } from "./pdfRegistry"
-import { searchPdfText, textLayerOffsets, textLayerRects } from "./pdfText"
+import { textLayerOffsets, textLayerRects } from "./pdfText"
 import type { PdfSearchEntry, PdfSearchMatch } from "./pdfText"
 import PdfRenderer from "./PdfRenderer"
 

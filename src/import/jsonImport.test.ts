@@ -13,7 +13,6 @@ import {
 } from "../database"
 import type {
   PdfAnnotation,
-  PdfCard,
   PdfFile,
   ProjectCard,
   ReviewEntry,
@@ -423,13 +422,6 @@ describe("legacy zip import (old monolithic items array)", () => {
   it("remaps legacy uuid pdf ids to the content-hash id (annotations + cards)", async () => {
     const uuid = "legacy-uuid-pdf"
     const bytes = new Blob(["legacy"], { type: "application/pdf" })
-    const pdf: PdfFile = {
-      id: uuid,
-      name: "old.pdf",
-      bytes,
-      pageCount: 0,
-      addedAt: 1
-    }
     const ann = {
       id: "legacy-ann",
       pdfId: uuid,

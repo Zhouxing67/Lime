@@ -8,7 +8,6 @@ import type { PdfAnnotation } from "../types"
 import { registerTextLayer, unregisterTextLayer } from "./pdfRegistry"
 import { mergeRects, textLayerOffsets, textLayerRects } from "./pdfText"
 import type { PdfRect } from "./pdfText"
-import { rectsUnionCenter } from "../utils/geometry"
 import { clearSelection, drawMarks, markSignature, marksAt, removeMark, selectMark, upsertMark } from "./pdfMarksKonva"
 
 import { createKonvaStage } from "../pdf/konvaStage"

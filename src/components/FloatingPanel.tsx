@@ -9,7 +9,6 @@ import React, {
 import type { PresetName, Project } from "../types"
 import PanelForm from "./PanelForm"
 import { IconClose } from "./panelIcons"
-import type { PanelColors } from "./panelTheme"
 import {
   PANEL_CSS,
   SANS_FONT,

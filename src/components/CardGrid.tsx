@@ -2,8 +2,6 @@ import AddRoundedIcon from "@mui/icons-material/AddRounded"
 import {
   Box,
   Checkbox,
-  Paper,
-  Typography,
   useMediaQuery,
   useTheme
 } from "@mui/material"

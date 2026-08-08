@@ -4,11 +4,10 @@ import {
   Box,
   Button,
   Divider,
-  Stack,
   Tooltip,
   Typography
 } from "@mui/material"
-import { useCallback, useEffect } from "react"
+import { useEffect } from "react"
 
 import type { DisplayCard } from "../types"
 import { RATING_META } from "../utils"
@@ -17,8 +16,6 @@ import ReviewEmptyStats from "./ReviewEmptyStats"
 
 interface ReviewSessionProps {
   item: DisplayCard | null
-  /** Cards left in the current pass (absolute, no ratio). */
-  remaining: number
   /** Rating actions taken this session. */
   ratedCount: number
   /** Cards that left the queue this session (final rating >= 2). */
@@ -73,7 +70,6 @@ function StatBlock({
 
 export default function ReviewSession({
   item,
-  remaining,
   ratedCount,
   passedCount,
   flipped,
@@ -124,7 +120,7 @@ export default function ReviewSession({
             textAlign: "center"
           })}>
           <Box
-            sx={(t) => ({
+            sx={{
               width: 44,
               height: 44,
               borderRadius: "50%",
@@ -133,7 +129,7 @@ export default function ReviewSession({
               alignItems: "center",
               justifyContent: "center",
               mb: 2
-            })}>
+            }}>
             <CheckRoundedIcon sx={{ fontSize: 24, color: "success.main" }} />
           </Box>
           <Typography

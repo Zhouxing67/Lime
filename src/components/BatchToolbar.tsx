@@ -1,4 +1,3 @@
-import DoneAllRoundedIcon from "@mui/icons-material/DoneAllRounded"
 import { Button, Checkbox, Divider, Stack, Typography, type ButtonOwnProps } from "@mui/material"
 import { Fragment, type ReactElement } from "react"
 

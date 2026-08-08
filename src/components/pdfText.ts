@@ -255,7 +255,6 @@ export function textLayerRects(
 ): PdfRect[] {
   const idx = getTextLayerIndex(textLayer)
   const divs = textLayer.textDivs
-  const strs = textLayer.textContentItemsStr
   if (idx.divIndex.size === 0 || end <= start) return []
   const holderRect = holder.getBoundingClientRect()
   const rects: PdfRect[] = []
@@ -270,7 +269,6 @@ export function textLayerRects(
     else lo = mid + 1
   }
   for (let i = lo; i < divs.length; i++) {
-    const len = strs[i]?.length ?? 0
     const divStart = idx.cumulative[i]
     if (divStart >= end) break
     const r = divs[i].getBoundingClientRect()

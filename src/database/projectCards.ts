@@ -1,6 +1,6 @@
 import { tx, withStore } from "./core"
 import { safeHostname } from "./helpers"
-import type { PdfAnnotation, PdfCard, ProjectCard, SearchQuery } from "../types"
+import type { PdfAnnotation, ProjectCard, SearchQuery } from "../types"
 import { computeItemHash } from "../utils"
 
 /** Highest `order` in a section (未分类 = no sectionId), -1 when empty. The

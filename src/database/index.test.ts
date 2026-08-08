@@ -2,7 +2,6 @@ import { dayKey, getRecentItems, rateSrs } from "../hooks/useSrs"
 import { sha256Bytes } from "../utils"
 import type {
   PdfAnnotation,
-  PdfCard,
   PdfFile,
   Project,
   ProjectCard,
@@ -11,7 +10,6 @@ import type {
 } from "../types"
 import {
   addAnnotation,
-  updateAnnotationText,
   updateAnnotationType,
   addPdf,
   updatePdfTopic,
@@ -74,20 +72,6 @@ const createTestProjectCard = (
 const createTestTodoCard = (overrides: Partial<TodoCard> = {}): TodoCard => ({
   id: `todo-${Date.now()}-${Math.random()}`,
   content: "- [ ] test task",
-  createdAt: Date.now(),
-  ...overrides
-})
-
-// Helper to create a test PDF card
-const createTestPdfCard = (overrides: Partial<PdfCard> = {}): PdfCard => ({
-  id: `pdfcard-${Date.now()}-${Math.random()}`,
-  pdfId: "pdf-test",
-  page: 1,
-  kind: "text",
-  type: "highlight",
-  annotationId: `ann-${Date.now()}-${Math.random()}`,
-  content: "Test content",
-  pdfOrder: 1e6,
   createdAt: Date.now(),
   ...overrides
 })

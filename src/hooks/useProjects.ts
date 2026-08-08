@@ -11,7 +11,6 @@ import {
 import type { Project, Section } from "../types"
 
 interface UseProjectsArgs {
-  onSearch: (projectId?: string | null) => void
   onActivate: (id: string) => void
   onDeactivate: (id?: string) => void
 }
@@ -47,12 +46,11 @@ interface UseProjectsResult {
 }
 
 /**
- * Encapsulates project CRUD + list state. `onSearch` / `onActivate` /
+ * Encapsulates project CRUD + list state. `onActivate` /
  * `onDeactivate` are injected so the hook stays decoupled from the
  * item-loading and active-project state in the page.
  */
 export function useProjects({
-  onSearch,
   onActivate,
   onDeactivate
 }: UseProjectsArgs): UseProjectsResult {

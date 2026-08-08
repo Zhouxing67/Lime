@@ -12,7 +12,7 @@
  * `stage.getIntersection()` — empty areas stay fully selectable.
  */
 import Konva from "konva"
-import type { PdfAnnotation, PdfMark } from "../types"
+import type { PdfAnnotation } from "../types"
 import { MARK_COLOR } from "./pdfTheme"
 
 /** Build the Konva shapes for one annotation's rect (port of drawAnnotation).

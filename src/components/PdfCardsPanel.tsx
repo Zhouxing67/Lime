@@ -59,7 +59,6 @@ interface PdfCardsPanelProps {
   open: boolean
   width: number
   onWidthChange: (w: number) => void
-  onCollapse: () => void
   cards: PdfCard[]
   annotations: PdfAnnotation[]
   onCardClick: (card: PdfCard) => void
@@ -82,7 +81,6 @@ export default function PdfCardsPanel({
   open,
   width,
   onWidthChange,
-  onCollapse,
   cards,
   annotations,
   onCardClick,

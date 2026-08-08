@@ -1,7 +1,5 @@
 import type { PlasmoCSConfig } from "plasmo"
 
-import { sendMessage } from "../types/messages"
-
 export const config: PlasmoCSConfig = {
   matches: ["https://*/*", "http://*/*"],
   all_frames: false

@@ -145,8 +145,6 @@ function OriginalBlock({ item }: { item: DisplayCard }) {
 function ImageGallery({ images }: { images: string[] }) {
   if (!images || images.length === 0) return null
 
-  const count = images.length
-
   // Full variant: vertical flow, each image full-width preserving
   // its natural aspect ratio. No internal scrollbar — the dialog
   // scrolls as a whole so text and images read as one continuous flow.
