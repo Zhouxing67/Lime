@@ -3138,7 +3138,6 @@ export default function OptionsPage() {
           <PdfSearchPanel
             width={pdfCardsWidth}
             onWidthChange={setPdfCardsWidth}
-            onCollapse={() => setPdfCardsOpen(false)}
             query={pdfSearch.query}
             caseSensitive={pdfSearch.caseSensitive}
             wholeWord={pdfSearch.wholeWord}

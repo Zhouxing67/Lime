@@ -202,20 +202,7 @@ export default function ItemDialog({
           }}>
           {typeIcon(item.type)}
         </Box>
-        <Typography
-          sx={{
-            flex: 1,
-            minWidth: 0,
-            fontSize: "1rem",
-            fontWeight: 600,
-            fontFamily: (t) => t.custom.serif,
-            color: "text.primary",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap"
-          }}>
-          {item.title || "未命名卡片"}
-        </Typography>
+        <Box sx={{ flex: 1 }} />
         <Stack direction="row" spacing={0.5} alignItems="center">
           {!readOnly &&
             (editing ? (

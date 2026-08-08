@@ -24,7 +24,6 @@ import EmptyState from "./EmptyState"
 export default function PdfSearchPanel({
   width,
   onWidthChange,
-  onCollapse,
   query,
   caseSensitive,
   wholeWord,
@@ -39,7 +38,6 @@ export default function PdfSearchPanel({
 }: {
   width: number
   onWidthChange: (w: number) => void
-  onCollapse: () => void
   query: string
   caseSensitive: boolean
   wholeWord: boolean
@@ -128,17 +126,6 @@ export default function PdfSearchPanel({
           搜索
         </Typography>
         <Box sx={{ flex: 1 }} />
-        <Typography
-          onClick={onCollapse}
-          sx={{
-            fontSize: "0.72rem",
-            color: "text.disabled",
-            cursor: "pointer",
-            "&:hover": { color: "text.secondary" },
-            flexShrink: 0
-          }}>
-          收起
-        </Typography>
       </Box>
 
       <Box sx={{ px: 1.5, py: 1.25, borderBottom: "1px solid", borderColor: "divider" }}>

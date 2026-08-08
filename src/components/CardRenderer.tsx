@@ -311,7 +311,10 @@ export default function CardRenderer({
                 fontWeight: 700,
                 wordBreak: "break-word",
                 color: "text.primary",
-                mb: 0.5
+                mb: 1.5,
+                pb: 1.5,
+                borderBottom: "1px solid",
+                borderColor: "divider"
               }}>
               {truncateTo ? truncateText(item.title, truncateTo) : item.title}
             </Typography>

@@ -127,24 +127,6 @@ export default function ItemCard({
             }}>
             {typeIcon(item.type)}
           </Box>
-          {item.title && (
-            <Typography
-              sx={{
-                fontSize: "1rem",
-                fontWeight: 700,
-                lineHeight: 1.45,
-                fontFamily: (t) => t.custom.serif,
-                color: "text.primary",
-                wordBreak: "break-word",
-                minWidth: 0,
-                overflow: "hidden",
-                display: "-webkit-box",
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: "vertical"
-              }}>
-              {item.title}
-            </Typography>
-          )}
         </Stack>
         {!selectMode && (
           <ItemCardOperations
