@@ -47,3 +47,28 @@ export const MARK_BLOCK: Record<string, { bg: string; fg: string }> = {
   freehand: { bg: "rgba(99,102,241,0.6)", fg: "#fff" },
   freetext: { bg: "rgba(45,52,54,0.62)", fg: "#fff" }
 }
+
+/** Dark-mode variant: solid-ish backgrounds + light text — the light mode's
+ *  translucent bgs would blend into the dark surface (black-on-translucent
+ *  gold reads unreadably in dark mode). */
+export const MARK_BLOCK_DARK: Record<string, { bg: string; fg: string }> = {
+  highlight: { bg: "#8a7a4d", fg: "#f5f0e6" },
+  underline: { bg: "#5d8a68", fg: "#fff" },
+  wavy: { bg: "#9c6553", fg: "#fff" },
+  strike: { bg: "#5a5a5a", fg: "#e8e6e3" },
+  frame: { bg: "#4f46e5", fg: "#fff" },
+  "free-highlight": { bg: "#8a7a4d", fg: "#f5f0e6" },
+  freehand: { bg: "#4f46e5", fg: "#fff" },
+  freetext: { bg: "#5a5a5a", fg: "#e8e6e3" }
+}
+
+/** Theme-aware mark block (the #N chip / selection-bar label colors). */
+export function markBlockFor(
+  type: string,
+  mode: "light" | "dark"
+): { bg: string; fg: string } {
+  return (mode === "dark" ? MARK_BLOCK_DARK : MARK_BLOCK)[type] ?? {
+    bg: "action.hover",
+    fg: "text.secondary"
+  }
+}

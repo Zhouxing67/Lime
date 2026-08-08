@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useTheme } from "@mui/material/styles"
 
 import * as pdfjsLib from "pdfjs-dist"
 import Konva from "konva"
@@ -45,10 +46,19 @@ function jumpRects(
   return rects
 }
 
-function appendFlash(overlay: HTMLElement, r: PdfRect, current = false): void {
+function appendFlash(
+  overlay: HTMLElement,
+  r: PdfRect,
+  current: boolean,
+  hitBg: string,
+  hitStrongBg: string
+): void {
   const flash = document.createElement("div")
   flash.className = current ? "pdf-ann-flash current" : "pdf-ann-flash"
-  flash.style.cssText = `position:absolute;left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;pointer-events:none;`
+  // Theme-aware backgrounds (hardcoded indigo was invisible in dark mode).
+  flash.style.cssText = `position:absolute;left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;pointer-events:none;background:${
+    current ? hitStrongBg : hitBg
+  };${current ? "box-shadow:inset 0 0 0 2px " + hitStrongBg + ";" : ""}`
   overlay.appendChild(flash)
 }
 
@@ -123,14 +133,12 @@ const TEXT_LAYER_CSS = `
   z-index: 3;
 }
 .pdf-ann-flash {
-  /* ALL search matches: a subtle persistent highlight. */
-  background: rgba(99,102,241,0.12);
+  /* ALL search matches: a subtle persistent highlight. The background comes
+     from the theme (inline) so dark mode stays visible. */
   border-radius: 2px;
 }
 .pdf-ann-flash.current {
-  /* The current match: a stronger fill + a ring, fading after a moment. */
-  background: rgba(99,102,241,0.55);
-  box-shadow: inset 0 0 0 2px rgba(99,102,241,0.9);
+  /* The current match: a stronger fill + a ring (inline) + a fade-out. */
   animation: pdfAnnFlash 1.4s ease-out forwards;
 }
 @keyframes pdfAnnFlash {
@@ -664,6 +672,7 @@ function PageView({
   // re-render the canvas. Redraws the Konva marks + adds the DOM flash on its
   // own layer. NOT dependent on `annotations`: an annotation edit while a
   // search is active must not rebuild every mark or duplicate the flashes.
+  const theme = useTheme()
   useEffect(() => {
     if (!searchFlash || !ready) return
     const holder = holderRef.current
@@ -677,7 +686,7 @@ function PageView({
     searchFlash.matches.forEach((m, i) => {
       const current = i === searchFlash.current
       for (const r of textLayerRects(tl, holder, m.start, m.end)) {
-        appendFlash(flashLayer, r, current)
+        appendFlash(flashLayer, r, current, theme.custom.searchHit, theme.custom.searchHitStrong)
       }
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps

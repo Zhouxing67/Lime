@@ -12,6 +12,7 @@ import {
   Typography
 } from "@mui/material"
 import { useState } from "react"
+import { useTheme } from "@mui/material/styles"
 import { usePanelDragResize } from "../hooks/usePanelDragResize"
 
 import type { PdfSearchEntry } from "./pdfText"
@@ -55,6 +56,7 @@ export default function PdfSearchPanel({
   onBack: () => void
 }) {
   const [draft, setDraft] = useState(query)
+  const theme = useTheme()
 
   const startDrag = usePanelDragResize(width, onWidthChange, () => 2000)
 
@@ -296,8 +298,8 @@ export default function PdfSearchPanel({
                             <Box
                               component="span"
                               sx={{
-                                bgcolor: "rgba(99,102,241,0.16)",
-                                color: "primary.main",
+                                bgcolor: theme.custom.searchHit,
+                                color: theme.custom.searchHitText,
                                 borderRadius: 0.5,
                                 px: 0.25
                               }}>

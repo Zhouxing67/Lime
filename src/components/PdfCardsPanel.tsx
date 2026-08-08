@@ -23,6 +23,7 @@ import {
   Typography
 } from "@mui/material"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useTheme } from "@mui/material/styles"
 import { usePanelDragResize } from "../hooks/usePanelDragResize"
 import { sortPdfCards } from "../utils/cards"
 /** Compact card date: always YYYY-MM-DD HH:MM. */
@@ -49,7 +50,7 @@ import BatchToolbar from "./BatchToolbar"
 import PdfCardBody from "./PdfCardBody"
 import PlaceCardMenu from "./PlaceCardMenu"
 import PdfEditDialog from "./PdfEditDialog"
-import { MARK_BLOCK } from "./pdfTheme"
+import { markBlockFor } from "./pdfTheme"
 
 /** The PDF view's right-side cards panel — a peer of the sidebar/workspace:
  *  collapsible, resizable (240–520), a built-in batch bar, and the annotated
@@ -116,6 +117,7 @@ export default function PdfCardsPanel({
     anchor: HTMLElement
     cardIds: string[]
   } | null>(null)
+  const theme = useTheme()
   const [deleteTarget, setDeleteTarget] = useState<PdfCard | null>(null)
   const [batchDeleteOpen, setBatchDeleteOpen] = useState(false)
   const listRef = useRef<HTMLDivElement>(null)
@@ -476,8 +478,12 @@ export default function PdfCardsPanel({
                       flexShrink: 0,
                       borderRadius: 1,
                       lineHeight: 1,
-                      bgcolor: ann ? MARK_BLOCK[ann.type]?.bg : "action.hover",
-                      color: ann ? MARK_BLOCK[ann.type]?.fg : "text.secondary",
+                      bgcolor: ann
+                        ? markBlockFor(ann.type, theme.palette.mode).bg
+                        : "action.hover",
+                      color: ann
+                        ? markBlockFor(ann.type, theme.palette.mode).fg
+                        : "text.secondary",
                       fontSize: "0.74rem",
                       fontWeight: 600
                     }}>

@@ -20,6 +20,9 @@ declare module "@mui/material/styles" {
       cardShadowHover: string
       focusRing: string
       avatarPalette: string[]
+      searchHit: string
+      searchHitStrong: string
+      searchHitText: string
     }
   }
   interface ThemeOptions {
@@ -32,6 +35,9 @@ declare module "@mui/material/styles" {
       cardShadowHover?: string
       focusRing?: string
       avatarPalette?: string[]
+      searchHit?: string
+      searchHitStrong?: string
+      searchHitText?: string
     }
   }
 }
@@ -62,7 +68,14 @@ export const createAppTheme = (
       focusRing: `0 0 0 2px ${p.primary.main}`,
       avatarPalette: isLight
         ? ["#5b7f9e", "#7a8f5f", "#9a6b5f", "#7a6b9e", "#5f8f8f", "#8f7a5f", "#5f7a9e", "#9e6b7a"]
-        : ["#6f93b5", "#8fa876", "#b18474", "#9182b5", "#76a6a6", "#a69174", "#7691b5", "#b58291"]
+        : ["#6f93b5", "#8fa876", "#b18474", "#9182b5", "#76a6a6", "#a69174", "#7691b5", "#b58291"],
+      searchHit: isLight
+        ? "rgba(99,102,241,0.12)"
+        : "rgba(129,140,248,0.22)",
+      searchHitStrong: isLight
+        ? "rgba(99,102,241,0.55)"
+        : "rgba(129,140,248,0.5)",
+      searchHitText: isLight ? "#4f46e5" : "#a5b4fc"
     },
     palette: {
       mode,

@@ -35,6 +35,7 @@ import {
   Typography
 } from "@mui/material"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { useTheme } from "@mui/material/styles"
 
 import * as pdfjsLib from "pdfjs-dist"
 
@@ -49,7 +50,7 @@ import {
 import { rectsUnionCenter } from "../utils/geometry"
 import type { PdfAnnotation, PdfMark, PdfOutlineItem } from "../types"
 import { usePdfDocument } from "../hooks/usePdfDocument"
-import { MARK_BLOCK, MARK_DOT, MARK_LABEL } from "./pdfTheme"
+import { markBlockFor, MARK_DOT, MARK_LABEL } from "./pdfTheme"
 import { getTextLayer } from "./pdfRegistry"
 import { searchPdfText, textLayerOffsets, textLayerRects } from "./pdfText"
 import type { PdfSearchEntry, PdfSearchMatch } from "./pdfText"
@@ -131,6 +132,7 @@ export default function PdfView({
   onOutlineClick?: (item: PdfOutlineItem) => void
 }) {
   const { loaded, error } = usePdfDocument(pdfId)
+  const theme = useTheme()
   const [scrollPage, setScrollPage] = useState<number | null>(null)
 
   useEffect(() => {
@@ -663,7 +665,7 @@ export default function PdfView({
                   bgcolor: annotDrawMode === "frame" ? "action.selected" : "transparent",
                   "&:hover": { color: "primary.main" }
                 }}>
-                <CropFreeRoundedIcon sx={{ fontSize: 17 }} />
+                <CropFreeRoundedIcon sx={{ fontSize: 16 }} />
               </IconButton>
             </Tooltip>
             <Tooltip title="自由画笔">
@@ -676,7 +678,7 @@ export default function PdfView({
                   bgcolor: annotDrawMode === "freehand" ? "action.selected" : "transparent",
                   "&:hover": { color: "primary.main" }
                 }}>
-                <GestureRoundedIcon sx={{ fontSize: 17 }} />
+                <GestureRoundedIcon sx={{ fontSize: 16 }} />
               </IconButton>
             </Tooltip>
             <Tooltip title="自由高亮">
@@ -689,7 +691,7 @@ export default function PdfView({
                   bgcolor: annotDrawMode === "free-highlight" ? "action.selected" : "transparent",
                   "&:hover": { color: "primary.main" }
                 }}>
-                <HighlightRoundedIcon sx={{ fontSize: 17 }} />
+                <HighlightRoundedIcon sx={{ fontSize: 16 }} />
               </IconButton>
             </Tooltip>
             <Tooltip title="文本框">
@@ -702,7 +704,7 @@ export default function PdfView({
                   bgcolor: annotDrawMode === "freetext" ? "action.selected" : "transparent",
                   "&:hover": { color: "primary.main" }
                 }}>
-                <NotesRoundedIcon sx={{ fontSize: 17 }} />
+                <NotesRoundedIcon sx={{ fontSize: 16 }} />
               </IconButton>
             </Tooltip>
             <Divider orientation="vertical" flexItem sx={{ mx: 0.5, height: 16 }} />
@@ -711,7 +713,7 @@ export default function PdfView({
                 size="small"
                 onClick={onSearchClick}
                 sx={{ p: 0.5, color: "text.secondary", "&:hover": { color: "primary.main" } }}>
-                <SearchRoundedIcon sx={{ fontSize: 17 }} />
+                <SearchRoundedIcon sx={{ fontSize: 16 }} />
               </IconButton>
             </Tooltip>
           </Box>
@@ -738,8 +740,8 @@ export default function PdfView({
                     px: 1,
                     py: 0.4,
                     borderRadius: 1,
-                    bgcolor: MARK_BLOCK[t]?.bg ?? "action.hover",
-                    color: MARK_BLOCK[t]?.fg ?? "text.secondary",
+                    bgcolor: markBlockFor(t, theme.palette.mode).bg,
+                    color: markBlockFor(t, theme.palette.mode).fg,
                     fontSize: "0.78rem",
                     fontWeight: 600,
                     cursor: "pointer",
