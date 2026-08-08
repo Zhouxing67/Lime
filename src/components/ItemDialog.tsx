@@ -48,15 +48,17 @@ export default function ItemDialog({
   // hook count must stay stable across renders).
   const [editing, setEditing] = useState(false)
   const [draftTitle, setDraftTitle] = useState(item?.title ?? "")
-  const [draftContent, setDraftContent] = useState(item?.content ?? "")
+  const [draftContent, setDraftContent] = useState(
+    item?.image ?? item?.content ?? ""
+  )
   const [draftComment, setDraftComment] = useState(item?.comment ?? "")
 
   useEffect(() => {
     setEditing(false)
     setDraftTitle(item?.title ?? "")
-    setDraftContent(item?.content ?? "")
+    setDraftContent(item?.image ?? item?.content ?? "")
     setDraftComment(item?.comment ?? "")
-  }, [item?.id, item?.title, item?.content, item?.comment])
+  }, [item?.id, item?.title, item?.image, item?.content, item?.comment])
 
   const [animDir, setAnimDir] = useState<"prev" | "next" | null>(null)
 
@@ -103,7 +105,10 @@ export default function ItemDialog({
     // Placed PDF cards keep their content read-only (the PDF original — the
     // content lives on the linked pdfCard); only the comment (备注) is editable.
     // Same for image captures. The options' handler splits the comment write.
-    const readOnlyContent = item.type === "image" || !!item.pdfCardId
+    // image/placed cards keep the readonly original (image dataURL / PDF
+    // quote); only the 摘要 + 备注 are editable. text cards have no 备注.
+    const readOnlyContent =
+      item.type === "image" || item.type === "placed" || !!item.pdfCardId
     const updated: DisplayCard = {
       ...item,
       title: draftTitle.trim() || undefined,
@@ -286,7 +291,11 @@ export default function ItemDialog({
               draftTitle={draftTitle}
               draftContent={draftContent}
               draftComment={draftComment}
-              readOnlyContent={item.type === "image" || !!item.pdfCardId}
+              readOnlyContent={
+                item.type === "image" ||
+                item.type === "placed" ||
+                !!item.pdfCardId
+              }
               isImage={item.type === "image"}
               onTitleChange={setDraftTitle}
               onContentChange={setDraftContent}

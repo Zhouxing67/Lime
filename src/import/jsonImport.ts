@@ -32,8 +32,8 @@ export interface ImportResult {
   errors: { index: number; reason: string }[]
 }
 
-const VALID_TYPES = ["text", "image", "link", "todo"] as const
-const VALID_CARD_TYPES = ["text", "image", "link"] as const
+const VALID_TYPES = ["text", "image", "placed", "todo"] as const
+const VALID_CARD_TYPES = ["text", "image", "placed"] as const
 const VALID_MARKS: PdfMark[] = [
   "highlight",
   "underline",

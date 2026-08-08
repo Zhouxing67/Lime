@@ -1,4 +1,4 @@
-export type ProjectCardType = "text" | "image" | "link"
+export type ProjectCardType = "text" | "image" | "placed"
 
 export interface Section {
   id: string
@@ -28,10 +28,20 @@ export interface SrsData {
  *  placement model), so one record never mixes project and PDF identity. */
 export interface ProjectCard {
   id: string
+  /** 卡片类型：
+   *  text   = markdown 纯文本（可内嵌图片）
+   *  image  = 二进制图片（网页截图，image 字段存 dataURL）
+   *  placed = 置入卡（只读批注内容——渲染时从批注解析，解析视图） */
   type: ProjectCardType
-  /** User's title/summary — the review gate (a card needs a title to review). */
+  /** 摘要 — 可选（全部类型）；复习门槛（无 title 不能复习）。 */
   title?: string
+  /** 内容 — text 必选（markdown）；image/placed 不可选。 */
   content: string
+  /** 只读原始内容 — image 必选（dataURL）；placed 为解析视图（渲染时从批注取
+   *  裁剪图/PDF 原文，不落库）；text 不可选。 */
+  image?: string
+  /** 备注 — text 不可选；image/placed 可选（markdown）。 */
+  comment?: string
   source?: SourceMeta
   /** Derived from source for filtering (no index — in-memory filter). */
   sourceSite?: string
@@ -46,8 +56,6 @@ export interface ProjectCard {
   /** Placement reference → the PdfCard this card was placed from (placed cards
    *  render/search via this reference; content is NOT copied). */
   pdfCardId?: string
-  /** Personal note / 备注 (markdown). */
-  comment?: string
   createdAt: number
   updatedAt?: number
 }

@@ -1,3 +1,4 @@
+import { buildProjectCard } from "../database/projectCards"
 import {
   base64ToBytes,
   bytesToBase64,
@@ -6,7 +7,6 @@ import {
   cloneProjectCard,
   computeDropIndex,
   computeItemHash,
-  createProjectCard,
   createTodoCard,
   currentSourceMeta,
   dueLabel,
@@ -375,9 +375,9 @@ describe("utils", () => {
   })
 })
 
-describe("createProjectCard / cloneProjectCard / currentSourceMeta", () => {
-  it("createProjectCard builds a fresh card with optional fields, no order", () => {
-    const card = createProjectCard({
+describe("buildProjectCard / cloneProjectCard / currentSourceMeta", () => {
+  it("buildProjectCard builds a fresh card with optional fields, no order", () => {
+    const card = buildProjectCard({
       type: "text",
       title: "t",
       content: "c",
@@ -402,14 +402,14 @@ describe("createProjectCard / cloneProjectCard / currentSourceMeta", () => {
     const bare = createTodoCard({ content: "x" })
     expect(bare.dueDate).toBeUndefined()
 
-    const card = createProjectCard({ type: "image", content: "https://x/y.png", projectId: "p" })
+    const card = buildProjectCard({ type: "image", content: "https://x/y.png", projectId: "p" })
     expect(card.images).toBeUndefined()
     expect(card.sectionId).toBeUndefined()
   })
 
   it("cloneProjectCard drops project-scoped sectionId/order and retargets the project", () => {
     const src = {
-      ...createProjectCard({ type: "text", content: "x", projectId: "src", sectionId: "old-sec" }),
+      ...buildProjectCard({ type: "text", content: "x", projectId: "src", sectionId: "old-sec" }),
       order: 5
     }
     const clone = cloneProjectCard(src, "target")
@@ -422,7 +422,7 @@ describe("createProjectCard / cloneProjectCard / currentSourceMeta", () => {
 
   it("cloneProjectCard drops the placement reference so the annotation↔card link stays 1:1 (a copy is a 自建卡片)", () => {
     const src = {
-      ...createProjectCard({ type: "text", content: "quote", projectId: "src" }),
+      ...buildProjectCard({ type: "text", content: "quote", projectId: "src" }),
       pdfCardId: "pc1"
     }
     const clone = cloneProjectCard(src, "target")

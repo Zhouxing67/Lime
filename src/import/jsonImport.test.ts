@@ -227,6 +227,7 @@ describe("jsonImport (v5 format)", () => {
       type: "text",
       title: "标题",
       content: "正文",
+      image: "data:image/png;base64,AAAA",
       sectionId: "sec-1",
       images: ["https://img.example.com/a.png"],
       order: 7,
@@ -283,6 +284,7 @@ describe("jsonImport (v5 format)", () => {
     expect(imported.images).toEqual(["https://img.example.com/a.png"])
     expect(imported.order).toBe(7)
     expect(imported.comment).toBe("备注内容")
+    expect(imported.image).toBe("data:image/png;base64,AAAA")
     expect((imported as unknown as Record<string, unknown>).futureField).toBe(
       "survives"
     )

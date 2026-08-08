@@ -90,7 +90,7 @@ export function splitLegacyItem(
   return {
     projectCard: {
       id: item.id,
-      type: item.type === "link" ? "link" : item.type,
+      type: item.type === "link" ? "text" : item.type,
       title: item.title,
       content: item.content,
       source: item.source,

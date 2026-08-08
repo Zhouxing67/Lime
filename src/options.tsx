@@ -70,6 +70,7 @@ import {
   addPdf,
   addProject,
   addProjectCard,
+  buildProjectCard,
   addReview,
   addTodo,
   batchUpdateProjectCards,
@@ -126,6 +127,7 @@ import type {
   PresetName,
   Project,
   ProjectCard,
+  ProjectCardType,
   ReviewEntry,
   SearchQuery,
   SrsData,
@@ -133,7 +135,7 @@ import type {
   TodoFilter
 } from "./types"
 import { sendMessage } from "./types/messages"
-import { DAY_MS, RATING_META, applyBadge, buildMergedContent, cloneProjectCard, compareCards, computeItemHash, createProjectCard, createTodoCard, dueStatus, isTodoComplete, sortAllCards, toggleMarkdownTask, todayLocalDate } from "./utils"
+import { DAY_MS, RATING_META, applyBadge, buildMergedContent, cloneProjectCard, compareCards, computeItemHash, createTodoCard, dueStatus, isTodoComplete, sortAllCards, toggleMarkdownTask, todayLocalDate } from "./utils"
 import { resolveCardContent, stripPlacementContent } from "./utils/cards"
 import { nextSidebarAction } from "./utils/nav"
 
@@ -350,12 +352,24 @@ export default function OptionsPage() {
       const resolved = resolveCardContent(card, pdfById)
       const pdfCard = pdfById.get(card.pdfCardId)
       const ann = pdfCard ? annotationById.get(pdfCard.annotationId) : undefined
+      // Placed cards are the `placed` type; their readonly original is the
+      // RESOLVED view: a region → the crop image, a text annotation → the
+      // PDF quote (annotation.text). Legacy placements (type "text" in the DB)
+      // are normalized here — no migration needed.
+      const placedType: ProjectCardType = "placed"
+      const base = {
+        ...card,
+        type: placedType,
+        content:
+          ann?.kind === "text"
+            ? ann?.text ?? ""
+            : resolved.content,
+        comment: resolved.comment,
+        image: ann?.kind === "region" ? ann?.image : undefined
+      }
       return pdfCard
         ? {
-            ...card,
-            content: resolved.content,
-            comment: resolved.comment,
-            image: ann?.image,
+            ...base,
             pdfSource: {
               pdfId: pdfCard.pdfId,
               page: pdfCard.page,
@@ -364,12 +378,7 @@ export default function OptionsPage() {
               kind: pdfCard.kind
             }
           }
-        : {
-            ...card,
-            content: resolved.content,
-            comment: resolved.comment,
-            image: ann?.image
-          }
+        : base
     },
     [pdfById, pdfNameById, annotationById]
   )
@@ -733,7 +742,7 @@ export default function OptionsPage() {
     const mergedSectionId =
       sameSection && firstSectionId ? firstSectionId : undefined
 
-    const newCard = createProjectCard({
+    const newCard = buildProjectCard({
       type: "text",
       title: mergedTitle.trim(),
       content: mergedContent,

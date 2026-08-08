@@ -327,30 +327,6 @@ export function computeDropIndex<T extends { id: string; order?: number; created
 
 /** Fresh item factory — the single place a new card/todo/capture is built.
  *  Order is deliberately left undefined (the DB auto-assigns it). */
-export function createProjectCard(data: {
-  type: ProjectCardType
-  content: string
-  title?: string
-  comment?: string
-  source?: SourceMeta
-  projectId: string
-  sectionId?: string
-  images?: string[]
-}): ProjectCard {
-  return {
-    id: crypto.randomUUID(),
-    type: data.type,
-    title: data.title,
-    content: data.content,
-    source: data.source,
-    createdAt: Date.now(),
-    projectId: data.projectId,
-    ...(data.sectionId ? { sectionId: data.sectionId } : {}),
-    ...(data.images && data.images.length > 0 ? { images: data.images } : {}),
-    ...(data.comment ? { comment: data.comment } : {})
-  }
-}
-
 /** Fresh todo factory — identity-unique (addTodo never dedups). */
 export function createTodoCard(data: {
   title?: string

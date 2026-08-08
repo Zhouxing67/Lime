@@ -14,12 +14,14 @@ import { useEffect, useState } from "react"
 import {
   addProject,
   addProjectCard,
+  createImageCard,
+  createTextCard,
   getProjectByName,
   listProjects
 } from "../database"
 import type { Project, ProjectCardType } from "../types"
 import { sendMessage } from "../types/messages"
-import { createProjectCard } from "../utils"
+
 
 interface PendingCapture {
   type: ProjectCardType
@@ -50,13 +52,18 @@ export default function NewProjectPage() {
   const saveAndClose = async (projectId: string, projectName: string) => {
     if (!pending) return
     setBusy(true)
-    const card = createProjectCard({
-      type: pending.type,
-      content: pending.content,
-      source: pending.source,
-      projectId
-    })
-    const saved = await addProjectCard(card)
+    const saved =
+      pending.type === "image"
+        ? await createImageCard({
+            image: pending.content,
+            source: pending.source,
+            projectId
+          })
+        : await createTextCard({
+            content: pending.content,
+            source: pending.source,
+            projectId
+          })
     const result = await chrome.storage.session.get("pendingTabId")
     const tabId = (result as { pendingTabId?: number }).pendingTabId
 
@@ -116,11 +123,9 @@ export default function NewProjectPage() {
             }}>
             {pending.type === "text"
               ? pending.content
-              : pending.type === "link"
-                ? pending.content
-                : pending.type === "image"
-                  ? "[图片]"
-                  : "[网页快照]"}
+              : pending.type === "image"
+                ? "[图片]"
+                : "[网页快照]"}
             {" · "}
             {pending.source.title || (pending.source?.url ?? "")}
           </Typography>

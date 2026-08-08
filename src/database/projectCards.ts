@@ -1,6 +1,6 @@
 import { tx, withStore } from "./core"
-import { safeHostname } from "./helpers"
-import type { PdfAnnotation, ProjectCard, SearchQuery } from "../types"
+import { getByKeys, safeHostname } from "./helpers"
+import type { PdfAnnotation, PdfCard, ProjectCard, ProjectCardType, SearchQuery, SourceMeta } from "../types"
 import { computeItemHash } from "../utils"
 
 /** Highest `order` in a section (未分类 = no sectionId), -1 when empty. The
@@ -43,6 +43,119 @@ export async function ensureOrder<T extends ProjectCard>(card: T): Promise<T> {
   return { ...card, order: max + 1 }
 }
 
+/** Raw card seed — the internal builder's input. */
+export interface CardSeed {
+  type: ProjectCardType
+  title?: string
+  /** text 内容（必选）。 */
+  content: string
+  /** image 只读原始内容（dataURL）。 */
+  image?: string
+  comment?: string
+  source?: SourceMeta
+  projectId: string
+  sectionId?: string
+  images?: string[]
+  pdfCardId?: string
+}
+
+/** Internal raw builder — the ONLY place a ProjectCard is constructed with a
+ *  type. The three typed interfaces (createTextCard/createImageCard/
+ *  createPlacedCard) are the public creation API; composite flows (merge /
+ *  import / clone) use this builder for their atomic writes. */
+export function buildProjectCard(data: CardSeed): ProjectCard {
+  return {
+    id: crypto.randomUUID(),
+    type: data.type,
+    title: data.title,
+    content: data.content,
+    source: data.source,
+    createdAt: Date.now(),
+    projectId: data.projectId,
+    ...(data.sectionId ? { sectionId: data.sectionId } : {}),
+    ...(data.images && data.images.length > 0 ? { images: data.images } : {}),
+    ...(data.comment ? { comment: data.comment } : {}),
+    ...(data.image ? { image: data.image } : {}),
+    ...(data.pdfCardId ? { pdfCardId: data.pdfCardId } : {})
+  }
+}
+
+/** text — content 必选（markdown，可内嵌图片），image/comment 可选。 */
+export async function createTextCard(data: {
+  title?: string
+  content: string
+  comment?: string
+  source?: SourceMeta
+  projectId: string
+  sectionId?: string
+  images?: string[]
+}): Promise<boolean> {
+  return addProjectCard(
+    buildProjectCard({ type: "text", ...data }),
+    undefined
+  )
+}
+
+/** image — image 必选（dataURL），content 不可选。 */
+export async function createImageCard(data: {
+  title?: string
+  image: string
+  comment?: string
+  source?: SourceMeta
+  projectId: string
+  sectionId?: string
+}): Promise<boolean> {
+  return addProjectCard(
+    buildProjectCard({
+      type: "image",
+      content: "",
+      title: data.title,
+      image: data.image,
+      comment: data.comment,
+      source: data.source,
+      projectId: data.projectId,
+      ...(data.sectionId ? { sectionId: data.sectionId } : {})
+    }),
+    undefined
+  )
+}
+
+/** placed — pdfCardId 必选；content/image 不可选（解析视图）；identity-unique。
+ *  The single-card placement entry: 1:1 guard + the placement + the pdfCard's
+ *  reverse-ref writeback in ONE tx (the batch placePdfCards shares the same
+ *  invariants atomically). */
+export async function createPlacedCard(data: {
+  title?: string
+  pdfCardId: string
+  comment?: string
+  projectId: string
+  sectionId?: string
+}): Promise<boolean> {
+  const maxOrder = await getMaxOrderInSection(undefined)
+  return tx(
+    { pdfCards: "readwrite", projectCards: "readwrite" },
+    async (stores) => {
+      const [pdfCard] = await getByKeys<PdfCard>(stores.pdfCards, [
+        data.pdfCardId
+      ])
+      if (!pdfCard || pdfCard.projectCardId) return false // 1:1 guard — already placed
+      const placement = buildProjectCard({
+        type: "placed",
+        content: "",
+        title: data.title,
+        pdfCardId: data.pdfCardId,
+        comment: data.comment,
+        projectId: data.projectId,
+        ...(data.sectionId ? { sectionId: data.sectionId } : {})
+      })
+      placement.order = maxOrder + 1
+      stores.projectCards.put(placement)
+      stores.pdfCards.put({ ...pdfCard, projectCardId: placement.id })
+      return true
+    }
+  )
+}
+
 export async function addProjectCard(
   card: ProjectCard,
   opts?: { skipDedup?: boolean }
@@ -56,8 +169,16 @@ export async function addProjectCard(
     hash:
       card.hash ||
       (card.source
-        ? await computeItemHash(card.content, card.source.url, card.images)
-        : await computeItemHash(card.content, "", card.images))
+        ? await computeItemHash(
+            card.type === "image" ? card.image ?? "" : card.content,
+            card.source.url,
+            card.images
+          )
+        : await computeItemHash(
+            card.type === "image" ? card.image ?? "" : card.content,
+            "",
+            card.images
+          ))
   }
   const ready = await ensureOrder(normalized)
 

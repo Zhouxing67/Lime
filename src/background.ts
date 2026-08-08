@@ -1,6 +1,8 @@
 import {
   addProject,
   addProjectCard,
+  createImageCard,
+  createTextCard,
   getDueCount,
   getIncompleteTodoCount,
   getRecentProjects,
@@ -9,7 +11,7 @@ import {
 } from "./database"
 import type { Project } from "./types"
 import type { ExtensionMessage } from "./types/messages"
-import { applyBadge, createProjectCard } from "./utils"
+import { applyBadge } from "./utils"
 
 async function updateBadge() {
   try {
@@ -188,16 +190,24 @@ async function handleCapture(
 
   if (targetProject) {
     // Captured cards land in 未分类 (no sectionId) — the same as before.
-    const card = createProjectCard({
-      type: payload.type,
-      content: payload.content,
-      title: payload.title,
-      source: payload.source,
-      projectId: targetProject.id
-    })
-    const saved = await addProjectCard(card)
+    // Text/image captures go through the typed creation interfaces (the raw
+    // builder is not a business-layer creation API).
+    const saved =
+      payload.type === "image"
+        ? await createImageCard({
+            image: payload.content,
+            title: payload.title,
+            source: payload.source,
+            projectId: targetProject.id
+          })
+        : await createTextCard({
+            content: payload.content,
+            title: payload.title,
+            source: payload.source,
+            projectId: targetProject.id
+          })
     if (saved) touchProject(targetProject.id).catch(() => {})
-    notifyTab(senderTab?.id, saved, card.type)
+    notifyTab(senderTab?.id, saved, payload.type)
     sendResponse({ ok: true, saved })
     return
   }

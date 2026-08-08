@@ -10,6 +10,7 @@ import type {
 } from "../types"
 import { createPdfCard, sha256Bytes } from "../utils"
 import { renderRegionImage } from "../utils/pdfRegionImage"
+import { buildProjectCard, createPlacedCard } from "./projectCards"
 
 /** Add or "fill" a PDF. The id is the SHA-256 content hash of the bytes (a
  *  stable cross-device identity). If a record with the same id already holds
@@ -464,18 +465,16 @@ export async function placePdfCards(
       for (const pdfCard of cards) {
         if (pdfCard.projectCardId) continue // 1:1 guard — already placed
         runningMax += 1
-        const placement: ProjectCard = {
-          id: crypto.randomUUID(),
-          // Region annotations (frame/free-hand/free-highlight) once carried a
-          // cropped image; the crop is gone, so ALL placements are text cards.
-          type: "text",
+        const placement = buildProjectCard({
+          type: "placed",
           content: "",
           projectId,
           sectionId: undefined,
-          order: runningMax,
-          pdfCardId: pdfCard.id,
-          createdAt: Date.now()
-        }
+          pdfCardId: pdfCard.id
+        })
+        // Placed cards sort by the pdfOrder space — the placement order is the
+        // running max of the shared 未分类 space (same as before).
+        placement.order = runningMax
         stores.projectCards.put(placement)
         stores.pdfCards.put({ ...pdfCard, projectCardId: placement.id })
         if (pdfCard.kind === "region") regionCards.push(pdfCard)
@@ -537,12 +536,12 @@ export async function updateAnnotationImage(
   })
 }
 
-/** Place a single pdfCard (thin wrapper). */
+/** Place a single pdfCard — the typed single-card creation entry. */
 export async function placePdfCard(
   pdfCardId: string,
   projectId: string
-): Promise<void> {
-  await placePdfCards([pdfCardId], projectId)
+): Promise<boolean> {
+  return createPlacedCard({ pdfCardId, projectId })
 }
 
 /** Remove pdfCards from their project — delete the placement + clear the

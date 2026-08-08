@@ -1,8 +1,8 @@
 import ArticleRoundedIcon from "@mui/icons-material/ArticleRounded"
+import BookmarkRoundedIcon from "@mui/icons-material/BookmarkRounded"
 import ChecklistRoundedIcon from "@mui/icons-material/ChecklistRounded"
 import FormatQuoteRoundedIcon from "@mui/icons-material/FormatQuoteRounded"
 import ImageRoundedIcon from "@mui/icons-material/ImageRounded"
-import LinkRoundedIcon from "@mui/icons-material/LinkRounded"
 import { Box, Chip, Typography } from "@mui/material"
 
 import type { DisplayCard } from "../types"
@@ -22,7 +22,7 @@ interface CardRendererProps {
 const TYPE_LABEL: Record<string, string> = {
   text: "文本",
   image: "图片",
-  link: "链接",
+  placed: "置入",
   todo: "待办"
 }
 
@@ -32,8 +32,8 @@ export const typeIcon = (type: string) => {
       return <FormatQuoteRoundedIcon fontSize="small" />
     case "image":
       return <ImageRoundedIcon fontSize="small" />
-    case "link":
-      return <LinkRoundedIcon fontSize="small" />
+    case "placed":
+      return <BookmarkRoundedIcon fontSize="small" />
     case "todo":
       return <ChecklistRoundedIcon fontSize="small" />
     default:
@@ -215,25 +215,6 @@ function ContentBlock({ item }: { item: DisplayCard }) {
       </Box>
     )
   }
-  if (item.type === "link" && item.source?.url) {
-    return (
-      <Typography
-        component="a"
-        href={item.source.url}
-        target="_blank"
-        onClick={(e) => e.stopPropagation()}
-        sx={{
-          fontSize: "1.1rem",
-          lineHeight: 1.8,
-          wordBreak: "break-word",
-          color: "primary.main",
-          textDecoration: "none",
-          "&:hover": { textDecoration: "underline" }
-        }}>
-        {item.source.title || prettyUrl(item.source.url)}
-      </Typography>
-    )
-  }
   return (
     <Box
       sx={{ pl: 2, borderLeft: "4px solid", borderLeftColor: "primary.main" }}>
@@ -326,23 +307,13 @@ export default function CardRenderer({
               }}
             />
           </Box>
-        ) : item.type === "text" ? (
+        ) : item.type === "text" || item.type === "placed" ? (
           <MarkdownRenderer
             content={item.content}
             maxLines={previewMaxLines(item.content)}
           />
-        ) : item.type === "link" ? (
-          <Typography
-            variant="caption"
-            sx={{
-              color: "text.disabled",
-              fontSize: "0.7rem",
-              fontStyle: "italic"
-            }}>
-            {prettyUrl(item.content)}
-          </Typography>
         ) : null}
-        {item.comment && (
+        {item.type !== "text" && item.comment && (
           <Box sx={{ mt: 1 }}>
             <MarkdownRenderer content={item.comment} maxLines={1} />
           </Box>
@@ -595,24 +566,59 @@ export default function CardRenderer({
           </Typography>
         </Box>
       )}
-      {item.image && (
-        <Box sx={{ display: "flex", justifyContent: "center" }}>
-          <img
-            src={item.image}
-            alt={item.source?.title || ""}
-            style={{
-              maxWidth: "100%",
-              maxHeight: 420,
-              objectFit: "contain",
-              borderRadius: 1
-            }}
-          />
+      {/* 内容 (text) */}
+      {item.type === "text" && item.content && (
+        <Box>
+          <Typography
+            variant="caption"
+            sx={{
+              color: "text.secondary",
+              fontSize: "0.75rem",
+              letterSpacing: "0.05em",
+              mb: 0.5,
+              display: "block"
+            }}>
+            内容
+          </Typography>
+          <MarkdownRenderer content={item.content} />
         </Box>
       )}
-      <Box>
-        <OriginalBlock item={item} />
-      </Box>
-      {item.comment && (
+
+      {/* 只读原始内容 (image/placed) */}
+      {(item.type === "image" || item.type === "placed") && (
+        <Box sx={{ mt: item.title ? 2 : 0 }}>
+          <Typography
+            variant="caption"
+            sx={{
+              color: "text.secondary",
+              fontSize: "0.75rem",
+              letterSpacing: "0.05em",
+              mb: 0.5,
+              display: "block"
+            }}>
+            只读原始内容
+          </Typography>
+          {item.image ? (
+            <Box sx={{ display: "flex", justifyContent: "center" }}>
+              <img
+                src={item.image}
+                alt={item.source?.title || ""}
+                style={{
+                  maxWidth: "100%",
+                  maxHeight: 420,
+                  objectFit: "contain",
+                  borderRadius: 1
+                }}
+              />
+            </Box>
+          ) : item.content ? (
+            <MarkdownRenderer content={item.content} />
+          ) : null}
+        </Box>
+      )}
+
+      {/* 备注 (image/placed only) */}
+      {item.type !== "text" && item.comment && (
         <Box sx={{ mt: 2 }}>
           <Typography
             variant="caption"
