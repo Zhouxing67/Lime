@@ -186,7 +186,7 @@ export async function saveDraftCard(data: {
   comment?: string
   projectId: string
   sectionId?: string
-}): Promise<void> {
+}): Promise<string | undefined> {
   const maxOrder = await getMaxOrderInSection(data.sectionId)
   const original = data.draftOf
     ? await getProjectCardById(data.draftOf)
@@ -212,7 +212,7 @@ export async function saveDraftCard(data: {
         r.onsuccess = () => resolve()
         r.onerror = () => reject(r.error)
       })
-      return
+      return existing.id
     }
     const draft = buildProjectCard({
       type: data.type,
@@ -231,6 +231,7 @@ export async function saveDraftCard(data: {
       r.onsuccess = () => resolve()
       r.onerror = () => reject(r.error)
     })
+    return draft.id
   })
 }
 

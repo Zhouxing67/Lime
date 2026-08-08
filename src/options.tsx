@@ -43,13 +43,13 @@ import DialogShell from "./components/DialogShell"
 import EmptyState from "./components/EmptyState"
 import FilterChips from "./components/FilterChips"
 import FooterBar from "./components/FooterBar"
-import ItemDialog from "./components/ItemDialog"
+import CardWorkspace from "./components/CardWorkspace"
+import type { CardEditorValues } from "./components/CardEditorView"
 import CopyCardsMenu from "./components/CopyCardsMenu"
 import MergeConfirmDialog from "./components/MergeConfirmDialog"
 import MoveToSectionMenu from "./components/MoveToSectionMenu"
 import NavRail from "./components/NavRail"
 import type { SidebarTab } from "./components/NavRail"
-import NewCardDialog from "./components/NewCardDialog"
 import NewProjectDialog from "./components/NewProjectDialog"
 import ProjectHub from "./components/ProjectHub"
 import BackupView from "./components/BackupView"
@@ -81,7 +81,12 @@ import {
   deletePdf,
   deletePdfCards,
   deleteTodo,
+  discardDraft,
   ensureOrder,
+  createImageCard,
+  createTextCard,
+  promoteDraft,
+  saveDraftCard,
   getAllAnnotations,
   getAllPdfCards,
   getAllProjectCards,
@@ -111,7 +116,6 @@ import {
 } from "./database"
 import { useBackupSync } from "./hooks/useBackupSync"
 import { useCardDragReorder } from "./hooks/useCardDragReorder"
-import { useNewCard } from "./hooks/useNewCard"
 import { useProjects } from "./hooks/useProjects"
 import { useReview } from "./hooks/useReview"
 import { createReviewEntry, dayKey, rateSrs } from "./hooks/useSrs"
@@ -144,7 +148,10 @@ const ITEMS_PER_PAGE = 20
 export default function OptionsPage() {
   const [allProjectCards, setAllProjectCards] = useState<ProjectCard[]>([])
   const [keyword, setKeyword] = useState("")
-  const [dialogCard, setDialogCard] = useState<DisplayCard | null>(null)
+  const [cardWorkspace, setCardWorkspace] = useState<{
+    view: "view" | "edit" | "create"
+    card: DisplayCard | null
+  } | null>(null)
 
   // Navigate prev/next within the currently displayed list
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -487,7 +494,6 @@ export default function OptionsPage() {
       setSelectMode(false)
       setActiveProjectId(null)
       setNavOpen(false)
-      setDialogCard(null)
       setKeyword("")
       setDateRange(null)
       if (id) {
@@ -650,25 +656,9 @@ export default function OptionsPage() {
   }
 
   // Active section in the current project (sidebar tree -> main area).
-  // Declared before useNewCard so new cards can default into it.
   const activeSectionId = activeProjectId
     ? (activeSectionByProject[activeProjectId] ?? null)
     : null
-
-  const {
-    newCardOpen,
-    newCardTitle,
-    newCardContent,
-    setNewCardTitle,
-    setNewCardContent,
-    setNewCardOpen,
-    handleNewCard,
-    handleSaveNewCard
-  } = useNewCard({
-    activeProjectId,
-    activeSectionId,
-    onSearch
-  })
 
   const onDelete = (id: string) => {
     setConfirmDeleteId(id)
@@ -884,6 +874,11 @@ export default function OptionsPage() {
     async (itemId: string) => {
       const card = allProjectCardsUnfiltered.find((i) => i.id === itemId)
       if (!card) return
+      // Drafts are intermediate states — never reviewable.
+      if (card.isDraft) {
+        setSnackbarMsg("草稿不可加入复习")
+        return
+      }
 
       // If already in review, remove it
       if (reviewItemIds.has(itemId)) {
@@ -1330,6 +1325,147 @@ export default function OptionsPage() {
   }, [])
 
   // Place PDF-sourced cards into a project (未分类) / unplace back to PDF-only.
+  const handleOpenCardWorkspace = useCallback(
+    (card: DisplayCard) => setCardWorkspace({ view: "view", card }),
+    []
+  )
+
+  const handleCardWorkspaceClose = useCallback(() => setCardWorkspace(null), [])
+
+  const handleCardWorkspaceEdit = useCallback(() => {
+    setCardWorkspace((prev) => (prev ? { ...prev, view: "edit" } : prev))
+  }, [])
+
+  const handleCardWorkspaceSave = useCallback(
+    async (values: CardEditorValues, type: "text" | "image" | "placed") => {
+      const ws = cardWorkspace
+      if (!ws) return
+      const sectionId =
+        ws.view === "create"
+          ? activeSectionId && activeSectionId !== "__unclassified__"
+            ? activeSectionId
+            : undefined
+          : ws.card?.sectionId
+      try {
+        if (ws.view === "create") {
+          if (type === "image") {
+            await createImageCard({
+              title: values.title?.trim() || undefined,
+              image: values.image ?? "",
+              comment: values.comment?.trim() || undefined,
+              projectId: activeProjectId ?? "",
+              sectionId
+            })
+          } else {
+            await createTextCard({
+              title: values.title?.trim() || undefined,
+              content: values.content ?? "",
+              comment: values.comment?.trim() || undefined,
+              projectId: activeProjectId ?? "",
+              sectionId
+            })
+          }
+        } else if (ws.card?.isDraft) {
+          // editing a draft → persist the values + promote (write back/create)
+          const draftId = await saveDraftCard({
+            draftOf: ws.card.draftOf,
+            type: type === "image" ? "image" : "text",
+            title: values.title?.trim() || undefined,
+            content: values.content ?? "",
+            image: values.image,
+            comment: values.comment?.trim() || undefined,
+            projectId: ws.card.projectId,
+            sectionId: ws.card.sectionId
+          })
+          if (draftId) await promoteDraft(draftId)
+        } else if (ws.card) {
+          // editing a normal card → write directly (placed splits the comment)
+          const updated: ProjectCard = {
+            ...ws.card,
+            title: values.title?.trim() || undefined,
+            content: values.content ?? ws.card.content,
+            image: values.image,
+            comment: values.comment?.trim() || undefined,
+            updatedAt: Date.now()
+          }
+          if (ws.card.pdfCardId) {
+            await updateProjectCard(
+              stripPlacementContent({ ...ws.card, title: updated.title })
+            )
+            const pdfCard = pdfById.get(ws.card.pdfCardId)
+            const newComment = updated.comment?.trim() || undefined
+            if (
+              pdfCard &&
+              newComment !== (pdfCard.comment?.trim() || undefined)
+            ) {
+              await updatePdfCard({ ...pdfCard, comment: newComment })
+            }
+          } else {
+            await updateProjectCard(stripPlacementContent(updated))
+          }
+        }
+      } catch (e) {
+        console.warn("[lime] card save failed:", e)
+      }
+      setCardWorkspace(null)
+      onSearch()
+    },
+    [cardWorkspace, activeProjectId, activeSectionId, pdfById, onSearch]
+  )
+
+  const handleCardWorkspaceSaveDraft = useCallback(
+    async (values: CardEditorValues, type: "text" | "image" | "placed") => {
+      const ws = cardWorkspace
+      if (!ws) return
+      const sectionId =
+        ws.view === "create"
+          ? activeSectionId && activeSectionId !== "__unclassified__"
+            ? activeSectionId
+            : undefined
+          : ws.card?.sectionId
+      try {
+        if (ws.view === "create") {
+          await saveDraftCard({
+            type: type === "image" ? "image" : "text",
+            title: values.title?.trim() || undefined,
+            content: values.content ?? "",
+            image: values.image,
+            comment: values.comment?.trim() || undefined,
+            projectId: activeProjectId ?? "",
+            sectionId
+          })
+        } else if (ws.card) {
+          await saveDraftCard({
+            draftOf: ws.card.isDraft ? ws.card.draftOf : ws.card.id,
+            type: type === "image" ? "image" : "text",
+            title: values.title?.trim() || undefined,
+            content: values.content ?? "",
+            image: values.image,
+            comment: values.comment?.trim() || undefined,
+            projectId: ws.card.projectId,
+            sectionId: ws.card.sectionId
+          })
+        }
+      } catch (e) {
+        console.warn("[lime] card draft failed:", e)
+      }
+      setCardWorkspace(null)
+      onSearch()
+    },
+    [cardWorkspace, activeProjectId, activeSectionId, onSearch]
+  )
+
+  const handleCardWorkspaceDiscard = useCallback(() => {
+    const ws = cardWorkspace
+    if (ws?.card?.isDraft) {
+      discardDraft(ws.card.id).catch((e) =>
+        console.warn("[lime] discard draft failed:", e)
+      )
+    }
+    setCardWorkspace(null)
+    onSearch()
+  }, [cardWorkspace, onSearch])
+
   const handlePlaceCards = useCallback(
     async (cardIds: string[], projectId: string) => {
       const project = projects.find((p) => p.id === projectId)
@@ -1734,33 +1870,6 @@ export default function OptionsPage() {
     onMoveCard
   })
 
-  // ItemDialog navigation follows the current view: review dates, full search
-  // hits, or the visible section/project scope — not the paginated 20-card page.
-  const navList =
-    sidebarTab === "review" && reviewDateFilter
-      ? filteredDateItems
-      : keyword || dateRange
-        ? displayCards
-        : scopeItems
-
-  const handleNavigate = useCallback(
-    (direction: "prev" | "next") => {
-      if (!dialogCard) return
-      const idx = navList.findIndex((i) => i.id === dialogCard.id)
-      if (idx === -1) return
-      const nextIdx = direction === "prev" ? idx - 1 : idx + 1
-      if (nextIdx < 0 || nextIdx >= navList.length) return
-      setDialogCard(navList[nextIdx])
-    },
-    [dialogCard, navList]
-  )
-
-  const navIndex = dialogCard
-    ? navList.findIndex((i) => i.id === dialogCard.id)
-    : -1
-  const hasPrev = navIndex > 0
-  const hasNext = navIndex >= 0 && navIndex < navList.length - 1
-
   const handleSetSidebarTab = useCallback(
     (tab: SidebarTab) => {
       // Pure decision + the ref read (latest value) — a state-in-deps closure
@@ -2103,7 +2212,7 @@ export default function OptionsPage() {
     selectedIds,
     reviewItemIds,
     masteredItemIds,
-    onOpenDialog: setDialogCard,
+    onOpenDialog: handleOpenCardWorkspace,
     onToggleReview: handleToggleReview,
     onReReview: handleReReview,
     onCopyToProject: (id: string, anchor: HTMLElement) => {
@@ -2181,8 +2290,7 @@ export default function OptionsPage() {
               setSelectMode(false)
               setActiveProjectId(null)
               setNavOpen(false)
-              setDialogCard(null)
-              setKeyword("")
+                      setKeyword("")
               setDateRange(null)
               onSearch(null)
             }}
@@ -2282,7 +2390,7 @@ export default function OptionsPage() {
                     <Tooltip title="新建卡片">
                       <IconButton
                         size="small"
-                        onClick={handleNewCard}
+                        onClick={() => setCardWorkspace({ view: "create", card: null })}
                         sx={{
                           color: "text.secondary",
                           "&:hover": { color: "primary.main" },
@@ -2530,7 +2638,17 @@ export default function OptionsPage() {
               minHeight: 0,
               bgcolor: (t) => t.custom.surface2
             }}>
-            {sidebarTab === "pdf" ? (
+            {cardWorkspace ? (
+              <CardWorkspace
+                view={cardWorkspace.view}
+                card={cardWorkspace.card}
+                onEdit={handleCardWorkspaceEdit}
+                onClose={handleCardWorkspaceClose}
+                onSave={handleCardWorkspaceSave}
+                onSaveDraft={handleCardWorkspaceSaveDraft}
+                onDiscard={handleCardWorkspaceDiscard}
+              />
+            ) : sidebarTab === "pdf" ? (
               openPdfIds.length > 0 ? (
                 <Box
                   sx={{
@@ -2788,7 +2906,7 @@ export default function OptionsPage() {
                               dropIndicator={cardDrop}
                               flipRectsRef={flipRectsRef}
                               onGripPointerDown={handleGripPointerDown}
-                              onNewCard={handleNewCard}
+                              onNewCard={() => setCardWorkspace({ view: "create", card: null })}
                               selectMode={selectMode}
                               onSelectItem={(id) =>
                                 setSelectedIds((prev) =>
@@ -2895,67 +3013,6 @@ export default function OptionsPage() {
 
               </Container>
              )}
-
-              <ItemDialog
-                item={dialogCard}
-                open={Boolean(dialogCard)}
-                readOnly={sidebarTab === "review"}
-                hasPrev={hasPrev}
-                hasNext={hasNext}
-                onClose={() => setDialogCard(null)}
-                onNavigate={handleNavigate}
-                onSave={async (updated) => {
-                  // Writes operate on the ORIGINAL projectCard. A placed card's
-                  // title persists on the placement; its comment (备注) persists on
-                  // the linked pdfCard; its content is NEVER written (the
-                  // placement references the pdfCard's quote).
-                  const original = allProjectCardsUnfiltered.find(
-                    (c) => c.id === updated.id
-                  )
-                  if (!original) return
-                  const title = updated.title?.trim() || undefined
-                  if (original.pdfCardId) {
-                    await updateProjectCard(
-                      stripPlacementContent({ ...original, title })
-                    )
-                    const pdfCard = pdfById.get(original.pdfCardId)
-                    const newComment = updated.comment?.trim() || undefined
-                    if (pdfCard && newComment !== (pdfCard.comment?.trim() || undefined)) {
-                      await updatePdfCard({ ...pdfCard, comment: newComment })
-                    }
-                  } else {
-                    await updateProjectCard(
-                      stripPlacementContent({
-                        ...original,
-                        title,
-                        content: updated.content ?? original.content,
-                        comment: updated.comment?.trim() || undefined
-                      })
-                    )
-                  }
-                  if (!title) {
-                    // A card without a title can't be reviewed — drop its entry.
-                    await removeReview(updated.id)
-                    setReviewItemIds((prev) => {
-                      const next = new Set(prev)
-                      next.delete(updated.id)
-                      return next
-                    })
-                  }
-                  setDialogCard(null)
-                  onSearch()
-                }}
-              />
-
-              <NewCardDialog
-                open={newCardOpen}
-                title={newCardTitle}
-                content={newCardContent}
-                onTitleChange={setNewCardTitle}
-                onContentChange={setNewCardContent}
-                onClose={() => setNewCardOpen(false)}
-                onSave={handleSaveNewCard}
-              />
 
               <DialogShell
                 open={Boolean(reviewTitlePending)}
