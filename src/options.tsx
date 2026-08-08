@@ -349,14 +349,14 @@ export default function OptionsPage() {
   const resolveDisplay = useCallback(
     (card: ProjectCard): DisplayCard => {
       if (!card.pdfCardId) {
-        // Legacy image cards (pre card-type-v2 migration): the dataURL lives in
-        // content. Derive the readonly image field at display so the full/
-        // preview render it as an image, not a raw link.
+        // Legacy image cards (pre card-type-v2 migration): the image (a dataURL
+        // or a legacy URL) lives in content. Derive the readonly image field at
+        // display so the full/preview render it as an image, not a raw link.
         if (
           card.type === "image" &&
           !card.image &&
           typeof card.content === "string" &&
-          card.content.startsWith("data:image")
+          card.content.length > 0
         ) {
           return { ...card, image: card.content }
         }

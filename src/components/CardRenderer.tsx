@@ -598,7 +598,7 @@ export default function CardRenderer({
             }}>
             只读原始内容
           </Typography>
-          {item.image ? (
+          {item.image || (item.type === "image" && item.content) ? (
             <Box
               sx={{
                 display: "flex",
@@ -610,7 +610,7 @@ export default function CardRenderer({
                 bgcolor: "action.hover"
               }}>
               <img
-                src={item.image}
+                src={item.image || item.content}
                 alt={item.source?.title || ""}
                 style={{
                   maxWidth: "100%",
