@@ -36,6 +36,7 @@ import {
   getAnnotation,
   getAnnotationsByPdf,
   getDueReviews,
+  getAllProjectCards,
   getPdf,
   getProjectByName,
   listPdfs,
@@ -45,6 +46,9 @@ import {
   unplacePdfCard,
   unplacePdfCards,
   searchProjectCards,
+  saveDraftCard,
+  promoteDraft,
+  discardDraft,
   touchPdf,
   updateProjectCard,
   updateReviewSrs,
@@ -1344,3 +1348,83 @@ describe("todos broadcast `_dbt`", () => {
     expect(storageSet.mock.calls.some((c) => "_dbi" in c[0])).toBe(false)
   })
 })
+
+describe("draft CRUD (isDraft / draftOf)", () => {
+  async function makeProject(name: string): Promise<string> {
+    const project: Project = {
+      id: crypto.randomUUID(),
+      name,
+      createdAt: Date.now()
+    }
+    await addProject(project)
+    return project.id
+  }
+
+  it("saves a create draft, promotes it into a real card, and clears the draft", async () => {
+    const projectId = await makeProject("草稿项目")
+    await saveDraftCard({
+      type: "text",
+      title: "",
+      content: "草稿内容",
+      projectId
+    })
+    const all = await getAllProjectCards()
+    const draft = all.find((c) => c.isDraft)
+    expect(draft).toBeDefined()
+    expect(draft?.draftOf).toBeUndefined()
+    expect(draft?.content).toBe("草稿内容")
+
+    await promoteDraft(draft!.id)
+    const after = await getAllProjectCards()
+    const promoted = after.find((c) => !c.isDraft && c.content === "草稿内容")
+    expect(promoted).toBeDefined()
+    expect(after.some((c) => c.isDraft)).toBe(false)
+  })
+
+  it("edit draft overwrites the original on promote (id/order preserved) and cascades on delete", async () => {
+    const projectId = await makeProject("编辑草稿项目")
+    const original = await createTextCardSafe(projectId)
+    await saveDraftCard({
+      draftOf: original.id,
+      type: "text",
+      title: "新标题",
+      content: "新正文",
+      projectId
+    })
+    const all = await getAllProjectCards()
+    const draft = all.find((c) => c.isDraft && c.draftOf === original.id)
+    expect(draft).toBeDefined()
+
+    await promoteDraft(draft!.id)
+    const after = await getAllProjectCards()
+    const updated = after.find((c) => c.id === original.id)
+    expect(updated?.title).toBe("新标题")
+    expect(updated?.content).toBe("新正文")
+    expect(after.some((c) => c.isDraft)).toBe(false)
+
+    // cascade: a new draft is deleted when its original is deleted
+    await saveDraftCard({
+      draftOf: original.id,
+      type: "text",
+      title: "",
+      content: "x",
+      projectId
+    })
+    await deleteProjectCard(original.id)
+    const final = await getAllProjectCards()
+    expect(final.some((c) => c.isDraft && c.draftOf === original.id)).toBe(false)
+  })
+})
+
+async function createTextCardSafe(projectId: string) {
+  const card: ProjectCard = {
+    id: crypto.randomUUID(),
+    type: "text",
+    title: "原标题",
+    content: "原正文",
+    projectId,
+    createdAt: Date.now()
+  }
+  await addProjectCard(card, { skipDedup: true })
+  return card
+}

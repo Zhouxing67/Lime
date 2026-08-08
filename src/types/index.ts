@@ -56,6 +56,10 @@ export interface ProjectCard {
   /** Placement reference → the PdfCard this card was placed from (placed cards
    *  render/search via this reference; content is NOT copied). */
   pdfCardId?: string
+  /** 草稿标记——中间态卡片（编辑/新建中）。undefined/false = 非草稿（兼容旧数据）。 */
+  isDraft?: boolean
+  /** 编辑草稿 → 原卡片 id；新建草稿无此字段。展示时草稿优先于原卡。 */
+  draftOf?: string
   createdAt: number
   updatedAt?: number
 }

@@ -156,6 +156,125 @@ export async function createPlacedCard(data: {
   )
 }
 
+/** Find the existing draft card for an original card (scan — drafts are few). */
+async function findDraftByOriginal(
+  store: IDBObjectStore,
+  originalId: string
+): Promise<ProjectCard | undefined> {
+  return new Promise((resolve, reject) => {
+    const req = store.openCursor()
+    req.onsuccess = () => {
+      const c = req.result
+      if (!c) return resolve(undefined)
+      const card = c.value as ProjectCard
+      if (card.isDraft && card.draftOf === originalId) return resolve(card)
+      c.continue()
+    }
+    req.onerror = () => reject(req.error)
+  })
+}
+
+/** Upsert a draft card (isDraft) — one per original. `draftOf` set = an edit
+ *  draft (inherits the original's order so the grid replacement stays put);
+ *  undefined = a create draft (section tail). */
+export async function saveDraftCard(data: {
+  draftOf?: string
+  type: "text" | "image"
+  title?: string
+  content?: string
+  image?: string
+  comment?: string
+  projectId: string
+  sectionId?: string
+}): Promise<void> {
+  const maxOrder = await getMaxOrderInSection(data.sectionId)
+  const original = data.draftOf
+    ? await getProjectCardById(data.draftOf)
+    : undefined
+  return withStore("projectCards", "readwrite", async (store) => {
+    const existing = data.draftOf
+      ? await findDraftByOriginal(store, data.draftOf)
+      : undefined
+    if (existing) {
+      const updated: ProjectCard = {
+        ...existing,
+        type: data.type,
+        title: data.title,
+        content: data.content ?? "",
+        image: data.image,
+        comment: data.comment,
+        projectId: data.projectId,
+        sectionId: data.sectionId,
+        updatedAt: Date.now()
+      }
+      await new Promise<void>((resolve, reject) => {
+        const r = store.put(updated)
+        r.onsuccess = () => resolve()
+        r.onerror = () => reject(r.error)
+      })
+      return
+    }
+    const draft = buildProjectCard({
+      type: data.type,
+      content: data.content ?? "",
+      title: data.title,
+      image: data.image,
+      comment: data.comment,
+      projectId: data.projectId,
+      ...(data.sectionId ? { sectionId: data.sectionId } : {})
+    })
+    draft.isDraft = true
+    if (data.draftOf) draft.draftOf = data.draftOf
+    draft.order = original?.order ?? maxOrder + 1
+    await new Promise<void>((resolve, reject) => {
+      const r = store.put(draft)
+      r.onsuccess = () => resolve()
+      r.onerror = () => reject(r.error)
+    })
+  })
+}
+
+/** Promote a draft — the 保存 action. An edit draft writes back into the
+ *  original card (id/order/review preserved); a create draft becomes a new
+ *  card. The draft is deleted in the same tx. */
+export async function promoteDraft(draftId: string): Promise<void> {
+  await tx({ projectCards: "readwrite" }, async (stores) => {
+    const [draft] = await getByKeys<ProjectCard>(stores.projectCards, [draftId])
+    if (!draft || !draft.isDraft) return
+    if (draft.draftOf) {
+      const [original] = await getByKeys<ProjectCard>(stores.projectCards, [
+        draft.draftOf
+      ])
+      if (original) {
+        stores.projectCards.put({
+          ...original,
+          type: draft.type,
+          title: draft.title,
+          content: draft.content,
+          image: draft.image,
+          comment: draft.comment,
+          updatedAt: Date.now()
+        })
+      }
+      stores.projectCards.delete(draft.id)
+    } else {
+      const promoted = {
+        ...draft,
+        id: crypto.randomUUID(),
+        isDraft: undefined,
+        draftOf: undefined
+      }
+      stores.projectCards.put(promoted)
+      stores.projectCards.delete(draft.id)
+    }
+  })
+}
+
+/** Discard a draft — the original card is untouched. */
+export async function discardDraft(draftId: string): Promise<void> {
+  await deleteProjectCard(draftId)
+}
+
 export async function addProjectCard(
   card: ProjectCard,
   opts?: { skipDedup?: boolean }
@@ -296,18 +415,46 @@ export async function searchProjectCards(q: SearchQuery): Promise<ProjectCard[]>
 }
 
 export async function deleteProjectCard(id: string): Promise<void> {
-  await tx({ reviews: "readwrite", projectCards: "readwrite" }, async (stores) => {
-    const idx = stores.reviews.index("itemId")
-    return new Promise<void>((resolve, reject) => {
-      const req = idx.getKey(id)
-      req.onsuccess = () => {
-        if (req.result) stores.reviews.delete(req.result as string)
-        stores.projectCards.delete(id)
-        resolve()
+  await tx(
+    { reviews: "readwrite", projectCards: "readwrite" },
+    async (stores) => {
+      const idx = stores.reviews.index("itemId")
+      await new Promise<void>((resolve, reject) => {
+        const req = idx.getKey(id)
+        req.onsuccess = () => {
+          if (req.result) stores.reviews.delete(req.result as string)
+          stores.projectCards.delete(id)
+          resolve()
+        }
+        req.onerror = () => reject(req.error)
+      })
+      // A deleted card's draft is orphaned — cascade it away.
+      await deleteOrphanDrafts(stores, [id])
+    }
+  )
+}
+
+/** Delete the drafts whose draftOf references a deleted card (the cascade). */
+async function deleteOrphanDrafts(
+  stores: Record<string, IDBObjectStore>,
+  ids: string[]
+): Promise<void> {
+  const deleted = new Set(ids)
+  const orphanIds: string[] = []
+  await new Promise<void>((resolve, reject) => {
+    const req = stores.projectCards.openCursor()
+    req.onsuccess = () => {
+      const c = req.result
+      if (!c) return resolve()
+      const card = c.value as ProjectCard
+      if (card.isDraft && card.draftOf && deleted.has(card.draftOf)) {
+        orphanIds.push(card.id)
       }
-      req.onerror = () => reject(req.error)
-    })
+      c.continue()
+    }
+    req.onerror = () => reject(req.error)
   })
+  for (const id of orphanIds) stores.projectCards.delete(id)
 }
 
 export async function deleteProjectCards(ids: string[]): Promise<void> {
@@ -335,6 +482,8 @@ export async function deleteProjectCards(ids: string[]): Promise<void> {
     for (const id of ids) {
       stores.projectCards.delete(id)
     }
+    // A deleted card's draft is orphaned — cascade it away.
+    await deleteOrphanDrafts(stores, ids)
   })
 }
 
