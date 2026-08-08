@@ -133,7 +133,7 @@ export default function PanelForm({
       setError("保存失败")
       setSaving(false)
     }
-  }, [content, title, captureType, selectedProjectId])
+  }, [content, title, captureType, selectedProjectId, setContent, setImageDraft, setTitle])
 
   const createProject = useCallback(async () => {
     if (!newName.trim()) return
@@ -167,11 +167,11 @@ export default function PanelForm({
       if (!trimmed || panelImages.includes(trimmed)) return
       setContent((prev) => appendMarkdownImage(prev, trimmed))
     },
-    [panelImages]
+    [panelImages, setContent]
   )
   const removeImage = useCallback((url: string) => {
     setContent((prev) => removeMarkdownImage(prev, url))
-  }, [])
+  }, [setContent])
 
   /** Insert `[摘要](url)` into the content (label forced from the 摘要 field). */
   const addLink = useCallback(() => {

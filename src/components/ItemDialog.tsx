@@ -42,43 +42,23 @@ export default function ItemDialog({
   hasPrev?: boolean
   hasNext?: boolean
 }) {
-  if (!item) return null
-
+  // Hooks run UNCONDITIONALLY (the `item` guard is AFTER them) — calling
+  // useState/useCallback after an early return would violate the rules of
+  // hooks (the dialog mounts with item=null + toggles open/closed, so the
+  // hook count must stay stable across renders).
   const [editing, setEditing] = useState(false)
-  const [draftTitle, setDraftTitle] = useState(item.title ?? "")
-  const [draftContent, setDraftContent] = useState(item.content)
-  const [draftIdea, setDraftIdea] = useState(item.idea ?? "")
+  const [draftTitle, setDraftTitle] = useState(item?.title ?? "")
+  const [draftContent, setDraftContent] = useState(item?.content ?? "")
+  const [draftIdea, setDraftIdea] = useState(item?.idea ?? "")
 
   useEffect(() => {
     setEditing(false)
-    setDraftTitle(item.title ?? "")
-    setDraftContent(item.content)
-    setDraftIdea(item.idea ?? "")
-  }, [item.id])
+    setDraftTitle(item?.title ?? "")
+    setDraftContent(item?.content ?? "")
+    setDraftIdea(item?.idea ?? "")
+  }, [item?.id, item?.title, item?.content, item?.idea])
 
   const [animDir, setAnimDir] = useState<"prev" | "next" | null>(null)
-
-  const handleSave = async () => {
-    // Placed PDF cards keep their content read-only (the PDF original — the
-    // content lives on the linked pdfCard); only the idea (备注) is editable.
-    // Same for image captures. The options' handler splits the idea write.
-    const readOnlyContent = item.type === "image" || !!item.pdfCardId
-    const updated: DisplayCard = {
-      ...item,
-      title: draftTitle.trim() || undefined,
-      content: readOnlyContent ? item.content : draftContent,
-      idea: readOnlyContent ? draftIdea.trim() || undefined : item.idea
-    }
-    if (onSave) await onSave(updated)
-    setEditing(false)
-  }
-
-  const handleCancel = () => {
-    setDraftTitle(item.title ?? "")
-    setDraftContent(item.content)
-    setDraftIdea(item.idea ?? "")
-    setEditing(false)
-  }
 
   const handleNavigate = useCallback(
     (dir: "prev" | "next") => {
@@ -117,6 +97,31 @@ export default function ItemDialog({
     return () => document.removeEventListener("keydown", onKeyDown)
   }, [open, onNavigate, hasPrev, hasNext, handleNavigate])
 
+  if (!item) return null
+
+  const handleSave = async () => {
+    // Placed PDF cards keep their content read-only (the PDF original — the
+    // content lives on the linked pdfCard); only the idea (备注) is editable.
+    // Same for image captures. The options' handler splits the idea write.
+    const readOnlyContent = item.type === "image" || !!item.pdfCardId
+    const updated: DisplayCard = {
+      ...item,
+      title: draftTitle.trim() || undefined,
+      content: readOnlyContent ? item.content : draftContent,
+      idea: readOnlyContent ? draftIdea.trim() || undefined : item.idea
+    }
+    if (onSave) await onSave(updated)
+    setEditing(false)
+  }
+
+  const handleCancel = () => {
+    setDraftTitle(item.title ?? "")
+    setDraftContent(item.content)
+    setDraftIdea(item.idea ?? "")
+    setEditing(false)
+  }
+
+  
   return (
     <Dialog
       open={open}

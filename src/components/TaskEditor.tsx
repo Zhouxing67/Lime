@@ -1,6 +1,6 @@
 import TagRoundedIcon from "@mui/icons-material/TagRounded"
 import { Box, Checkbox, InputBase } from "@mui/material"
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import type { KeyboardEvent } from "react"
 
 import { TASK_RE } from "../utils"
@@ -66,12 +66,15 @@ export default function TaskEditor({
   const lastEmitted = useRef(value)
   const refs = useRef<(HTMLInputElement | null)[]>([])
 
-  const commit = (next: TaskRow[]) => {
-    rowsRef.current = next
-    lastEmitted.current = serializeRows(next)
-    setRows(next)
-    onChange(lastEmitted.current)
-  }
+  const commit = useCallback(
+    (next: TaskRow[]) => {
+      rowsRef.current = next
+      lastEmitted.current = serializeRows(next)
+      setRows(next)
+      onChange(lastEmitted.current)
+    },
+    [onChange]
+  )
 
   // Re-sync when `value` changes externally (differs from what we emitted).
   useEffect(() => {
@@ -115,7 +118,7 @@ export default function TaskEditor({
     next.push({ kind: "task", checked: false, prefix: "", text: "" })
     commit(next)
     requestAnimationFrame(() => refs.current[next.length - 1]?.focus())
-  }, [autoFocusNewRow])
+  }, [autoFocusNewRow, commit])
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>

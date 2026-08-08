@@ -5,6 +5,7 @@
   "description": "一款集网页摘录、PDF 阅读批注、知识整理与间隔复习于一体的浏览器知识管理插件。",
   "author": "minorcell",
   "scripts": {
+    "lint": "eslint src --max-warnings 0",
     "dev": "plasmo dev",
     "predev": "node scripts/copy-pdfjs-assets.mjs",
     "build": "plasmo build",
@@ -40,12 +41,15 @@
     "@types/node": "20.11.5",
     "@types/react": "18.2.48",
     "@types/react-dom": "18.2.18",
+    "eslint": "^10.8.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "fake-indexeddb": "^5.0.2",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
     "prettier": "3.2.4",
     "ts-jest": "^29.1.1",
-    "typescript": "5.3.3"
+    "typescript": "5.3.3",
+    "typescript-eslint": "^8.66.0"
   },
   "overrides": {
     "marked": "16.1.1"

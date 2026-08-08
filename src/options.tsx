@@ -133,6 +133,7 @@ import type {
 import { sendMessage } from "./types/messages"
 import { DAY_MS, RATING_META, applyBadge, buildMergedContent, cloneProjectCard, compareCards, computeItemHash, createProjectCard, createTodoCard, dueStatus, isTodoComplete, sortAllCards, toggleMarkdownTask, todayLocalDate } from "./utils"
 import { resolveCardContent, stripPlacementContent } from "./utils/cards"
+import { nextSidebarAction } from "./utils/nav"
 
 const ITEMS_PER_PAGE = 20
 
@@ -520,7 +521,7 @@ export default function OptionsPage() {
   // Immediate search for non-keyword filter changes
   useEffect(() => {
     onSearch()
-  }, [activeProjectId, dateRange])
+  }, [activeProjectId, dateRange, onSearch])
 
   // Debounced search for keyword (avoids per-keystroke queries).
   // Projects are strictly isolated: without an active project the search bar
@@ -531,7 +532,7 @@ export default function OptionsPage() {
       onSearch()
     }, 300)
     return () => clearTimeout(t)
-  }, [keyword, activeProjectId])
+  }, [keyword, activeProjectId, onSearch])
 
   // Clear selection when the search scope changes so batch ops never act on
   // cards hidden by a new keyword/date range.
@@ -1210,7 +1211,7 @@ export default function OptionsPage() {
       annId: card.annotationId,
       token: pdfFlashToken.current
     })
-  }, [])
+  }, [openPdf])
 
   // Project card's PDF-source footer → jump to the PDF + flash its annotation.
   // The display card carries `pdfSource` (pdfId + page); the annotation id is
@@ -1235,7 +1236,7 @@ export default function OptionsPage() {
         token: pdfScrollToken.current
       })
     },
-    [openPdf, pdfById]
+    [openPdf, openDrawer, pdfById]
   )
 
   // PdfView annotation popover "跳转卡片" → scroll the panel to that card.
@@ -1530,7 +1531,7 @@ export default function OptionsPage() {
     }
     chrome.storage.onChanged.addListener(onChange)
     return () => chrome.storage.onChanged.removeListener(onChange)
-  }, [loadPdfs, loadPdfPanelData, schedulePdfPanelReload, schedulePdfDataReload, refreshLiteCounts])
+  }, [loadPdfs, loadPdfPanelData, schedulePdfPanelReload, schedulePdfDataReload, refreshLiteCounts, loadProjects, loadTodos, scheduleFullReload])
 
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null
 
@@ -1671,7 +1672,10 @@ export default function OptionsPage() {
 
   const handleSetSidebarTab = useCallback(
     (tab: SidebarTab) => {
-      if (tab === sidebarTab) {
+      // Pure decision + the ref read (latest value) — a state-in-deps closure
+      // is the stale-closure bug class (the sidebarTab dep was once dropped
+      // here and nav clicks hit the wrong branch).
+      if (nextSidebarAction(tab, sidebarTabRef.current) === "toggle") {
         toggleDrawer()
       } else {
         // Leaving the PDF view: the full reload was skipped while in it, so
@@ -1681,7 +1685,7 @@ export default function OptionsPage() {
         openDrawer()
       }
     },
-    [sidebarTab, toggleDrawer, openDrawer]
+    [toggleDrawer, openDrawer]
   )
 
   // Persist tree/nav state across sessions

@@ -81,7 +81,7 @@ export default function TodoCard({
     setDraftTitle(item.title ?? "")
     setDraftContent(item.content)
     setDraftDueDate(item.dueDate)
-  }, [item.id, editing])
+  }, [item.id, editing, item.title, item.content, item.dueDate])
 
   const today = todayLocalDate()
   const done = isTodoComplete(item.content)

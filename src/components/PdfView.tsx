@@ -321,7 +321,7 @@ export default function PdfView({
         console.warn("[pdf] create annotation failed:", e)
       }
     },
-    [pdfId, reloadPdfData]
+    [pdfId]
   )
 
   // ---- annotation click → jump to card (panel) + actions popover ----
@@ -448,7 +448,7 @@ export default function PdfView({
         console.warn("[pdf] create region annotation failed:", e)
       }
     },
-    [pdfId, annotDrawMode]
+    [pdfId, annotDrawMode, navigateTo]
   )
 
   const saveFreetext = useCallback(async () => {
@@ -470,7 +470,7 @@ export default function PdfView({
     } catch (e) {
       console.warn("[pdf] create freetext failed:", e)
     }
-  }, [pdfId, freetextDraft, freetextText])
+  }, [pdfId, freetextDraft, freetextText, navigateTo])
 
   const saveFreetextEdit = useCallback(async () => {
     if (!freetextEdit) return

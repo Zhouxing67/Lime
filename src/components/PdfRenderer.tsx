@@ -266,7 +266,6 @@ function PageView({
       ctx.w,
       ctx.h
     )
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [annotations])
 
   useEffect(() => {
@@ -575,11 +574,7 @@ function PageView({
             sizeKeyRef.current = key
             computeSize().catch((e) => console.warn("[pdf] page size:", e))
           } else {
-            const t0 = performance.now()
-            console.log("[lime-flash] render page", pageNumber, "start")
-            render()
-              .then(() => console.log("[lime-flash] render page", pageNumber, "done in", Math.round(performance.now() - t0), "ms"))
-              .catch((e) => {
+            render().catch((e) => {
               // Cancelled renders are expected on scroll/re-render, not errors
               // (canvas → RenderingCancelledException, TextLayer → AbortException).
               if (e instanceof pdfjsLib.RenderingCancelledException) return
@@ -601,10 +596,11 @@ function PageView({
       { root: (scrollRoot as Element) ?? undefined, rootMargin: "3000px 0px" }
     )
     obs.observe(holder)
+    const registry = renderRegistry
     return () => {
       cancelled = true
       obs.disconnect()
-      renderRegistry?.current.delete(pageNumber)
+      registry?.current.delete(pageNumber)
       renderTask?.cancel()
       textLayer?.cancel()
       marksStageRef.current?.destroy()
@@ -628,11 +624,7 @@ function PageView({
   useEffect(() => {
     const holder = holderRef.current
     const tl = textLayerRef.current
-    if (!flashAnnId) return
-    if (!holder || !tl || !ready) {
-      console.log("[lime-flash] flashAnnId", flashAnnId, "on page", pageNumber, "NOT READY (holder", !!holder, "tl", !!tl, "ready", !!ready, ")")
-      return
-    }
+    if (!holder || !tl || !ready || !flashAnnId) return
     const rects = jumpRects(annotations, tl, holder, flashAnnId)
     if (rects.length > 0) {
       const minX = Math.min(...rects.map((r) => r.x))
@@ -719,7 +711,6 @@ function PageView({
       if (!cur.has(id)) removeMark(stage, id)
     }
     prevMarksSigRef.current = cur
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [annotations, ready])
 
   // Persistent selection (P4): when the selected annotation changes, light it
@@ -929,7 +920,6 @@ export default function PdfRenderer({
   // mount lazily, so a far target may not exist yet: retry until it appears.
   useEffect(() => {
     if (!scrollTarget) return
-    console.log("[lime-flash] scrollTarget ->", scrollTarget)
     let tries = 0
     const el = () =>
       containerRef.current?.querySelector(`[data-page="${scrollTarget}"]`)
@@ -937,7 +927,6 @@ export default function PdfRenderer({
       const target = el()
       if (target) {
         target.scrollIntoView({ behavior: "auto", block: "start" })
-        console.log("[lime-flash] scrolled to page", scrollTarget)
         return true
       }
       return false
