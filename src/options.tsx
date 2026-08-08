@@ -1210,10 +1210,9 @@ export default function OptionsPage() {
 
   // PdfCardsPanel card click → open the PDF (if needed) + flash the annotation.
   const handlePanelCardClick = useCallback((card: PdfCard) => {
-    // Switch to the PDF view first — openPdf alone activates the PDF but the
-    // main area stays on the current tab, so the PdfView never mounts.
-    setSidebarTab("pdf")
-    openDrawer()
+    // The right panel only renders in the PDF view, so no tab switch + no
+    // drawer open — forcing openDrawer() here was auto-opening the left
+    // sidebar on every card click.
     openPdf(card.pdfId)
     pdfFlashToken.current += 1
     setPdfFlashTarget({
