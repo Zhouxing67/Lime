@@ -127,6 +127,23 @@ export default function ItemCard({
             }}>
             {typeIcon(item.type)}
           </Box>
+          {item.isDraft && (
+            <Box
+              sx={{
+                ml: 0.5,
+                flexShrink: 0,
+                px: 0.5,
+                py: 0.1,
+                borderRadius: 0.5,
+                bgcolor: "action.selected",
+                color: "primary.main",
+                fontSize: "0.6rem",
+                lineHeight: 1.2,
+                fontWeight: 600
+              }}>
+              草稿
+            </Box>
+          )}
         </Stack>
         {!selectMode && (
           <ItemCardOperations

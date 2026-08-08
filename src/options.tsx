@@ -397,9 +397,29 @@ export default function OptionsPage() {
   )
 
   /** The current scope's render list (search results / project scope). */
+  // An edit draft replaces its original card in the grid (the draft is the
+  // intermediate state; the original stays in the DB but is hidden until the
+  // draft is promoted or discarded).
+  const draftByOriginal = useMemo(() => {
+    const m = new Map<string, ProjectCard>()
+    for (const c of allProjectCardsUnfiltered) {
+      if (c.isDraft && c.draftOf) m.set(c.draftOf, c)
+    }
+    return m
+  }, [allProjectCardsUnfiltered])
+
+  /** The grid scope — originals with a draft are replaced by the draft. */
+  const visibleProjectCards = useMemo(
+    () =>
+      allProjectCards.filter(
+        (c) => c.isDraft || !draftByOriginal.has(c.id)
+      ),
+    [allProjectCards, draftByOriginal]
+  )
+
   const displayCards = useMemo(
-    () => allProjectCards.map(resolveDisplay),
-    [allProjectCards, resolveDisplay]
+    () => visibleProjectCards.map(resolveDisplay),
+    [visibleProjectCards, resolveDisplay]
   )
 
   /** EVERY project card across projects, display-resolved (review + backup). */
@@ -1649,9 +1669,9 @@ export default function OptionsPage() {
   // operate on the originals) — the grid renders the resolved variant.
   const scopeCards = useMemo(() => {
     if (!activeSectionId)
-      return sortAllCards(allProjectCards, activeProject?.sections ?? [])
+      return sortAllCards(visibleProjectCards, activeProject?.sections ?? [])
     if (activeSectionId === "__unclassified__")
-      return allProjectCards.filter((i) => !i.sectionId)
+      return visibleProjectCards.filter((i) => !i.sectionId)
     const section = activeProject?.sections?.find(
       (s) => s.id === activeSectionId
     )
@@ -1661,14 +1681,14 @@ export default function OptionsPage() {
           .filter((s) => s.level === 2 && s.parentId === activeSectionId)
           .map((s) => s.id)
       )
-      return allProjectCards.filter(
+      return visibleProjectCards.filter(
         (i) =>
           i.sectionId === activeSectionId ||
           (i.sectionId !== undefined && childIds.has(i.sectionId))
       )
     }
-    return allProjectCards.filter((i) => i.sectionId === activeSectionId)
-  }, [allProjectCards, activeSectionId, activeProject])
+    return visibleProjectCards.filter((i) => i.sectionId === activeSectionId)
+  }, [visibleProjectCards, activeSectionId, activeProject])
 
   const scopeItems = useMemo(
     () => scopeCards.map(resolveDisplay),
