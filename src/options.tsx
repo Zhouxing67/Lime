@@ -324,7 +324,7 @@ export default function OptionsPage() {
 
   // ---- Display resolution (the three-store data link) ----
   // Project cards are the persisted identity; a placed card (pdfCardId) carries
-  // NO content — its effective body/idea come from the linked pdfCard. The grids
+  // NO content — its effective body/comment come from the linked pdfCard. The grids
   // render DisplayCard (resolved), while every WRITE path operates on the
   // original ProjectCard (via stripPlacementContent).
   const pdfById = useMemo(
@@ -348,7 +348,7 @@ export default function OptionsPage() {
         ? {
             ...card,
             content: resolved.content,
-            idea: resolved.idea,
+            comment: resolved.comment,
             pdfSource: {
               pdfId: pdfCard.pdfId,
               page: pdfCard.page,
@@ -357,7 +357,7 @@ export default function OptionsPage() {
               kind: pdfCard.kind
             }
           }
-        : { ...card, content: resolved.content, idea: resolved.idea }
+        : { ...card, content: resolved.content, comment: resolved.comment }
     },
     [pdfById, pdfNameById]
   )
@@ -907,7 +907,7 @@ export default function OptionsPage() {
         if (willEmpty) {
           const due = await getDueReviews()
           // Display-resolved pairing: a placed card's review entry points at its
-          // placement, and the session renders the resolved body/idea.
+          // placement, and the session renders the resolved body/comment.
           const itemMap = new Map(displayCardsUnfiltered.map((i) => [i.id, i]))
           const items = due
             .map((r) => itemMap.get(r.itemId))
@@ -1517,7 +1517,7 @@ export default function OptionsPage() {
         refreshLiteCounts()
       }
       // PDF writes broadcast `_dbpdf`: refresh the PDF library + the cards panel
-      // + the pdfCard cache (placed cards' resolved content/idea re-render).
+      // + the pdfCard cache (placed cards' resolved content/comment re-render).
       if (changes._dbpdf) {
         // Debounced: a burst (backfill / batch place) coalesces into ONE
         // library + cards + panel reload instead of per-broadcast store scans.
@@ -2815,7 +2815,7 @@ export default function OptionsPage() {
                 onNavigate={handleNavigate}
                 onSave={async (updated) => {
                   // Writes operate on the ORIGINAL projectCard. A placed card's
-                  // title persists on the placement; its idea (备注) persists on
+                  // title persists on the placement; its comment (备注) persists on
                   // the linked pdfCard; its content is NEVER written (the
                   // placement references the pdfCard's quote).
                   const original = allProjectCardsUnfiltered.find(
@@ -2828,16 +2828,17 @@ export default function OptionsPage() {
                       stripPlacementContent({ ...original, title })
                     )
                     const pdfCard = pdfById.get(original.pdfCardId)
-                    const newIdea = updated.idea?.trim() || undefined
-                    if (pdfCard && newIdea !== (pdfCard.idea?.trim() || undefined)) {
-                      await updatePdfCard({ ...pdfCard, idea: newIdea })
+                    const newComment = updated.comment?.trim() || undefined
+                    if (pdfCard && newComment !== (pdfCard.comment?.trim() || undefined)) {
+                      await updatePdfCard({ ...pdfCard, comment: newComment })
                     }
                   } else {
                     await updateProjectCard(
                       stripPlacementContent({
                         ...original,
                         title,
-                        content: updated.content ?? original.content
+                        content: updated.content ?? original.content,
+                        comment: updated.comment?.trim() || undefined
                       })
                     )
                   }
@@ -3134,7 +3135,10 @@ export default function OptionsPage() {
             }
           />
         </Box>
-        {pdfSidebarView === "search" ? (
+        {pdfSidebarView === "search" &&
+        pdfCardsOpen &&
+        sidebarTab === "pdf" &&
+        Boolean(activePdfId) ? (
           <PdfSearchPanel
             width={pdfCardsWidth}
             onWidthChange={setPdfCardsWidth}

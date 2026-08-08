@@ -49,14 +49,14 @@ export default function ItemDialog({
   const [editing, setEditing] = useState(false)
   const [draftTitle, setDraftTitle] = useState(item?.title ?? "")
   const [draftContent, setDraftContent] = useState(item?.content ?? "")
-  const [draftIdea, setDraftIdea] = useState(item?.idea ?? "")
+  const [draftComment, setDraftComment] = useState(item?.comment ?? "")
 
   useEffect(() => {
     setEditing(false)
     setDraftTitle(item?.title ?? "")
     setDraftContent(item?.content ?? "")
-    setDraftIdea(item?.idea ?? "")
-  }, [item?.id, item?.title, item?.content, item?.idea])
+    setDraftComment(item?.comment ?? "")
+  }, [item?.id, item?.title, item?.content, item?.comment])
 
   const [animDir, setAnimDir] = useState<"prev" | "next" | null>(null)
 
@@ -101,14 +101,14 @@ export default function ItemDialog({
 
   const handleSave = async () => {
     // Placed PDF cards keep their content read-only (the PDF original — the
-    // content lives on the linked pdfCard); only the idea (备注) is editable.
-    // Same for image captures. The options' handler splits the idea write.
+    // content lives on the linked pdfCard); only the comment (备注) is editable.
+    // Same for image captures. The options' handler splits the comment write.
     const readOnlyContent = item.type === "image" || !!item.pdfCardId
     const updated: DisplayCard = {
       ...item,
       title: draftTitle.trim() || undefined,
       content: readOnlyContent ? item.content : draftContent,
-      idea: readOnlyContent ? draftIdea.trim() || undefined : item.idea
+      comment: readOnlyContent ? draftComment.trim() || undefined : item.comment
     }
     if (onSave) await onSave(updated)
     setEditing(false)
@@ -117,7 +117,7 @@ export default function ItemDialog({
   const handleCancel = () => {
     setDraftTitle(item.title ?? "")
     setDraftContent(item.content)
-    setDraftIdea(item.idea ?? "")
+    setDraftComment(item.comment ?? "")
     setEditing(false)
   }
 
@@ -285,12 +285,12 @@ export default function ItemDialog({
             <DialogEditMode
               draftTitle={draftTitle}
               draftContent={draftContent}
-              draftIdea={draftIdea}
+              draftComment={draftComment}
               readOnlyContent={item.type === "image" || !!item.pdfCardId}
               isImage={item.type === "image"}
               onTitleChange={setDraftTitle}
               onContentChange={setDraftContent}
-              onIdeaChange={setDraftIdea}
+              onCommentChange={setDraftComment}
             />
           ) : (
             <Box

@@ -274,11 +274,13 @@ export default function CardRenderer({
 }: CardRendererProps) {
   if (mode === "preview") {
     // Cover thumbnails: images embedded in content as Markdown, plus legacy
-    // `item.images`.
+    // `item.images`. Layout is UNIFIED across types: [摘要] [内容] [备注] — the
+    // 摘要 sits on top for image cards too; a placed region card (content="")
+    // skips the empty image box.
     const previewGallery = allImages(item)
-    return (
-      <Box>
-        {item.type === "image" && (
+    const renderBody = () => (
+      <>
+        {item.type === "image" && item.content ? (
           <Box
             sx={{
               mb: 1.5,
@@ -301,7 +303,31 @@ export default function CardRenderer({
               }}
             />
           </Box>
+        ) : item.type === "text" ? (
+          <MarkdownRenderer
+            content={item.content}
+            maxLines={previewMaxLines(item.content)}
+          />
+        ) : item.type === "link" ? (
+          <Typography
+            variant="caption"
+            sx={{
+              color: "text.disabled",
+              fontSize: "0.7rem",
+              fontStyle: "italic"
+            }}>
+            {prettyUrl(item.content)}
+          </Typography>
+        ) : null}
+        {item.comment && (
+          <Box sx={{ mt: 1 }}>
+            <MarkdownRenderer content={item.comment} maxLines={1} />
+          </Box>
         )}
+      </>
+    )
+    return (
+      <Box>
         {item.title ? (
           <Box>
             <Typography
@@ -318,51 +344,10 @@ export default function CardRenderer({
               }}>
               {truncateTo ? truncateText(item.title, truncateTo) : item.title}
             </Typography>
-            {item.type === "text" ? (
-              <MarkdownRenderer
-                content={item.content}
-                maxLines={previewMaxLines(item.content)}
-              />
-            ) : item.type === "link" ? (
-              <Typography
-                variant="caption"
-                sx={{
-                  color: "text.disabled",
-                  fontSize: "0.7rem",
-                  fontStyle: "italic"
-                }}>
-                {prettyUrl(item.content)}
-              </Typography>
-            ) : null}
+            {renderBody()}
           </Box>
         ) : (
-          <>
-            {item.type === "text" && (
-              <MarkdownRenderer
-                content={item.content}
-                maxLines={previewMaxLines(item.content)}
-              />
-            )}
-            {item.type === "link" && (
-              <Typography
-                variant="body2"
-                sx={{ fontSize: "0.9rem", wordBreak: "break-word" }}>
-                <Box
-                  component="a"
-                  href={item.content}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  sx={{
-                    color: "primary.main",
-                    textDecoration: "none",
-                    "&:hover": { textDecoration: "underline" }
-                  }}>
-                  {prettyUrl(item.content)}
-                </Box>
-              </Typography>
-            )}
-          </>
+          renderBody()
         )}
         {previewGallery.length > 0 && (
           <Box
@@ -590,6 +575,22 @@ export default function CardRenderer({
       <Box>
         <OriginalBlock item={item} />
       </Box>
+      {item.comment && (
+        <Box sx={{ mt: 2 }}>
+          <Typography
+            variant="caption"
+            sx={{
+              color: "text.secondary",
+              fontSize: "0.75rem",
+              letterSpacing: "0.05em",
+              mb: 0.5,
+              display: "block"
+            }}>
+            备注
+          </Typography>
+          <MarkdownRenderer content={item.comment} />
+        </Box>
+      )}
       <Box sx={{ mt: 2 }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
           <Box sx={{ color: "text.secondary", opacity: 0.7 }}>

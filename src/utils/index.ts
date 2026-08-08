@@ -331,6 +331,7 @@ export function createProjectCard(data: {
   type: ProjectCardType
   content: string
   title?: string
+  comment?: string
   source?: SourceMeta
   projectId: string
   sectionId?: string
@@ -345,7 +346,8 @@ export function createProjectCard(data: {
     createdAt: Date.now(),
     projectId: data.projectId,
     ...(data.sectionId ? { sectionId: data.sectionId } : {}),
-    ...(data.images && data.images.length > 0 ? { images: data.images } : {})
+    ...(data.images && data.images.length > 0 ? { images: data.images } : {}),
+    ...(data.comment ? { comment: data.comment } : {})
   }
 }
 
@@ -374,7 +376,7 @@ export function createPdfCard(data: {
   /** Legacy read-compat — cards no longer carry content. */
   content?: string
   pdfOrder: number
-  idea?: string
+  comment?: string
 }): PdfCard {
   return {
     id: crypto.randomUUID(),
@@ -385,7 +387,7 @@ export function createPdfCard(data: {
     annotationId: data.annotationId,
     ...(data.content ? { content: data.content } : {}),
     pdfOrder: data.pdfOrder,
-    ...(data.idea ? { idea: data.idea } : {}),
+    ...(data.comment ? { comment: data.comment } : {}),
     createdAt: Date.now()
   }
 }

@@ -254,8 +254,12 @@ function validatePdfCard(raw: unknown): { card: PdfCard } | { error: string } {
   // Legacy read-compat: cards no longer carry content; strip it on import so
   // old backups don't reintroduce the storage/display bloat.
   delete card.content
-  card.idea =
-    typeof obj.idea === "string" && obj.idea.length > 0 ? obj.idea : undefined
+  card.comment =
+    (typeof obj.comment === "string" && obj.comment.length > 0
+      ? obj.comment
+      : typeof obj.idea === "string" && obj.idea.length > 0
+        ? obj.idea
+        : undefined)
   card.pdfOrder =
     typeof obj.pdfOrder === "number" ? obj.pdfOrder : obj.page * 1e6
   card.projectCardId =

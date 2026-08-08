@@ -139,9 +139,9 @@ export default function PdfCardsPanel({
   }, [])
 
   const handleSaveIdea = useCallback(
-    async (idea: string) => {
+    async (comment: string) => {
       if (!editCard) return
-      await addPdfCard({ ...editCard, idea })
+      await addPdfCard({ ...editCard, comment })
       setEditCard(null)
       // The write broadcasts _dbpdf → options' reload refreshes the cards.
     },
@@ -487,6 +487,16 @@ export default function PdfCardsPanel({
                     }}>
                     #{idx + 1}
                   </Box>
+                  <Typography
+                    sx={{
+                      mr: 1,
+                      flexShrink: 0,
+                      fontSize: "0.68rem",
+                      color: "text.disabled",
+                      fontWeight: 500
+                    }}>
+                    P{card.page}
+                  </Typography>
                   <Box sx={{ flex: 1 }} />
                   {!batchMode && (
                     <Box
@@ -501,7 +511,7 @@ export default function PdfCardsPanel({
                         opacity: 0,
                         transition: "opacity 0.15s"
                       }}>
-                      {card.idea && (
+                      {card.comment && (
                         <Tooltip title={expanded ? "收起" : "展开"}>
                           <IconButton
                             size="small"

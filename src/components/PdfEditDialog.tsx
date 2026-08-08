@@ -5,7 +5,7 @@ import type { PdfCard } from "../types"
 import DialogShell from "./DialogShell"
 import PdfCardBody from "./PdfCardBody"
 
-/** Simple PDF-card note editor: content read-only + editable `idea`. */
+/** Simple PDF-card note editor: content read-only + editable `comment`. */
 export default function PdfEditDialog({
   item,
   open,
@@ -15,14 +15,14 @@ export default function PdfEditDialog({
   item: PdfCard | null
   open: boolean
   onClose: () => void
-  onSave: (idea: string) => void
+  onSave: (comment: string) => void
 }) {
-  const [idea, setIdea] = useState("")
+  const [comment, setComment] = useState("")
   useEffect(() => {
-    if (open) setIdea(item?.idea ?? "")
+    if (open) setComment(item?.comment ?? "")
   }, [open, item])
 
-  const unchanged = idea.trim() === (item?.idea ?? "").trim()
+  const unchanged = comment.trim() === (item?.comment ?? "").trim()
 
   return (
     <DialogShell
@@ -31,7 +31,7 @@ export default function PdfEditDialog({
       title={item?.page ? `P${item.page} · 补充说明` : "补充说明"}
       maxWidth="sm"
       confirmLabel="保存"
-      onConfirm={() => onSave(idea.trim())}
+      onConfirm={() => onSave(comment.trim())}
       confirmDisabled={unchanged}>
       <Box sx={{ pt: 1 }}>
         {item && <PdfCardBody item={item} />}
@@ -41,8 +41,8 @@ export default function PdfEditDialog({
           补充说明（支持 Markdown）
         </Typography>
         <TextField
-          value={idea}
-          onChange={(e) => setIdea(e.target.value)}
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
           multiline
           minRows={4}
           fullWidth

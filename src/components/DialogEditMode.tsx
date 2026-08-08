@@ -5,24 +5,24 @@ import ImageUrlInput from "./ImageUrlInput"
 export default function DialogEditMode({
   draftTitle,
   draftContent,
-  draftIdea,
+  draftComment,
   readOnlyContent,
   isImage,
   onTitleChange,
   onContentChange,
-  onIdeaChange
+  onCommentChange
 }: {
   draftTitle: string
   draftContent: string
-  draftIdea: string
+  draftComment: string
   /** Content is read-only (PDF-sourced cards): render it read-only and edit the
-   *  idea (备注) instead — content is the PDF original (text quote or frame). */
+   *  comment (备注) instead — content is the PDF original (text quote or frame). */
   readOnlyContent?: boolean
   /** The read-only content is a data-URL image (web/PDF image captures). */
   isImage?: boolean
   onTitleChange: (v: string) => void
   onContentChange: (v: string) => void
-  onIdeaChange: (v: string) => void
+  onCommentChange: (v: string) => void
 }) {
   return (
     <Box
@@ -67,14 +67,14 @@ export default function DialogEditMode({
           <Typography
             variant="caption"
             sx={{ color: "text.secondary", mb: 0.5, display: "block" }}>
-            补充说明（支持 Markdown）
+            备注（支持 Markdown）
           </Typography>
           <TextField
             multiline
             minRows={4}
             fullWidth
-            value={draftIdea}
-            onChange={(e) => onIdeaChange(e.target.value)}
+            value={draftComment}
+            onChange={(e) => onCommentChange(e.target.value)}
             sx={{
               "& .MuiOutlinedInput-root": {
                 borderRadius: 1,
@@ -107,14 +107,14 @@ export default function DialogEditMode({
           <Typography
             variant="caption"
             sx={{ color: "text.secondary", mb: 0.5, display: "block" }}>
-            原文引用（只读）· 补充说明（支持 Markdown）
+            原文引用（只读）· 备注（支持 Markdown）
           </Typography>
           <TextField
             multiline
             minRows={4}
             fullWidth
-            value={draftIdea}
-            onChange={(e) => onIdeaChange(e.target.value)}
+            value={draftComment}
+            onChange={(e) => onCommentChange(e.target.value)}
             sx={{
               "& .MuiOutlinedInput-root": {
                 borderRadius: 1,

@@ -238,6 +238,7 @@ describe("jsonImport (v5 format)", () => {
       },
       createdAt: 1690000000000,
       projectId: "p1",
+      comment: "备注内容",
       // A field not in the ProjectCard type today — must survive the round-trip
       // ("一次修改，一直有效"): export spreads, import spreads + validates.
       futureField: "survives"
@@ -281,6 +282,7 @@ describe("jsonImport (v5 format)", () => {
     expect(imported.sectionId).toBe("sec-1")
     expect(imported.images).toEqual(["https://img.example.com/a.png"])
     expect(imported.order).toBe(7)
+    expect(imported.comment).toBe("备注内容")
     expect((imported as unknown as Record<string, unknown>).futureField).toBe(
       "survives"
     )

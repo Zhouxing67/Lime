@@ -22,7 +22,7 @@ export interface LegacyItem {
   pdfRef?: { pdfId: string; page: number; annotationId: string }
   pdfRefPdfId?: string
   pdfOrder?: number
-  idea?: string
+  comment?: string
 }
 
 /** The pieces a legacy card splits into under the three-store model. */
@@ -65,7 +65,7 @@ export function splitLegacyItem(
       kind: item.type === "image" ? "region" : "text",
       type: annotationType ?? "highlight",
       content: item.content,
-      idea: item.idea,
+      comment: item.comment,
       pdfOrder: item.pdfOrder ?? item.pdfRef.page * 1e6,
       createdAt: item.createdAt
     }
@@ -107,21 +107,34 @@ export function splitLegacyItem(
 }
 
 /** Display resolution for a placed card — the placement carries NO content; the
- *  effective body/idea come from the linked pdfCard. Non-placed cards return
+ *  effective body/comment come from the linked pdfCard. Non-placed cards return
  *  their own fields. */
+/** Auto note for a placed annotation card with no user comment — so a placed
+ *  card is never an empty shell. Display-time only (not persisted). */
+export function defaultAnnotationComment(src: {
+  createdAt: number
+  page: number
+}): string {
+  const d = new Date(src.createdAt)
+  const pad = (n: number) => String(n).padStart(2, "0")
+  const time = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+  return `备注时间：${time}，备注页数：P${src.page}`
+}
+
 export function resolveCardContent(
   card: ProjectCard,
   pdfById: Map<string, PdfCard>
-): { content: string; idea?: string; title?: string } {
+): { content: string; comment?: string; title?: string } {
   if (!card.pdfCardId) {
     return { content: card.content, title: card.title }
   }
   const src = pdfById.get(card.pdfCardId)
   // Cards no longer carry content — the placement resolves an EMPTY body (the
-  // PDF page shows the annotation); only the editable idea survives.
+  // PDF page shows the annotation); only the editable comment survives. A card
+  // with no comment gets an auto note so it never renders empty.
   return {
     content: "",
-    idea: src?.idea,
+    comment: src?.comment || (src ? defaultAnnotationComment(src) : undefined),
     title: card.title
   }
 }

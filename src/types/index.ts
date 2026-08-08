@@ -46,6 +46,8 @@ export interface ProjectCard {
   /** Placement reference → the PdfCard this card was placed from (placed cards
    *  render/search via this reference; content is NOT copied). */
   pdfCardId?: string
+  /** Personal note / 备注 (markdown). */
+  comment?: string
   createdAt: number
   updatedAt?: number
 }
@@ -64,13 +66,13 @@ export interface PdfCard {
   /**
    * LEGACY read-compat: the original quote (text) or frame data-URL (region)
    * was stored on the card pre-6.0. Cards no longer carry content (the PDF
-   * page itself shows the annotation; the card is a compact marker + idea).
+   * page itself shows the annotation; the card is a compact marker + comment).
    * Existing cards keep their old value (invisible) until the one-time
    * cleanup strips it; new cards never populate it.
    */
   content?: string
-  /** Personal note / 补充说明 (markdown) — the editable part, shared by both views. */
-  idea?: string
+  /** Personal note / 备注 (markdown) — the editable part, shared by both views. */
+  comment?: string
   /** Position in the PDF (page-major + in-page offset/rect-y) — the panel sorts by this. */
   pdfOrder: number
   /** Placement reference → the ProjectCard placement (1:1, reverse jump). */
@@ -93,12 +95,12 @@ export interface TodoCard {
 export type AnyCard = ProjectCard | PdfCard | TodoCard
 
 /** The project view's render form of a ProjectCard. For a placed card
- *  (pdfCardId) the body/idea are RESOLVED from the linked pdfCard (the
+ *  (pdfCardId) the body/comment are RESOLVED from the linked pdfCard (the
  *  placement itself carries no content) + `pdfSource` carries the PDF page for
  *  the source footer + back-jump. Write handlers must call
  *  stripPlacementContent() before persisting a DisplayCard. */
 export type DisplayCard = ProjectCard & {
-  idea?: string
+  comment?: string
   pdfSource?: {
     pdfId: string
     page: number
@@ -163,7 +165,7 @@ export interface PdfAnnotation {
   pos?: { x: number; y: number }
   /** Linked PdfCard id (annotation ↔ pdfCard are 1:1). */
   cardId?: string
-  /** Last modification time (type/color/idea edits) — display date. */
+  /** Last modification time (type/color/comment edits) — display date. */
   updatedAt?: number
   createdAt: number
 }

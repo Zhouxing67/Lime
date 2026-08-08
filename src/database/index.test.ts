@@ -1188,7 +1188,7 @@ describe("v12 migration: items → three typed stores", () => {
           pdfRef: { pdfId: "pdf-1", page: 3, annotationId: annId },
           pdfRefPdfId: "pdf-1",
           pdfOrder: 3000001,
-          idea: "备注",
+          comment: "备注",
           createdAt: 4
         })
         tx.objectStore("pdfAnnotations").put({
