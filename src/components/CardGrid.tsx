@@ -61,6 +61,7 @@ export default function CardGrid({
   onToggleReview,
   onReReview,
   onCopyToProject,
+  onEdit,
   onOpenPdfSource,
   onMoveToSection,
   highlightedId,
@@ -221,6 +222,7 @@ export default function CardGrid({
                   onToggleReview={onToggleReview}
                   onReReview={onReReview}
                   onCopyToProject={onCopyToProject}
+                  onEdit={onEdit}
                   onOpenPdfSource={onOpenPdfSource}
                   onMoveToSection={onMoveToSection}
                   highlighted={highlightedId === it.id}

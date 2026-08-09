@@ -21,6 +21,7 @@ export default function ItemCard({
   onToggleReview,
   onReReview,
   onCopyToProject,
+  onEdit,
   onOpenPdfSource,
   onMoveToSection,
   highlighted
@@ -38,6 +39,7 @@ export default function ItemCard({
   onToggleReview?: (id: string) => void
   onReReview?: (id: string) => void
   onCopyToProject?: (id: string, anchor: HTMLElement) => void
+  onEdit?: (id: string) => void
   onOpenPdfSource?: (item: DisplayCard) => void
   onMoveToSection?: (id: string, anchor: HTMLElement) => void
   highlighted?: boolean
@@ -156,6 +158,7 @@ export default function ItemCard({
             onToggleReview={onToggleReview}
             onReReview={onReReview}
             onCopyToProject={onCopyToProject}
+            onEdit={onEdit}
             onMoveToSection={onMoveToSection}
           />
         )}
