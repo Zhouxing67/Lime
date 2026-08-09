@@ -9,6 +9,7 @@ import type { DisplayCard } from "../types"
 import { MARK_DOT, MARK_LABEL } from "./pdfTheme"
 import { extractMarkdownImages, prettyUrl, truncateText } from "../utils"
 import MarkdownRenderer from "./MarkdownRenderer"
+import PdfQuoteCard from "./PdfQuoteCard"
 
 interface CardRendererProps {
   item: DisplayCard
@@ -215,26 +216,7 @@ function ContentBlock({ item }: { item: DisplayCard }) {
       </Box>
     )
   }
-  return (
-    <Box
-      sx={{ pl: 2, borderLeft: "4px solid", borderLeftColor: "primary.main" }}>
-      <Typography
-        sx={{
-          fontSize: "1.1rem",
-          lineHeight: 1.9,
-          whiteSpace: "pre-wrap",
-          wordBreak: "break-word",
-          textAlign: "justify",
-          textJustify: "inter-word",
-          WebkitHyphens: "auto",
-          hyphens: "auto",
-          fontFamily: (theme) => theme.custom.serif,
-          color: "text.primary"
-        }}>
-        {item.content}
-      </Typography>
-    </Box>
-  )
+  return <PdfQuoteCard text={item.content} />
 }
 
 /** Dynamic preview line count based on content source lines */
@@ -307,7 +289,9 @@ export default function CardRenderer({
               }}
             />
           </Box>
-        ) : item.type === "text" || item.type === "placed" ? (
+        ) : item.type === "placed" ? (
+          <PdfQuoteCard text={item.content} maxLines={previewMaxLines(item.content)} />
+        ) : item.type === "text" ? (
           <MarkdownRenderer
             content={item.content}
             maxLines={previewMaxLines(item.content)}
@@ -620,6 +604,8 @@ export default function CardRenderer({
                 }}
               />
             </Box>
+          ) : item.type === "placed" && item.content ? (
+            <PdfQuoteCard text={item.content} />
           ) : item.content ? (
             <MarkdownRenderer content={item.content} />
           ) : null}
