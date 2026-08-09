@@ -284,9 +284,12 @@ export default function CardWorkspace({
     onDiscard()
   }
 
-  const handleLeaveSaveDraft = () => {
+  const handleLeaveSaveDraft = async () => {
+    // Keep the dialog open with the button spinner until the draft lands.
+    await run("draft", () =>
+      onSaveDraft(editorRef.current?.getValues() ?? {}, editType)
+    )
     setLeaveConfirmOpen(false)
-    handleSaveDraft()
   }
 
   const editType: "text" | "image" | "placed" =
@@ -418,8 +421,15 @@ export default function CardWorkspace({
         actions={
           <DialogActions sx={{ px: 3, py: 2 }}>
             <Button onClick={() => setLeaveConfirmOpen(false)}>取消</Button>
-            <Button color="inherit" onClick={handleLeaveSaveDraft}>
-              存草稿
+            <Button
+              color="inherit"
+              onClick={handleLeaveSaveDraft}
+              disabled={busyAction !== null}>
+              {busyAction === "draft" ? (
+                <CircularProgress size={16} />
+              ) : (
+                "存草稿"
+              )}
             </Button>
             <Button variant="contained" color="error" onClick={handleLeaveDiscard}>
               丢弃

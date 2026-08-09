@@ -10,15 +10,6 @@ import type {
   TodoCard
 } from "../types"
 
-function dataUrlToBlob(dataUrl: string): Blob {
-  const [meta, content] = dataUrl.split(",")
-  const mime = /data:(.*?);base64/.exec(meta)?.[1] || "image/png"
-  const bin = atob(content)
-  const arr = new Uint8Array(bin.length)
-  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i)
-  return new Blob([arr], { type: mime })
-}
-
 export interface PdfExportMeta {
   id: string
   name: string
@@ -38,29 +29,6 @@ export async function toJsonZip(
   pdfAnnotations?: PdfAnnotation[]
 ): Promise<Blob> {
   const zip = new JSZip()
-
-  // Image files: standalone image cards carry the data-URL in content, and a
-  // region pdfCard's content IS its frame data-URL. Both are stored under
-  // images/ (the JSON payload keeps the data-URL whole either way).
-  for (const card of projectCards) {
-    if (
-      card.type === "image" &&
-      typeof card.content === "string" &&
-      card.content.startsWith("data:image")
-    ) {
-      const filename = `images/${card.hash || card.id}.png`
-      zip.file(filename, dataUrlToBlob(card.content))
-    }
-  }
-  for (const card of pdfCards) {
-    if (
-      card.kind === "region" &&
-      typeof card.content === "string" &&
-      card.content.startsWith("data:image")
-    ) {
-      zip.file(`images/${card.id}.png`, dataUrlToBlob(card.content))
-    }
-  }
 
   // PDF files are stored as blobs (local-only domain; not in WebDAV sync).
   // Metadata-only placeholders (synced without the file) are skipped.

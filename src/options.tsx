@@ -1515,21 +1515,24 @@ export default function OptionsPage() {
   )
 
   // ---- Section view state (sidebar tree -> main area) ----
+  // Count the VISIBLE cards (a draft replaces its original) so the sidebar
+  // numbers match the grid — counting allProjectCards would double-count a
+  // card whose edit-draft is hiding it.
   const countBySection = useMemo(() => {
     const m = new Map<string, number>()
-    for (const it of allProjectCards) {
+    for (const it of visibleProjectCards) {
       if (it.sectionId) m.set(it.sectionId, (m.get(it.sectionId) ?? 0) + 1)
     }
     return m
-  }, [allProjectCards])
+  }, [visibleProjectCards])
 
   const unclassifiedByProject = useMemo(() => {
     const m: Record<string, number> = {}
-    for (const it of allProjectCards) {
+    for (const it of visibleProjectCards) {
       if (!it.sectionId) m[it.projectId] = (m[it.projectId] ?? 0) + 1
     }
     return m
-  }, [allProjectCards])
+  }, [visibleProjectCards])
 
 
   // The section scope as the PERSISTED projectCards (drag reorder + writes
@@ -1702,25 +1705,38 @@ export default function OptionsPage() {
     [projects, allProjectCardsUnfiltered, allPdfCards]
   )
 
-  const handleCopyCard = async (targetProjectId: string) => {
-    if (!copyCardId) return
-    const original = allProjectCardsUnfiltered.find((c) => c.id === copyCardId)
-    if (original) {
-      // A placed card's copy carries its RESOLVED quote (the placement holds no
-      // content); cloneProjectCard drops the placement ref → a plain 自建卡片.
-      const display = displayCardsUnfiltered.find((c) => c.id === copyCardId)
+  /** Clone + insert one card into a project (dedup-aware). A placed card's
+   *  copy carries its RESOLVED quote (the placement holds no content);
+   *  cloneProjectCard drops the placement ref → a plain 自建卡片.
+   *  Returns false when an identical card already exists in the target. */
+  const copyCardToProject = useCallback(
+    async (original: ProjectCard, targetProjectId: string) => {
+      const display = displayCardsUnfiltered.find((c) => c.id === original.id)
       const source: ProjectCard =
         original.pdfCardId && display
           ? { ...original, content: display.content }
           : original
       const newCard = cloneProjectCard(source, targetProjectId)
-      const saved = await addProjectCard(newCard)
-      if (!saved) {
-        setSnackbarMsg("目标项目已存在相同内容，跳过复制")
-        setCopyCardId(null)
-        onSearch()
-        return
-      }
+      return addProjectCard(newCard)
+    },
+    [displayCardsUnfiltered]
+  )
+
+  const handleCopyCard = async (targetProjectId: string) => {
+    if (!copyCardId) return
+    const original = allProjectCardsUnfiltered.find((c) => c.id === copyCardId)
+    if (!original) {
+      setSnackbarMsg("卡片不存在，无法复制")
+      setCopyCardId(null)
+      onSearch()
+      return
+    }
+    const saved = await copyCardToProject(original, targetProjectId)
+    if (!saved) {
+      setSnackbarMsg("目标项目已存在相同内容，跳过复制")
+    } else {
+      const proj = projects.find((p) => p.id === targetProjectId)
+      setSnackbarMsg(`已复制到「${proj?.name ?? "目标项目"}」`)
     }
     setCopyCardId(null)
     onSearch()
@@ -1791,13 +1807,7 @@ export default function OptionsPage() {
     for (const id of selectedIds) {
       const original = allProjectCardsUnfiltered.find((c) => c.id === id)
       if (!original) continue
-      const display = displayCardsUnfiltered.find((c) => c.id === id)
-      const source: ProjectCard =
-        original.pdfCardId && display
-          ? { ...original, content: display.content }
-          : original
-      const newCard = cloneProjectCard(source, targetProjectId)
-      const saved = await addProjectCard(newCard)
+      const saved = await copyCardToProject(original, targetProjectId)
       if (!saved) skipped++
     }
     setCopyMenu(null)
@@ -1837,28 +1847,43 @@ export default function OptionsPage() {
   // otherwise select-all in the section/outline view only picks 20 cards.
   const viewItems = keyword || dateRange ? displayCards : scopeItems
 
-  const sharedCardGridProps = {
-    selectedIds,
-    reviewItemIds,
-    masteredItemIds,
-    onOpenDialog: setDialogCard,
-    onEdit: (id: string) => {
-      const card = displayCardsUnfiltered.find((c) => c.id === id)
-      if (card) openCardWorkspace("edit", card)
-    },
-    onToggleReview: handleToggleReview,
-    onReReview: handleReReview,
-    onCopyToProject: (id: string, anchor: HTMLElement) => {
-      setCopyCardId(id)
-      setCopyMenu({ anchor, mode: "single" })
-    },
-    onOpenPdfSource: handleOpenPdfFromCard,
-    onMoveToSection: (id: string, anchor: HTMLElement) => {
-      setMoveSectionCardId(id)
-      setMoveMenu({ anchor, mode: "single" })
-    },
-    highlightedId: projectCardHighlightId
-  }
+  // Stable (memoized) — the CardGrid is memoized, so these must only change
+  // when their data actually changes or the grid would skip needed re-renders.
+  const sharedCardGridProps = useMemo(
+    () => ({
+      selectedIds,
+      reviewItemIds,
+      masteredItemIds,
+      onOpenDialog: setDialogCard,
+      onEdit: (id: string) => {
+        const card = displayCardsUnfiltered.find((c) => c.id === id)
+        if (card) openCardWorkspace("edit", card)
+      },
+      onToggleReview: handleToggleReview,
+      onReReview: handleReReview,
+      onCopyToProject: (id: string, anchor: HTMLElement) => {
+        setCopyCardId(id)
+        setCopyMenu({ anchor, mode: "single" })
+      },
+      onOpenPdfSource: handleOpenPdfFromCard,
+      onMoveToSection: (id: string, anchor: HTMLElement) => {
+        setMoveSectionCardId(id)
+        setMoveMenu({ anchor, mode: "single" })
+      },
+      highlightedId: projectCardHighlightId
+    }),
+    [
+      selectedIds,
+      reviewItemIds,
+      masteredItemIds,
+      displayCardsUnfiltered,
+      openCardWorkspace,
+      handleToggleReview,
+      handleReReview,
+      handleOpenPdfFromCard,
+      projectCardHighlightId
+    ]
+  )
 
   return (
     <ThemeProvider theme={theme}>

@@ -5,7 +5,7 @@ import {
   useMediaQuery,
   useTheme
 } from "@mui/material"
-import { useLayoutEffect, useRef } from "react"
+import { memo, useLayoutEffect, useRef } from "react"
 
 import type { CardDropState } from "../hooks/useCardDragReorder"
 import type { DisplayCard } from "../types"
@@ -44,7 +44,7 @@ function roundRobinCols<T>(items: T[], cols: number): T[][] {
   return result
 }
 
-export default function CardGrid({
+function CardGrid({
   items,
   selectMode,
   selectedIds,
@@ -249,3 +249,5 @@ export default function CardGrid({
     </Box>
   )
 }
+
+export default memo(CardGrid)

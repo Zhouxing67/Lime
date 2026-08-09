@@ -1,4 +1,4 @@
-import { Fragment } from "react"
+import { Fragment, useCallback } from "react"
 import {
   Box,
   CircularProgress,
@@ -284,6 +284,9 @@ function PdfViewRouter(props: PdfViewRouterProps) {
   )
 }
 
+const noSelect = () => {}
+const noDelete = () => {}
+
 function ReviewViewRouter(props: ReviewViewRouterProps) {
   const { reviewDateFilter, ratingFilter, filteredDateItems } = props
   if (reviewDateFilter) {
@@ -301,8 +304,8 @@ function ReviewViewRouter(props: ReviewViewRouterProps) {
             items={filteredDateItems}
             selectMode={false}
             readOnly
-            onSelectItem={() => {}}
-            onDeleteItem={() => {}}
+            onSelectItem={noSelect}
+            onDeleteItem={noDelete}
             firstRating={props.cardFirstRating}
             {...props.sharedCardGridProps}
           />
@@ -351,6 +354,20 @@ function ProjectsMain(props: ProjectsMainProps) {
     loadMoreRef,
     sharedCardGridProps
   } = props
+  const handleSelectItem = useCallback(
+    (id: string) => {
+      setSelectedIds((prev) =>
+        prev.includes(id)
+          ? prev.filter((i) => i !== id)
+          : [...prev, id]
+      )
+    },
+    [setSelectedIds]
+  )
+  const handleNewCard = useCallback(
+    () => openCardWorkspace("create", null),
+    [openCardWorkspace]
+  )
   return (
     <>
       {!activeProject && (
@@ -451,15 +468,9 @@ function ProjectsMain(props: ProjectsMainProps) {
             dropIndicator={cardDrop}
             flipRectsRef={flipRectsRef}
             onGripPointerDown={handleGripPointerDown}
-            onNewCard={() => openCardWorkspace("create", null)}
+            onNewCard={handleNewCard}
             selectMode={selectMode}
-            onSelectItem={(id) =>
-              setSelectedIds((prev) =>
-                prev.includes(id)
-                  ? prev.filter((i) => i !== id)
-                  : [...prev, id]
-              )
-            }
+            onSelectItem={handleSelectItem}
             onDeleteItem={onDelete}
             {...sharedCardGridProps}
           />
@@ -470,13 +481,7 @@ function ProjectsMain(props: ProjectsMainProps) {
         <CardGrid
           items={displayedItems}
           selectMode={selectMode}
-          onSelectItem={(id) =>
-            setSelectedIds((prev) =>
-              prev.includes(id)
-                ? prev.filter((i) => i !== id)
-                : [...prev, id]
-            )
-          }
+          onSelectItem={handleSelectItem}
           onDeleteItem={onDelete}
           {...sharedCardGridProps}
         />
