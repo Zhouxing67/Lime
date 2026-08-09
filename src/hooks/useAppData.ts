@@ -28,6 +28,7 @@ export interface UseAppDataOpts {
   loadProjectsRef: React.MutableRefObject<() => Promise<unknown>>
   onSearchRef: React.MutableRefObject<() => Promise<void>>
   sidebarTabRef: React.MutableRefObject<string>
+  activePdfId: string | null
   activePdfIdRef: React.MutableRefObject<string | null>
 }
 
@@ -39,6 +40,7 @@ export function useAppData({
   loadProjectsRef,
   onSearchRef,
   sidebarTabRef,
+  activePdfId,
   activePdfIdRef
 }: UseAppDataOpts) {
   const [pdfs, setPdfs] = useState<PdfFile[]>([])
@@ -235,7 +237,7 @@ export function useAppData({
 
   useEffect(() => {
     loadPdfPanelData()
-  }, [activePdfIdRef, loadPdfPanelData])
+  }, [activePdfId, loadPdfPanelData])
 
   // Lazy backfill: a placed region card whose annotation has no crop image
   // (pre-image placements) generates it on sight + refreshes the annotation

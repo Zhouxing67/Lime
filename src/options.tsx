@@ -192,6 +192,13 @@ export default function OptionsPage() {
     string | null
   >(null)
   const projectCardHighlightTimer = useRef<number | null>(null)
+  useEffect(
+    () => () => {
+      if (projectCardHighlightTimer.current)
+        window.clearTimeout(projectCardHighlightTimer.current)
+    },
+    []
+  )
   const pdfFlashToken = useRef(0)
   const pdfScrollToken = useRef(0)
   const [pdfCurrentPage, setPdfCurrentPage] = useState(1)
@@ -244,6 +251,7 @@ export default function OptionsPage() {
     loadProjectsRef,
     onSearchRef,
     sidebarTabRef,
+    activePdfId,
     activePdfIdRef
   })
   refreshRef.current = refreshAllData
@@ -551,44 +559,6 @@ export default function OptionsPage() {
     loadTodos()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  // Load unfiltered cards for review + hub counts + backup scope
-  // (cross-project, independent of the active project), plus the pdfCards that
-  // resolve placed cards' content for display.
-  useEffect(() => {
-    getAllProjectCards().then(setAllProjectCardsUnfiltered)
-    getAllPdfCards().then(setAllPdfCards)
-    getAllAnnotations().then((list) =>
-      setAnnotationById(new Map(list.map((a) => [a.id, a])))
-    )
-  }, [setAllProjectCardsUnfiltered, setAllPdfCards, setAnnotationById])
-
-  // Lazy backfill: a placed region card whose annotation has no crop image
-  // (pre-image placements) generates it on sight + refreshes the annotation
-  // map. Idempotent — after the images land, `missing` is empty and the
-  // effect stops.
-  useEffect(() => {
-    let cancelled = false
-    const missing = allPdfCards.filter((c) => {
-      if (c.kind !== "region") return false
-      const ann = annotationById.get(c.annotationId)
-      return Boolean(ann) && !ann.image
-    })
-    if (missing.length === 0) return
-    ;(async () => {
-      for (const card of missing) {
-        if (cancelled) return
-        await ensureRegionImage(card.annotationId, card.pdfId)
-      }
-      if (cancelled) return
-      const list = await getAllAnnotations()
-      if (!cancelled)
-        setAnnotationById(new Map(list.map((a) => [a.id, a])))
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [allPdfCards, annotationById, setAnnotationById])
 
   // Immediate search for non-keyword filter changes — the keyword change is
   // handled by the debounced effect below; reading onSearch via a ref keeps
