@@ -57,7 +57,7 @@ import BackupView from "./components/BackupView"
 import PdfHub from "./components/PdfHub"
 import PdfCardsPanel from "./components/PdfCardsPanel"
 import PdfSearchPanel from "./components/PdfSearchPanel"
-import { usePdfReaderSidebar } from "./hooks/usePdfReaderSidebar"
+import { useWorkspaceView } from "./hooks/useWorkspaceView"
 import { usePdfSearchPanel } from "./hooks/usePdfSearchPanel"
 import PdfView from "./components/PdfView"
 import type { PdfOutlineItem } from "./types"
@@ -105,7 +105,6 @@ import {
   removeReview,
   renamePdfTopic,
   searchProjectCards,
-  touchPdf,
   tx,
   unplacePdfCards,
   ensureRegionImage,
@@ -142,7 +141,6 @@ import type {
 import { sendMessage } from "./types/messages"
 import { DAY_MS, RATING_META, applyBadge, buildMergedContent, cloneProjectCard, compareCards, computeItemHash, createTodoCard, dueStatus, isTodoComplete, sortAllCards, toggleMarkdownTask, todayLocalDate } from "./utils"
 import { resolveCardContent, stripPlacementContent } from "./utils/cards"
-import { nextSidebarAction } from "./utils/nav"
 
 const ITEMS_PER_PAGE = 20
 
@@ -150,13 +148,30 @@ export default function OptionsPage() {
   const [allProjectCards, setAllProjectCards] = useState<ProjectCard[]>([])
   const [keyword, setKeyword] = useState("")
   const [dialogCard, setDialogCard] = useState<DisplayCard | null>(null)
-  const [cardWorkspace, setCardWorkspace] = useState<{
-    view: "edit" | "create"
-    card: DisplayCard | null
-  } | null>(null)
+  // ---- the workspace view routing (sidebarTab + drawer/reader mutex +
+  // card-editor workspace + PDF keep-alive multi-open) ----
+  const refreshRef = useRef<() => void>(() => {})
+  const {
+    sidebarTab,
+    sidebarTabRef,
+    drawerOpen,
+    pdfReaderOpen,
+    cardWorkspace,
+    openPdfIds,
+    activePdfId,
+    handleSetSidebarTab,
+    navigate,
+    openDrawer,
+    toggleDrawer,
+    swapLeft,
+    toggleReader,
+    openCardWorkspace,
+    closeCardWorkspace,
+    openPdf,
+    closePdf
+  } = useWorkspaceView(() => refreshRef.current())
 
   // Navigate prev/next within the currently displayed list
-  const [drawerOpen, setDrawerOpen] = useState(false)
   const [drawerWidth, setDrawerWidth] = useState(280)
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
@@ -166,7 +181,6 @@ export default function OptionsPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [preset, setPreset] = useState<PresetName>("indigo-crimson")
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [sidebarTab, setSidebarTab] = useState<SidebarTab>("projects")
   const [pdfs, setPdfs] = useState<PdfFile[]>([])
   const [extraTopics, setExtraTopics] = useState<string[]>([])
   const [pdfCardsOpen, setPdfCardsOpen] = useState(true)
@@ -190,20 +204,12 @@ export default function OptionsPage() {
   const projectCardHighlightTimer = useRef<number | null>(null)
   const pdfFlashToken = useRef(0)
   const pdfScrollToken = useRef(0)
-  const [activePdfId, setActivePdfId] = useState<string | null>(null)
   const [pdfCurrentPage, setPdfCurrentPage] = useState(1)
   const [pdfPageCount, setPdfPageCount] = useState(0)
   const [pdfSidebarView, setPdfSidebarView] = useState<"cards" | "search">("cards")
 
-  // Reader panel (TOC | thumbnails) ↔ left sidebar mutual exclusion + the
-  // right-sidebar search panel state (both coordinated with PdfView).
-  const {
-    readerOpen: pdfReaderOpen,
-    toggleReader,
-    openDrawer,
-    toggleDrawer,
-    swapLeft
-  } = usePdfReaderSidebar(drawerOpen, setDrawerOpen)
+  const activePdfIdRef = useRef<string | null>(null)
+  activePdfIdRef.current = activePdfId
   const {
     pdfSearch,
     searchRequest,
@@ -218,11 +224,6 @@ export default function OptionsPage() {
   const [topicDeleteTarget, setTopicDeleteTarget] = useState<string | null>(
     null
   )
-  const [openPdfIds, setOpenPdfIds] = useState<string[]>([])
-  const activePdfIdRef = useRef<string | null>(null)
-  activePdfIdRef.current = activePdfId
-  const openPdfIdsRef = useRef<string[]>([])
-  openPdfIdsRef.current = openPdfIds
   const [pdfOutlineDest, setPdfOutlineDest] = useState<PdfOutlineItem | null>(
     null
   )
@@ -522,7 +523,7 @@ export default function OptionsPage() {
     allItemsUnfiltered: displayCardsUnfiltered,
     onSearch,
     sidebarTab,
-    setSidebarTab,
+    setSidebarTab: navigate,
     setReviewItems,
     reviewDateFilter,
     setReviewDateFilter,
@@ -1257,28 +1258,14 @@ export default function OptionsPage() {
   }, [topicDeleteTarget, extraTopics, saveExtraTopics])
 
   const pdfFileInputRef = useRef<HTMLInputElement>(null)
-  const MAX_OPEN_PDFS = 4
-  const openPdf = useCallback((id: string) => {
-    touchPdf(id)
-    const cur = openPdfIdsRef.current
-    const next = cur.includes(id) ? cur : [...cur, id]
-    let trimmed = next
-    if (next.length > MAX_OPEN_PDFS) {
-      // LRU: evict the oldest-open PDF when the limit is exceeded.
-      trimmed = next.slice(1)
-    }
-    setOpenPdfIds(trimmed)
-    setActivePdfId(id)
-  }, [])
   const handleOpenPdf = openPdf
-  const handleClosePdf = useCallback((id: string) => {
-    const next = openPdfIdsRef.current.filter((x) => x !== id)
-    setOpenPdfIds(next)
-    if (activePdfIdRef.current === id) {
-      setActivePdfId(next.length > 0 ? next[next.length - 1] : null)
-    }
-    setPdfOutlineDest(null)
-  }, [])
+  const handleClosePdf = useCallback(
+    (id: string) => {
+      closePdf(id)
+      setPdfOutlineDest(null)
+    },
+    [closePdf]
+  )
 
   // PdfCardsPanel card click → open the PDF (if needed) + flash the annotation.
   const handlePanelCardClick = useCallback((card: PdfCard) => {
@@ -1300,8 +1287,7 @@ export default function OptionsPage() {
   const handleOpenPdfFromCard = useCallback(
     (card: DisplayCard) => {
       if (!card.pdfSource) return
-      setSidebarTab("pdf")
-      openDrawer()
+      navigate("pdf")
       openPdf(card.pdfSource.pdfId)
       const pdfCard = card.pdfCardId ? pdfById.get(card.pdfCardId) : undefined
       pdfFlashToken.current += 1
@@ -1317,7 +1303,7 @@ export default function OptionsPage() {
         token: pdfScrollToken.current
       })
     },
-    [openPdf, openDrawer, pdfById]
+    [openPdf, navigate, pdfById]
   )
 
   // PdfView annotation popover "跳转卡片" → scroll the panel to that card.
@@ -1327,7 +1313,7 @@ export default function OptionsPage() {
   }, [])
 
   // Place PDF-sourced cards into a project (未分类) / unplace back to PDF-only.
-  const handleCardWorkspaceClose = useCallback(() => setCardWorkspace(null), [])
+  const handleCardWorkspaceClose = useCallback(() => closeCardWorkspace(), [closeCardWorkspace])
 
   const handleCardWorkspaceSave = useCallback(
     async (values: CardEditorValues, type: "text" | "image" | "placed") => {
@@ -1400,10 +1386,10 @@ export default function OptionsPage() {
       } catch (e) {
         console.warn("[lime] card save failed:", e)
       }
-      setCardWorkspace(null)
+      closeCardWorkspace()
       onSearch()
     },
-    [cardWorkspace, activeProjectId, activeSectionId, pdfById, onSearch]
+    [cardWorkspace, activeProjectId, activeSectionId, pdfById, onSearch, closeCardWorkspace]
   )
 
   const handleCardWorkspaceSaveDraft = useCallback(
@@ -1442,10 +1428,10 @@ export default function OptionsPage() {
       } catch (e) {
         console.warn("[lime] card draft failed:", e)
       }
-      setCardWorkspace(null)
+      closeCardWorkspace()
       onSearch()
     },
-    [cardWorkspace, activeProjectId, activeSectionId, onSearch]
+    [cardWorkspace, activeProjectId, activeSectionId, onSearch, closeCardWorkspace]
   )
 
   const handleCardWorkspaceDiscard = useCallback(() => {
@@ -1455,9 +1441,9 @@ export default function OptionsPage() {
         console.warn("[lime] discard draft failed:", e)
       )
     }
-    setCardWorkspace(null)
+    closeCardWorkspace()
     onSearch()
-  }, [cardWorkspace, onSearch])
+  }, [cardWorkspace, onSearch, closeCardWorkspace])
 
   const handlePlaceCards = useCallback(
     async (cardIds: string[], projectId: string) => {
@@ -1524,7 +1510,7 @@ export default function OptionsPage() {
         (c) => c.id === card.projectCardId
       )
       if (!placement) return
-      setSidebarTab("projects")
+      navigate("projects")
       setKeyword("")
       setDateRange(null)
       setActiveProjectId(placement.projectId)
@@ -1540,7 +1526,7 @@ export default function OptionsPage() {
         projectCardHighlightTimer.current = null
       }, 2000)
     },
-    [allProjectCardsUnfiltered]
+    [allProjectCardsUnfiltered, navigate]
   )
 
   // Placement lookup for the cards panel: pdfCard.projectCardId → the
@@ -1624,16 +1610,12 @@ export default function OptionsPage() {
   const confirmDeletePdf = useCallback(async () => {
     if (!pdfDeleteTarget) return
     await deletePdf(pdfDeleteTarget.id)
-    setOpenPdfIds((prev) => prev.filter((x) => x !== pdfDeleteTarget.id))
-    if (activePdfId === pdfDeleteTarget.id) setActivePdfId(null)
+    closePdf(pdfDeleteTarget.id)
     setPdfDeleteTarget(null)
-  }, [pdfDeleteTarget, activePdfId])
+  }, [pdfDeleteTarget, closePdf])
 
   // Subscribe to database changes via storage broadcast
-  const refreshRef = useRef(refreshAllData)
   refreshRef.current = refreshAllData
-  const sidebarTabRef = useRef(sidebarTab)
-  sidebarTabRef.current = sidebarTab
   const pdfPanelTimerRef = useRef<number | null>(null)
   // The NavRail review/todo badges use the SAME light-weight queries as the
   // toolbar badge (getDueCount / getIncompleteTodoCount) so all three agree and
@@ -1696,7 +1678,7 @@ export default function OptionsPage() {
         refreshRef.current()
       }, 150)
     }
-  }, [])
+  }, [sidebarTabRef, refreshRef])
   useEffect(() => {
     return () => {
       if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current)
@@ -1751,7 +1733,7 @@ export default function OptionsPage() {
     }
     chrome.storage.onChanged.addListener(onChange)
     return () => chrome.storage.onChanged.removeListener(onChange)
-  }, [loadPdfs, loadPdfPanelData, schedulePdfPanelReload, schedulePdfDataReload, refreshLiteCounts, loadProjects, loadTodos, scheduleFullReload])
+  }, [loadPdfs, loadPdfPanelData, schedulePdfPanelReload, schedulePdfDataReload, refreshLiteCounts, loadProjects, loadTodos, scheduleFullReload, sidebarTabRef])
 
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null
 
@@ -1891,24 +1873,6 @@ export default function OptionsPage() {
     onMoveCard
   })
 
-  const handleSetSidebarTab = useCallback(
-    (tab: SidebarTab) => {
-      // Pure decision + the ref read (latest value) — a state-in-deps closure
-      // is the stale-closure bug class (the sidebarTab dep was once dropped
-      // here and nav clicks hit the wrong branch).
-      if (nextSidebarAction(tab, sidebarTabRef.current) === "toggle") {
-        toggleDrawer()
-      } else {
-        // Leaving the card editor / the PDF view: the editor is workspace-only
-        // and the PDF reload was skipped while in it — clear + refresh once.
-        setCardWorkspace(null)
-        if (sidebarTabRef.current === "pdf") refreshRef.current()
-        setSidebarTab(tab)
-        openDrawer()
-      }
-    },
-    [toggleDrawer, openDrawer]
-  )
 
   // Persist tree/nav state across sessions
   useEffect(() => {
@@ -2155,15 +2119,15 @@ export default function OptionsPage() {
       document.removeEventListener("visibilitychange", onVisible)
       window.removeEventListener("focus", run)
     }
-  }, [refreshLiteCounts])
+  }, [refreshLiteCounts, sidebarTabRef])
 
 
   const handleNewTodo = useCallback(() => {
     setFocusNewTaskId(null)
     setTodoFilter("incomplete")
     setTodoEditingId("__new__")
-    setSidebarTab("todo")
-  }, [])
+    navigate("todo")
+  }, [navigate])
 
   const handleStartEditTodo = useCallback((id: string) => {
     setFocusNewTaskId(null)
@@ -2237,7 +2201,7 @@ export default function OptionsPage() {
     onOpenDialog: setDialogCard,
     onEdit: (id: string) => {
       const card = displayCardsUnfiltered.find((c) => c.id === id)
-      if (card) setCardWorkspace({ view: "edit", card })
+      if (card) openCardWorkspace("edit", card)
     },
     onToggleReview: handleToggleReview,
     onReReview: handleReReview,
@@ -2417,7 +2381,7 @@ export default function OptionsPage() {
                     <Tooltip title="新建卡片">
                       <IconButton
                         size="small"
-                        onClick={() => setCardWorkspace({ view: "create", card: null })}
+                        onClick={() => openCardWorkspace("create", null)}
                         sx={{
                           color: "text.secondary",
                           "&:hover": { color: "primary.main" },
@@ -2934,7 +2898,7 @@ export default function OptionsPage() {
                               dropIndicator={cardDrop}
                               flipRectsRef={flipRectsRef}
                               onGripPointerDown={handleGripPointerDown}
-                              onNewCard={() => setCardWorkspace({ view: "create", card: null })}
+                              onNewCard={() => openCardWorkspace("create", null)}
                               selectMode={selectMode}
                               onSelectItem={(id) =>
                                 setSelectedIds((prev) =>
@@ -3297,7 +3261,7 @@ export default function OptionsPage() {
                  const f = e.target.files?.[0]
                  if (f) {
                    handleOpenPdfFile(f)
-                   setSidebarTab("pdf")
+                   navigate("pdf")
                  }
                  e.target.value = ""
                }}
