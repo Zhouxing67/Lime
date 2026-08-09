@@ -287,26 +287,27 @@ function PdfViewRouter(props: PdfViewRouterProps) {
 function ReviewViewRouter(props: ReviewViewRouterProps) {
   const { reviewDateFilter, ratingFilter, filteredDateItems } = props
   if (reviewDateFilter) {
-    if (ratingFilter && filteredDateItems.length === 0) {
-      return (
-        <EmptyState
-          iconSize={64}
-          icon={<SearchOffRoundedIcon className="empty-icon" />}
-          title="该评分下无卡片"
-          subtitle="切换评分或清除筛选试试"
-        />
-      )
-    }
     return (
-      <CardGrid
-        items={filteredDateItems}
-        selectMode={false}
-        readOnly
-        onSelectItem={() => {}}
-        onDeleteItem={() => {}}
-        firstRating={props.cardFirstRating}
-        {...props.sharedCardGridProps}
-      />
+      <Box>
+        {ratingFilter && filteredDateItems.length === 0 ? (
+          <EmptyState
+            iconSize={64}
+            icon={<SearchOffRoundedIcon className="empty-icon" />}
+            title="该评分下无卡片"
+            subtitle="切换评分或清除筛选试试"
+          />
+        ) : (
+          <CardGrid
+            items={filteredDateItems}
+            selectMode={false}
+            readOnly
+            onSelectItem={() => {}}
+            onDeleteItem={() => {}}
+            firstRating={props.cardFirstRating}
+            {...props.sharedCardGridProps}
+          />
+        )}
+      </Box>
     )
   }
   const {
