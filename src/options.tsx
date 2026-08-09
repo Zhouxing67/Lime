@@ -1242,9 +1242,15 @@ export default function OptionsPage() {
       try {
         if (ws.view === "create") {
           if (type === "image") {
+            // An image card is invalid without the uploaded image — stay in
+            // the editor instead of silently "succeeding" with no card.
+            if (!values.image) {
+              setSnackbarMsg("请先上传图片")
+              return
+            }
             await createImageCard({
               title: values.title?.trim() || undefined,
-              image: values.image ?? "",
+              image: values.image,
               comment: values.comment?.trim() || undefined,
               projectId: activeProjectId ?? "",
               sectionId

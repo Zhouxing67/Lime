@@ -49,6 +49,7 @@ function WorkspaceHeader({
   dirty,
   editorView,
   onViewChange,
+  showViewSegmented,
   onClose
 }: {
   view: "edit" | "create"
@@ -58,6 +59,7 @@ function WorkspaceHeader({
   dirty: boolean
   editorView: EditorView
   onViewChange: (v: EditorView) => void
+  showViewSegmented: boolean
   onClose: () => void
 }) {
   return (
@@ -127,6 +129,7 @@ function WorkspaceHeader({
         </>
       )}
       <Box sx={{ flex: 1 }} />
+      {showViewSegmented && (
       <Box
         sx={{
           display: "flex",
@@ -153,6 +156,7 @@ function WorkspaceHeader({
           </Tooltip>
         ))}
       </Box>
+      )}
     </Box>
   )
 }
@@ -262,6 +266,7 @@ export default function CardWorkspace({
   const [editorView, setEditorView] = useState<EditorView>("split")
   const [dirty, setDirty] = useState(false)
   const [editorFocused, setEditorFocused] = useState(false)
+  const [editorPage, setEditorPage] = useState<"edit" | "readonly">("edit")
   const [busyAction, setBusyAction] = useState<"save" | "draft" | null>(null)
   const [discardOpen, setDiscardOpen] = useState(false)
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false)
@@ -329,13 +334,18 @@ export default function CardWorkspace({
         dirty={dirty}
         editorView={editorView}
         onViewChange={setEditorView}
+        showViewSegmented={editorPage === "edit"}
         onClose={handleRequestClose}
       />
 
       {/* Toolbar — shows only while actively editing (edit/split + focus) */}
-      {editorView !== "preview" && editorFocused && (
-        <MarkdownToolbar onTool={(tool) => editorRef.current?.applyTool(tool)} />
-      )}
+      {editorPage === "edit" &&
+        editorView !== "preview" &&
+        editorFocused && (
+          <MarkdownToolbar
+            onTool={(tool) => editorRef.current?.applyTool(tool)}
+          />
+        )}
 
       {/* Content — paper-framed editing surface */}
       <Box sx={{ flex: 1, overflow: "auto", p: 2 }}>
@@ -364,6 +374,7 @@ export default function CardWorkspace({
               view={editorView}
               onDirtyChange={setDirty}
               onFocusChange={setEditorFocused}
+              onPageChange={setEditorPage}
               readonlyImage={card.image}
               readonlyText={
                 cardKind(card) === "placed" && !card.image
@@ -380,6 +391,7 @@ export default function CardWorkspace({
               view={editorView}
               onDirtyChange={setDirty}
               onFocusChange={setEditorFocused}
+              onPageChange={setEditorPage}
             />
           ) : null}
         </Box>

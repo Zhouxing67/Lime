@@ -39,6 +39,7 @@ const CardEditorView = forwardRef<CardEditorHandle, {
   view: EditorView
   onDirtyChange?: (dirty: boolean) => void
   onFocusChange?: (focused: boolean) => void
+  onPageChange?: (page: "edit" | "readonly") => void
   readonlyImage?: string
   readonlyText?: string
 }>(function CardEditorView(
@@ -49,6 +50,7 @@ const CardEditorView = forwardRef<CardEditorHandle, {
     view,
     onDirtyChange,
     onFocusChange,
+    onPageChange,
     readonlyImage,
     readonlyText
   },
@@ -65,6 +67,11 @@ const CardEditorView = forwardRef<CardEditorHandle, {
     type === "text" ? "content" : "comment"
   )
   const [focused, setFocused] = useState(false)
+  const [editorPage, setEditorPage] = useState<"edit" | "readonly">("edit")
+  const handlePageChange = (p: "edit" | "readonly") => {
+    setEditorPage(p)
+    onPageChange?.(p)
+  }
 
   useEffect(() => {
     setTitle(initial.title ?? "")
@@ -195,100 +202,203 @@ const CardEditorView = forwardRef<CardEditorHandle, {
 
       {(type === "image" || type === "placed") && (
         <>
-          {sectionGap}
-          <Well sx={{ p: 1 }}>
-            {mode === "create" && type === "image" ? (
-              <Box
-                onClick={() => fileRef.current?.click()}
-                sx={{
-                  border: "1.5px dashed",
-                  borderColor: "divider",
-                  borderRadius: 1,
-                  p: 3,
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 1,
-                  color: "text.disabled",
-                  cursor: "pointer",
-                  "&:hover": {
-                    borderColor: "primary.main",
-                    color: "primary.main"
-                  }
-                }}>
-                {image ? (
+          <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 1 }}>
+            <Box
+              sx={{
+                display: "flex",
+                border: "1px solid",
+                borderColor: "divider",
+                borderRadius: 1,
+                overflow: "hidden"
+              }}>
+              {(["readonly", "edit"] as const).map((p) => (
+                <Box
+                  key={p}
+                  onClick={() => handlePageChange(p)}
+                  sx={{
+                    px: 1.2,
+                    py: 0.4,
+                    fontSize: "0.75rem",
+                    cursor: "pointer",
+                    userSelect: "none",
+                    color: editorPage === p ? "primary.main" : "text.secondary",
+                    bgcolor: editorPage === p ? "action.selected" : "transparent",
+                    "&:hover": { bgcolor: "action.hover" }
+                  }}>
+                  {p === "readonly" ? "只读" : "编辑"}
+                </Box>
+              ))}
+            </Box>
+          </Box>
+
+          {editorPage === "readonly" ? (
+            <Box
+              sx={{
+                flex: 1,
+                minHeight: 0,
+                display: "flex",
+                flexDirection: "column"
+              }}>
+              {mode === "create" && type === "image" ? (
+                <Box
+                  onClick={() => fileRef.current?.click()}
+                  sx={{
+                    flex: 1,
+                    border: "1.5px dashed",
+                    borderColor: "divider",
+                    borderRadius: 1,
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 1,
+                    color: "text.disabled",
+                    cursor: "pointer",
+                    "&:hover": {
+                      borderColor: "primary.main",
+                      color: "primary.main"
+                    }
+                  }}>
+                  {image ? (
+                    <img
+                      src={image}
+                      alt=""
+                      style={{
+                        maxWidth: "100%",
+                        maxHeight: "100%",
+                        objectFit: "contain"
+                      }}
+                    />
+                  ) : (
+                    <>
+                      <AddPhotoAlternateRoundedIcon />
+                      <Typography variant="caption">点击上传图片</Typography>
+                    </>
+                  )}
+                </Box>
+              ) : readonlyImage ? (
+                <Box
+                  sx={{
+                    flex: 1,
+                    minHeight: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    bgcolor: (t) => t.custom.surface2,
+                    borderRadius: 1,
+                    p: 1,
+                    overflow: "auto"
+                  }}>
                   <img
-                    src={image}
+                    src={readonlyImage}
                     alt=""
                     style={{
                       maxWidth: "100%",
-                      maxHeight: 300,
+                      maxHeight: "100%",
                       objectFit: "contain"
                     }}
                   />
-                ) : (
-                  <>
-                    <AddPhotoAlternateRoundedIcon />
-                    <Typography variant="caption">点击上传图片</Typography>
-                  </>
-                )}
-              </Box>
-            ) : readonlyImage ? (
+                </Box>
+              ) : readonlyText ? (
+                <Box
+                  sx={{
+                    pl: 2,
+                    borderLeft: "4px solid",
+                    borderLeftColor: "primary.main",
+                    color: "text.secondary",
+                    fontSize: "0.95rem",
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word",
+                    width: "fit-content",
+                    maxWidth: "100%"
+                  }}>
+                  {readonlyText}
+                </Box>
+              ) : (
+                <Box
+                  sx={{
+                    flex: 1,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    bgcolor: (t) => t.custom.surface2,
+                    borderRadius: 1
+                  }}>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: "text.disabled" }}>
+                    此处显示卡片原始内容
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+          ) : (
+            <>
+              {mode === "create" && type === "image" && (
+                <>
+                  {sectionGap}
+                  <Box
+                    onClick={() => fileRef.current?.click()}
+                    sx={{
+                      border: "1.5px dashed",
+                      borderColor: "divider",
+                      borderRadius: 1,
+                      p: 3,
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: 1,
+                      color: "text.disabled",
+                      cursor: "pointer",
+                      "&:hover": {
+                        borderColor: "primary.main",
+                        color: "primary.main"
+                      }
+                    }}>
+                    {image ? (
+                      <img
+                        src={image}
+                        alt=""
+                        style={{
+                          maxWidth: "100%",
+                          maxHeight: 300,
+                          objectFit: "contain"
+                        }}
+                      />
+                    ) : (
+                      <>
+                        <AddPhotoAlternateRoundedIcon />
+                        <Typography variant="caption">点击上传图片</Typography>
+                      </>
+                    )}
+                  </Box>
+                </>
+              )}
+              {sectionGap}
               <Box
                 sx={{
+                  flex: 1,
+                  minHeight: 0,
                   display: "flex",
-                  justifyContent: "center",
-                  p: 1
+                  flexDirection: "column"
                 }}>
-                <img
-                  src={readonlyImage}
-                  alt=""
-                  style={{
-                    maxWidth: "100%",
-                    maxHeight: 420,
-                    objectFit: "contain"
+                <MarkdownEditor
+                  value={comment}
+                  onChange={setComment}
+                  view={view}
+                  placeholder="在此处输入卡片备注…"
+                  registerRef={(el) => {
+                    markdownInputRef.current = el
+                  }}
+                  onFocusChange={(f) => {
+                    setFocused(f)
+                    onFocusChange?.(f)
+                    if (f) setActiveField("comment")
                   }}
                 />
               </Box>
-            ) : readonlyText ? (
-              <Box
-                sx={{
-                  pl: 2,
-                  borderLeft: "4px solid",
-                  borderLeftColor: "primary.main",
-                  color: "text.secondary",
-                  fontSize: "0.95rem",
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-word"
-                }}>
-                {readonlyText}
-              </Box>
-            ) : (
-              <Typography
-                variant="caption"
-                sx={{ color: "text.disabled", display: "block", py: 1 }}>
-                此处显示卡片原始内容
-              </Typography>
-            )}
-          </Well>
-
-          {sectionGap}
-          <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-            <MarkdownEditor
-              value={comment}
-              onChange={setComment}
-              view={view}
-              placeholder="在此处输入卡片备注…"
-              registerRef={(el) => {
-                markdownInputRef.current = el
-              }}
-              onFocusChange={(f) => {
-                setFocused(f)
-                onFocusChange?.(f)
-                if (f) setActiveField("comment")
-              }}
-            />
-          </Box>
+            </>
+          )}
         </>
       )}
 
