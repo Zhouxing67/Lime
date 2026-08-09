@@ -164,8 +164,8 @@ const CardEditorView = forwardRef<CardEditorHandle, {
               fontFamily: (t) => t.custom.serif
             },
             "& .MuiInputBase-root::before": {
-              borderBottom: "1px solid",
-              borderColor: "divider"
+              borderBottom: "1.5px solid",
+              borderColor: (t) => t.custom.borderStrong
             },
             "& .MuiInputBase-root:hover:not(.Mui-disabled)::before": {
               borderBottomColor: "text.secondary"
