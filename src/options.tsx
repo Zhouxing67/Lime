@@ -447,6 +447,20 @@ export default function OptionsPage() {
     draftByOriginal
   })
 
+  // Shared "open a project" action — used by the tree's row click + the
+  // project-hub tiles (kept in ONE place so the two paths never diverge).
+  const activateProject = useCallback(
+    (id: string) => {
+      setSelectedIds([])
+      setSelectMode(false)
+      setActiveProjectId(id)
+      setNavOpen(true)
+      onSearch(id)
+      sendMessage({ kind: "set-recent-project", projectId: id }).catch(() => {})
+    },
+    [setSelectedIds, setSelectMode, setActiveProjectId, onSearch]
+  )
+
   const {
     projects,
     newProjectName,
@@ -463,14 +477,7 @@ export default function OptionsPage() {
     handleDeleteSection,
     handleMoveSection
   } = useProjects({
-    onActivate: (id) => {
-      setSelectedIds([])
-      setSelectMode(false)
-      setActiveProjectId(id)
-      setNavOpen(true)
-      onSearch(id)
-      sendMessage({ kind: "set-recent-project", projectId: id }).catch(() => {})
-    },
+    onActivate: activateProject,
     onDeactivate: (id?: string) => {
       setSelectedIds([])
       setSelectMode(false)
@@ -485,7 +492,11 @@ export default function OptionsPage() {
           return next
         })
       }
-      onSearch(null)
+      // The keyword/date setters above are queued (not committed) — searching
+      // now would read the STALE keyword/dateRange. Reset the result directly;
+      // the effect below re-runs the search with the cleared scope.
+      setAllProjectCards([])
+      setVisibleCount(ITEMS_PER_PAGE)
     }
   })
 
@@ -590,10 +601,14 @@ export default function OptionsPage() {
     })
   }, [allProjectCardsUnfiltered, reviewsVersion])
 
-  // Immediate search for non-keyword filter changes
+  // Immediate search for non-keyword filter changes — the keyword change is
+  // handled by the debounced effect below; reading onSearch via a ref keeps
+  // this effect from firing on every keystroke (double-search).
+  const onSearchRef = useRef(onSearch)
+  onSearchRef.current = onSearch
   useEffect(() => {
-    onSearch()
-  }, [activeProjectId, dateRange, onSearch])
+    onSearchRef.current()
+  }, [activeProjectId, dateRange])
 
   // Debounced search for keyword (avoids per-keystroke queries).
   // Projects are strictly isolated: without an active project the search bar
@@ -628,14 +643,7 @@ export default function OptionsPage() {
     toggleDrawer()
   }
 
-  const handleOpenProject = (id: string) => {
-    setSelectedIds([])
-    setSelectMode(false)
-    setActiveProjectId(id)
-    setNavOpen(true)
-    onSearch(id)
-    sendMessage({ kind: "set-recent-project", projectId: id }).catch(() => {})
-  }
+  const handleOpenProject = (id: string) => activateProject(id)
 
   // Active section in the current project (sidebar tree -> main area).
 
