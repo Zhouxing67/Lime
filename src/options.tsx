@@ -57,6 +57,7 @@ import BackupView from "./components/BackupView"
 import PdfHub from "./components/PdfHub"
 import PdfCardsPanel from "./components/PdfCardsPanel"
 import PdfSearchPanel from "./components/PdfSearchPanel"
+import { useProjectsView } from "./hooks/useProjectsView"
 import { useWorkspaceView } from "./hooks/useWorkspaceView"
 import { usePdfSearchPanel } from "./hooks/usePdfSearchPanel"
 import PdfView from "./components/PdfView"
@@ -145,8 +146,6 @@ import { resolveCardContent, stripPlacementContent } from "./utils/cards"
 const ITEMS_PER_PAGE = 20
 
 export default function OptionsPage() {
-  const [allProjectCards, setAllProjectCards] = useState<ProjectCard[]>([])
-  const [keyword, setKeyword] = useState("")
   const [dialogCard, setDialogCard] = useState<DisplayCard | null>(null)
   // ---- the workspace view routing (sidebarTab + drawer/reader mutex +
   // card-editor workspace + PDF keep-alive multi-open) ----
@@ -173,12 +172,7 @@ export default function OptionsPage() {
 
   // Navigate prev/next within the currently displayed list
   const [drawerWidth, setDrawerWidth] = useState(280)
-  const [selectMode, setSelectMode] = useState(false)
-  const [selectedIds, setSelectedIds] = useState<string[]>([])
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [deleteTargetIsPdf, setDeleteTargetIsPdf] = useState(false)
-  const [confirmBatchDelete, setConfirmBatchDelete] = useState(false)
-  const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [preset, setPreset] = useState<PresetName>("indigo-crimson")
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [pdfs, setPdfs] = useState<PdfFile[]>([])
@@ -244,14 +238,6 @@ export default function OptionsPage() {
   const [focusNewTaskId, setFocusNewTaskId] = useState<string | null>(null)
   const [todoFilter, setTodoFilter] = useState<TodoFilter>("incomplete")
   const [todoDeleteTarget, setTodoDeleteTarget] = useState<TodoCard | null>(null)
-  const [projectDeleteTarget, setProjectDeleteTarget] = useState<Project | null>(
-    null
-  )
-  const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
-  const [dateRange, setDateRange] = useState<{
-    from?: number
-    to?: number
-  } | null>(null)
   const loadMoreRef = useRef<HTMLDivElement>(null)
   const [copyCardId, setCopyCardId] = useState<string | null>(null)
   const [moveSectionCardId, setMoveSectionCardId] = useState<string | null>(null)
@@ -298,11 +284,7 @@ export default function OptionsPage() {
    * (no full refreshAllData) so the session stays in sync with review writes. */
   const [reviewsVersion, setReviewsVersion] = useState(0)
   const [allReviews, setAllReviews] = useState<ReviewEntry[]>([])
-  const [expandedNav, setExpandedNav] = useState<Set<string>>(new Set())
   const [navOpen, setNavOpen] = useState(false)
-  const [activeSectionByProject, setActiveSectionByProject] = useState<
-    Record<string, string | null>
-  >({})
   const [pendingSectionDelete, setPendingSectionDelete] = useState<{
     sectionId: string
     cardCount: number
@@ -418,55 +400,52 @@ export default function OptionsPage() {
     return m
   }, [allProjectCardsUnfiltered])
 
-  /** The grid scope — originals with a draft are replaced by the draft. */
-  const visibleProjectCards = useMemo(
-    () =>
-      allProjectCards.filter(
-        (c) => c.isDraft || !draftByOriginal.has(c.id)
-      ),
-    [allProjectCards, draftByOriginal]
-  )
-
-  const displayCards = useMemo(
-    () => visibleProjectCards.map(resolveDisplay),
-    [visibleProjectCards, resolveDisplay]
-  )
-
   /** EVERY project card across projects, display-resolved (review + backup). */
   const displayCardsUnfiltered = useMemo(
     () => allProjectCardsUnfiltered.map(resolveDisplay),
     [allProjectCardsUnfiltered, resolveDisplay]
   )
 
-  // Search results render in pages; the visible page derives from the resolved
-  // display list so a pdfCard edit re-resolves without a stale slice.
-  const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE)
-  const displayedItems = useMemo(
-    () => displayCards.slice(0, visibleCount),
-    [displayCards, visibleCount]
-  )
-  const hasMore = useMemo(
-    () => displayCards.length > visibleCount,
-    [displayCards.length, visibleCount]
-  )
-
-  const onSearch = useCallback(
-    async (projectId?: string | null) => {
-      const pid = projectId !== undefined ? projectId : activeProjectId
-      const q: SearchQuery = {
-        keyword,
-        projectId: pid ?? undefined,
-        from: dateRange?.from,
-        to: dateRange?.to
-      }
-      const list = await searchProjectCards(q)
-      // Todos live in their own store/view now — never mixed into project/search.
-      list.sort(compareCards)
-      setAllProjectCards(list)
-      setVisibleCount(ITEMS_PER_PAGE)
-    },
-    [keyword, activeProjectId, dateRange]
-  )
+  // The projects view's own state + search + scope (keyword/date-range, active
+  // project/section, batch selection, pagination, the derived display list).
+  const {
+    allProjectCards,
+    setAllProjectCards,
+    keyword,
+    setKeyword,
+    dateRange,
+    setDateRange,
+    activeProjectId,
+    setActiveProjectId,
+    activeSectionByProject,
+    setActiveSectionByProject,
+    expandedNav,
+    setExpandedNav,
+    selectMode,
+    setSelectMode,
+    selectedIds,
+    setSelectedIds,
+    confirmDeleteId,
+    setConfirmDeleteId,
+    confirmBatchDelete,
+    setConfirmBatchDelete,
+    createDialogOpen,
+    setCreateDialogOpen,
+    projectDeleteTarget,
+    setProjectDeleteTarget,
+    visibleCount,
+    setVisibleCount,
+    activeSectionId,
+    visibleProjectCards,
+    displayCards,
+    displayedItems,
+    hasMore,
+    onSearch
+  } = useProjectsView({
+    allProjectCardsUnfiltered,
+    resolveDisplay,
+    draftByOriginal
+  })
 
   const {
     projects,
@@ -631,7 +610,7 @@ export default function OptionsPage() {
   // cards hidden by a new keyword/date range.
   useEffect(() => {
     setSelectedIds([])
-  }, [keyword, dateRange, activeProjectId])
+  }, [keyword, dateRange, activeProjectId, setSelectedIds])
 
   // Reset review session state when exiting review
   useEffect(() => {
@@ -659,9 +638,6 @@ export default function OptionsPage() {
   }
 
   // Active section in the current project (sidebar tree -> main area).
-  const activeSectionId = activeProjectId
-    ? (activeSectionByProject[activeProjectId] ?? null)
-    : null
 
   const onDelete = (id: string) => {
     setConfirmDeleteId(id)
@@ -691,7 +667,7 @@ export default function OptionsPage() {
     setVisibleCount((c) =>
       Math.min(c + ITEMS_PER_PAGE, allProjectCards.length)
     )
-  }, [hasMore, allProjectCards.length])
+  }, [hasMore, allProjectCards.length, setVisibleCount])
 
   // Keep a stable ref to the latest loadMore function so the observer
   // effect doesn't need to re-create the IntersectionObserver on every data change.
@@ -1057,7 +1033,7 @@ export default function OptionsPage() {
   const onToggleSelectMode = useCallback(() => {
     setSelectedIds([])
     setSelectMode((prev) => !prev)
-  }, [])
+  }, [setSelectedIds, setSelectMode])
 
   // ---- Section handlers ----
   const toggleExpanded = useCallback((id: string) => {
@@ -1067,7 +1043,7 @@ export default function OptionsPage() {
       else next.add(id)
       return next
     })
-  }, [])
+  }, [setExpandedNav])
 
   const addSectionWithTitle = useCallback(
     async (parentId: string | null, title: string) => {
@@ -1079,7 +1055,7 @@ export default function OptionsPage() {
         return next
       })
     },
-    [activeProjectId, handleAddSection]
+    [activeProjectId, handleAddSection, setExpandedNav]
   )
 
   const onRenameSection = useCallback(
@@ -1118,7 +1094,7 @@ export default function OptionsPage() {
       if (!affected) return prev
       return { ...prev, [activeProjectId]: null }
     })
-  }, [activeProjectId, handleDeleteSection, pendingSectionDelete, projects])
+  }, [activeProjectId, handleDeleteSection, pendingSectionDelete, projects, setActiveSectionByProject])
 
   const onMoveSection = useCallback(
     (sectionId: string, newParentId: string | null, newOrder: number) => {
@@ -1526,7 +1502,7 @@ export default function OptionsPage() {
         projectCardHighlightTimer.current = null
       }, 2000)
     },
-    [allProjectCardsUnfiltered, navigate]
+    [allProjectCardsUnfiltered, navigate, setActiveProjectId, setActiveSectionByProject, setDateRange, setKeyword]
   )
 
   // Placement lookup for the cards panel: pdfCard.projectCardId → the
@@ -1859,7 +1835,7 @@ export default function OptionsPage() {
       setSelectedIds([])
       setSelectMode(false)
     },
-    [activeProjectId]
+    [activeProjectId, setActiveSectionByProject, setSelectMode, setSelectedIds]
   )
 
   // Pointer-based card drag-reorder within the current scope (same section only).
@@ -1899,7 +1875,7 @@ export default function OptionsPage() {
       if (typeof pdf.open === "boolean") setPdfCardsOpen(pdf.open)
       if (typeof pdf.width === "number") setPdfCardsWidth(pdf.width)
     })
-  }, [])
+  }, [setActiveSectionByProject, setExpandedNav])
 
   useEffect(() => {
     chrome.storage.local.set({
