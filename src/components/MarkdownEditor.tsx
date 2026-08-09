@@ -19,7 +19,8 @@ export default function MarkdownEditor({
   view,
   registerRef,
   onFocusChange,
-  autoFocus = false
+  autoFocus = false,
+  placeholder
 }: {
   value: string
   onChange: (v: string) => void
@@ -28,6 +29,7 @@ export default function MarkdownEditor({
   registerRef: (el: HTMLTextAreaElement | null) => void
   onFocusChange?: (focused: boolean) => void
   autoFocus?: boolean
+  placeholder?: string
 }) {
   const localRef = useRef<HTMLTextAreaElement | null>(null)
   const rootRef = useRef<HTMLDivElement | null>(null)
@@ -140,6 +142,7 @@ export default function MarkdownEditor({
             onFocus={() => onFocusChange?.(true)}
             onBlur={() => onFocusChange?.(false)}
             autoFocus={autoFocus}
+            placeholder={placeholder}
             variant="standard"
             sx={{
               width: "100%",

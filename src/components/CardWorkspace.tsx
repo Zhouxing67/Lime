@@ -1,7 +1,10 @@
 import { useRef, useState } from "react"
 import {
   Box,
+  Button,
   CircularProgress,
+  DialogActions,
+  DialogContentText,
   IconButton,
   Tooltip,
   Typography
@@ -19,6 +22,7 @@ import CardEditorView, {
   type CardEditorHandle
 } from "./CardEditorView"
 import DeleteConfirmDialog from "./DeleteConfirmDialog"
+import DialogShell from "./DialogShell"
 import MarkdownToolbar from "./MarkdownToolbar"
 import { typeIcon } from "./CardRenderer"
 import type { EditorView } from "./MarkdownEditor"
@@ -260,7 +264,25 @@ export default function CardWorkspace({
   const [editorFocused, setEditorFocused] = useState(false)
   const [busyAction, setBusyAction] = useState<"save" | "draft" | null>(null)
   const [discardOpen, setDiscardOpen] = useState(false)
+  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false)
   const editorRef = useRef<CardEditorHandle>(null)
+
+  // The header 返回 intercepts a dirty workspace: unsaved edits would be lost
+  // silently, so confirm with 丢弃 / 存草稿 / 取消.
+  const handleRequestClose = () => {
+    if (dirty) setLeaveConfirmOpen(true)
+    else onClose()
+  }
+
+  const handleLeaveDiscard = () => {
+    setLeaveConfirmOpen(false)
+    onDiscard()
+  }
+
+  const handleLeaveSaveDraft = () => {
+    setLeaveConfirmOpen(false)
+    handleSaveDraft()
+  }
 
   const editType: "text" | "image" | "placed" =
     view === "edit" && card ? cardKind(card) : createType
@@ -307,7 +329,7 @@ export default function CardWorkspace({
         dirty={dirty}
         editorView={editorView}
         onViewChange={setEditorView}
-        onClose={onClose}
+        onClose={handleRequestClose}
       />
 
       {/* Toolbar — shows only while actively editing (edit/split + focus) */}
@@ -379,6 +401,25 @@ export default function CardWorkspace({
         onCancel={() => setDiscardOpen(false)}
         onConfirm={handleDiscardConfirm}
       />
+
+      <DialogShell
+        open={leaveConfirmOpen}
+        onClose={() => setLeaveConfirmOpen(false)}
+        title="未保存的更改"
+        maxWidth="xs"
+        actions={
+          <DialogActions sx={{ px: 3, py: 2 }}>
+            <Button onClick={() => setLeaveConfirmOpen(false)}>取消</Button>
+            <Button color="inherit" onClick={handleLeaveSaveDraft}>
+              存草稿
+            </Button>
+            <Button variant="contained" color="error" onClick={handleLeaveDiscard}>
+              丢弃
+            </Button>
+          </DialogActions>
+        }>
+        <DialogContentText>存在未保存内容，返回将丢弃</DialogContentText>
+      </DialogShell>
     </Box>
   )
 }

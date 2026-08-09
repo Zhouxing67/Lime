@@ -1,6 +1,7 @@
 import ChevronLeftRoundedIcon from "@mui/icons-material/ChevronLeftRounded"
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded"
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded"
+import CheckRoundedIcon from "@mui/icons-material/CheckRounded"
 import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded"
 import {
   Box,
@@ -39,6 +40,7 @@ export default function ItemDialog({
   hasNext?: boolean
 }) {
   const [animDir, setAnimDir] = useState<"prev" | "next" | null>(null)
+  const [copied, setCopied] = useState(false)
 
   const handleNavigate = useCallback(
     (dir: "prev" | "next") => {
@@ -159,7 +161,7 @@ export default function ItemDialog({
         </Box>
         <Box sx={{ flex: 1 }} />
         <Stack direction="row" spacing={0.5} alignItems="center">
-          <Tooltip title="复制引用">
+          <Tooltip title={copied ? "已复制" : "复制引用"}>
             <IconButton
               size="small"
               onClick={() => {
@@ -170,8 +172,14 @@ export default function ItemDialog({
                 navigator.clipboard.writeText(
                   `${header}> ${item.content}${src}`
                 )
+                setCopied(true)
+                window.setTimeout(() => setCopied(false), 1500)
               }}>
-              <ContentCopyRoundedIcon fontSize="small" />
+              {copied ? (
+                <CheckRoundedIcon fontSize="small" />
+              ) : (
+                <ContentCopyRoundedIcon fontSize="small" />
+              )}
             </IconButton>
           </Tooltip>
           <Tooltip title="关闭">

@@ -10,6 +10,7 @@ import {
 } from "react"
 
 import MarkdownEditor, { type EditorView } from "./MarkdownEditor"
+import Well from "./Well"
 import {
   insertMarkdownSyntax,
   type MarkdownTool
@@ -113,26 +114,16 @@ const CardEditorView = forwardRef<CardEditorHandle, {
     [activeField, content, comment, values]
   )
 
-  const sectionHeader = (label: string) => (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.75 }}>
-      <Typography
-        sx={{
-          color: "text.secondary",
-          fontSize: "0.75rem",
-          letterSpacing: "0.05em",
-          whiteSpace: "nowrap"
-        }}>
-        {label}
-      </Typography>
-      <Box sx={{ flex: 1, borderTop: "1px solid", borderColor: "divider" }} />
-    </Box>
-  )
-
-  const divider = (
+  // A full-width surface2 band between the editable regions — the strong
+  // boundary (no labels; the placeholders carry the region meaning).
+  const sectionGap = (
     <Box
       sx={{
-        my: 2.5,
+        height: 10,
+        mx: -3,
+        bgcolor: (t) => t.custom.surface2,
         borderTop: "1px solid",
+        borderBottom: "1px solid",
         borderColor: "divider"
       }}
     />
@@ -181,13 +172,14 @@ const CardEditorView = forwardRef<CardEditorHandle, {
 
       {type === "text" && (
         <>
-          {sectionHeader("内容")}
+          {sectionGap}
           <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
             <MarkdownEditor
               value={content}
               onChange={setContent}
               view={view}
               autoFocus
+              placeholder="在此处输入文本卡片内容，支持 Markdown 与公式"
               registerRef={(el) => {
                 markdownInputRef.current = el
               }}
@@ -203,75 +195,90 @@ const CardEditorView = forwardRef<CardEditorHandle, {
 
       {(type === "image" || type === "placed") && (
         <>
-          {sectionHeader("只读原始内容")}
-          {mode === "create" && type === "image" ? (
-            <Box
-              onClick={() => fileRef.current?.click()}
-              sx={{
-                border: "1.5px dashed",
-                borderColor: "divider",
-                borderRadius: 1,
-                p: 3,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 1,
-                color: "text.disabled",
-                cursor: "pointer",
-                "&:hover": { borderColor: "primary.main", color: "primary.main" }
-              }}>
-              {image ? (
+          {sectionGap}
+          <Well sx={{ p: 1 }}>
+            {mode === "create" && type === "image" ? (
+              <Box
+                onClick={() => fileRef.current?.click()}
+                sx={{
+                  border: "1.5px dashed",
+                  borderColor: "divider",
+                  borderRadius: 1,
+                  p: 3,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 1,
+                  color: "text.disabled",
+                  cursor: "pointer",
+                  "&:hover": {
+                    borderColor: "primary.main",
+                    color: "primary.main"
+                  }
+                }}>
+                {image ? (
+                  <img
+                    src={image}
+                    alt=""
+                    style={{
+                      maxWidth: "100%",
+                      maxHeight: 300,
+                      objectFit: "contain"
+                    }}
+                  />
+                ) : (
+                  <>
+                    <AddPhotoAlternateRoundedIcon />
+                    <Typography variant="caption">点击上传图片</Typography>
+                  </>
+                )}
+              </Box>
+            ) : readonlyImage ? (
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "center",
+                  p: 1
+                }}>
                 <img
-                  src={image}
+                  src={readonlyImage}
                   alt=""
-                  style={{ maxWidth: "100%", maxHeight: 300, objectFit: "contain" }}
+                  style={{
+                    maxWidth: "100%",
+                    maxHeight: 420,
+                    objectFit: "contain"
+                  }}
                 />
-              ) : (
-                <>
-                  <AddPhotoAlternateRoundedIcon />
-                  <Typography variant="caption">点击上传图片</Typography>
-                </>
-              )}
-            </Box>
-          ) : readonlyImage ? (
-            <Box
-              sx={{
-                display: "flex",
-                justifyContent: "center",
-                p: 1,
-                borderRadius: 1,
-                border: "1px solid",
-                borderColor: "divider",
-                bgcolor: "action.hover"
-              }}>
-              <img
-                src={readonlyImage}
-                alt=""
-                style={{ maxWidth: "100%", maxHeight: 420, objectFit: "contain" }}
-              />
-            </Box>
-          ) : readonlyText ? (
-            <Box
-              sx={{
-                pl: 2,
-                borderLeft: "4px solid",
-                borderLeftColor: "primary.main",
-                color: "text.secondary",
-                fontSize: "0.95rem",
-                whiteSpace: "pre-wrap",
-                wordBreak: "break-word"
-              }}>
-              {readonlyText}
-            </Box>
-          ) : null}
+              </Box>
+            ) : readonlyText ? (
+              <Box
+                sx={{
+                  pl: 2,
+                  borderLeft: "4px solid",
+                  borderLeftColor: "primary.main",
+                  color: "text.secondary",
+                  fontSize: "0.95rem",
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word"
+                }}>
+                {readonlyText}
+              </Box>
+            ) : (
+              <Typography
+                variant="caption"
+                sx={{ color: "text.disabled", display: "block", py: 1 }}>
+                此处显示卡片原始内容
+              </Typography>
+            )}
+          </Well>
 
-          {divider}
-          {sectionHeader("备注")}
+          {sectionGap}
           <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
             <MarkdownEditor
               value={comment}
               onChange={setComment}
               view={view}
+              placeholder="在此处输入卡片备注…"
               registerRef={(el) => {
                 markdownInputRef.current = el
               }}

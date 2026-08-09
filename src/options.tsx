@@ -1780,6 +1780,7 @@ export default function OptionsPage() {
   }, [])
 
   const handleBatchCopyCards = async (targetProjectId: string) => {
+    const proj = projects.find((p) => p.id === targetProjectId)
     let skipped = 0
     for (const id of selectedIds) {
       const original = allProjectCardsUnfiltered.find((c) => c.id === id)
@@ -1796,7 +1797,11 @@ export default function OptionsPage() {
     setCopyMenu(null)
     setSelectMode(false)
     setSelectedIds([])
-    if (skipped > 0) setSnackbarMsg(`跳过 ${skipped} 条重复内容`)
+    setSnackbarMsg(
+      skipped > 0
+        ? `已复制到「${proj?.name ?? "目标项目"}」，${skipped} 条重复跳过`
+        : `已复制到「${proj?.name ?? "目标项目"}」`
+    )
     onSearch()
   }
 
