@@ -16,7 +16,9 @@ const MAX_OPEN_PDFS = 4
  *  the card-editor workspace + the PDF keep-alive multi-open. The composition
  *  root (options) renders the shell and routes between the views using the
  *  returned state; this hook owns the view state and its coordination. */
-export function useWorkspaceView(refresh: () => void) {
+export function useWorkspaceView(
+  refreshRef: React.MutableRefObject<() => void>
+) {
   const [sidebarTab, setSidebarTabState] = useState<SidebarTab>("projects")
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [readerOpen, setReaderOpen] = useState(false)
@@ -82,11 +84,15 @@ export function useWorkspaceView(refresh: () => void) {
   )
   const closeCardWorkspace = useCallback(() => setCardWorkspace(null), [])
 
-  // ---- the PDF keep-alive multi-open (LRU capped) ----
+  // ---- the PDF keep-alive multi-open (true LRU, capped) ----
   const openPdf = useCallback((id: string) => {
     touchPdf(id)
     const cur = openPdfIdsRef.current
-    const next = cur.includes(id) ? cur : [...cur, id]
+    // Re-opening an existing PDF moves it to the end (LRU) so the oldest
+    // accessed PDF is evicted first when the cap fires.
+    const next = cur.includes(id)
+      ? [...cur.filter((x) => x !== id), id]
+      : [...cur, id]
     const trimmed = next.length > MAX_OPEN_PDFS ? next.slice(1) : next
     setOpenPdfIds(trimmed)
     setActivePdfId(id)
@@ -102,15 +108,21 @@ export function useWorkspaceView(refresh: () => void) {
 
   // ---- navigation coordination ----
   /** Switch to a view: leave the card editor (workspace-only), refresh once
-   *  when leaving the PDF view (its reload was skipped while inside). */
+   *  when leaving the PDF view (its reload was skipped while inside). A same-
+   *  tab navigation is a no-op except keeping the drawer open. */
   const navigate = useCallback(
     (tab: SidebarTab) => {
+      const wasPdf = sidebarTabRef.current === "pdf"
+      if (tab === sidebarTabRef.current) {
+        openDrawer()
+        return
+      }
       setCardWorkspace(null)
-      if (sidebarTabRef.current === "pdf") refresh()
+      if (wasPdf) refreshRef.current()
       setSidebarTabState(tab)
       openDrawer()
     },
-    [refresh, openDrawer]
+    [refreshRef, openDrawer]
   )
 
   const handleSetSidebarTab = useCallback(

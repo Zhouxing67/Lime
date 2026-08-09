@@ -169,7 +169,7 @@ export default function OptionsPage() {
     closeCardWorkspace,
     openPdf,
     closePdf
-  } = useWorkspaceView(() => refreshRef.current())
+  } = useWorkspaceView(refreshRef)
 
   // Navigate prev/next within the currently displayed list
   const [drawerWidth, setDrawerWidth] = useState(280)
