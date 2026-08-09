@@ -20,7 +20,6 @@ export default function PdfQuoteCard({
         display: "flex",
         gap: 1.5,
         width: "100%",
-        maxWidth: "60ch",
         p: 2,
         bgcolor: "action.hover",
         borderRadius: 1,

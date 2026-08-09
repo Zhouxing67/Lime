@@ -15,7 +15,6 @@ import {
   insertMarkdownSyntax,
   type MarkdownTool
 } from "../utils/markdownEditor"
-import PdfQuoteCard from "./PdfQuoteCard"
 
 export interface CardEditorValues {
   title?: string
@@ -41,8 +40,6 @@ const CardEditorView = forwardRef<CardEditorHandle, {
   onDirtyChange?: (dirty: boolean) => void
   onFocusChange?: (focused: boolean) => void
   onPageChange?: (page: "edit" | "readonly") => void
-  readonlyImage?: string
-  readonlyText?: string
 }>(function CardEditorView(
   {
     type,
@@ -51,9 +48,7 @@ const CardEditorView = forwardRef<CardEditorHandle, {
     view,
     onDirtyChange,
     onFocusChange,
-    onPageChange,
-    readonlyImage,
-    readonlyText
+    onPageChange
   },
   ref
 ) {
@@ -68,7 +63,9 @@ const CardEditorView = forwardRef<CardEditorHandle, {
     type === "text" ? "content" : "comment"
   )
   const [focused, setFocused] = useState(false)
-  const [editorPage, setEditorPage] = useState<"edit" | "readonly">("edit")
+  const [editorPage, setEditorPage] = useState<"edit" | "readonly">(
+    mode === "create" && type === "image" ? "readonly" : "edit"
+  )
   const handlePageChange = (p: "edit" | "readonly") => {
     setEditorPage(p)
     onPageChange?.(p)
@@ -203,70 +200,64 @@ const CardEditorView = forwardRef<CardEditorHandle, {
 
       {(type === "image" || type === "placed") && (
         <>
-          <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 1 }}>
-            <Box
-              sx={{
-                display: "flex",
-                border: "1px solid",
-                borderColor: "divider",
-                borderRadius: 1,
-                overflow: "hidden"
-              }}>
-              {(["readonly", "edit"] as const).map((p) => (
+          {mode === "create" && type === "image" && (
+            <>
+              <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 1 }}>
                 <Box
-                  key={p}
-                  onClick={() => handlePageChange(p)}
                   sx={{
-                    px: 1.2,
-                    py: 0.4,
-                    fontSize: "0.75rem",
-                    cursor: "pointer",
-                    userSelect: "none",
-                    color: editorPage === p ? "primary.main" : "text.secondary",
-                    bgcolor: editorPage === p ? "action.selected" : "transparent",
-                    "&:hover": { bgcolor: "action.hover" }
+                    display: "flex",
+                    border: "1px solid",
+                    borderColor: "divider",
+                    borderRadius: 1,
+                    overflow: "hidden"
                   }}>
-                  {p === "readonly" ? "只读" : "编辑"}
+                  {(["readonly", "edit"] as const).map((p) => (
+                    <Box
+                      key={p}
+                      onClick={() => handlePageChange(p)}
+                      sx={{
+                        px: 1.2,
+                        py: 0.4,
+                        fontSize: "0.75rem",
+                        cursor: "pointer",
+                        userSelect: "none",
+                        color: editorPage === p ? "primary.main" : "text.secondary",
+                        bgcolor: editorPage === p ? "action.selected" : "transparent",
+                        "&:hover": { bgcolor: "action.hover" }
+                      }}>
+                      {p === "readonly" ? "只读" : "编辑"}
+                    </Box>
+                  ))}
                 </Box>
-              ))}
-            </Box>
-          </Box>
+              </Box>
 
-          {editorPage === "readonly" ? (
-            <Box
-              sx={{
-                flex: 1,
-                minHeight: 0,
-                display: "flex",
-                flexDirection: "column"
-              }}>
-              {mode === "create" && type === "image" ? (
+              {editorPage === "readonly" && (
                 <Box
-                  onClick={() => fileRef.current?.click()}
                   sx={{
+                    position: "relative",
                     flex: 1,
+                    minHeight: 0,
                     border: "1.5px dashed",
                     borderColor: "divider",
                     borderRadius: 1,
                     display: "flex",
-                    flexDirection: "column",
                     alignItems: "center",
                     justifyContent: "center",
-                    gap: 1,
                     color: "text.disabled",
                     cursor: "pointer",
-                    "&:hover": {
-                      borderColor: "primary.main",
-                      color: "primary.main"
-                    }
-                  }}>
+                    overflow: "hidden",
+                    "&:hover": { borderColor: "primary.main", color: "primary.main" }
+                  }}
+                  onClick={() => fileRef.current?.click()}>
                   {image ? (
                     <img
                       src={image}
                       alt=""
                       style={{
-                        maxWidth: "100%",
-                        maxHeight: "100%",
+                        position: "absolute",
+                        inset: 0,
+                        width: "100%",
+                        height: "100%",
                         objectFit: "contain"
                       }}
                     />
@@ -277,62 +268,12 @@ const CardEditorView = forwardRef<CardEditorHandle, {
                     </>
                   )}
                 </Box>
-              ) : readonlyImage ? (
-                <Box
-                  sx={{
-                    flex: 1,
-                    minHeight: 0,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    bgcolor: (t) => t.custom.surface2,
-                    borderRadius: 1,
-                    p: 1,
-                    overflow: "hidden"
-                  }}>
-                  <img
-                    src={readonlyImage}
-                    alt=""
-                    style={{
-                      maxWidth: "100%",
-                      maxHeight: "100%",
-                      objectFit: "contain"
-                    }}
-                  />
-                </Box>
-              ) : readonlyText ? (
-                <Box
-                  sx={{
-                    flex: 1,
-                    minHeight: 0,
-                    overflow: "auto",
-                    display: "flex",
-                    alignItems: "flex-start",
-                    justifyContent: "center"
-                  }}>
-                  <Box sx={{ width: "100%", maxWidth: "60ch", my: 2 }}>
-                    <PdfQuoteCard text={readonlyText} />
-                  </Box>
-                </Box>
-              ) : (
-                <Box
-                  sx={{
-                    flex: 1,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    bgcolor: (t) => t.custom.surface2,
-                    borderRadius: 1
-                  }}>
-                  <Typography
-                    variant="caption"
-                    sx={{ color: "text.disabled" }}>
-                    此处显示卡片原始内容
-                  </Typography>
-                </Box>
               )}
-            </Box>
-          ) : (
+            </>
+          )}
+
+          {(!(mode === "create" && type === "image") ||
+            editorPage === "edit") && (
             <>
               {sectionGap}
               <Box

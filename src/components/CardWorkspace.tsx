@@ -375,12 +375,6 @@ export default function CardWorkspace({
               onDirtyChange={setDirty}
               onFocusChange={setEditorFocused}
               onPageChange={setEditorPage}
-              readonlyImage={card.image}
-              readonlyText={
-                cardKind(card) === "placed" && !card.image
-                  ? card.content
-                  : undefined
-              }
             />
           ) : view === "create" ? (
             <CardEditorView
