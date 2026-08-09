@@ -43,7 +43,7 @@ import DialogShell from "./components/DialogShell"
 import EmptyState from "./components/EmptyState"
 import FilterChips from "./components/FilterChips"
 import FooterBar from "./components/FooterBar"
-import CardWorkspace from "./components/CardWorkspace"
+import ViewRouter from "./components/ViewRouter"
 import ItemDialog from "./components/ItemDialog"
 import type { CardEditorValues } from "./components/CardEditorView"
 import CopyCardsMenu from "./components/CopyCardsMenu"
@@ -2263,381 +2263,118 @@ export default function OptionsPage() {
               minHeight: 0,
               bgcolor: (t) => t.custom.surface2
             }}>
-            {cardWorkspace ? (
-              <CardWorkspace
-                view={cardWorkspace.view}
-                card={cardWorkspace.card}
-                onClose={handleCardWorkspaceClose}
-                onSave={handleCardWorkspaceSave}
-                onSaveDraft={handleCardWorkspaceSaveDraft}
-                onDiscard={handleCardWorkspaceDiscard}
-              />
-            ) : sidebarTab === "pdf" ? (
-              openPdfIds.length > 0 ? (
-                <Box
-                  sx={{
-                    height: "100%",
-                    minHeight: 0,
-                    overflow: "hidden"
-                  }}>
-                  {openPdfIds.map((id) => (
-                    <Box
-                      key={id}
-                      sx={{
-                        display: id === activePdfId ? "block" : "none",
-                        height: "100%",
-                        minHeight: 0
-                      }}>
-                      <PdfView
-                        pdfId={id}
-                        outlineDest={pdfOutlineDest}
-                        onOutlineClick={(item) => setPdfOutlineDest(item)}
-                        readerOpen={pdfReaderOpen && id === activePdfId}
-                        onToggleReader={toggleReader}
-                        onSwapLeft={swapLeft}
-                        flashTarget={id === activePdfId ? pdfFlashTarget : null}
-                        onJumpInPanel={handleJumpInPanel}
-                        onVisiblePageChange={
-                          id === activePdfId ? setPdfCurrentPage : undefined
-                        }
-                        onPageCountChange={
-                          id === activePdfId ? setPdfPageCount : undefined
-                        }
-                        onSearchClick={() => setPdfSidebarView("search")}
-                        searchRequest={
-                          id === activePdfId ? searchRequest : null
-                        }
-                        onSearchResults={
-                          id === activePdfId ? handlePdfSearchResults : undefined
-                        }
-                        jumpRequest={
-                          id === activePdfId ? jumpRequest : null
-                        }
-                      />
-                    </Box>
-                  ))}
-                </Box>
-              ) : (
-                <Box
-                  sx={{
-                    height: "100%",
-                    overflowY: "auto",
-                    bgcolor: (t) => t.custom.surface2
-                  }}>
-                  <Container sx={{ py: 4 }} maxWidth="xl">
-                    <PdfHub
-                      key={topics.join("|")}
-                      pdfs={pdfs}
-                      countByPdf={countByPdf}
-                      onOpenPdf={handleOpenPdf}
-                      onNewPdf={() => pdfFileInputRef.current?.click()}
-                      onDeletePdf={handleDeletePdf}
-                      topics={topics}
-                      onNewTopic={handleNewTopic}
-                      onRenameTopic={handleRenameTopic}
-                      onDeleteTopic={handleDeleteTopic}
-                      onMovePdf={handleMovePdf}
-                    />
-                  </Container>
-                </Box>
-              )
-            ) : (
-            <Container sx={{ py: 4 }} maxWidth="xl">
-              <Fade in key={sidebarTab} timeout={250}>
-                <Box>
-                  {sidebarTab === "backup" ? (
-                    <BackupView
-                      scope={backupScope}
-                      projects={projects}
-                      pdfs={pdfs}
-                      countByProject={countByProject}
-                      countByPdf={countByPdf}
-                      keyword={backupKeyword}
-                      selectedIds={
-                        backupScope === "projects"
-                          ? backupSelectedIds
-                          : backupSelectedPdfIds
-                      }
-                      onToggleSelect={handleBackupToggleSelect}
-                    />
-                  ) : sidebarTab === "todo" ? (
-                    <TodoView
-                      items={filteredTodos}
-                      editingId={todoEditingId}
-                      focusNewTaskId={focusNewTaskId}
-                      onToggleTask={handleToggleTodoTask}
-                      onStartEdit={handleStartEditTodo}
-                      onCancelEdit={() => {
-                        setTodoEditingId(null)
-                        setFocusNewTaskId(null)
-                      }}
-                      onSave={handleSaveTodo}
-                      onDelete={setTodoDeleteTarget}
-                      onQuickAdd={handleQuickAdd}
-                      onNewTodo={handleNewTodo}
-                    />
-                  ) : sidebarTab === "review" && reviewView.reviewDateFilter ? (
-                    <Box>
-                      {reviewView.ratingFilter && filteredDateItems.length === 0 ? (
-                        <EmptyState
-                          iconSize={64}
-                          icon={
-                            <SearchOffRoundedIcon className="empty-icon" />
-                          }
-                          title="该评分下无卡片"
-                          subtitle="切换评分或清除筛选试试"
-                        />
-                      ) : (
-                        <CardGrid
-                          items={filteredDateItems}
-                          selectMode={false}
-                          readOnly
-                          onSelectItem={() => {}}
-                          onDeleteItem={() => {}}
-                          firstRating={cardFirstRating}
-                          {...sharedCardGridProps}
-                        />
-                      )}
-                    </Box>
-                  ) : sidebarTab === "review" ? (
-                    <ReviewSession
-                      item={reviewItems[0] ?? null}
-                      ratedCount={reviewProgress.rated}
-                      passedCount={reviewProgress.passed}
-                      flipped={reviewFlipped}
-                      completed={reviewCompleted}
-                      animating={animating}
-                      masteredCount={reviewStats.masteredCount}
-                      activeCount={reviewStats.activeCount}
-                      todayRatings={todayRatings}
-                      streakDays={streakDays}
-                      onFlip={handleReviewFlip}
-                      onRate={handleReviewRate}
-                      onExit={handleExitReview}
-                    />
-                  ) : (
-                    <>
-                      {!activeProject && (
-                        <ProjectHub
-                          projects={projects}
-                          countByProject={countByProject}
-                          keyword={keyword}
-                          onOpenProject={(id) => {
-                            // Hub keyword is a project filter, never a card
-                            // search — clear it so the project opens unfiltered.
-                            setKeyword("")
-                            setDateRange(null)
-                            handleOpenProject(id)
-                          }}
-                          onNewProject={() => setCreateDialogOpen(true)}
-                          onDeleteProject={(id) => {
-                            const proj = projects.find((p) => p.id === id)
-                            if (proj) setProjectDeleteTarget(proj)
-                          }}
-                        />
-                      )}
-
-                      {activeProject &&
-                        !keyword &&
-                        !dateRange && (
-                          <>
-                            <Box
-                              sx={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 1,
-                                px: 0.5,
-                                pb: 1.5,
-                                mb: 1,
-                                borderBottom: "1px solid",
-                                borderColor: "divider"
-                              }}>
-                              <Typography
-                                variant="body2"
-                                noWrap
-                                sx={{
-                                  color: "text.secondary",
-                                  fontSize: "0.85rem",
-                                  minWidth: 0
-                                }}>
-                                <Box
-                                  component="span"
-                                  sx={{
-                                    color: "text.primary",
-                                    fontWeight: 600,
-                                    cursor: activeSectionId
-                                      ? "pointer"
-                                      : "default",
-                                    "&:hover": activeSectionId
-                                      ? { color: "primary.main" }
-                                      : undefined
-                                  }}
-                                  onClick={
-                                    activeSectionId
-                                      ? () => handleSelectSection(null)
-                                      : undefined
-                                  }>
-                                  {activeProject.name}
-                                </Box>
-                                {sectionPath.length > 0 &&
-                                  sectionPath.map((seg, i) => {
-                                    const isLast = i === sectionPath.length - 1
-                                    const goTo = isLast
-                                      ? undefined
-                                      : () => handleSelectSection(seg.id)
-                                    return (
-                                      <Fragment key={seg.id}>
-                                        <Box
-                                          component="span"
-                                          sx={{
-                                            mx: 0.75,
-                                            color: "text.disabled"
-                                          }}>
-                                          /
-                                        </Box>
-                                        <Box
-                                          component="span"
-                                          sx={{
-                                            cursor: goTo ? "pointer" : "default",
-                                            color: isLast
-                                              ? "text.secondary"
-                                              : "text.primary",
-                                            "&:hover": goTo
-                                              ? { color: "primary.main" }
-                                              : undefined
-                                          }}
-                                          onClick={goTo}>
-                                          {seg.title}
-                                        </Box>
-                                      </Fragment>
-                                    )
-                                  })}
-                              </Typography>
-                              <Typography
-                                variant="caption"
-                                sx={{
-                                  color: "text.disabled",
-                                  fontSize: "0.75rem",
-                                  flexShrink: 0
-                                }}>
-                                {scopeItems.length} 张
-                              </Typography>
-                            </Box>
-                            <CardGrid
-                              items={scopeItems}
-                              draggable
-                              draggedId={cardDraggedId}
-                              dropIndicator={cardDrop}
-                              flipRectsRef={flipRectsRef}
-                              onGripPointerDown={handleGripPointerDown}
-                              onNewCard={() => openCardWorkspace("create", null)}
-                              selectMode={selectMode}
-                              onSelectItem={(id) =>
-                                setSelectedIds((prev) =>
-                                  prev.includes(id)
-                                    ? prev.filter((i) => i !== id)
-                                    : [...prev, id]
-                                )
-                              }
-                              onDeleteItem={onDelete}
-                              {...sharedCardGridProps}
-                            />
-                          </>
-                        )}
-
-                      {activeProject &&
-                        (keyword || dateRange) && (
-                          <CardGrid
-                            items={displayedItems}
-                            selectMode={selectMode}
-                            onSelectItem={(id) =>
-                              setSelectedIds((prev) =>
-                                prev.includes(id)
-                                  ? prev.filter((i) => i !== id)
-                                  : [...prev, id]
-                              )
-                            }
-                            onDeleteItem={onDelete}
-                            {...sharedCardGridProps}
-                          />
-                        )}
-
-                      {activeProject &&
-                        !hasMore &&
-                        allProjectCards.length === 0 &&
-                        (keyword ? (
-                          <EmptyState
-                            icon={
-                              <SearchOffRoundedIcon
-                                className="empty-icon"
-                                
-                              />
-                            }
-                            title="没有找到匹配的卡片"
-                            subtitle="试试其他关键词"
-                          />
-                        ) : dateRange ? (
-                          <EmptyState
-                            icon={
-                              <SearchOffRoundedIcon
-                                className="empty-icon"
-                                
-                              />
-                            }
-                            title="该时间段内无相关卡片"
-                            subtitle="请调整日期范围"
-                          />
-                        ) : (
-                          <EmptyState
-                            icon={
-                              <NoteAddRoundedIcon
-                                className="empty-icon"
-                                
-                              />
-                            }
-                            title="此项目暂无卡片"
-                            subtitle="点击顶部 ＋ 按钮新建一张卡片"
-                          />
-                        ))}
-
-                      {activeProject &&
-                        !keyword &&
-                        !dateRange &&
-                        allProjectCards.length > 0 &&
-                        scopeItems.length === 0 && (
-                          <EmptyState
-                            icon={
-                              <NoteAddRoundedIcon
-                                className="empty-icon"
-                                
-                              />
-                            }
-                            title="此章节暂无卡片"
-                            subtitle="使用「移动到章节」整理卡片到具体章节"
-                          />
-                        )}
-
-                      {hasMore &&
-                        activeProject &&
-                        (keyword || dateRange) && (
-                          <Box
-                            ref={loadMoreRef}
-                            sx={{
-                              display: "flex",
-                              justifyContent: "center",
-                              py: 4
-                            }}>
-                            <CircularProgress size={24} />
-                          </Box>
-                        )}
-                    </>
-                  )}
-                </Box>
-              </Fade>
-
-              </Container>
-             )}
-
+            <ViewRouter
+              cardWorkspace={cardWorkspace}
+              sidebarTab={sidebarTab}
+              onCloseCardWorkspace={handleCardWorkspaceClose}
+              onSaveCardWorkspace={handleCardWorkspaceSave}
+              onSaveDraftCardWorkspace={handleCardWorkspaceSaveDraft}
+              onDiscardCardWorkspace={handleCardWorkspaceDiscard}
+              pdfProps={{
+                openPdfIds,
+                activePdfId,
+                pdfOutlineDest,
+                setPdfOutlineDest,
+                pdfReaderOpen,
+                toggleReader,
+                swapLeft,
+                pdfFlashTarget,
+                handleJumpInPanel,
+                setPdfCurrentPage,
+                setPdfPageCount,
+                setPdfSidebarView,
+                searchRequest,
+                handlePdfSearchResults,
+                jumpRequest,
+                topics,
+                pdfs,
+                countByPdf,
+                handleOpenPdf,
+                pdfFileInputRef,
+                handleDeletePdf,
+                handleNewTopic,
+                handleRenameTopic,
+                handleDeleteTopic,
+                handleMovePdf
+              }}
+              backupProps={{
+                scope: backupScope,
+                projects,
+                pdfs,
+                countByProject,
+                countByPdf,
+                keyword: backupKeyword,
+                selectedIds:
+                  backupScope === "projects"
+                    ? backupSelectedIds
+                    : backupSelectedPdfIds,
+                onToggleSelect: handleBackupToggleSelect
+              }}
+              todoProps={{
+                items: filteredTodos,
+                editingId: todoEditingId,
+                focusNewTaskId,
+                onToggleTask: handleToggleTodoTask,
+                onStartEdit: handleStartEditTodo,
+                onCancelEdit: () => {
+                  setTodoEditingId(null)
+                  setFocusNewTaskId(null)
+                },
+                onSave: handleSaveTodo,
+                onDelete: setTodoDeleteTarget,
+                onQuickAdd: handleQuickAdd,
+                onNewTodo: handleNewTodo
+              }}
+              reviewProps={{
+                reviewDateFilter: reviewView.reviewDateFilter,
+                ratingFilter: reviewView.ratingFilter,
+                filteredDateItems,
+                cardFirstRating,
+                sharedCardGridProps,
+                item: reviewItems[0] ?? null,
+                ratedCount: reviewProgress.rated,
+                passedCount: reviewProgress.passed,
+                flipped: reviewFlipped,
+                completed: reviewCompleted,
+                animating,
+                masteredCount: reviewStats.masteredCount,
+                activeCount: reviewStats.activeCount,
+                todayRatings,
+                streakDays,
+                onFlip: handleReviewFlip,
+                onRate: handleReviewRate,
+                onExit: handleExitReview
+              }}
+              projectsProps={{
+                activeProject,
+                projects,
+                countByProject,
+                keyword,
+                setKeyword,
+                setDateRange,
+                handleOpenProject,
+                setCreateDialogOpen,
+                setProjectDeleteTarget,
+                activeSectionId,
+                handleSelectSection,
+                sectionPath,
+                scopeItems,
+                cardDraggedId,
+                cardDrop,
+                flipRectsRef,
+                handleGripPointerDown,
+                openCardWorkspace,
+                selectMode,
+                setSelectedIds,
+                onDelete,
+                displayedItems,
+                hasMore,
+                allProjectCards,
+                dateRange,
+                loadMoreRef,
+                sharedCardGridProps
+              }}
+            />
               <ItemDialog
                 item={dialogCard}
                 open={Boolean(dialogCard)}
