@@ -151,7 +151,7 @@ export default function OptionsPage() {
   const [keyword, setKeyword] = useState("")
   const [dialogCard, setDialogCard] = useState<DisplayCard | null>(null)
   const [cardWorkspace, setCardWorkspace] = useState<{
-    view: "view" | "edit" | "create"
+    view: "edit" | "create"
     card: DisplayCard | null
   } | null>(null)
 
@@ -1327,16 +1327,7 @@ export default function OptionsPage() {
   }, [])
 
   // Place PDF-sourced cards into a project (未分类) / unplace back to PDF-only.
-  const handleOpenCardWorkspace = useCallback(
-    (card: DisplayCard) => setCardWorkspace({ view: "view", card }),
-    []
-  )
-
   const handleCardWorkspaceClose = useCallback(() => setCardWorkspace(null), [])
-
-  const handleCardWorkspaceEdit = useCallback(() => {
-    setCardWorkspace((prev) => (prev ? { ...prev, view: "edit" } : prev))
-  }, [])
 
   const handleCardWorkspaceSave = useCallback(
     async (values: CardEditorValues, type: "text" | "image" | "placed") => {
@@ -2676,7 +2667,6 @@ export default function OptionsPage() {
               <CardWorkspace
                 view={cardWorkspace.view}
                 card={cardWorkspace.card}
-                onEdit={handleCardWorkspaceEdit}
                 onClose={handleCardWorkspaceClose}
                 onSave={handleCardWorkspaceSave}
                 onSaveDraft={handleCardWorkspaceSaveDraft}

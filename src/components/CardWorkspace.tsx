@@ -1,12 +1,10 @@
 import { Box, Button, Typography } from "@mui/material"
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded"
-import EditRoundedIcon from "@mui/icons-material/EditRounded"
 import { useState } from "react"
 
 import CardEditorView, {
   type CardEditorValues
 } from "./CardEditorView"
-import CardRenderer from "./CardRenderer"
 import type { DisplayCard } from "../types"
 
 /** The workspace card mode — VIEW (read the full card), EDIT (type-driven
@@ -15,15 +13,13 @@ import type { DisplayCard } from "../types"
 export default function CardWorkspace({
   view,
   card,
-  onEdit,
   onClose,
   onSave,
   onSaveDraft,
   onDiscard
 }: {
-  view: "view" | "edit" | "create"
+  view: "edit" | "create"
   card: DisplayCard | null
-  onEdit: () => void
   onClose: () => void
   onSave: (values: CardEditorValues, type: "text" | "image" | "placed") => void
   onSaveDraft: (values: CardEditorValues, type: "text" | "image" | "placed") => void
@@ -82,14 +78,6 @@ export default function CardWorkspace({
           {headerTitle}
         </Typography>
         <Box sx={{ flex: 1 }} />
-        {view === "view" && card && (
-          <Button
-            size="small"
-            startIcon={<EditRoundedIcon fontSize="small" />}
-            onClick={onEdit}>
-            编辑
-          </Button>
-        )}
         <Button
           size="small"
           color="inherit"
@@ -100,11 +88,7 @@ export default function CardWorkspace({
       </Box>
 
       <Box sx={{ flex: 1, overflow: "auto", py: 2 }}>
-        {view === "view" && card ? (
-          <Box sx={{ maxWidth: 860, mx: "auto", px: 2 }}>
-            <CardRenderer item={card} mode="full" />
-          </Box>
-        ) : view === "edit" && card ? (
+        {view === "edit" && card ? (
           <CardEditorView
             type={card.type === "placed" ? "placed" : card.type === "image" ? "image" : "text"}
             mode="edit"
