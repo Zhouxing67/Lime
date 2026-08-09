@@ -239,9 +239,20 @@ export async function saveDraftCard(data: {
  *  original card (id/order/review preserved); a create draft becomes a new
  *  card. The draft is deleted in the same tx. */
 export async function promoteDraft(draftId: string): Promise<void> {
+  // Read the draft + compute the hash OUTSIDE the tx — the sha256 await would
+  // auto-commit an idle IndexedDB transaction (InvalidStateError on the next
+  // request). Same dedup semantics as addProjectCard (hash = content/image +
+  // source.url + images; skip when an identical card exists in the project).
+  const draft = await getProjectCardById(draftId)
+  if (!draft || !draft.isDraft) return
+  const promotedHash = draft.draftOf
+    ? undefined
+    : await computeItemHash(
+        draft.type === "image" ? draft.image ?? "" : draft.content,
+        draft.source?.url ?? "",
+        draft.images
+      )
   await tx({ projectCards: "readwrite" }, async (stores) => {
-    const [draft] = await getByKeys<ProjectCard>(stores.projectCards, [draftId])
-    if (!draft || !draft.isDraft) return
     if (draft.draftOf) {
       const [original] = await getByKeys<ProjectCard>(stores.projectCards, [
         draft.draftOf
@@ -256,16 +267,37 @@ export async function promoteDraft(draftId: string): Promise<void> {
           comment: draft.comment,
           updatedAt: Date.now()
         })
+      } else {
+        console.warn("[lime] promote: original card missing", draft.draftOf)
       }
       stores.projectCards.delete(draft.id)
     } else {
-      const promoted = {
+      const promoted: ProjectCard = {
         ...draft,
         id: crypto.randomUUID(),
         isDraft: undefined,
-        draftOf: undefined
+        draftOf: undefined,
+        hash: promotedHash
       }
-      stores.projectCards.put(promoted)
+      const duplicated = await new Promise<boolean>((resolve, reject) => {
+        const req = stores.projectCards
+          .index("hash")
+          .openCursor(IDBKeyRange.only(promotedHash))
+        req.onsuccess = () => {
+          const cursor = req.result
+          if (!cursor) return resolve(false)
+          const existing = cursor.value as ProjectCard
+          if (
+            existing.projectId === promoted.projectId &&
+            existing.source?.url === promoted.source?.url
+          ) {
+            return resolve(true)
+          }
+          cursor.continue()
+        }
+        req.onerror = () => reject(req.error)
+      })
+      if (!duplicated) stores.projectCards.put(promoted)
       stores.projectCards.delete(draft.id)
     }
   })

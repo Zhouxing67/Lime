@@ -21,6 +21,7 @@ import {
   getProjectCardById,
   getPdfCards,
   addProjectCard,
+  createTextCard,
   addTodo,
   addProject,
   addReview,
@@ -1428,3 +1429,36 @@ async function createTextCardSafe(projectId: string) {
   await addProjectCard(card, { skipDedup: true })
   return card
 }
+
+describe("draft create-promote dedup", () => {
+  it("promoting a draft that duplicates an existing card skips the insert (no dup, no orphan draft)", async () => {
+    const project: Project = {
+      id: crypto.randomUUID(),
+      name: "去重项目",
+      createdAt: Date.now()
+    }
+    await addProject(project)
+    // existing card with the same content
+    await createTextCard({
+      title: "标题",
+      content: "相同内容",
+      projectId: project.id
+    })
+    // a create-draft with the same content
+    await saveDraftCard({
+      type: "text",
+      title: "标题",
+      content: "相同内容",
+      projectId: project.id
+    })
+    const all = await getAllProjectCards()
+    const draft = all.find((c) => c.isDraft)
+    expect(draft).toBeDefined()
+
+    await promoteDraft(draft!.id)
+    const after = await getAllProjectCards()
+    const cards = after.filter((c) => c.content === "相同内容" && !c.isDraft)
+    expect(cards).toHaveLength(1) // dedup — no duplicate card
+    expect(after.some((c) => c.isDraft)).toBe(false)
+  })
+})

@@ -109,6 +109,18 @@ export function splitLegacyItem(
 /** Display resolution for a placed card — the placement carries NO content; the
  *  effective body/comment come from the linked pdfCard. Non-placed cards return
  *  their own fields. */
+/** The effective card kind — a placed card (type "placed" OR a pdfCardId
+ *  reference) is "placed"; image stays image; everything else is text. Used by
+ *  the editor/rendering type dispatch. */
+export function cardKind(card: {
+  type: string
+  pdfCardId?: string
+}): "text" | "image" | "placed" {
+  if (card.type === "placed" || card.pdfCardId) return "placed"
+  if (card.type === "image") return "image"
+  return "text"
+}
+
 export function resolveCardContent(
   card: ProjectCard,
   pdfById: Map<string, PdfCard>

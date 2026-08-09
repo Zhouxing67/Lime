@@ -1,13 +1,19 @@
-import {
-  Box,
-  Button,
-  TextField,
-  Typography
-} from "@mui/material"
+import { Box, TextField, Typography } from "@mui/material"
 import AddPhotoAlternateRoundedIcon from "@mui/icons-material/AddPhotoAlternateRounded"
-import { useEffect, useRef, useState } from "react"
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState
+} from "react"
 
-import MarkdownEditor from "./MarkdownEditor"
+import MarkdownEditor, { type EditorView } from "./MarkdownEditor"
+import {
+  insertMarkdownSyntax,
+  type MarkdownTool
+} from "../utils/markdownEditor"
 
 export interface CardEditorValues {
   title?: string
@@ -16,70 +22,110 @@ export interface CardEditorValues {
   comment?: string
 }
 
+export interface CardEditorHandle {
+  applyTool: (tool: MarkdownTool) => void
+  getValues: () => CardEditorValues
+}
+
 /** The type-driven card editor — mirrors the full-mode section layout. Each
- *  editable markdown field is a MarkdownEditor (toolbar + live preview via the
- *  same renderer the cards use). Used by both the workspace EDIT and CREATE. */
-export default function CardEditorView({
-  type,
-  mode,
-  initial,
-  readonlyImage,
-  readonlyText,
-  onSave,
-  onSaveDraft,
-  onDiscard
-}: {
+ *  editable markdown field is a MarkdownEditor (input + preview); the toolbar
+ *  lives in the workspace's top bar and inserts into the last-focused field.
+ *  Actions (save/draft/discard) live in the workspace's ActionBar. */
+const CardEditorView = forwardRef<CardEditorHandle, {
   type: "text" | "image" | "placed"
   mode: "create" | "edit"
   initial: CardEditorValues
-  /** EDIT: the readonly original display (image card → the image; placed →
-   *  the resolved crop or the PDF quote). CREATE(image): the upload zone. */
+  view: EditorView
+  onDirtyChange?: (dirty: boolean) => void
+  onFocusChange?: (focused: boolean) => void
   readonlyImage?: string
   readonlyText?: string
-  onSave: (values: CardEditorValues) => void
-  onSaveDraft: (values: CardEditorValues) => void
-  onDiscard: () => void
-}) {
-  const [busyAction, setBusyAction] = useState<"save" | "draft" | null>(null)
+}>(function CardEditorView(
+  {
+    type,
+    mode,
+    initial,
+    view,
+    onDirtyChange,
+    onFocusChange,
+    readonlyImage,
+    readonlyText
+  },
+  ref
+) {
   const [title, setTitle] = useState(initial.title ?? "")
   const [content, setContent] = useState(initial.content ?? "")
   const [image, setImage] = useState(initial.image ?? "")
   const [comment, setComment] = useState(initial.comment ?? "")
   const fileRef = useRef<HTMLInputElement>(null)
 
+  const markdownInputRef = useRef<HTMLTextAreaElement | null>(null)
+  const [activeField, setActiveField] = useState<"content" | "comment">(
+    type === "text" ? "content" : "comment"
+  )
+  const [focused, setFocused] = useState(false)
+
   useEffect(() => {
     setTitle(initial.title ?? "")
     setContent(initial.content ?? "")
     setImage(initial.image ?? "")
     setComment(initial.comment ?? "")
-  }, [initial.title, initial.content, initial.image, initial.comment])
+    setActiveField(type === "text" ? "content" : "comment")
+  }, [initial.title, initial.content, initial.image, initial.comment, type])
 
-  const values: CardEditorValues = { title, content, image, comment }
+  const values = useMemo<CardEditorValues>(
+    () => ({ title, content, image, comment }),
+    [title, content, image, comment]
+  )
 
-  const run = async (
-    action: "save" | "draft",
-    fn: () => void | Promise<void>
-  ) => {
-    setBusyAction(action)
-    try {
-      await fn()
-    } finally {
-      setBusyAction(null)
-    }
-  }
+  // Dirty: any edit diverging from the initial (saved) values.
+  useEffect(() => {
+    const dirty =
+      (title ?? "") !== (initial.title ?? "") ||
+      (content ?? "") !== (initial.content ?? "") ||
+      (image ?? "") !== (initial.image ?? "") ||
+      (comment ?? "") !== (initial.comment ?? "")
+    onDirtyChange?.(dirty)
+  }, [title, content, image, comment, initial, onDirtyChange])
 
-  const sectionLabel = (label: string) => (
-    <Typography
-      variant="caption"
-      sx={{
-        color: "text.secondary",
-        fontSize: "0.75rem",
-        letterSpacing: "0.05em",
-        mb: 0.5,
-        display: "block"
-      }}>
-      {label}
-    </Typography>
+  useImperativeHandle(
+    ref,
+    () => ({
+      applyTool: (tool: MarkdownTool) => {
+        const el = markdownInputRef.current
+        if (!el) return
+        const value = activeField === "comment" ? comment : content
+        const setter = activeField === "comment" ? setComment : setContent
+        const { text, cursor } = insertMarkdownSyntax(
+          value,
+          el.selectionStart ?? value.length,
+          el.selectionEnd ?? value.length,
+          tool
+        )
+        setter(text)
+        requestAnimationFrame(() => {
+          el.focus()
+          el.setSelectionRange(cursor, cursor)
+        })
+      },
+      getValues: () => values
+    }),
+    [activeField, content, comment, values]
+  )
+
+  const sectionHeader = (label: string) => (
+    <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.75 }}>
+      <Typography
+        sx={{
+          color: "text.secondary",
+          fontSize: "0.75rem",
+          letterSpacing: "0.05em",
+          whiteSpace: "nowrap"
+        }}>
+        {label}
+      </Typography>
+      <Box sx={{ flex: 1, borderTop: "1px solid", borderColor: "divider" }} />
+    </Box>
   )
 
   const divider = (
@@ -99,16 +145,30 @@ export default function CardEditorView({
   }
 
   return (
-    <Box sx={{ maxWidth: 860, mx: "auto", width: "100%", px: 2 }}>
-      {sectionLabel("摘要")}
+    <Box
+      sx={{
+        width: "100%",
+        height: "100%",
+        minHeight: 0,
+        px: 3,
+        py: 2,
+        display: "flex",
+        flexDirection: "column",
+        overflow: "auto"
+      }}>
+      {/* title-style 摘要: 20px/600 + single bottom hairline, no label */}
       <TextField
         fullWidth
-        placeholder="卡片标题（可选）"
         value={title}
         onChange={(e) => setTitle(e.target.value)}
+        placeholder="未命名卡片"
         variant="standard"
         sx={{
-          "& .MuiInputBase-root": { fontSize: "1.25rem" },
+          "& .MuiInputBase-root": {
+            fontSize: "1.25rem",
+            fontWeight: 600,
+            fontFamily: (t) => t.custom.serif
+          },
           "& .MuiInputBase-root::before": {
             borderBottom: "1px solid",
             borderColor: "divider"
@@ -121,20 +181,29 @@ export default function CardEditorView({
 
       {type === "text" && (
         <>
-          {divider}
-          {sectionLabel("内容")}
-          <MarkdownEditor
-            value={content}
-            onChange={setContent}
-            placeholder="支持 Markdown 与公式…"
-          />
+          {sectionHeader("内容")}
+          <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+            <MarkdownEditor
+              value={content}
+              onChange={setContent}
+              view={view}
+              autoFocus
+              registerRef={(el) => {
+                markdownInputRef.current = el
+              }}
+              onFocusChange={(f) => {
+                setFocused(f)
+                onFocusChange?.(f)
+                if (f) setActiveField("content")
+              }}
+            />
+          </Box>
         </>
       )}
 
       {(type === "image" || type === "placed") && (
         <>
-          {divider}
-          {sectionLabel("只读原始内容")}
+          {sectionHeader("只读原始内容")}
           {mode === "create" && type === "image" ? (
             <Box
               onClick={() => fileRef.current?.click()}
@@ -197,14 +266,22 @@ export default function CardEditorView({
           ) : null}
 
           {divider}
-          {sectionLabel("备注")}
-          <MarkdownEditor
-            value={comment}
-            onChange={setComment}
-            placeholder="写下你的理解、批注或补充…"
-            minRows={3}
-            dense
-          />
+          {sectionHeader("备注")}
+          <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+            <MarkdownEditor
+              value={comment}
+              onChange={setComment}
+              view={view}
+              registerRef={(el) => {
+                markdownInputRef.current = el
+              }}
+              onFocusChange={(f) => {
+                setFocused(f)
+                onFocusChange?.(f)
+                if (f) setActiveField("comment")
+              }}
+            />
+          </Box>
         </>
       )}
 
@@ -219,30 +296,8 @@ export default function CardEditorView({
           e.target.value = ""
         }}
       />
-
-      <Box sx={{ display: "flex", gap: 1, justifyContent: "flex-end", mt: 3 }}>
-        <Button
-          size="small"
-          color="inherit"
-          onClick={onDiscard}
-          disabled={busyAction !== null}>
-          丢弃
-        </Button>
-        <Button
-          size="small"
-          onClick={() => run("draft", () => onSaveDraft(values))}
-          disabled={busyAction !== null}>
-          存草稿
-        </Button>
-        <Button
-          size="small"
-          variant="contained"
-          onClick={() => run("save", () => onSave(values))}
-          disabled={busyAction !== null}
-          sx={{ minWidth: 76 }}>
-          {busyAction === "save" ? "保存中…" : "保存"}
-        </Button>
-      </Box>
     </Box>
   )
-}
+})
+
+export default CardEditorView

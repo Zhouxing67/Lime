@@ -12,9 +12,11 @@ export interface BatchAction {
 }
 
 interface BatchToolbarProps {
-  selectedCount: number
-  allSelected: boolean
-  onSelectAll: () => void
+  /** When undefined, the selection controls (count/checkbox/select-all) are
+   *  hidden and the toolbar renders the actions only — a generic action bar. */
+  selectedCount?: number
+  allSelected?: boolean
+  onSelectAll?: () => void
   /** Label suffix for the count, e.g. "已选 N 条 / 个项目 / 个 PDF". */
   countLabel?: string
   actions: BatchAction[]
@@ -28,33 +30,37 @@ export default function BatchToolbar({
   actions
 }: BatchToolbarProps) {
   return (
-    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-      <Typography
-        variant="body2"
-        color="text.secondary"
-        sx={{ fontSize: "0.82rem", whiteSpace: "nowrap" }}>
-        已选 {selectedCount} {countLabel}
-      </Typography>
-      <Checkbox
-        size="small"
-        checked={allSelected}
-        indeterminate={selectedCount > 0 && !allSelected}
-        onChange={onSelectAll}
-        sx={{
-          p: 0.25,
-          color: "text.disabled",
-          "&.Mui-checked": { color: "error.main" },
-          "&.MuiCheckbox-indeterminate": { color: "error.main" },
-          "& .MuiSvgIcon-root": { fontSize: 16 }
-        }}
-      />
-      <Button
-        size="small"
-        variant="text"
-        sx={{ borderRadius: 1, fontSize: "0.75rem", whiteSpace: "nowrap" }}
-        onClick={onSelectAll}>
-        {allSelected ? "取消全选" : "全选"}
-      </Button>
+    <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap">
+      {selectedCount !== undefined && (
+        <>
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{ fontSize: "0.82rem", whiteSpace: "nowrap" }}>
+            已选 {selectedCount} {countLabel}
+          </Typography>
+          <Checkbox
+            size="small"
+            checked={allSelected}
+            indeterminate={selectedCount > 0 && !allSelected}
+            onChange={onSelectAll}
+            sx={{
+              p: 0.25,
+              color: "text.disabled",
+              "&.Mui-checked": { color: "error.main" },
+              "&.MuiCheckbox-indeterminate": { color: "error.main" },
+              "& .MuiSvgIcon-root": { fontSize: 16 }
+            }}
+          />
+          <Button
+            size="small"
+            variant="text"
+            sx={{ borderRadius: 1, fontSize: "0.75rem", whiteSpace: "nowrap" }}
+            onClick={onSelectAll}>
+            {allSelected ? "取消全选" : "全选"}
+          </Button>
+        </>
+      )}
       {actions.map((btn) => (
         <Fragment key={btn.label}>
           {btn.dividerBefore && <Divider orientation="vertical" flexItem />}

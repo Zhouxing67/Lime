@@ -31,12 +31,13 @@ export interface ProjectCard {
   /** 卡片类型：
    *  text   = markdown 纯文本（可内嵌图片）
    *  image  = 二进制图片（网页截图，image 字段存 dataURL）
-   *  placed = 置入卡（只读批注内容——渲染时从批注解析，解析视图） */
+   *  placed = 置入卡（只读批注内容——渲染时从批注解析，解析视图）
+   *  草稿卡（isDraft）的 type = 目标类型（promote 后成为的 kind）。 */
   type: ProjectCardType
   /** 摘要 — 可选（全部类型）；复习门槛（无 title 不能复习）。 */
   title?: string
-  /** 内容 — text 必选（markdown）；image/placed 不可选。 */
-  content: string
+  /** 内容 — text 必选（markdown）；image/placed 不可选（恒空，守卫保证）。 */
+  content?: string
   /** 只读原始内容 — image 必选（dataURL）；placed 为解析视图（渲染时从批注取
    *  裁剪图/PDF 原文，不落库）；text 不可选。 */
   image?: string

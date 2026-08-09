@@ -1899,8 +1899,9 @@ export default function OptionsPage() {
       if (nextSidebarAction(tab, sidebarTabRef.current) === "toggle") {
         toggleDrawer()
       } else {
-        // Leaving the PDF view: the full reload was skipped while in it, so
-        // refresh once so the card grid / counts reflect any writes.
+        // Leaving the card editor / the PDF view: the editor is workspace-only
+        // and the PDF reload was skipped while in it — clear + refresh once.
+        setCardWorkspace(null)
         if (sidebarTabRef.current === "pdf") refreshRef.current()
         setSidebarTab(tab)
         openDrawer()
@@ -2354,6 +2355,7 @@ export default function OptionsPage() {
               animation: emptyFloat 4s ease-in-out infinite;
             }
           `}</style>
+            {!cardWorkspace && (
             <AppHeader
               drawerOpen={drawerOpen}
               headerHeight={headerHeight}
@@ -2444,8 +2446,10 @@ export default function OptionsPage() {
                 )
               )}
             </AppHeader>
+            )}
 
-            {sidebarTab !== "review" &&
+            {!cardWorkspace &&
+              sidebarTab !== "review" &&
               sidebarTab !== "todo" &&
               sidebarTab !== "pdf" && (
               <FilterChips

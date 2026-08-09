@@ -1,104 +1,70 @@
-import { Fragment, useMemo, useRef, useState } from "react"
-import { Box, IconButton, TextField, Tooltip, Typography } from "@mui/material"
-import CodeRoundedIcon from "@mui/icons-material/CodeRounded"
-import FormatBoldRoundedIcon from "@mui/icons-material/FormatBoldRounded"
-import FormatItalicRoundedIcon from "@mui/icons-material/FormatItalicRounded"
-import FormatListBulletedRoundedIcon from "@mui/icons-material/FormatListBulletedRounded"
-import FormatListNumberedRoundedIcon from "@mui/icons-material/FormatListNumberedRounded"
-import FormatQuoteRoundedIcon from "@mui/icons-material/FormatQuoteRounded"
-import FunctionsRoundedIcon from "@mui/icons-material/FunctionsRounded"
-import ImageRoundedIcon from "@mui/icons-material/ImageRounded"
-import LinkRoundedIcon from "@mui/icons-material/LinkRounded"
-import TableChartRoundedIcon from "@mui/icons-material/TableChartRounded"
-import TitleRoundedIcon from "@mui/icons-material/TitleRounded"
+import { useMemo, useRef, useState } from "react"
+import { Box, TextField, Typography } from "@mui/material"
 import TextFieldsRoundedIcon from "@mui/icons-material/TextFieldsRounded"
 
 import MarkdownRenderer from "./MarkdownRenderer"
-import {
-  insertMarkdownSyntax,
-  type MarkdownTool
-} from "../utils/markdownEditor"
 
-export type { MarkdownTool }
+export type EditorView = "edit" | "split" | "preview"
 
-const TOOL_TIPS: Record<MarkdownTool, string> = {
-  bold: "加粗",
-  italic: "斜体",
-  heading: "标题",
-  ulist: "无序列表",
-  olist: "有序列表",
-  quote: "引用",
-  code: "行内代码",
-  link: "链接",
-  image: "图片",
-  table: "表格",
-  formula: "公式"
-}
+const MONO = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
 
-const TOOL_ICONS: Record<MarkdownTool, JSX.Element> = {
-  bold: <FormatBoldRoundedIcon fontSize="small" />,
-  italic: <FormatItalicRoundedIcon fontSize="small" />,
-  heading: <TitleRoundedIcon fontSize="small" />,
-  ulist: <FormatListBulletedRoundedIcon fontSize="small" />,
-  olist: <FormatListNumberedRoundedIcon fontSize="small" />,
-  quote: <FormatQuoteRoundedIcon fontSize="small" />,
-  code: <CodeRoundedIcon fontSize="small" />,
-  link: <LinkRoundedIcon fontSize="small" />,
-  image: <ImageRoundedIcon fontSize="small" />,
-  table: <TableChartRoundedIcon fontSize="small" />,
-  formula: <FunctionsRoundedIcon fontSize="small" />
-}
-
-/** Grouped toolbar: 文字 │ 列表 │ 插入 — the groups split by hairlines. */
-const TOOL_GROUPS: { label: string; tools: MarkdownTool[] }[] = [
-  { label: "文字", tools: ["bold", "italic", "heading"] },
-  { label: "列表", tools: ["ulist", "olist", "quote"] },
-  { label: "插入", tools: ["link", "image", "table", "formula", "code"] }
-]
-
-const VIEW_STATES = ["edit", "split", "preview"] as const
-type EditorView = (typeof VIEW_STATES)[number]
-const VIEW_LABELS: Record<EditorView, string> = {
-  edit: "编辑",
-  split: "分栏",
-  preview: "预览"
-}
-
-/** Inline markdown editor: a grouped MUI toolbar + a serif code TextField +
- *  a live preview rendered by the SAME MarkdownRenderer the cards use. One
- *  paper container (toolbar strip + body), split view by default with an
- *  edit/split/preview segmented control. */
+/** A markdown FIELD (no toolbar — the tools live in the workspace's top bar).
+ *  Source pane = a native mono textarea (cursor/char always aligned); preview
+ *  pane shares the SAME MarkdownRenderer the cards use. The split has a
+ *  draggable divider; the source width is a fixed percentage of the row. */
 export default function MarkdownEditor({
   value,
   onChange,
-  placeholder,
   minRows = 6,
-  dense = false
+  view,
+  registerRef,
+  onFocusChange,
+  autoFocus = false
 }: {
   value: string
   onChange: (v: string) => void
-  placeholder?: string
   minRows?: number
-  dense?: boolean
+  view: EditorView
+  registerRef: (el: HTMLTextAreaElement | null) => void
+  onFocusChange?: (focused: boolean) => void
+  autoFocus?: boolean
 }) {
-  const [view, setView] = useState<EditorView>("split")
-  const [focused, setFocused] = useState(false)
-  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const localRef = useRef<HTMLTextAreaElement | null>(null)
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  const dragRef = useRef<{ startX: number; startRatio: number } | null>(null)
+  const [splitRatio, setSplitRatio] = useState(0.5)
 
-  const applyTool = (tool: MarkdownTool) => {
-    const el = inputRef.current
-    if (!el) return
-    const { text, cursor } = insertMarkdownSyntax(
-      value,
-      el.selectionStart ?? value.length,
-      el.selectionEnd ?? value.length,
-      tool
-    )
-    onChange(text)
-    requestAnimationFrame(() => {
-      el.focus()
-      el.setSelectionRange(cursor, cursor)
-    })
+  const setRef = (el: HTMLTextAreaElement | null) => {
+    localRef.current = el
+    registerRef(el)
+  }
+
+  const onDividerPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    const target = e.currentTarget
+    try {
+      target.setPointerCapture(e.pointerId)
+    } catch {
+      /* pointer capture is best-effort */
+    }
+    const width = rootRef.current?.getBoundingClientRect().width ?? 1
+    dragRef.current = { startX: e.clientX, startRatio: splitRatio }
+    const onMove = (ev: PointerEvent) => {
+      if (!dragRef.current) return
+      const dx = ev.clientX - dragRef.current.startX
+      const ratio = Math.min(
+        0.8,
+        Math.max(0.2, dragRef.current.startRatio + dx / width)
+      )
+      setSplitRatio(ratio)
+    }
+    const onUp = () => {
+      dragRef.current = null
+      window.removeEventListener("pointermove", onMove)
+      window.removeEventListener("pointerup", onUp)
+    }
+    window.addEventListener("pointermove", onMove)
+    window.addEventListener("pointerup", onUp)
   }
 
   const preview = useMemo(() => {
@@ -106,19 +72,22 @@ export default function MarkdownEditor({
     return (
       <Box
         sx={{
-          flex: 1,
+          position: "relative",
+          flex: "1 1 0",
           minWidth: 0,
-          px: 2,
+          height: "100%",
+          px: 2.5,
           py: 1.5,
           borderLeft: view === "split" ? "1px solid" : "none",
           borderColor: "divider",
           overflow: "auto",
-          maxHeight: dense ? 300 : 420,
           fontSize: "0.9rem",
           lineHeight: 1.8
         }}>
         {value.trim() ? (
-          <MarkdownRenderer content={value} />
+          <Box sx={{ "& > div > :first-child": { mt: 0 } }}>
+            <MarkdownRenderer content={value} />
+          </Box>
         ) : (
           <Box
             sx={{
@@ -137,120 +106,87 @@ export default function MarkdownEditor({
         )}
       </Box>
     )
-  }, [view, value, dense])
+  }, [view, value])
+
+  const showSource = view !== "preview"
+  const showPreview = view !== "edit"
 
   return (
     <Box
+      ref={rootRef}
       sx={{
         width: "100%",
-        border: "1px solid",
-        borderColor: focused ? "primary.main" : "divider",
-        borderRadius: 1,
-        boxShadow: (t) => (focused ? t.custom.focusRing : "none"),
-        overflow: "hidden",
-        bgcolor: "background.paper",
-        transition: "border-color 0.2s ease, box-shadow 0.2s ease"
+        height: "100%",
+        minHeight: 0,
+        display: "flex",
+        alignItems: "stretch"
       }}>
-      <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: 0.5,
-          flexWrap: "wrap",
-          px: 0.75,
-          py: 0.5,
-          borderBottom: "1px solid",
-          borderColor: "divider",
-          bgcolor: (t) => t.custom.surface2
-        }}>
-        {TOOL_GROUPS.map((group, gi) => (
-          <Fragment key={group.label}>
-            {gi > 0 && (
-              <Box
-                sx={{
-                  width: 1,
-                  height: 18,
-                  mx: 0.5,
-                  bgcolor: "divider",
-                  flexShrink: 0
-                }}
-              />
-            )}
-            {group.tools.map((tool) => (
-              <Tooltip key={tool} title={TOOL_TIPS[tool]}>
-                <IconButton
-                  size="small"
-                  onClick={() => applyTool(tool)}
-                  sx={{
-                    p: 0.75,
-                    color: "text.secondary",
-                    "&:hover": { color: "primary.main", bgcolor: "action.hover" },
-                    "&:active": { bgcolor: "action.selected" }
-                  }}>
-                  {TOOL_ICONS[tool]}
-                </IconButton>
-              </Tooltip>
-            ))}
-          </Fragment>
-        ))}
-        <Box sx={{ flex: 1 }} />
+      {showSource && (
         <Box
           sx={{
-            display: "flex",
-            border: "1px solid",
-            borderColor: "divider",
-            borderRadius: 1,
-            overflow: "hidden",
-            bgcolor: "background.paper"
+            position: "relative",
+            flex: view === "split" ? `0 0 ${splitRatio * 100}%` : "1 1 0",
+            minWidth: 0,
+            height: "100%",
+            overflow: "hidden"
           }}>
-          {VIEW_STATES.map((v) => (
-            <Box
-              key={v}
-              onClick={() => setView(v)}
-              sx={{
-                px: 0.9,
-                py: 0.3,
-                fontSize: "0.7rem",
-                cursor: "pointer",
-                userSelect: "none",
-                color: view === v ? "primary.main" : "text.secondary",
-                bgcolor: view === v ? "action.selected" : "transparent",
-                fontWeight: view === v ? 600 : 400,
-                "&:hover": { bgcolor: "action.hover" }
-              }}>
-              {VIEW_LABELS[v]}
-            </Box>
-          ))}
-        </Box>
-      </Box>
-      <Box sx={{ display: "flex", alignItems: "stretch" }}>
-        {view !== "preview" && (
           <TextField
-            inputRef={inputRef}
+            inputRef={setRef}
             multiline
             minRows={minRows}
             fullWidth
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
-            placeholder={placeholder}
+            onFocus={() => onFocusChange?.(true)}
+            onBlur={() => onFocusChange?.(false)}
+            autoFocus={autoFocus}
             variant="standard"
             sx={{
-              flex: 1,
-              minWidth: 0,
-              fontFamily: (t) => t.custom.serif,
-              fontSize: "0.95rem",
-              lineHeight: 1.8,
-              "& .MuiInputBase-root": { p: 1.5 },
+              width: "100%",
+              height: "100%",
+              fontFamily: MONO,
+              fontSize: "0.85rem",
+              "& .MuiInputBase-root": {
+                height: "100%",
+                p: 1.5,
+                alignItems: "flex-start",
+                lineHeight: 1.8,
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word"
+              },
               "& .MuiInputBase-root::before, & .MuiInputBase-root::after": {
                 display: "none"
               }
             }}
           />
-        )}
-        {preview}
-      </Box>
+        </Box>
+      )}
+      {showSource && showPreview && (
+        <Box
+          onPointerDown={onDividerPointerDown}
+          sx={{
+            width: 4,
+            cursor: "col-resize",
+            flexShrink: 0,
+            bgcolor: "transparent",
+            position: "relative",
+            alignSelf: "stretch",
+            touchAction: "none",
+            "&::after": {
+              content: '""',
+              position: "absolute",
+              top: 0,
+              bottom: 0,
+              left: "50%",
+              transform: "translateX(-50%)",
+              width: 1,
+              bgcolor: "divider"
+            },
+            "&:hover::after": { bgcolor: "primary.main" }
+          }}
+        />
+      )}
+      {showPreview && preview}
     </Box>
   )
 }

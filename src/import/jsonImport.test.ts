@@ -533,3 +533,50 @@ describe("pdf backup round-trip", () => {
     expect(restored?.lastOpened).toBe(456)
   })
 })
+
+describe("draft three-link round-trip", () => {
+  beforeEach(() => {
+    indexedDB = new IDBFactory()
+  })
+
+  it("a draft (isDraft + draftOf) survives export → import", async () => {
+    const original = {
+      id: "orig-1",
+      type: "text" as const,
+      title: "原卡",
+      content: "正文",
+      projectId: "p1",
+      createdAt: 1690000000000
+    }
+    const draft = {
+      id: "draft-1",
+      type: "text" as const,
+      isDraft: true,
+      draftOf: "orig-1",
+      title: "草稿标题",
+      content: "草稿内容",
+      projectId: "p1",
+      createdAt: 1690000000000
+    }
+    const project = {
+      id: "p1",
+      name: "草稿项目",
+      createdAt: 1690000000000
+    }
+    const blob = await toJsonZip([original, draft], [], [], [project], [])
+
+    const file = new File([blob], "draft-export.zip", {
+      type: "application/zip"
+    })
+    const result = await importFromZip(file)
+    expect(result.imported).toBe(2)
+
+    const { getAllProjectCards } = await import("../database/index")
+    const imported = await getAllProjectCards()
+    const importedDraft = imported.find((c: { id: string }) => c.id === "draft-1")
+    expect(importedDraft).toBeDefined()
+    expect(importedDraft.isDraft).toBe(true)
+    expect(importedDraft.draftOf).toBe("orig-1")
+    expect(importedDraft.title).toBe("草稿标题")
+  })
+})
