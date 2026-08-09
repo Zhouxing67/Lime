@@ -57,6 +57,7 @@ import BackupView from "./components/BackupView"
 import PdfHub from "./components/PdfHub"
 import PdfCardsPanel from "./components/PdfCardsPanel"
 import PdfSearchPanel from "./components/PdfSearchPanel"
+import { useAppData } from "./hooks/useAppData"
 import { useProjectsView } from "./hooks/useProjectsView"
 import { useWorkspaceView } from "./hooks/useWorkspaceView"
 import { usePdfSearchPanel } from "./hooks/usePdfSearchPanel"
@@ -175,14 +176,9 @@ export default function OptionsPage() {
   const [deleteTargetIsPdf, setDeleteTargetIsPdf] = useState(false)
   const [preset, setPreset] = useState<PresetName>("indigo-crimson")
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [pdfs, setPdfs] = useState<PdfFile[]>([])
   const [extraTopics, setExtraTopics] = useState<string[]>([])
   const [pdfCardsOpen, setPdfCardsOpen] = useState(true)
   const [pdfCardsWidth, setPdfCardsWidth] = useState(320)
-  const [pdfPanelAnnotations, setPdfPanelAnnotations] = useState<
-    PdfAnnotation[]
-  >([])
-  const [pdfPanelCards, setPdfPanelCards] = useState<PdfCard[]>([])
   const [pdfFlashTarget, setPdfFlashTarget] = useState<{
     page: number
     annId: string
@@ -204,6 +200,53 @@ export default function OptionsPage() {
 
   const activePdfIdRef = useRef<string | null>(null)
   activePdfIdRef.current = activePdfId
+
+  // ---- the shared data hub (cards/todos/reviews/pdfs + broadcast reloads) ----
+  const loadProjectsRef = useRef<() => Promise<unknown>>(async () => {})
+  const onSearchRef = useRef<() => Promise<void>>(async () => {})
+  const {
+    pdfs,
+    setPdfs,
+    allProjectCardsUnfiltered,
+    setAllProjectCardsUnfiltered,
+    allPdfCards,
+    setAllPdfCards,
+    annotationById,
+    setAnnotationById,
+    allTodos,
+    setAllTodos,
+    allReviews,
+    reviewsVersion,
+    setReviewsVersion,
+    reviewItemIds,
+    setReviewItemIds,
+    reviewSrsMap,
+    setReviewSrsMap,
+    masteredItemIds,
+    pdfPanelAnnotations,
+    pdfPanelCards,
+    liteDueCount,
+    liteTodoCount,
+    pdfById,
+    pdfNameById,
+    countByPdf,
+    countByProject,
+    draftByOriginal,
+    loadTodos,
+    loadPdfs,
+    loadPdfPanelData,
+    refreshLiteCounts,
+    schedulePdfPanelReload,
+    schedulePdfDataReload,
+    scheduleFullReload,
+    refreshAllData
+  } = useAppData({
+    loadProjectsRef,
+    onSearchRef,
+    sidebarTabRef,
+    activePdfIdRef
+  })
+  refreshRef.current = refreshAllData
   const {
     pdfSearch,
     searchRequest,
@@ -224,16 +267,6 @@ export default function OptionsPage() {
   const [reviewItems, setReviewItems] = useState<DisplayCard[]>([])
   const [reviewDateFilter, setReviewDateFilter] = useState<string | null>(null)
   const [ratingFilter, setRatingFilter] = useState<1 | 2 | 3 | null>(null)
-  /** ALL project cards across projects (unfiltered) — the review pairing, the
-   *  hub counts, the backup/export scope, and the delete-routing lookups. */
-  const [allProjectCardsUnfiltered, setAllProjectCardsUnfiltered] = useState<
-    ProjectCard[]
-  >([])
-  const [allPdfCards, setAllPdfCards] = useState<PdfCard[]>([])
-  const [annotationById, setAnnotationById] = useState<
-    Map<string, import("./types").PdfAnnotation>
-  >(new Map())
-  const [allTodos, setAllTodos] = useState<TodoCard[]>([])
   const [todoEditingId, setTodoEditingId] = useState<string | null>(null)
   const [focusNewTaskId, setFocusNewTaskId] = useState<string | null>(null)
   const [todoFilter, setTodoFilter] = useState<TodoFilter>("incomplete")
@@ -257,13 +290,6 @@ export default function OptionsPage() {
   const [backupKeyword, setBackupKeyword] = useState("")
   const [backupSelectedPdfIds, setBackupSelectedPdfIds] = useState<string[]>([])
   const [syncStatus, setSyncStatus] = useState("")
-  const [reviewItemIds, setReviewItemIds] = useState<Set<string>>(new Set())
-  const [reviewSrsMap, setReviewSrsMap] = useState<Map<string, SrsData>>(
-    new Map()
-  )
-  const [masteredItemIds, setMasteredItemIds] = useState<Set<string>>(
-    new Set()
-  )
   const [reviewTitlePending, setReviewTitlePending] = useState<string | null>(
     null
   )
@@ -280,10 +306,6 @@ export default function OptionsPage() {
    * re-ratings can re-schedule without re-applying rateSrs). */
   const firstSrsRef = useRef<Map<string, SrsData>>(new Map())
   const [animating, setAnimating] = useState(false)
-  /** Bumped by `_dbr` broadcasts → triggers a lightweight review-state reload
-   * (no full refreshAllData) so the session stays in sync with review writes. */
-  const [reviewsVersion, setReviewsVersion] = useState(0)
-  const [allReviews, setAllReviews] = useState<ReviewEntry[]>([])
   const [navOpen, setNavOpen] = useState(false)
   const [pendingSectionDelete, setPendingSectionDelete] = useState<{
     sectionId: string
@@ -326,18 +348,6 @@ export default function OptionsPage() {
   // NO content — its effective body/comment come from the linked pdfCard. The grids
   // render DisplayCard (resolved), while every WRITE path operates on the
   // original ProjectCard (via stripPlacementContent).
-  const pdfById = useMemo(
-    () => new Map(allPdfCards.map((c) => [c.id, c])),
-    [allPdfCards]
-  )
-
-  // PDF name for the placed-card footer (PDF名 · 第 X 页).
-  const pdfNameById = useMemo(() => {
-    const m = new Map<string, string>()
-    for (const p of pdfs) m.set(p.id, p.name)
-    return m
-  }, [pdfs])
-
   const resolveDisplay = useCallback(
     (card: ProjectCard): DisplayCard => {
       if (!card.pdfCardId) {
@@ -392,14 +402,6 @@ export default function OptionsPage() {
   // An edit draft replaces its original card in the grid (the draft is the
   // intermediate state; the original stays in the DB but is hidden until the
   // draft is promoted or discarded).
-  const draftByOriginal = useMemo(() => {
-    const m = new Map<string, ProjectCard>()
-    for (const c of allProjectCardsUnfiltered) {
-      if (c.isDraft && c.draftOf) m.set(c.draftOf, c)
-    }
-    return m
-  }, [allProjectCardsUnfiltered])
-
   /** EVERY project card across projects, display-resolved (review + backup). */
   const displayCardsUnfiltered = useMemo(
     () => allProjectCardsUnfiltered.map(resolveDisplay),
@@ -446,6 +448,7 @@ export default function OptionsPage() {
     resolveDisplay,
     draftByOriginal
   })
+  onSearchRef.current = onSearch
 
   // Shared "open a project" action — used by the tree's row click + the
   // project-hub tiles (kept in ONE place so the two paths never diverge).
@@ -499,6 +502,8 @@ export default function OptionsPage() {
       setVisibleCount(ITEMS_PER_PAGE)
     }
   })
+  loadProjectsRef.current = loadProjects
+
 
   const {
     dueCount,
@@ -556,7 +561,7 @@ export default function OptionsPage() {
     getAllAnnotations().then((list) =>
       setAnnotationById(new Map(list.map((a) => [a.id, a])))
     )
-  }, [])
+  }, [setAllProjectCardsUnfiltered, setAllPdfCards, setAnnotationById])
 
   // Lazy backfill: a placed region card whose annotation has no crop image
   // (pre-image placements) generates it on sight + refreshes the annotation
@@ -583,31 +588,15 @@ export default function OptionsPage() {
     return () => {
       cancelled = true
     }
-  }, [allPdfCards, annotationById])
-
-  // Load review states (refresh when items or review data change)
-  useEffect(() => {
-    getAllReviews().then((reviews) => {
-      setAllReviews(reviews)
-      setReviewItemIds(new Set(reviews.map((r) => r.itemId)))
-      setReviewSrsMap(new Map(reviews.map((r) => [r.itemId, r.srs])))
-      setMasteredItemIds(
-        new Set(
-          reviews
-            .filter((r) => r.status === "mastered")
-            .map((r) => r.itemId)
-        )
-      )
-    })
-  }, [allProjectCardsUnfiltered, reviewsVersion])
+  }, [allPdfCards, annotationById, setAnnotationById])
 
   // Immediate search for non-keyword filter changes — the keyword change is
   // handled by the debounced effect below; reading onSearch via a ref keeps
   // this effect from firing on every keystroke (double-search).
-  const onSearchRef = useRef(onSearch)
-  onSearchRef.current = onSearch
+  const immediateSearchRef = useRef(onSearch)
+  immediateSearchRef.current = onSearch
   useEffect(() => {
-    onSearchRef.current()
+    immediateSearchRef.current()
   }, [activeProjectId, dateRange])
 
   // Debounced search for keyword (avoids per-keystroke queries).
@@ -839,24 +828,6 @@ export default function OptionsPage() {
     onSearch()
   }
 
-  const loadTodos = useCallback(async () => {
-    const todos = await getAllTodos()
-    setAllTodos(todos)
-  }, [])
-
-  const refreshAllData = useCallback(async () => {
-    await loadProjects()
-    await onSearch()
-    await loadTodos()
-    const [all, pdfs] = await Promise.all([
-      getAllProjectCards(),
-      getAllPdfCards()
-    ])
-    setAllProjectCardsUnfiltered(all)
-    setAllPdfCards(pdfs)
-    // reviewItemIds + reviewSrsMap updated by the effect on allProjectCardsUnfiltered change
-  }, [loadProjects, onSearch, loadTodos])
-
   const handleToggleReview = useCallback(
     async (itemId: string) => {
       const card = allProjectCardsUnfiltered.find((i) => i.id === itemId)
@@ -890,7 +861,7 @@ export default function OptionsPage() {
       setReviewItemIds((prev) => new Set(prev).add(itemId))
       setSnackbarMsg("已加入复习")
     },
-    [allProjectCardsUnfiltered, reviewItemIds]
+    [allProjectCardsUnfiltered, reviewItemIds, setReviewItemIds]
   )
 
   const handleReReview = useCallback(
@@ -1159,35 +1130,6 @@ export default function OptionsPage() {
     document.head.appendChild(link)
     return () => link.remove()
   }, [])
-
-  // ---- PDF library ----
-  const loadPdfs = useCallback(async () => {
-    const list = await listPdfs()
-    setPdfs(list)
-  }, [])
-
-  // The cards panel's data (the active PDF's annotations + cards) is loaded
-  // centrally here — the panel is a peer surface, not a PdfView sub-component.
-  const loadPdfPanelData = useCallback(async () => {
-    // Read the CURRENT active pdf via the ref — a debounced reload scheduled
-    // for PDF A must not overwrite the panel after a switch to PDF B.
-    const id = activePdfIdRef.current
-    if (!id) {
-      setPdfPanelAnnotations([])
-      setPdfPanelCards([])
-      return
-    }
-    const [ann, cards] = await Promise.all([
-      getAnnotationsByPdf(id),
-      getPdfCards(id)
-    ])
-    setPdfPanelAnnotations(ann)
-    setPdfPanelCards(cards)
-  }, [])
-
-  useEffect(() => {
-    loadPdfPanelData()
-  }, [activePdfId, loadPdfPanelData])
 
   useEffect(() => {
     loadPdfs()
@@ -1598,136 +1540,8 @@ export default function OptionsPage() {
     setPdfDeleteTarget(null)
   }, [pdfDeleteTarget, closePdf])
 
-  // Subscribe to database changes via storage broadcast
-  refreshRef.current = refreshAllData
-  const pdfPanelTimerRef = useRef<number | null>(null)
-  // The NavRail review/todo badges use the SAME light-weight queries as the
-  // toolbar badge (getDueCount / getIncompleteTodoCount) so all three agree and
-  // update at the same speed.
-  const [liteDueCount, setLiteDueCount] = useState(0)
-  const [liteTodoCount, setLiteTodoCount] = useState(0)
-  const refreshLiteCounts = useCallback(async () => {
-    const [due, todo] = await Promise.all([
-      getDueCount(),
-      getIncompleteTodoCount()
-    ])
-    setLiteDueCount(due)
-    setLiteTodoCount(todo)
-    applyBadge(due + todo)
-  }, [])
-
-  const schedulePdfPanelReload = useCallback(() => {
-    if (pdfPanelTimerRef.current)
-      window.clearTimeout(pdfPanelTimerRef.current)
-    pdfPanelTimerRef.current = window.setTimeout(() => {
-      pdfPanelTimerRef.current = null
-      loadPdfPanelData()
-    }, 100)
-  }, [loadPdfPanelData])
-
-  // Coalesce `_dbpdf` bursts (a legacy-annotation backfill, a batch
-  // place/unplace): the library list + pdfCard cache + panel data all reload
-  // through ONE debounced pass instead of per-broadcast store scans.
-  const pdfDataTimerRef = useRef<number | null>(null)
-  const schedulePdfDataReload = useCallback(() => {
-    if (pdfDataTimerRef.current) window.clearTimeout(pdfDataTimerRef.current)
-    pdfDataTimerRef.current = window.setTimeout(() => {
-      pdfDataTimerRef.current = null
-      loadPdfs()
-      getAllPdfCards().then(setAllPdfCards)
-      getAllAnnotations().then((list) =>
-        setAnnotationById(new Map(list.map((a) => [a.id, a])))
-      )
-      loadPdfPanelData()
-    }, 100)
-  }, [loadPdfs, loadPdfPanelData])
-  useEffect(
-    () => () => {
-      if (pdfPanelTimerRef.current)
-        window.clearTimeout(pdfPanelTimerRef.current)
-      if (pdfDataTimerRef.current) window.clearTimeout(pdfDataTimerRef.current)
-    },
-    []
-  )
-
-  // Coalesce burst writes: a batch/annotation/toggle sequence fires many _dbi
-  // broadcasts within ~150ms — debounce them into ONE refreshAllData instead of
-  // a full-store re-scan per write.
-  const refreshTimerRef = useRef<number | null>(null)
-  const scheduleFullReload = useCallback(() => {
-    if (sidebarTabRef.current !== "pdf") {
-      if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current)
-      refreshTimerRef.current = window.setTimeout(() => {
-        refreshTimerRef.current = null
-        refreshRef.current()
-      }, 150)
-    }
-  }, [sidebarTabRef, refreshRef])
-  useEffect(() => {
-    return () => {
-      if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current)
-      if (projectCardHighlightTimer.current)
-        window.clearTimeout(projectCardHighlightTimer.current)
-    }
-  }, [])
-
-  useEffect(() => {
-    const onChange = (
-      changes: Record<string, chrome.storage.StorageChange>
-    ) => {
-      if (changes._dbp) {
-        loadProjects()
-        schedulePdfPanelReload()
-        refreshLiteCounts()
-        if (sidebarTabRef.current !== "pdf") scheduleFullReload()
-      }
-      // projectCards writes: refresh the placements + the grids. The heavy
-      // full reload stays gated behind the pdf view (the panel reload covers
-      // the pdf-side needs there).
-      if (changes._dbi) {
-        getAllProjectCards().then(setAllProjectCardsUnfiltered)
-        schedulePdfPanelReload()
-        refreshLiteCounts()
-        if (sidebarTabRef.current !== "pdf") scheduleFullReload()
-      }
-      // todos writes: light — refresh the todo list + the badge only, never
-      // the project-card scan / full reload chain.
-      if (changes._dbt) {
-        loadTodos()
-        refreshLiteCounts()
-      }
-      // Review writes broadcast `_dbr`: reload only review state (light),
-      // never the full refreshAllData chain.
-      if (changes._dbr) {
-        setReviewsVersion((v) => v + 1)
-        refreshLiteCounts()
-      }
-      // PDF writes broadcast `_dbpdf`: refresh the PDF library + the cards panel
-      // + the pdfCard cache (placed cards' resolved content/comment re-render).
-      if (changes._dbpdf) {
-        // Debounced: a burst (backfill / batch place) coalesces into ONE
-        // library + cards + panel reload instead of per-broadcast store scans.
-        schedulePdfDataReload()
-      }
-      // Metadata-only (touchPdf/lastOpened): re-sort the library WITHOUT the
-      // card/panel reload chain — opening a PDF must not rescan the cards.
-      if (changes._dbpdfTouch) {
-        loadPdfs()
-      }
-    }
-    chrome.storage.onChanged.addListener(onChange)
-    return () => chrome.storage.onChanged.removeListener(onChange)
-  }, [loadPdfs, loadPdfPanelData, schedulePdfPanelReload, schedulePdfDataReload, refreshLiteCounts, loadProjects, loadTodos, scheduleFullReload, sidebarTabRef])
-
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null
 
-  const countByPdf = useMemo(() => {
-    const m: Record<string, number> = {}
-    for (const c of allPdfCards) {
-      m[c.pdfId] = (m[c.pdfId] ?? 0) + 1
-    }
-    return m
-  }, [allPdfCards])
   const otherProjects = useMemo(
     () => projects.filter((p) => p.id !== activeProjectId),
     [projects, activeProjectId]
@@ -1750,15 +1564,6 @@ export default function OptionsPage() {
     return m
   }, [allProjectCards])
 
-  // Per-project card counts (meaningful when no project is open, since
-  // allProjectCards then holds every project's cards for the hub overview).
-  const countByProject = useMemo(() => {
-    const m: Record<string, number> = {}
-    for (const it of allProjectCardsUnfiltered) {
-      m[it.projectId] = (m[it.projectId] ?? 0) + 1
-    }
-    return m
-  }, [allProjectCardsUnfiltered])
 
   // The section scope as the PERSISTED projectCards (drag reorder + writes
   // operate on the originals) — the grid renders the resolved variant.
@@ -2103,7 +1908,7 @@ export default function OptionsPage() {
       document.removeEventListener("visibilitychange", onVisible)
       window.removeEventListener("focus", run)
     }
-  }, [refreshLiteCounts, sidebarTabRef])
+  }, [refreshLiteCounts, sidebarTabRef, setReviewsVersion])
 
 
   const handleNewTodo = useCallback(() => {
@@ -3036,9 +2841,9 @@ export default function OptionsPage() {
                         }
                         setReviewTitlePending(null)
                         setReviewTitleDraft("")
-                        const reviews = await getAllReviews()
-                        setAllReviews(reviews)
-                        setReviewItemIds(new Set(reviews.map((r) => r.itemId)))
+                        // The useAppData effect reloads the review states when
+                        // reviewsVersion bumps (the _dbr broadcast also does).
+                        setReviewsVersion((v) => v + 1)
                         setSnackbarMsg(
                           alreadyInReview ? "已在复习中" : "已加入复习"
                         )
