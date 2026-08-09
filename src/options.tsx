@@ -624,11 +624,14 @@ export default function OptionsPage() {
 
   // Active section in the current project (sidebar tree -> main area).
 
-  const onDelete = (id: string) => {
-    setConfirmDeleteId(id)
-    const card = allProjectCardsUnfiltered.find((c) => c.id === id)
-    setDeleteTargetIsPdf(Boolean(card?.pdfCardId))
-  }
+  const onDelete = useCallback(
+    (id: string) => {
+      setConfirmDeleteId(id)
+      const card = allProjectCardsUnfiltered.find((c) => c.id === id)
+      setDeleteTargetIsPdf(Boolean(card?.pdfCardId))
+    },
+    [allProjectCardsUnfiltered, setConfirmDeleteId, setDeleteTargetIsPdf]
+  )
 
   const handleConfirmDelete = async () => {
     if (!confirmDeleteId) return
