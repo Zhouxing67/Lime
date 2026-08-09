@@ -132,6 +132,24 @@ export default function MarkdownEditor({
             height: "100%",
             overflow: "hidden"
           }}>
+          {!value.trim() && placeholder && (
+            <Box
+              sx={{
+                position: "absolute",
+                inset: 0,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 1,
+                color: "text.disabled",
+                pointerEvents: "none",
+                zIndex: 1
+              }}>
+              <TextFieldsRoundedIcon sx={{ fontSize: 28, opacity: 0.6 }} />
+              <Typography variant="caption">{placeholder}</Typography>
+            </Box>
+          )}
           <TextField
             inputRef={setRef}
             multiline
@@ -142,7 +160,6 @@ export default function MarkdownEditor({
             onFocus={() => onFocusChange?.(true)}
             onBlur={() => onFocusChange?.(false)}
             autoFocus={autoFocus}
-            placeholder={placeholder}
             variant="standard"
             sx={{
               width: "100%",
