@@ -58,6 +58,9 @@ import PdfHub from "./components/PdfHub"
 import PdfCardsPanel from "./components/PdfCardsPanel"
 import PdfSearchPanel from "./components/PdfSearchPanel"
 import { useAppData } from "./hooks/useAppData"
+import { useBackupView } from "./hooks/useBackupView"
+import { useReviewView } from "./hooks/useReviewView"
+import { useTodoView } from "./hooks/useTodoView"
 import { useProjectsView } from "./hooks/useProjectsView"
 import { useWorkspaceView } from "./hooks/useWorkspaceView"
 import { usePdfSearchPanel } from "./hooks/usePdfSearchPanel"
@@ -273,12 +276,6 @@ export default function OptionsPage() {
     null
   )
   const [reviewItems, setReviewItems] = useState<DisplayCard[]>([])
-  const [reviewDateFilter, setReviewDateFilter] = useState<string | null>(null)
-  const [ratingFilter, setRatingFilter] = useState<1 | 2 | 3 | null>(null)
-  const [todoEditingId, setTodoEditingId] = useState<string | null>(null)
-  const [focusNewTaskId, setFocusNewTaskId] = useState<string | null>(null)
-  const [todoFilter, setTodoFilter] = useState<TodoFilter>("incomplete")
-  const [todoDeleteTarget, setTodoDeleteTarget] = useState<TodoCard | null>(null)
   const loadMoreRef = useRef<HTMLDivElement>(null)
   const [copyCardId, setCopyCardId] = useState<string | null>(null)
   const [moveSectionCardId, setMoveSectionCardId] = useState<string | null>(null)
@@ -291,17 +288,7 @@ export default function OptionsPage() {
     mode: "single" | "batch"
   } | null>(null)
   const [snackbarMsg, setSnackbarMsg] = useState("")
-  const [backupSelectedIds, setBackupSelectedIds] = useState<string[]>([])
-  const [backupScope, setBackupScope] = useState<"projects" | "pdfs">(
-    "projects"
-  )
-  const [backupKeyword, setBackupKeyword] = useState("")
-  const [backupSelectedPdfIds, setBackupSelectedPdfIds] = useState<string[]>([])
   const [syncStatus, setSyncStatus] = useState("")
-  const [reviewTitlePending, setReviewTitlePending] = useState<string | null>(
-    null
-  )
-  const [reviewTitleDraft, setReviewTitleDraft] = useState("")
   // Review session state (owned by options.tsx, not ReviewSession)
   const [reviewFlipped, setReviewFlipped] = useState(false)
   const [reviewCompleted, setReviewCompleted] = useState(false)
@@ -513,6 +500,38 @@ export default function OptionsPage() {
   loadProjectsRef.current = loadProjects
 
 
+  // The review / todo / backup views' own state (filters, selection, edit flow).
+  const reviewView = useReviewView()
+  const {
+    todoFilter,
+    setTodoFilter,
+    todoEditingId,
+    setTodoEditingId,
+    focusNewTaskId,
+    setFocusNewTaskId,
+    todoDeleteTarget,
+    setTodoDeleteTarget,
+    filteredTodos,
+    handleNewTodo,
+    handleStartEditTodo,
+    handleQuickAdd,
+    handleToggleTodoTask,
+    handleSaveTodo,
+    handleDeleteTodo
+  } = useTodoView({ allTodos, navigate })
+  const {
+    backupSelectedIds,
+    setBackupSelectedIds,
+    backupScope,
+    setBackupScope,
+    backupKeyword,
+    setBackupKeyword,
+    backupSelectedPdfIds,
+    setBackupSelectedPdfIds,
+    handleBackupToggleSelect,
+    handleBackupSelectAll
+  } = useBackupView({ projects, pdfs })
+
   const {
     dueCount,
     reviewStats,
@@ -528,30 +547,30 @@ export default function OptionsPage() {
     sidebarTab,
     setSidebarTab: navigate,
     setReviewItems,
-    reviewDateFilter,
-    setReviewDateFilter,
+    reviewDateFilter: reviewView.reviewDateFilter,
+    setReviewDateFilter: reviewView.setReviewDateFilter,
     reviews: allReviews
   })
 
   const cardFirstRating = useMemo(() => {
     const m = new Map<string, 1 | 2 | 3>()
-    if (!reviewDateFilter) return m
+    if (!reviewView.reviewDateFilter) return m
     for (const [itemId, srs] of reviewSrsMap) {
       if (!srs.reviewHistory) continue
       const entry = srs.reviewHistory.find(
-        (e) => dayKey(e.date) === reviewDateFilter
+        (e) => dayKey(e.date) === reviewView.reviewDateFilter
       )
       if (entry) m.set(itemId, Math.min(entry.rating, 3) as 1 | 2 | 3)
     }
     return m
-  }, [reviewDateFilter, reviewSrsMap])
+  }, [reviewView.reviewDateFilter, reviewSrsMap])
 
   const filteredDateItems = useMemo(() => {
-    if (!ratingFilter) return reviewDateItems
+    if (!reviewView.ratingFilter) return reviewDateItems
     return reviewDateItems.filter(
-      (item) => cardFirstRating.get(item.id) === ratingFilter
+      (item) => cardFirstRating.get(item.id) === reviewView.ratingFilter
     )
-  }, [reviewDateItems, ratingFilter, cardFirstRating])
+  }, [reviewDateItems, reviewView.ratingFilter, cardFirstRating])
 
   // Mount: initial load
   useEffect(() => {
@@ -822,7 +841,7 @@ export default function OptionsPage() {
 
       // If no title, prompt for one
       if (!card.title) {
-        setReviewTitlePending(itemId)
+        reviewView.setReviewTitlePending(itemId)
         return
       }
 
@@ -831,7 +850,7 @@ export default function OptionsPage() {
       setReviewItemIds((prev) => new Set(prev).add(itemId))
       setSnackbarMsg("已加入复习")
     },
-    [allProjectCardsUnfiltered, reviewItemIds, setReviewItemIds]
+    [allProjectCardsUnfiltered, reviewItemIds, setReviewItemIds, reviewView]
   )
 
   const handleReReview = useCallback(
@@ -1469,33 +1488,6 @@ export default function OptionsPage() {
     [openPdf]
   )
 
-  const handleBackupToggleSelect = useCallback(
-    (id: string) => {
-      if (backupScope === "projects") {
-        setBackupSelectedIds((prev) =>
-          prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-        )
-      } else {
-        setBackupSelectedPdfIds((prev) =>
-          prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-        )
-      }
-    },
-    [backupScope]
-  )
-
-  const handleBackupSelectAll = useCallback(() => {
-    if (backupScope === "projects") {
-      setBackupSelectedIds((prev) =>
-        prev.length === projects.length ? [] : projects.map((p) => p.id)
-      )
-    } else {
-      setBackupSelectedPdfIds((prev) =>
-        prev.length === pdfs.length ? [] : pdfs.map((p) => p.id)
-      )
-    }
-  }, [backupScope, projects, pdfs])
-
   const handleDeletePdf = useCallback(
     (pdf: PdfFile) => {
       setPdfDeleteTarget(pdf)
@@ -1567,7 +1559,7 @@ export default function OptionsPage() {
   // The card reader navigates the CURRENT view scope: review dates, full
   // search hits, or the visible section/project scope.
   const navList =
-    sidebarTab === "review" && reviewDateFilter
+    sidebarTab === "review" && reviewView.reviewDateFilter
       ? filteredDateItems
       : keyword || dateRange
         ? displayCards
@@ -1830,124 +1822,6 @@ export default function OptionsPage() {
     return { total: allTodos.length, incomplete, completed, overdue, today: todayCount }
   }, [allTodos, today])
 
-  const filteredTodos = useMemo(() => {
-    const list = allTodos.filter((t) => {
-      switch (todoFilter) {
-        case "all":
-          return true
-        case "incomplete":
-          return !isTodoComplete(t.content)
-        case "completed":
-          return isTodoComplete(t.content)
-        case "overdue":
-          return dueStatus(t.dueDate, today) === "overdue"
-        case "today":
-          return dueStatus(t.dueDate, today) === "today"
-      }
-    })
-    return list.sort((a, b) => {
-      const ad = a.dueDate
-      const bd = b.dueDate
-      if (ad && bd) return ad.localeCompare(bd)
-      if (ad) return -1
-      if (bd) return 1
-      return b.createdAt - a.createdAt
-    })
-  }, [allTodos, todoFilter, today])
-
-  // Todo badge = incomplete todos only. Review cards must not inflate the
-  // todo icon's number (review has its own due-count badge on the 复习 button).
-  useEffect(() => {
-    const run = () => {
-      // The lite counts (badge + NavRail icons) refresh every tick — cheap,
-      // and they capture time-passed-due cards. The heavy reviews reload
-      // (getAllReviews + in-memory stats) only matters while the review view is
-      // visible, so skip it elsewhere (a review write still bumps via _dbr).
-      refreshLiteCounts()
-      if (sidebarTabRef.current === "review") setReviewsVersion((v) => v + 1)
-    }
-    const onVisible = () => {
-      if (!document.hidden) run()
-    }
-    run()
-    const t = window.setInterval(run, 60000)
-    document.addEventListener("visibilitychange", onVisible)
-    window.addEventListener("focus", run)
-    return () => {
-      window.clearInterval(t)
-      document.removeEventListener("visibilitychange", onVisible)
-      window.removeEventListener("focus", run)
-    }
-  }, [refreshLiteCounts, sidebarTabRef, setReviewsVersion])
-
-
-  const handleNewTodo = useCallback(() => {
-    setFocusNewTaskId(null)
-    setTodoFilter("incomplete")
-    setTodoEditingId("__new__")
-    navigate("todo")
-  }, [navigate])
-
-  const handleStartEditTodo = useCallback((id: string) => {
-    setFocusNewTaskId(null)
-    setTodoEditingId(id)
-  }, [])
-
-  const handleQuickAdd = useCallback((item: TodoCard) => {
-    setTodoEditingId(item.id)
-    setFocusNewTaskId(item.id)
-  }, [])
-
-  const handleToggleTodoTask = useCallback(
-    async (item: TodoCard, index: number) => {
-      const next = toggleMarkdownTask(item.content, index)
-      if (next === item.content) return
-      await updateTodo({ ...item, content: next })
-    },
-    []
-  )
-
-  const handleSaveTodo = useCallback(
-    async (
-      item: TodoCard,
-      title: string,
-      content: string,
-      dueDate?: string
-    ) => {
-      if (!title.trim() && !content.trim()) {
-        setTodoEditingId(null)
-        setFocusNewTaskId(null)
-        return
-      }
-      const cleanDue =
-        dueDate && /^\d{4}-\d{2}-\d{2}$/.test(dueDate) ? dueDate : undefined
-      if (item.id === "__new__") {
-        const created = createTodoCard({
-          title: title.trim() || undefined,
-          content,
-          ...(cleanDue && { dueDate: cleanDue })
-        })
-        await addTodo(created)
-      } else {
-        await updateTodo({
-          ...item,
-          title: title.trim() || undefined,
-          content,
-          dueDate: cleanDue
-        })
-      }
-      setTodoEditingId(null)
-      setFocusNewTaskId(null)
-    },
-    []
-  )
-
-  const handleDeleteTodo = useCallback(async (item: TodoCard) => {
-    await deleteTodo(item.id)
-    setTodoEditingId(null)
-    setFocusNewTaskId(null)
-  }, [])
-
   // Full card set the current view renders. 全选 must target this scope, not
   // the paginated displayedItems slice (which only holds the first page) —
   // otherwise select-all in the section/outline view only picks 20 cards.
@@ -2023,7 +1897,7 @@ export default function OptionsPage() {
           onUploadSync={handleUploadSync}
           onDownloadSync={handleDownloadSync}
           recentDates={recentDates}
-          reviewDateFilter={reviewDateFilter}
+          reviewDateFilter={reviewView.reviewDateFilter}
           onReviewDateClick={handleReviewDateClick}>
           <ProjectTree
             projects={projects}
@@ -2294,7 +2168,7 @@ export default function OptionsPage() {
             )}
           </Box>
 
-          {sidebarTab === "review" && reviewDateFilter && (
+          {sidebarTab === "review" && reviewView.reviewDateFilter && (
             <Box
               sx={{
                 bgcolor: "background.paper",
@@ -2312,12 +2186,12 @@ export default function OptionsPage() {
                   variant="body2"
                   sx={{ color: "text.secondary", mr: 1 }}>
                   回顾：
-                  {recentDates.find((d) => d.key === reviewDateFilter)?.label ??
-                    reviewDateFilter}
+                  {recentDates.find((d) => d.key === reviewView.reviewDateFilter)?.label ??
+                    reviewView.reviewDateFilter}
                 </Typography>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexWrap: "wrap" }}>
                   <Box
-                    onClick={() => setRatingFilter(null)}
+                    onClick={() => reviewView.setRatingFilter(null)}
                     sx={(t) => ({
                       display: "flex",
                       alignItems: "center",
@@ -2327,19 +2201,19 @@ export default function OptionsPage() {
                       cursor: "pointer",
                       fontSize: "0.72rem",
                       lineHeight: 1.5,
-                      color: ratingFilter === null ? t.palette.primary.main : "text.secondary",
-                      bgcolor: ratingFilter === null ? alpha(t.palette.primary.main, 0.08) : "transparent",
+                      color: reviewView.ratingFilter === null ? t.palette.primary.main : "text.secondary",
+                      bgcolor: reviewView.ratingFilter === null ? alpha(t.palette.primary.main, 0.08) : "transparent",
                       "&:hover": { bgcolor: "action.hover" }
                     })}>
                     全部
                   </Box>
                   {RATING_META.map((meta, i) => {
                     const value = (i + 1) as 1 | 2 | 3
-                    const active = ratingFilter === value
+                    const active = reviewView.ratingFilter === value
                     return (
                       <Box
                         key={meta.label}
-                        onClick={() => setRatingFilter(active ? null : value)}
+                        onClick={() => reviewView.setRatingFilter(active ? null : value)}
                         sx={{
                           display: "flex",
                           alignItems: "center",
@@ -2373,8 +2247,8 @@ export default function OptionsPage() {
                 <Button
                   size="small"
                   onClick={() => {
-                    setReviewDateFilter(null)
-                    setRatingFilter(null)
+                    reviewView.setReviewDateFilter(null)
+                    reviewView.setRatingFilter(null)
                   }}
                   sx={{ borderRadius: 1 }}>
                   退出
@@ -2503,9 +2377,9 @@ export default function OptionsPage() {
                       onQuickAdd={handleQuickAdd}
                       onNewTodo={handleNewTodo}
                     />
-                  ) : sidebarTab === "review" && reviewDateFilter ? (
+                  ) : sidebarTab === "review" && reviewView.reviewDateFilter ? (
                     <Box>
-                      {ratingFilter && filteredDateItems.length === 0 ? (
+                      {reviewView.ratingFilter && filteredDateItems.length === 0 ? (
                         <EmptyState
                           iconSize={64}
                           icon={
@@ -2776,23 +2650,23 @@ export default function OptionsPage() {
               />
 
               <DialogShell
-                open={Boolean(reviewTitlePending)}
-                onClose={() => setReviewTitlePending(null)}
+                open={Boolean(reviewView.reviewTitlePending)}
+                onClose={() => reviewView.setReviewTitlePending(null)}
                 title="加入复习"
                 maxWidth="xs"
                 confirmLabel="加入复习"
-                confirmDisabled={!reviewTitleDraft.trim()}
+                confirmDisabled={!reviewView.reviewTitleDraft.trim()}
                 onConfirm={async () => {
                         const card = allProjectCardsUnfiltered.find(
-                          (i) => i.id === reviewTitlePending
+                          (i) => i.id === reviewView.reviewTitlePending
                         )
-                        if (!card || !reviewTitleDraft.trim()) return
+                        if (!card || !reviewView.reviewTitleDraft.trim()) return
                         // Update card title (placed cards keep content "" —
                         // the title lives on the placement).
                         await updateProjectCard(
                           stripPlacementContent({
                             ...card,
-                            title: reviewTitleDraft.trim()
+                            title: reviewView.reviewTitleDraft.trim()
                           })
                         )
                         // Add to review (skip if it entered review while the
@@ -2809,8 +2683,8 @@ export default function OptionsPage() {
                             console.warn("[lime] addReview:", e)
                           }
                         }
-                        setReviewTitlePending(null)
-                        setReviewTitleDraft("")
+                        reviewView.setReviewTitlePending(null)
+                        reviewView.setReviewTitleDraft("")
                         // The useAppData effect reloads the review states when
                         // reviewsVersion bumps (the _dbr broadcast also does).
                         setReviewsVersion((v) => v + 1)
@@ -2828,8 +2702,8 @@ export default function OptionsPage() {
                   size="small"
                   autoFocus
                   placeholder="输入卡片摘要…"
-                  value={reviewTitleDraft}
-                  onChange={(e) => setReviewTitleDraft(e.target.value)}
+                  value={reviewView.reviewTitleDraft}
+                  onChange={(e) => reviewView.setReviewTitleDraft(e.target.value)}
                   sx={{
                     mb: 2,
                     "& .MuiOutlinedInput-root": { borderRadius: 1 }
