@@ -40,6 +40,8 @@ const CardEditorView = forwardRef<CardEditorHandle, {
   onDirtyChange?: (dirty: boolean) => void
   onFocusChange?: (focused: boolean) => void
   onPageChange?: (page: "edit" | "readonly") => void
+  /** The image can be uploaded/replaced (create + a draft image card). */
+  imageEditable?: boolean
 }>(function CardEditorView(
   {
     type,
@@ -48,7 +50,8 @@ const CardEditorView = forwardRef<CardEditorHandle, {
     view,
     onDirtyChange,
     onFocusChange,
-    onPageChange
+    onPageChange,
+    imageEditable
   },
   ref
 ) {
@@ -63,6 +66,11 @@ const CardEditorView = forwardRef<CardEditorHandle, {
     type === "text" ? "content" : "comment"
   )
   const [focused, setFocused] = useState(false)
+  // The image pages (readonly/upload + edit) exist when the image is
+  // changeable: the create-image, and the draft of an image card.
+  const showImagePages =
+    (mode === "create" && type === "image") ||
+    (mode === "edit" && imageEditable && type === "image")
   const [editorPage, setEditorPage] = useState<"edit" | "readonly">(
     mode === "create" && type === "image" ? "readonly" : "edit"
   )
@@ -200,7 +208,7 @@ const CardEditorView = forwardRef<CardEditorHandle, {
 
       {(type === "image" || type === "placed") && (
         <>
-          {mode === "create" && type === "image" && (
+          {showImagePages && (
             <>
               <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 1 }}>
                 <Box
@@ -250,17 +258,35 @@ const CardEditorView = forwardRef<CardEditorHandle, {
                   }}
                   onClick={() => fileRef.current?.click()}>
                   {image ? (
-                    <img
-                      src={image}
-                      alt=""
-                      style={{
-                        position: "absolute",
-                        inset: 0,
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "contain"
-                      }}
-                    />
+                    <>
+                      <img
+                        src={image}
+                        alt=""
+                        style={{
+                          position: "absolute",
+                          inset: 0,
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "contain"
+                        }}
+                      />
+                      <Box
+                        sx={{
+                          position: "absolute",
+                          bottom: 8,
+                          left: "50%",
+                          transform: "translateX(-50%)",
+                          px: 1,
+                          py: 0.25,
+                          borderRadius: 0.5,
+                          bgcolor: "background.paper",
+                          color: "text.secondary",
+                          fontSize: "0.7rem",
+                          boxShadow: (t) => t.custom.cardShadow
+                        }}>
+                        点击更换图片
+                      </Box>
+                    </>
                   ) : (
                     <>
                       <AddPhotoAlternateRoundedIcon />
@@ -272,8 +298,7 @@ const CardEditorView = forwardRef<CardEditorHandle, {
             </>
           )}
 
-          {(!(mode === "create" && type === "image") ||
-            editorPage === "edit") && (
+          {(!showImagePages || editorPage === "edit") && (
             <>
               {sectionGap}
               <Box

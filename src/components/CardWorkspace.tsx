@@ -375,6 +375,7 @@ export default function CardWorkspace({
               onDirtyChange={setDirty}
               onFocusChange={setEditorFocused}
               onPageChange={setEditorPage}
+              imageEditable={Boolean(card?.isDraft) && cardKind(card) === "image"}
             />
           ) : view === "create" ? (
             <CardEditorView
@@ -386,6 +387,7 @@ export default function CardWorkspace({
               onDirtyChange={setDirty}
               onFocusChange={setEditorFocused}
               onPageChange={setEditorPage}
+              imageEditable={Boolean(card?.isDraft) && cardKind(card) === "image"}
             />
           ) : null}
         </Box>
