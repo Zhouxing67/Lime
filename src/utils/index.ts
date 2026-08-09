@@ -10,6 +10,18 @@ import type {
 export type MergeSeparator = "rule" | "ordered" | "unordered" | "none"
 
 /** Join several cards' content per the chosen separator. */
+/** Rejoin PDF hyphenation artifacts so the quote reads naturally in a web
+ *  re-wrappable container:
+ *  - the invisible U+00AD soft-hyphen marks the PDF inserts inline are removed;
+ *  - a word split across a line break by a justification hyphen (regular - /
+ *    U+2010 / U+2011 non-breaking) is joined back into the full word.
+ *  Real mid-line hyphens (well-known) and paragraph breaks are preserved. */
+export function rejoinPdfHyphens(text: string): string {
+  return text
+    .replace(/(\p{L})\u00ad(\p{L})/gu, "$1$2")
+    .replace(/(\p{L})[\-\u2010\u2011](\r?\n)(\p{L})/gu, "$1$3")
+}
+
 export function buildMergedContent(
   items: { title?: string; content?: string }[],
   separator: MergeSeparator

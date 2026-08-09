@@ -15,6 +15,7 @@ import {
   insertMarkdownSyntax,
   type MarkdownTool
 } from "../utils/markdownEditor"
+import { rejoinPdfHyphens } from "../utils"
 
 export interface CardEditorValues {
   title?: string
@@ -302,17 +303,29 @@ const CardEditorView = forwardRef<CardEditorHandle, {
               ) : readonlyText ? (
                 <Box
                   sx={{
-                    pl: 2,
-                    borderLeft: "4px solid",
-                    borderLeftColor: "primary.main",
-                    color: "text.secondary",
-                    fontSize: "0.95rem",
-                    whiteSpace: "pre-wrap",
-                    wordBreak: "break-word",
-                    width: "fit-content",
-                    maxWidth: "100%"
+                    flex: 1,
+                    minHeight: 0,
+                    overflow: "auto",
+                    display: "flex",
+                    justifyContent: "center"
                   }}>
-                  {readonlyText}
+                  <Box
+                    sx={{
+                      width: "100%",
+                      maxWidth: "60ch",
+                      py: 2,
+                      pl: 2,
+                      borderLeft: "4px solid",
+                      borderLeftColor: "primary.main",
+                      color: "text.primary",
+                      fontSize: "0.95rem",
+                      lineHeight: 1.6,
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-word",
+                      textAlign: "justify"
+                    }}>
+                    {rejoinPdfHyphens(readonlyText)}
+                  </Box>
                 </Box>
               ) : (
                 <Box
@@ -340,37 +353,25 @@ const CardEditorView = forwardRef<CardEditorHandle, {
                   <Box
                     onClick={() => fileRef.current?.click()}
                     sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 0.75,
+                      p: 1.25,
                       border: "1.5px dashed",
                       borderColor: "divider",
                       borderRadius: 1,
-                      p: 3,
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      gap: 1,
-                      color: "text.disabled",
+                      color: "text.secondary",
                       cursor: "pointer",
                       "&:hover": {
                         borderColor: "primary.main",
                         color: "primary.main"
                       }
                     }}>
-                    {image ? (
-                      <img
-                        src={image}
-                        alt=""
-                        style={{
-                          maxWidth: "100%",
-                          maxHeight: 300,
-                          objectFit: "contain"
-                        }}
-                      />
-                    ) : (
-                      <>
-                        <AddPhotoAlternateRoundedIcon />
-                        <Typography variant="caption">点击上传图片</Typography>
-                      </>
-                    )}
+                    <AddPhotoAlternateRoundedIcon sx={{ fontSize: 18 }} />
+                    <Typography sx={{ fontSize: "0.85rem" }}>
+                      点击上传图片
+                    </Typography>
                   </Box>
                 </>
               )}

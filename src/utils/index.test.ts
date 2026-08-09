@@ -17,6 +17,7 @@ import {
   markdownTaskCount,
   markdownTasks,
   prettyUrl,
+  rejoinPdfHyphens,
   removeMarkdownImage,
   sha256,
   sortAllCards,
@@ -469,5 +470,21 @@ describe("sortAllCards", () => {
     const sorted = sortAllCards(cards, sections).map((c) => c.id)
     // s1 first (d order1, a order2), then s2 (c order0, e order1), 未分类 last.
     expect(sorted).toEqual(["d", "a", "c", "e", "b"])
+  })
+})
+
+describe("rejoinPdfHyphens", () => {
+  it("joins PDF-justification hard hyphens across a line break", () => {
+    expect(rejoinPdfHyphens("impor-\ntant words")).toBe("important words")
+    expect(rejoinPdfHyphens("ques\u00adtion\nNext")).toBe("question\nNext")
+  })
+
+  it("joins the U+2011 non-breaking hyphen too", () => {
+    expect(rejoinPdfHyphens("impor\u2011\ntant")).toBe("important")
+  })
+
+  it("preserves real mid-line hyphens and paragraph breaks", () => {
+    expect(rejoinPdfHyphens("state-of-the-art")).toBe("state-of-the-art")
+    expect(rejoinPdfHyphens("one\n\ntwo")).toBe("one\n\ntwo")
   })
 })
