@@ -1,5 +1,7 @@
-import { Box, TextField, Typography } from "@mui/material"
+import { Box, IconButton, TextField, Tooltip, Typography } from "@mui/material"
 import AddPhotoAlternateRoundedIcon from "@mui/icons-material/AddPhotoAlternateRounded"
+import EditNoteRoundedIcon from "@mui/icons-material/EditNoteRounded"
+import VisibilityRoundedIcon from "@mui/icons-material/VisibilityRounded"
 import {
   forwardRef,
   useEffect,
@@ -217,25 +219,37 @@ const CardEditorView = forwardRef<CardEditorHandle, {
                     border: "1px solid",
                     borderColor: "divider",
                     borderRadius: 1,
-                    overflow: "hidden"
+                    overflow: "hidden",
+                    bgcolor: "background.paper"
                   }}>
-                  {(["readonly", "edit"] as const).map((p) => (
-                    <Box
-                      key={p}
-                      onClick={() => handlePageChange(p)}
+                  <Tooltip title="只读">
+                    <IconButton
+                      size="small"
+                      onClick={() => handlePageChange("readonly")}
                       sx={{
-                        px: 1.2,
-                        py: 0.4,
-                        fontSize: "0.75rem",
-                        cursor: "pointer",
-                        userSelect: "none",
-                        color: editorPage === p ? "primary.main" : "text.secondary",
-                        bgcolor: editorPage === p ? "action.selected" : "transparent",
+                        p: 0.5,
+                        borderRadius: 0,
+                        color: editorPage === "readonly" ? "primary.main" : "text.secondary",
+                        bgcolor: editorPage === "readonly" ? "action.selected" : "transparent",
                         "&:hover": { bgcolor: "action.hover" }
                       }}>
-                      {p === "readonly" ? "只读" : "编辑"}
-                    </Box>
-                  ))}
+                      <VisibilityRoundedIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="编辑">
+                    <IconButton
+                      size="small"
+                      onClick={() => handlePageChange("edit")}
+                      sx={{
+                        p: 0.5,
+                        borderRadius: 0,
+                        color: editorPage === "edit" ? "primary.main" : "text.secondary",
+                        bgcolor: editorPage === "edit" ? "action.selected" : "transparent",
+                        "&:hover": { bgcolor: "action.hover" }
+                      }}>
+                      <EditNoteRoundedIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
                 </Box>
               </Box>
 
@@ -246,7 +260,7 @@ const CardEditorView = forwardRef<CardEditorHandle, {
                     flex: 1,
                     minHeight: 0,
                     border: "1.5px dashed",
-                    borderColor: "divider",
+                    borderColor: (t) => t.custom.borderStrong,
                     borderRadius: 1,
                     display: "flex",
                     alignItems: "center",
@@ -278,10 +292,10 @@ const CardEditorView = forwardRef<CardEditorHandle, {
                           transform: "translateX(-50%)",
                           px: 1,
                           py: 0.25,
-                          borderRadius: 0.5,
+                          borderRadius: 1,
                           bgcolor: "background.paper",
                           color: "text.secondary",
-                          fontSize: "0.7rem",
+                          fontSize: "0.75rem",
                           boxShadow: (t) => t.custom.cardShadow
                         }}>
                         点击更换图片

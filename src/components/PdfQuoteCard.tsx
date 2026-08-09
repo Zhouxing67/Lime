@@ -2,10 +2,11 @@ import { Box } from "@mui/material"
 
 import { flowPdfQuote } from "../utils"
 
-/** The reading-style quote card for PDF-sourced text (placed cards): a 60ch
- *  column on a soft background with the primary accent bar at the text height.
- *  flowPdfQuote reflows the PDF extraction (hyphenation rejoin + per-line
- *  breaks → spaces, paragraphs kept) so the quote reads as a natural paragraph.
+/** The reading-style quote card for PDF-sourced text (placed cards): a soft
+ *  background block with the primary accent bar at the text height, filling
+ *  whatever container it sits in. flowPdfQuote reflows the PDF extraction
+ *  (hyphenation rejoin + per-line breaks → spaces, paragraphs kept) so the
+ *  quote reads as a natural paragraph.
  */
 export default function PdfQuoteCard({
   text,
