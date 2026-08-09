@@ -1,5 +1,6 @@
 import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded"
 import DriveFileMoveOutlinedIcon from "@mui/icons-material/DriveFileMoveOutlined"
+import EditRoundedIcon from "@mui/icons-material/EditRounded"
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
 import FileCopyOutlinedIcon from "@mui/icons-material/FileCopyOutlined"
 import PlaylistAddCheckRoundedIcon from "@mui/icons-material/PlaylistAddCheckRounded"
@@ -12,6 +13,9 @@ import type { DisplayCard } from "../types"
 import { prettyUrl } from "../utils"
 
 interface ItemCardOperationsProps {
+  /** Open the card in the workspace editor (grid-hover → workspace EDIT). */
+  onEdit?: (id: string) => void
+
   item: DisplayCard
   inReview?: boolean
   mastered?: boolean
@@ -31,6 +35,7 @@ export default function ItemCardOperations({
   mastered,
   readOnly,
   visible = false,
+  onEdit,
   onDelete,
   onToggleReview,
   onReReview,
@@ -54,6 +59,18 @@ export default function ItemCardOperations({
           pointerEvents: visible ? "auto" : "none",
           transition: "opacity 0.2s"
         }}>
+        {onEdit && !readOnly && (
+          <Tooltip title="编辑">
+            <IconButton
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation()
+                onEdit(item.id)
+              }}>
+              <EditRoundedIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        )}
         <Tooltip title={copied ? "已复制" : "复制内容"}>
           <IconButton
             size="small"

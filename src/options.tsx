@@ -2243,6 +2243,10 @@ export default function OptionsPage() {
     reviewItemIds,
     masteredItemIds,
     onOpenDialog: setDialogCard,
+    onEdit: (id: string) => {
+      const card = displayCardsUnfiltered.find((c) => c.id === id)
+      if (card) setCardWorkspace({ view: "edit", card })
+    },
     onToggleReview: handleToggleReview,
     onReReview: handleReReview,
     onCopyToProject: (id: string, anchor: HTMLElement) => {
