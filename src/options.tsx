@@ -502,6 +502,7 @@ export default function OptionsPage() {
 
   // The review / todo / backup views' own state (filters, selection, edit flow).
   const reviewView = useReviewView()
+  const { setReviewTitlePending: reviewSetTitlePending } = reviewView
   const {
     todoFilter,
     setTodoFilter,
@@ -521,13 +522,11 @@ export default function OptionsPage() {
   } = useTodoView({ allTodos, navigate })
   const {
     backupSelectedIds,
-    setBackupSelectedIds,
     backupScope,
     setBackupScope,
     backupKeyword,
     setBackupKeyword,
     backupSelectedPdfIds,
-    setBackupSelectedPdfIds,
     handleBackupToggleSelect,
     handleBackupSelectAll
   } = useBackupView({ projects, pdfs })
@@ -841,7 +840,7 @@ export default function OptionsPage() {
 
       // If no title, prompt for one
       if (!card.title) {
-        reviewView.setReviewTitlePending(itemId)
+        reviewSetTitlePending(itemId)
         return
       }
 
@@ -850,7 +849,7 @@ export default function OptionsPage() {
       setReviewItemIds((prev) => new Set(prev).add(itemId))
       setSnackbarMsg("已加入复习")
     },
-    [allProjectCardsUnfiltered, reviewItemIds, setReviewItemIds, reviewView]
+    [allProjectCardsUnfiltered, reviewItemIds, setReviewItemIds, reviewSetTitlePending]
   )
 
   const handleReReview = useCallback(
@@ -2651,7 +2650,7 @@ export default function OptionsPage() {
 
               <DialogShell
                 open={Boolean(reviewView.reviewTitlePending)}
-                onClose={() => reviewView.setReviewTitlePending(null)}
+                onClose={() => reviewSetTitlePending(null)}
                 title="加入复习"
                 maxWidth="xs"
                 confirmLabel="加入复习"
@@ -2683,7 +2682,7 @@ export default function OptionsPage() {
                             console.warn("[lime] addReview:", e)
                           }
                         }
-                        reviewView.setReviewTitlePending(null)
+                        reviewSetTitlePending(null)
                         reviewView.setReviewTitleDraft("")
                         // The useAppData effect reloads the review states when
                         // reviewsVersion bumps (the _dbr broadcast also does).

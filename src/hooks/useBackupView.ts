@@ -47,13 +47,11 @@ export function useBackupView({
 
   return {
     backupSelectedIds,
-    setBackupSelectedIds,
     backupScope,
     setBackupScope,
     backupKeyword,
     setBackupKeyword,
     backupSelectedPdfIds,
-    setBackupSelectedPdfIds,
     handleBackupToggleSelect,
     handleBackupSelectAll
   }

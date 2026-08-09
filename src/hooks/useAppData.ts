@@ -276,6 +276,28 @@ export function useAppData({
     []
   )
 
+  // Periodic lite-count refresh: badges catch time-passed-due cards every
+  // minute + on visibility/focus; the heavy review reload only matters while
+  // the review view is visible.
+  useEffect(() => {
+    const run = () => {
+      refreshLiteCounts()
+      if (sidebarTabRef.current === "review") setReviewsVersion((v) => v + 1)
+    }
+    const onVisible = () => {
+      if (!document.hidden) run()
+    }
+    run()
+    const t = window.setInterval(run, 60000)
+    document.addEventListener("visibilitychange", onVisible)
+    window.addEventListener("focus", run)
+    return () => {
+      window.clearInterval(t)
+      document.removeEventListener("visibilitychange", onVisible)
+      window.removeEventListener("focus", run)
+    }
+  }, [refreshLiteCounts, sidebarTabRef, setReviewsVersion])
+
   // ---- the cross-context broadcast listener ----
   useEffect(() => {
     const onChange = (
