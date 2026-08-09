@@ -40,6 +40,7 @@ export default function CardEditorView({
   onSaveDraft: (values: CardEditorValues) => void
   onDiscard: () => void
 }) {
+  const [busyAction, setBusyAction] = useState<"save" | "draft" | null>(null)
   const [title, setTitle] = useState(initial.title ?? "")
   const [content, setContent] = useState(initial.content ?? "")
   const [image, setImage] = useState(initial.image ?? "")
@@ -54,6 +55,18 @@ export default function CardEditorView({
   }, [initial.title, initial.content, initial.image, initial.comment])
 
   const values: CardEditorValues = { title, content, image, comment }
+
+  const run = async (
+    action: "save" | "draft",
+    fn: () => void | Promise<void>
+  ) => {
+    setBusyAction(action)
+    try {
+      await fn()
+    } finally {
+      setBusyAction(null)
+    }
+  }
 
   const sectionLabel = (label: string) => (
     <Typography
@@ -96,7 +109,13 @@ export default function CardEditorView({
         variant="standard"
         sx={{
           "& .MuiInputBase-root": { fontSize: "1.25rem" },
-          "& .MuiInputBase-root::before": { display: "none" }
+          "& .MuiInputBase-root::before": {
+            borderBottom: "1px solid",
+            borderColor: "divider"
+          },
+          "& .MuiInputBase-root:hover:not(.Mui-disabled)::before": {
+            borderBottomColor: "text.secondary"
+          }
         }}
       />
 
@@ -202,14 +221,26 @@ export default function CardEditorView({
       />
 
       <Box sx={{ display: "flex", gap: 1, justifyContent: "flex-end", mt: 3 }}>
-        <Button size="small" color="inherit" onClick={onDiscard}>
+        <Button
+          size="small"
+          color="inherit"
+          onClick={onDiscard}
+          disabled={busyAction !== null}>
           丢弃
         </Button>
-        <Button size="small" onClick={() => onSaveDraft(values)}>
+        <Button
+          size="small"
+          onClick={() => run("draft", () => onSaveDraft(values))}
+          disabled={busyAction !== null}>
           存草稿
         </Button>
-        <Button size="small" variant="contained" onClick={() => onSave(values)}>
-          保存
+        <Button
+          size="small"
+          variant="contained"
+          onClick={() => run("save", () => onSave(values))}
+          disabled={busyAction !== null}
+          sx={{ minWidth: 76 }}>
+          {busyAction === "save" ? "保存中…" : "保存"}
         </Button>
       </Box>
     </Box>

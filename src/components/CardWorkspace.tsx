@@ -65,8 +65,10 @@ export default function CardWorkspace({
                   py: 0.4,
                   fontSize: "0.75rem",
                   cursor: "pointer",
+                  userSelect: "none",
                   color: createType === t ? "primary.main" : "text.secondary",
                   bgcolor: createType === t ? "action.selected" : "transparent",
+                  fontWeight: createType === t ? 600 : 400,
                   "&:hover": { bgcolor: "action.hover" }
                 }}>
                 {t === "text" ? "文本" : "图片"}
