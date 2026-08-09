@@ -15,7 +15,7 @@ import {
   insertMarkdownSyntax,
   type MarkdownTool
 } from "../utils/markdownEditor"
-import { rejoinPdfHyphens } from "../utils"
+import { flowPdfQuote } from "../utils"
 
 export interface CardEditorValues {
   title?: string
@@ -288,7 +288,7 @@ const CardEditorView = forwardRef<CardEditorHandle, {
                     bgcolor: (t) => t.custom.surface2,
                     borderRadius: 1,
                     p: 1,
-                    overflow: "auto"
+                    overflow: "hidden"
                   }}>
                   <img
                     src={readonlyImage}
@@ -307,24 +307,35 @@ const CardEditorView = forwardRef<CardEditorHandle, {
                     minHeight: 0,
                     overflow: "auto",
                     display: "flex",
+                    alignItems: "flex-start",
                     justifyContent: "center"
                   }}>
                   <Box
                     sx={{
+                      display: "flex",
+                      gap: 1.5,
                       width: "100%",
                       maxWidth: "60ch",
-                      py: 2,
-                      pl: 2,
-                      borderLeft: "4px solid",
-                      borderLeftColor: "primary.main",
+                      my: 2,
+                      p: 2,
+                      bgcolor: "action.hover",
+                      borderRadius: 1,
                       color: "text.primary",
                       fontSize: "0.95rem",
                       lineHeight: 1.6,
                       whiteSpace: "pre-wrap",
-                      wordBreak: "break-word",
-                      textAlign: "justify"
+                      wordBreak: "break-word"
                     }}>
-                    {rejoinPdfHyphens(readonlyText)}
+                    <Box
+                      sx={{
+                        width: 3,
+                        alignSelf: "stretch",
+                        borderRadius: 1,
+                        bgcolor: "primary.main",
+                        flexShrink: 0
+                      }}
+                    />
+                    <Box sx={{ minWidth: 0 }}>{flowPdfQuote(readonlyText)}</Box>
                   </Box>
                 </Box>
               ) : (
@@ -347,34 +358,6 @@ const CardEditorView = forwardRef<CardEditorHandle, {
             </Box>
           ) : (
             <>
-              {mode === "create" && type === "image" && (
-                <>
-                  {sectionGap}
-                  <Box
-                    onClick={() => fileRef.current?.click()}
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 0.75,
-                      p: 1.25,
-                      border: "1.5px dashed",
-                      borderColor: "divider",
-                      borderRadius: 1,
-                      color: "text.secondary",
-                      cursor: "pointer",
-                      "&:hover": {
-                        borderColor: "primary.main",
-                        color: "primary.main"
-                      }
-                    }}>
-                    <AddPhotoAlternateRoundedIcon sx={{ fontSize: 18 }} />
-                    <Typography sx={{ fontSize: "0.85rem" }}>
-                      点击上传图片
-                    </Typography>
-                  </Box>
-                </>
-              )}
               {sectionGap}
               <Box
                 sx={{

@@ -12,6 +12,7 @@ import {
   dueLabel,
   dueStatus,
   extractMarkdownImages,
+  flowPdfQuote,
   isTodoComplete,
   markdownCompletedCount,
   markdownTaskCount,
@@ -486,5 +487,21 @@ describe("rejoinPdfHyphens", () => {
   it("preserves real mid-line hyphens and paragraph breaks", () => {
     expect(rejoinPdfHyphens("state-of-the-art")).toBe("state-of-the-art")
     expect(rejoinPdfHyphens("one\n\ntwo")).toBe("one\n\ntwo")
+  })
+})
+
+describe("flowPdfQuote", () => {
+  it("rejoins hyphenation + collapses PDF line breaks into spaces", () => {
+    expect(
+      flowPdfQuote("impor-\ntant words\non two lines")
+    ).toBe("important words on two lines")
+  })
+
+  it("keeps the paragraph breaks (blank lines)", () => {
+    expect(flowPdfQuote("line one\n\nline two")).toBe("line one\n\nline two")
+  })
+
+  it("trims the edges", () => {
+    expect(flowPdfQuote("\n  hello\n")).toBe("hello")
   })
 })

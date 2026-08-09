@@ -22,6 +22,21 @@ export function rejoinPdfHyphens(text: string): string {
     .replace(/(\p{L})[\-\u2010\u2011](\r?\n)(\p{L})/gu, "$1$3")
 }
 
+/** Reflow a PDF-extracted quote for natural web reading: rejoin the hyphenation
+ *  marks, then collapse the PDF's per-line breaks into spaces while keeping the
+ *  paragraph breaks (blank lines) — the text flows into a normal paragraph at
+ *  the reading column width instead of keeping the PDF's narrow line lengths. */
+export function flowPdfQuote(text: string): string {
+  // Keep the paragraph breaks via a placeholder so the single-break → space
+  // pass cannot swallow them.
+  return rejoinPdfHyphens(text)
+    .replace(/\r?\n[ \t]*\r?\n/g, "\u0000")
+    .replace(/[ \t]*\r?\n[ \t]*/g, " ")
+    .replace(/\u0000/g, "\n\n")
+    .replace(/ {2,}/g, " ")
+    .trim()
+}
+
 export function buildMergedContent(
   items: { title?: string; content?: string }[],
   separator: MergeSeparator
