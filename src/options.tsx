@@ -44,6 +44,7 @@ import EmptyState from "./components/EmptyState"
 import FilterChips from "./components/FilterChips"
 import FooterBar from "./components/FooterBar"
 import CardWorkspace from "./components/CardWorkspace"
+import ItemDialog from "./components/ItemDialog"
 import type { CardEditorValues } from "./components/CardEditorView"
 import CopyCardsMenu from "./components/CopyCardsMenu"
 import MergeConfirmDialog from "./components/MergeConfirmDialog"
@@ -148,6 +149,7 @@ const ITEMS_PER_PAGE = 20
 export default function OptionsPage() {
   const [allProjectCards, setAllProjectCards] = useState<ProjectCard[]>([])
   const [keyword, setKeyword] = useState("")
+  const [dialogCard, setDialogCard] = useState<DisplayCard | null>(null)
   const [cardWorkspace, setCardWorkspace] = useState<{
     view: "view" | "edit" | "create"
     card: DisplayCard | null
@@ -1830,6 +1832,34 @@ export default function OptionsPage() {
     () => scopeCards.map(resolveDisplay),
     [scopeCards, resolveDisplay]
   )
+  // The card reader navigates the CURRENT view scope: review dates, full
+  // search hits, or the visible section/project scope.
+  const navList =
+    sidebarTab === "review" && reviewDateFilter
+      ? filteredDateItems
+      : keyword || dateRange
+        ? displayCards
+        : scopeItems
+
+  const handleNavigate = useCallback(
+    (direction: "prev" | "next") => {
+      if (!dialogCard) return
+      const idx = navList.findIndex((i) => i.id === dialogCard.id)
+      if (idx === -1) return
+      const nextIdx = direction === "prev" ? idx - 1 : idx + 1
+      if (nextIdx < 0 || nextIdx >= navList.length) return
+      setDialogCard(navList[nextIdx])
+    },
+    [dialogCard, navList]
+  )
+
+  const navIndex = dialogCard
+    ? navList.findIndex((i) => i.id === dialogCard.id)
+    : -1
+  const hasPrev = navIndex > 0
+  const hasNext = navIndex >= 0 && navIndex < navList.length - 1
+
+
 
   // Full breadcrumb path: project / L1 / L2
   const sectionPath = useMemo(() => {
@@ -2212,7 +2242,7 @@ export default function OptionsPage() {
     selectedIds,
     reviewItemIds,
     masteredItemIds,
-    onOpenDialog: handleOpenCardWorkspace,
+    onOpenDialog: setDialogCard,
     onToggleReview: handleToggleReview,
     onReReview: handleReReview,
     onCopyToProject: (id: string, anchor: HTMLElement) => {
@@ -3013,6 +3043,16 @@ export default function OptionsPage() {
 
               </Container>
              )}
+
+              <ItemDialog
+                item={dialogCard}
+                open={Boolean(dialogCard)}
+                readOnly={sidebarTab === "review"}
+                hasPrev={hasPrev}
+                hasNext={hasNext}
+                onClose={() => setDialogCard(null)}
+                onNavigate={handleNavigate}
+              />
 
               <DialogShell
                 open={Boolean(reviewTitlePending)}
