@@ -129,21 +129,6 @@ const CardEditorView = forwardRef<CardEditorHandle, {
     [activeField, content, comment, values]
   )
 
-  // A full-width surface2 band between the editable regions — the strong
-  // boundary (no labels; the placeholders carry the region meaning).
-  const sectionGap = (
-    <Box
-      sx={{
-        height: 10,
-        mx: -3,
-        bgcolor: (t) => t.custom.surface2,
-        borderTop: "1px solid",
-        borderBottom: "1px solid",
-        borderColor: "divider"
-      }}
-    />
-  )
-
   const handlePickImage = (file: File) => {
     const reader = new FileReader()
     reader.onload = () => setImage(reader.result as string)
@@ -162,97 +147,98 @@ const CardEditorView = forwardRef<CardEditorHandle, {
         flexDirection: "column",
         overflow: "auto"
       }}>
-      {/* title-style 摘要: 20px/600 + single bottom hairline, no label */}
-      <TextField
-        fullWidth
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder="未命名卡片"
-        variant="standard"
-        sx={{
-          "& .MuiInputBase-root": {
-            fontSize: "1.25rem",
-            fontWeight: 600,
-            fontFamily: (t) => t.custom.serif
-          },
-          "& .MuiInputBase-root::before": {
-            borderBottom: "1px solid",
-            borderColor: "divider"
-          },
-          "& .MuiInputBase-root:hover:not(.Mui-disabled)::before": {
-            borderBottomColor: "text.secondary"
-          }
-        }}
-      />
+      {/* Title row: 摘要 (flex:1) + the image-page toggle (right, same row) —
+          the title's underline is the only divider to the editor below. */}
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+        <TextField
+          fullWidth
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="未命名卡片"
+          variant="standard"
+          sx={{
+            flex: 1,
+            "& .MuiInputBase-root": {
+              fontSize: "1.25rem",
+              fontWeight: 600,
+              fontFamily: (t) => t.custom.serif
+            },
+            "& .MuiInputBase-root::before": {
+              borderBottom: "1px solid",
+              borderColor: "divider"
+            },
+            "& .MuiInputBase-root:hover:not(.Mui-disabled)::before": {
+              borderBottomColor: "text.secondary"
+            }
+          }}
+        />
+        {showImagePages && (
+          <Box
+            sx={{
+              display: "flex",
+              flexShrink: 0,
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 1,
+              overflow: "hidden",
+              bgcolor: "background.paper"
+            }}>
+            <Tooltip title="只读">
+              <IconButton
+                size="small"
+                onClick={() => handlePageChange("readonly")}
+                sx={{
+                  p: 0.5,
+                  borderRadius: 0,
+                  color: editorPage === "readonly" ? "primary.main" : "text.secondary",
+                  bgcolor: editorPage === "readonly" ? "action.selected" : "transparent",
+                  "&:hover": { bgcolor: "action.hover" }
+                }}>
+                <VisibilityRoundedIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="编辑">
+              <IconButton
+                size="small"
+                onClick={() => handlePageChange("edit")}
+                sx={{
+                  p: 0.5,
+                  borderRadius: 0,
+                  color: editorPage === "edit" ? "primary.main" : "text.secondary",
+                  bgcolor: editorPage === "edit" ? "action.selected" : "transparent",
+                  "&:hover": { bgcolor: "action.hover" }
+                }}>
+                <EditNoteRoundedIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        )}
+      </Box>
 
       {type === "text" && (
-        <>
-          {sectionGap}
-          <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-            <MarkdownEditor
-              value={content}
-              onChange={setContent}
-              view={view}
-              autoFocus
-              placeholder="在此处输入文本卡片内容，支持 Markdown 与公式"
-              registerRef={(el) => {
-                markdownInputRef.current = el
-              }}
-              onFocusChange={(f) => {
-                setFocused(f)
-                onFocusChange?.(f)
-                if (f) setActiveField("content")
-              }}
-            />
-          </Box>
-        </>
+        <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+          <MarkdownEditor
+            value={content}
+            onChange={setContent}
+            view={view}
+            autoFocus
+            placeholder="在此处输入文本卡片内容，支持 Markdown 与公式"
+            registerRef={(el) => {
+              markdownInputRef.current = el
+            }}
+            onFocusChange={(f) => {
+              setFocused(f)
+              onFocusChange?.(f)
+              if (f) setActiveField("content")
+            }}
+          />
+        </Box>
       )}
 
       {(type === "image" || type === "placed") && (
         <>
           {showImagePages && (
             <>
-              <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 1 }}>
-                <Box
-                  sx={{
-                    display: "flex",
-                    border: "1px solid",
-                    borderColor: "divider",
-                    borderRadius: 1,
-                    overflow: "hidden",
-                    bgcolor: "background.paper"
-                  }}>
-                  <Tooltip title="只读">
-                    <IconButton
-                      size="small"
-                      onClick={() => handlePageChange("readonly")}
-                      sx={{
-                        p: 0.5,
-                        borderRadius: 0,
-                        color: editorPage === "readonly" ? "primary.main" : "text.secondary",
-                        bgcolor: editorPage === "readonly" ? "action.selected" : "transparent",
-                        "&:hover": { bgcolor: "action.hover" }
-                      }}>
-                      <VisibilityRoundedIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="编辑">
-                    <IconButton
-                      size="small"
-                      onClick={() => handlePageChange("edit")}
-                      sx={{
-                        p: 0.5,
-                        borderRadius: 0,
-                        color: editorPage === "edit" ? "primary.main" : "text.secondary",
-                        bgcolor: editorPage === "edit" ? "action.selected" : "transparent",
-                        "&:hover": { bgcolor: "action.hover" }
-                      }}>
-                      <EditNoteRoundedIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                </Box>
-              </Box>
-
               {editorPage === "readonly" && (
                 <Box
                   sx={{
@@ -313,31 +299,28 @@ const CardEditorView = forwardRef<CardEditorHandle, {
           )}
 
           {(!showImagePages || editorPage === "edit") && (
-            <>
-              {sectionGap}
-              <Box
-                sx={{
-                  flex: 1,
-                  minHeight: 0,
-                  display: "flex",
-                  flexDirection: "column"
-                }}>
-                <MarkdownEditor
-                  value={comment}
-                  onChange={setComment}
-                  view={view}
-                  placeholder="在此处输入卡片备注…"
-                  registerRef={(el) => {
-                    markdownInputRef.current = el
-                  }}
-                  onFocusChange={(f) => {
-                    setFocused(f)
-                    onFocusChange?.(f)
-                    if (f) setActiveField("comment")
-                  }}
-                />
-              </Box>
-            </>
+            <Box
+              sx={{
+                flex: 1,
+                minHeight: 0,
+                display: "flex",
+                flexDirection: "column"
+              }}>
+              <MarkdownEditor
+                value={comment}
+                onChange={setComment}
+                view={view}
+                placeholder="在此处输入卡片备注…"
+                registerRef={(el) => {
+                  markdownInputRef.current = el
+                }}
+                onFocusChange={(f) => {
+                  setFocused(f)
+                  onFocusChange?.(f)
+                  if (f) setActiveField("comment")
+                }}
+              />
+            </Box>
           )}
         </>
       )}
