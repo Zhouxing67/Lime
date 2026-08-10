@@ -76,6 +76,7 @@ interface PdfViewRouterProps {
   pdfs: PdfFile[]
   countByPdf: Record<string, number>
   handleOpenPdf: (id: string) => void
+  onOpenUrl?: () => void
   pdfFileInputRef: React.RefObject<HTMLInputElement | null>
   handleDeletePdf: (pdf: PdfFile) => void
   handleNewTopic: (name: string) => void
@@ -213,6 +214,7 @@ function PdfViewRouter(props: PdfViewRouterProps) {
     pdfs,
     countByPdf,
     handleOpenPdf,
+    onOpenUrl,
     pdfFileInputRef,
     handleDeletePdf,
     handleNewTopic,
@@ -235,6 +237,7 @@ function PdfViewRouter(props: PdfViewRouterProps) {
             countByPdf={countByPdf}
             onOpenPdf={handleOpenPdf}
             onNewPdf={() => pdfFileInputRef.current?.click()}
+            onOpenUrl={onOpenUrl}
             onDeletePdf={handleDeletePdf}
             topics={topics}
             onNewTopic={handleNewTopic}

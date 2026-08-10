@@ -55,6 +55,7 @@ import NewProjectDialog from "./components/NewProjectDialog"
 import ProjectHub from "./components/ProjectHub"
 import BackupView from "./components/BackupView"
 import PdfHub from "./components/PdfHub"
+import OpenPdfUrlDialog from "./components/OpenPdfUrlDialog"
 import PdfCardsPanel from "./components/PdfCardsPanel"
 import PdfSearchPanel from "./components/PdfSearchPanel"
 import { useAppData } from "./hooks/useAppData"
@@ -143,6 +144,7 @@ import type {
   TodoCard,
   TodoFilter
 } from "./types"
+import { base64ToBytes } from "./utils"
 import { sendMessage } from "./types/messages"
 import { DAY_MS, RATING_META, applyBadge, buildMergedContent, cloneProjectCard, compareCards, computeItemHash, createTodoCard, dueStatus, isTodoComplete, sortAllCards, toggleMarkdownTask, todayLocalDate } from "./utils"
 import { resolveCardContent, stripPlacementContent } from "./utils/cards"
@@ -1469,6 +1471,48 @@ export default function OptionsPage() {
     await deletePdfCards(cards)
   }, [])
 
+  const [pdfUrlOpen, setPdfUrlOpen] = useState(false)
+  const [pdfUrlLoading, setPdfUrlLoading] = useState(false)
+
+  // Best-effort web-PDF open: the background SW fetches the URL (host
+  // permission <all_urls> — no CORS), validates the %PDF magic, returns bytes.
+  const handleOpenPdfFromUrl = useCallback(
+    async (url: string) => {
+      setPdfUrlLoading(true)
+      try {
+        const res = await sendMessage<{
+          ok: boolean
+          name?: string
+          body?: string
+          error?: string
+        }>({ kind: "fetch-pdf", url })
+        if (!res?.ok) {
+          setSnackbarMsg(res?.error ?? "获取 PDF 失败")
+          return
+        }
+        const bytes = new Blob([base64ToBytes(res.body ?? "")], {
+          type: "application/pdf"
+        })
+        const pdf: PdfFile = {
+          id: crypto.randomUUID(),
+          name: res.name ?? "web.pdf",
+          bytes,
+          pageCount: 0,
+          addedAt: Date.now()
+        }
+        const id = await addPdf(pdf)
+        setPdfUrlOpen(false)
+        openPdf(id)
+        setSnackbarMsg("已从 URL 打开 PDF")
+      } catch (e) {
+        setSnackbarMsg(`获取 PDF 失败：${e}`)
+      } finally {
+        setPdfUrlLoading(false)
+      }
+    },
+    [openPdf]
+  )
+
   const handleOpenPdfFile = useCallback(
     async (file: File) => {
       try {
@@ -1927,6 +1971,7 @@ export default function OptionsPage() {
           onTodoFilterChange={setTodoFilter}
           onOpenPdfClick={() => pdfFileInputRef.current?.click()}
           onOpenPdf={handleOpenPdf}
+          onOpenUrl={() => setPdfUrlOpen(true)}
           onWidthChange={(w) => setDrawerWidth(w)}
           onNewProjectClick={() => setCreateDialogOpen(true)}
           backupScope={backupScope}
@@ -2329,6 +2374,7 @@ export default function OptionsPage() {
                 pdfs,
                 countByPdf,
                 handleOpenPdf,
+                onOpenUrl: () => setPdfUrlOpen(true),
                 pdfFileInputRef,
                 handleDeletePdf,
                 handleNewTopic,
@@ -2613,6 +2659,13 @@ export default function OptionsPage() {
                 onClose={() => setSettingsOpen(false)}
                 preset={preset}
                 onPresetChange={(name) => setPreset(name)}
+              />
+
+              <OpenPdfUrlDialog
+                open={pdfUrlOpen}
+                loading={pdfUrlLoading}
+                onClose={() => setPdfUrlOpen(false)}
+                onOpen={handleOpenPdfFromUrl}
               />
 
               <Toast

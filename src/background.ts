@@ -171,6 +171,40 @@ chrome.runtime.onMessage.addListener((raw: any, _sender, sendResponse) => {
       chrome.tabs.captureVisibleTab((dataUrl) => sendResponse(dataUrl))
       return true
     }
+    case "fetch-pdf": {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 60000)
+      fetch(msg.url, { signal: controller.signal })
+        .then(async (res) => {
+          clearTimeout(timer)
+          if (!res.ok) {
+            sendResponse({ ok: false, error: `下载失败：HTTP ${res.status}` })
+            return
+          }
+          const buf = await res.arrayBuffer()
+          // PDF magic check — best-effort: the URL must point at a direct PDF.
+          const head = new TextDecoder("ascii").decode(buf.slice(0, 4))
+          if (!buf.byteLength || head !== "%PDF") {
+            sendResponse({
+              ok: false,
+              error: "该 URL 不是直接 PDF 资源（尽力而为：部分站点需登录或防盗链）"
+            })
+            return
+          }
+          const name =
+            msg.url.split("/").pop()?.split("?")[0] || "web.pdf"
+          sendResponse({
+            ok: true,
+            name,
+            body: bytesToBase64(new Uint8Array(buf))
+          })
+        })
+        .catch((e) => {
+          clearTimeout(timer)
+          sendResponse({ ok: false, error: `下载失败：${e?.message ?? e}` })
+        })
+      return true
+    }
     default: {
       sendResponse({ ok: false, error: `Unknown message kind: ${msg.kind}` })
       return false

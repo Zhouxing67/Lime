@@ -5,6 +5,7 @@ import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
 import EditRoundedIcon from "@mui/icons-material/EditRounded"
 import DriveFileMoveRoundedIcon from "@mui/icons-material/DriveFileMoveRounded"
 import FolderRoundedIcon from "@mui/icons-material/FolderRounded"
+import LinkRoundedIcon from "@mui/icons-material/LinkRounded"
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
 import {
   Box,
@@ -33,6 +34,7 @@ interface PdfHubProps {
   countByPdf: Record<string, number>
   onOpenPdf: (id: string) => void
   onNewPdf: () => void
+  onOpenUrl?: () => void
   onDeletePdf: (pdf: PdfFile) => void
   keyword?: string
   /** Read-only multi-select mode (backup view): click toggles selection. */
@@ -52,6 +54,7 @@ export default function PdfHub({
   countByPdf,
   onOpenPdf,
   onNewPdf,
+  onOpenUrl,
   onDeletePdf,
   keyword = "",
   selectable,
@@ -118,13 +121,24 @@ export default function PdfHub({
         }
         action={
           !selectable ? (
-            <Button
-              variant="contained"
-              startIcon={<AddRoundedIcon />}
-              onClick={onNewPdf}
-              sx={{ borderRadius: 1 }}>
-              打开 PDF
-            </Button>
+            <Stack direction="row" spacing={1}>
+              <Button
+                variant="contained"
+                startIcon={<AddRoundedIcon />}
+                onClick={onNewPdf}
+                sx={{ borderRadius: 1 }}>
+                打开 PDF
+              </Button>
+              {onOpenUrl && (
+                <Button
+                  variant="outlined"
+                  startIcon={<LinkRoundedIcon />}
+                  onClick={onOpenUrl}
+                  sx={{ borderRadius: 1 }}>
+                  从 URL 打开
+                </Button>
+              )}
+            </Stack>
           ) : undefined
         }
       />
@@ -382,11 +396,20 @@ export default function PdfHub({
           gap: 1.5
         }}>
         {!selectable && (
-          <DashedTile
-            icon={<AddRoundedIcon sx={{ fontSize: 26 }} />}
-            label="打开 PDF"
-            onClick={onNewPdf}
-          />
+          <>
+            <DashedTile
+              icon={<AddRoundedIcon sx={{ fontSize: 26 }} />}
+              label="打开 PDF"
+              onClick={onNewPdf}
+            />
+            {onOpenUrl && (
+              <DashedTile
+                icon={<LinkRoundedIcon sx={{ fontSize: 26 }} />}
+                label="从 URL 打开"
+                onClick={onOpenUrl}
+              />
+            )}
+          </>
         )}
         {shownPdfs.map((p) => {
           const isSelected = selectable ? selected?.(p.id) ?? false : false

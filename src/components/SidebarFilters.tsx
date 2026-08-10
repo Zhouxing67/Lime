@@ -2,6 +2,7 @@ import AddRoundedIcon from "@mui/icons-material/AddRounded"
 import CloudDownloadRoundedIcon from "@mui/icons-material/CloudDownloadRounded"
 import CloudUploadRoundedIcon from "@mui/icons-material/CloudUploadRounded"
 import FileUploadRoundedIcon from "@mui/icons-material/FileUploadRounded"
+import LinkRoundedIcon from "@mui/icons-material/LinkRounded"
 import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded"
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
 import {
@@ -38,6 +39,7 @@ interface SidebarFiltersProps {
   onTodoFilterChange: (filter: TodoFilter) => void
   onOpenPdfClick: () => void
   onOpenPdf: (id: string) => void
+  onOpenUrl?: () => void
   children?: ReactNode
   onReviewDateClick: (dateKey: string | null) => void
   onWidthChange: (w: number) => void
@@ -84,13 +86,15 @@ function PdfTab({
   pdfs,
   countByPdf,
   onOpenPdfClick,
-  onOpenPdf
+  onOpenPdf,
+  onOpenUrl
 }: {
   activePdfId: string | null
   pdfs: PdfFile[]
   countByPdf: Record<string, number>
   onOpenPdfClick: () => void
   onOpenPdf: (id: string) => void
+  onOpenUrl?: () => void
 }) {
   const [showAll, setShowAll] = useState(false)
   const RECENT_TOTAL = RECENT_TOTAL_SHARED
@@ -220,6 +224,38 @@ function PdfTab({
                 打开 PDF
               </Typography>
             </Stack>
+            {onOpenUrl && (
+              <Stack
+                direction="row"
+                alignItems="center"
+                spacing={1}
+                onClick={onOpenUrl}
+                sx={{
+                  px: 1.5,
+                  py: 0.75,
+                  borderTop: "1px solid",
+                  borderColor: "divider",
+                  cursor: "pointer",
+                  "&:hover": {
+                    bgcolor: "action.hover",
+                    "& .pdf-open-icon": { color: "primary.main" }
+                  }
+                }}>
+                <LinkRoundedIcon
+                  className="pdf-open-icon"
+                  sx={{
+                    fontSize: 16,
+                    color: "text.secondary",
+                    transition: "color 0.15s"
+                  }}
+                />
+                <Typography
+                  variant="body2"
+                  sx={{ fontSize: "0.8rem", color: "text.secondary", flex: 1 }}>
+                  从 URL 打开
+                </Typography>
+              </Stack>
+            )}
           </Well>
         </Box>
   )

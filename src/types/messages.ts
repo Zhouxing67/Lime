@@ -54,6 +54,13 @@ export interface CaptureVisibleTabMessage {
   kind: "capture-visible-tab"
 }
 
+/** Best-effort fetch of a web PDF's bytes through the background SW's
+ *  privileged fetch (host permission <all_urls> — no CORS). */
+export interface FetchPdfMessage {
+  kind: "fetch-pdf"
+  url: string
+}
+
 export type ExtensionMessage =
   | CaptureMessage
   | ToastMessage
@@ -63,6 +70,7 @@ export type ExtensionMessage =
   | ListProjectsMessage
   | AddProjectMessage
   | CaptureVisibleTabMessage
+  | FetchPdfMessage
 
 export function sendMessage<T = any>(msg: ExtensionMessage): Promise<T> {
   return new Promise((resolve, reject) => {
