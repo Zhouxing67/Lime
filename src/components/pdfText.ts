@@ -199,15 +199,24 @@ function nodeToDivIndex(node: Node | null, idx: TextLayerIndex): number {
   if (!el) return -1
   const direct = idx.divIndex.get(el)
   if (direct !== undefined) return direct
+  // Walk UP the ancestors: the selection endpoint can land inside a non-textDiv
+  // wrapper (a marked-content / link span that contains the text div, or a
+  // nested span) — find the nearest textDiv on the way to the layer root.
+  let cur = el.parentElement as HTMLElement | null
+  while (cur) {
+    const found = idx.divIndex.get(cur)
+    if (found !== undefined) return found
+    cur = cur.parentElement as HTMLElement | null
+  }
   if (el.tagName === "BR") {
-    let cur = el.nextElementSibling as HTMLElement | null
-    while (cur && !idx.divIndex.has(cur))
-      cur = cur.nextElementSibling as HTMLElement | null
-    if (cur) return idx.divIndex.get(cur)!
-    cur = el.previousElementSibling as HTMLElement | null
-    while (cur && !idx.divIndex.has(cur))
-      cur = cur.previousElementSibling as HTMLElement | null
-    return cur ? idx.divIndex.get(cur)! : -1
+    let next = el.nextElementSibling as HTMLElement | null
+    while (next && !idx.divIndex.has(next))
+      next = next.nextElementSibling as HTMLElement | null
+    if (next) return idx.divIndex.get(next)!
+    next = el.previousElementSibling as HTMLElement | null
+    while (next && !idx.divIndex.has(next))
+      next = next.previousElementSibling as HTMLElement | null
+    return next ? idx.divIndex.get(next)! : -1
   }
   return -1
 }

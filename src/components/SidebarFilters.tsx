@@ -4,6 +4,7 @@ import CloudUploadRoundedIcon from "@mui/icons-material/CloudUploadRounded"
 import FileUploadRoundedIcon from "@mui/icons-material/FileUploadRounded"
 import LinkRoundedIcon from "@mui/icons-material/LinkRounded"
 import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded"
+import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
 import EditRoundedIcon from "@mui/icons-material/EditRounded"
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
 import {
@@ -44,6 +45,7 @@ interface SidebarFiltersProps {
   onOpenPdf: (id: string) => void
   onOpenUrl?: () => void
   onRenamePdf?: (id: string, name: string) => void
+  onDeletePdf?: (pdf: PdfFile) => void
   children?: ReactNode
   onReviewDateClick: (dateKey: string | null) => void
   onWidthChange: (w: number) => void
@@ -92,7 +94,8 @@ function PdfTab({
   onOpenPdfClick,
   onOpenPdf,
   onOpenUrl,
-  onRenamePdf
+  onRenamePdf,
+  onDeletePdf
 }: {
   activePdfId: string | null
   pdfs: PdfFile[]
@@ -101,6 +104,7 @@ function PdfTab({
   onOpenPdf: (id: string) => void
   onOpenUrl?: () => void
   onRenamePdf?: (id: string, name: string) => void
+  onDeletePdf?: (pdf: PdfFile) => void
 }) {
   const [showAll, setShowAll] = useState(false)
   const [renamingPdf, setRenamingPdf] = useState<string | null>(null)
@@ -235,15 +239,26 @@ function PdfTab({
                     未同步
                   </Typography>
                 )}
-                <Typography
-                  variant="caption"
-                  sx={{
-                    fontSize: "0.66rem",
-                    color: "text.disabled",
-                    flexShrink: 0
-                  }}>
-                  {countByPdf[p.id] ?? 0}
-                </Typography>
+                {onDeletePdf && (
+                  <IconButton
+                    size="small"
+                    title="删除 PDF"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onDeletePdf(p)
+                    }}
+                    sx={{
+                      className: "pdf-rename",
+                      p: 0.25,
+                      color: "text.disabled",
+                      opacity: 0,
+                      flexShrink: 0,
+                      transition: "opacity 0.15s",
+                      "&:hover": { color: "error.main", bgcolor: "transparent" }
+                    }}>
+                    <DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />
+                  </IconButton>
+                )}
               </Box>
               )
             })}
@@ -332,6 +347,7 @@ export default function SidebarFilters({
   onOpenPdf,
   onOpenUrl,
   onRenamePdf,
+  onDeletePdf,
   children,
   onReviewDateClick,
   onWidthChange,
@@ -640,6 +656,7 @@ export default function SidebarFilters({
               onOpenPdf={onOpenPdf}
               onOpenUrl={onOpenUrl}
               onRenamePdf={onRenamePdf}
+              onDeletePdf={onDeletePdf}
             />
           ) : (
             /* Project tab content: tree + actions */

@@ -333,10 +333,16 @@ function PageView({
       }
       // Native selection drives the bar too (Medium-style follow).
       onTextSelectedRef.current?.(range.cloneRange())
-      const offsets = textLayerOffsets(tl, sel)
-      if (!offsets) return
+      // Character-level rects (range.getClientRects) — NOT the whole textDiv
+      // boxes, which snapped the highlight to full lines on per-line PDFs.
+      const holderRect = holder.getBoundingClientRect()
       const rects = mergeRects(
-        textLayerRects(tl, holder, offsets.start, offsets.end)
+        Array.from(range.getClientRects()).map((r) => ({
+          x: r.left - holderRect.left,
+          y: r.top - holderRect.top,
+          w: r.width,
+          h: r.height
+        }))
       )
       for (const r of rects) {
         const el = document.createElement("div")
