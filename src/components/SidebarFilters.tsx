@@ -276,6 +276,7 @@ export default function SidebarFilters({
   onTodoFilterChange,
   onOpenPdfClick,
   onOpenPdf,
+  onOpenUrl,
   children,
   onReviewDateClick,
   onWidthChange,
@@ -582,6 +583,7 @@ export default function SidebarFilters({
               countByPdf={countByPdf}
               onOpenPdfClick={onOpenPdfClick}
               onOpenPdf={onOpenPdf}
+              onOpenUrl={onOpenUrl}
             />
           ) : (
             /* Project tab content: tree + actions */

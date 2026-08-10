@@ -358,15 +358,23 @@ export default function PdfView({
     [clickedAnn]
   )
 
+  // Close the annotation menu with the focused MenuItem blurred — leaving the
+  // focus on a MuiModal descendant while aria-hidden blocks it triggers the
+  // "Blocked aria-hidden" a11y warning.
+  const closeAnnMenu = useCallback(() => {
+    ;(document.activeElement as HTMLElement | null)?.blur?.()
+    setClickedAnn(null)
+  }, [])
+
   const handleAnnotationDelete = useCallback(async () => {
     if (!clickedAnn) return
     try {
       await deleteAnnotationWithCard(clickedAnn.ann.id)
-      setClickedAnn(null)
+      closeAnnMenu()
     } catch (e) {
       console.warn("[lime] delete annotation failed:", e)
     }
-  }, [clickedAnn])
+  }, [clickedAnn, closeAnnMenu])
 
   // ---- PDF text search (moved to the right-sidebar panel via options) ----
 
@@ -809,7 +817,7 @@ export default function PdfView({
           top: clickedAnn?.pos.y ?? 0,
           left: clickedAnn?.pos.x ?? 0
         }}
-        onClose={() => setClickedAnn(null)}
+        onClose={closeAnnMenu}
         anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
         slotProps={{ paper: { sx: { py: 0.5, borderRadius: 1, minWidth: 168 } } }}>
         {clickedAnn?.ann.kind === "text" && (
@@ -848,7 +856,7 @@ export default function PdfView({
             onClick={() => {
               setFreetextText(clickedAnn.ann.text ?? "")
               setFreetextEdit(clickedAnn.ann)
-              setClickedAnn(null)
+              closeAnnMenu()
             }}
             sx={{ gap: 1, fontSize: "0.8rem" }}>
             <EditRoundedIcon sx={{ fontSize: 15 }} />
