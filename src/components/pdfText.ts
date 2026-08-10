@@ -160,20 +160,37 @@ interface TextLayerIndex {
   total: number
 }
 
+/** The rendered text spans of a text layer — the pdf.js TextLayer exposes
+ *  `textDivs`; the official TextLayerBuilder only exposes its `.div`, so the
+ *  spans are derived from the DOM (the builder's div holds the rendered spans). */
+function getTextDivs(textLayer: any): HTMLElement[] {
+  if (textLayer?.textDivs && textLayer.textDivs.length > 0) {
+    return textLayer.textDivs
+  }
+  const div = textLayer?.div as HTMLElement | undefined
+  if (div) {
+    return Array.from(
+      div.querySelectorAll(":scope > span, :scope .markedContent span")
+    ).filter(
+      (d) => d.textContent && d.textContent.length > 0
+    ) as HTMLElement[]
+  }
+  return []
+}
+
 /** Cached per-render index (WeakMap → auto-invalidated when the text layer is
  *  re-rendered/unmounted, covering zoom/rotate + lifecycle). */
-const indexCache = new WeakMap<TextLayer, TextLayerIndex>()
+const indexCache = new WeakMap<object, TextLayerIndex>()
 
-export function buildTextLayerIndex(textLayer: TextLayer): TextLayerIndex {
-  const divs = textLayer.textDivs
-  const strs = textLayer.textContentItemsStr
+export function buildTextLayerIndex(textLayer: any): TextLayerIndex {
+  const divs = getTextDivs(textLayer)
   const divIndex = new Map<HTMLElement, number>()
   const cumulative: number[] = []
   let acc = 0
   for (let i = 0; i < divs.length; i++) {
     divIndex.set(divs[i], i)
     cumulative.push(acc)
-    acc += strs[i]?.length ?? 0
+    acc += divs[i].textContent?.length ?? 0
   }
   return { divIndex, cumulative, total: acc }
 }
@@ -223,7 +240,7 @@ function nodeToDivIndex(node: Node | null, idx: TextLayerIndex): number {
 
 /** Map a text-layer selection to char offsets into the page's textContent. */
 export function textLayerOffsets(
-  textLayer: TextLayer,
+  textLayer: any,
   sel: Selection
 ): { start: number; end: number } | null {
   if (sel.isCollapsed || sel.rangeCount === 0) return null
@@ -257,13 +274,13 @@ export function textLayerOffsets(
 
 /** Holder-relative rects of the text spans covering [start, end). */
 export function textLayerRects(
-  textLayer: TextLayer,
+  textLayer: any,
   holder: HTMLElement,
   start: number,
   end: number
 ): PdfRect[] {
   const idx = getTextLayerIndex(textLayer)
-  const divs = textLayer.textDivs
+  const divs = getTextDivs(textLayer)
   if (idx.divIndex.size === 0 || end <= start) return []
   const holderRect = holder.getBoundingClientRect()
   const rects: PdfRect[] = []

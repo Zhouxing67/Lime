@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTheme } from "@mui/material/styles"
 
 import * as pdfjsLib from "pdfjs-dist"
+import { PDFPageView } from "pdfjs-dist/web/pdf_viewer.mjs"
+import { createPdfViewerShared } from "../pdf/pdfViewerShared"
 import Konva from "konva"
 
 import type { PdfAnnotation } from "../types"
@@ -69,7 +71,21 @@ const PAGE_RATIO = 0.75
 const FIT_RATIO = 1
 
 const TEXT_LAYER_CSS = `
-.pdf-textlayer {
+/* The official PDFPageView's page container — its canvasWrapper + textLayer +
+   annotationLayer live inside; the Lime's overlays stack above. */
+.pdf-pageview-container {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+.pdf-pageview-container .canvasWrapper {
+  position: absolute;
+  inset: 0;
+}
+.pdf-pageview-container .canvasWrapper canvas {
+  display: block;
+}
+.pdf-pageview-container .textLayer {
   color-scheme: only light;
   position: absolute;
   text-align: initial;
@@ -88,7 +104,7 @@ const TEXT_LAYER_CSS = `
   --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
   --min-font-size-inv: calc(1 / var(--min-font-size));
 }
-.pdf-textlayer :is(span, br) {
+.pdf-pageview-container .textLayer :is(span, br) {
   color: transparent;
   position: absolute;
   white-space: pre;
@@ -97,8 +113,8 @@ const TEXT_LAYER_CSS = `
   user-select: text;
   -webkit-user-drag: none;
 }
-.pdf-textlayer > :not(.markedContent),
-.pdf-textlayer .markedContent span:not(.markedContent) {
+.pdf-pageview-container .textLayer > :not(.markedContent),
+.pdf-pageview-container .textLayer .markedContent span:not(.markedContent) {
   z-index: 1;
   --font-height: 0;
   font-size: calc(var(--text-scale-factor) * var(--font-height));
@@ -106,9 +122,28 @@ const TEXT_LAYER_CSS = `
   --rotate: 0deg;
   transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
 }
-.pdf-textlayer ::selection {
+.pdf-pageview-container .textLayer ::selection {
   background: transparent;
   border-radius: 0;
+}
+.pdf-pageview-container .annotationLayer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.pdf-pageview-container .annotationLayer .linkAnnotation {
+  position: relative;
+}
+.pdf-pageview-container .annotationLayer .linkAnnotation > a {
+  position: absolute;
+  pointer-events: auto;
+  font-size: 1em;
+  transform-origin: 0 0;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
 }
 /* Custom unified selection highlight (merged rects — no per-span overlap at
    CJK/Latin boundaries, no per-span stepping). */
@@ -125,26 +160,7 @@ const TEXT_LAYER_CSS = `
 }
 /* PDF link annotations (pdf.js AnnotationLayer) — percentage-positioned
    anchors over the page, clickable to jump / open the URL. */
-.pdf-annotationLayer {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-.pdf-annotationLayer .linkAnnotation {
-  position: relative;
-}
-.pdf-annotationLayer .linkAnnotation > a {
-  position: absolute;
-  pointer-events: auto;
-  font-size: 1em;
-  transform-origin: 0 0;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-}
-.pdf-annotationLayer .linkAnnotation > a:hover {
+.pdf-pageview-container .annotationLayer .linkAnnotation > a:hover {
   background: rgba(255, 255, 0, 0.18);
   box-shadow: 0 2px 10px rgba(255, 255, 0, 0.35);
 }
@@ -213,6 +229,8 @@ function PageView({
   zoom,
   fitMode,
   pageAspect,
+  eventBus,
+  linkService,
   annotations,
   onNavigateTo,
   flashAnnId,
@@ -232,6 +250,8 @@ function PageView({
   zoom: number
   fitMode?: "reading" | "width" | "page"
   pageAspect: number
+  eventBus: any
+  linkService: any
   annotations: PdfAnnotation[]
   onNavigateTo?: (page: number) => void
   renderRegistry?: React.MutableRefObject<Map<number, () => Promise<void> | void>>
@@ -265,6 +285,7 @@ function PageView({
   // still reaches the text layer); clicks/hover hit-test the Konva hit graph.
   const marksStageRef = useRef<Konva.Stage | null>(null)
   const pageRef = useRef<pdfjsLib.PDFPageProxy | null>(null)
+  const pageViewRef = useRef<any>(null)
   // Hover: dim the hovered annotation's shapes (brightness(0.92) equivalent).
   const hoverRef = useRef<(annId: string | null) => void>(() => {})
   // Last draw context so annotation-list changes can re-draw without re-rendering.
@@ -341,7 +362,9 @@ function PageView({
     const draw = () => {
       raf = 0
       const selOverlay = holder.querySelector<HTMLElement>(".pdf-selection")
-      const layerDiv = holder.querySelector<HTMLElement>(".pdf-textlayer")
+      const layerDiv = holder.querySelector<HTMLElement>(
+        ".pdf-pageview-container .textLayer"
+      )
       const tl = textLayerRef.current
       if (!selOverlay || !layerDiv || !tl) return
       selOverlay.replaceChildren()
@@ -447,130 +470,62 @@ function PageView({
       const page = await doc.getPage(pageNumber)
       pageRef.current = page
       if (cancelled) return
-      const canvas = holder.querySelector("canvas")
-      if (!canvas) return
-      // DPR crispness: physical canvas = logical × dpr, CSS = logical.
-      // Render at the EXACT display scale (no supersample — its CSS downscale
-      // washed the text strokes out to a "灰蒙蒙" cast vs Edge's vector render).
-      // A contrast/brightness filter compensates the mild dpr→1 downscale so
-      // the text reads black like the paper is white.
-      canvas.width = Math.floor(wh.w * dpr)
-      canvas.height = Math.floor(wh.h * dpr)
-      canvas.style.width = `${wh.w}px`
-      canvas.style.height = `${wh.h}px`
-      canvas.style.filter = "contrast(1.18)"
-      renderTask = page.render({
-        canvas,
-        viewport: page.getViewport({ scale: scale * dpr })
-      })
-      await renderTask.promise
+      // Official pdf.js PDFPageView — canvas + text layer + annotation layer +
+      // links, one object handles the whole page (the selection + links work
+      // out of the box). The Lime's overlays stack above it.
+      pageViewRef.current?.destroy()
+      const pageViewContainer = holder.querySelector<HTMLDivElement>(
+        ".pdf-pageview-container"
+      )
+      if (!pageViewContainer) return
+      const pageView = new PDFPageView({
+        container: pageViewContainer,
+        eventBus,
+        id: pageNumber,
+        defaultViewport: page.getViewport({ scale }),
+        linkService,
+        textLayerMode: 1,
+        annotationMode: 1,
+        renderInteractiveForms: false
+      } as never)
+      pageViewRef.current = pageView
+      pageView.setPdfPage(page)
+      pageView.update({ scale })
+      await pageView.draw()
       if (cancelled) return
-      // Text layer (selection) aligned over the canvas at the logical viewport.
-      const layerDiv = holder.querySelector<HTMLDivElement>(".pdf-textlayer")
-      if (layerDiv) {
-        // pdf.js v6's TextLayer relies on these CSS vars + setLayerDimensions
-        // to size the container; without --total-scale-factor the width formula
-        // is invalid and the percentage-positioned spans collapse → selection
-        // is misaligned ("漏选" + over-selection).
-        layerDiv.style.setProperty("--total-scale-factor", String(scale))
-        layerDiv.style.setProperty("--scale-round-x", "1px")
-        layerDiv.style.setProperty("--scale-round-y", "1px")
-        textLayer = new pdfjsLib.TextLayer({
-          textContentSource: page.streamTextContent({ disableNormalization: true }),
-          container: layerDiv,
-          viewport: page.getViewport({ scale })
-        })
-        await textLayer.render()
-        // Enforce the exact page box (setLayerDimensions may round the width).
-        layerDiv.style.width = `${wh.w}px`
-        layerDiv.style.height = `${wh.h}px`
-        // PDF links: render the pdf.js AnnotationLayer (its anchors carry the
-        // URL links — clickable). The layer is pointer-transparent except the
-        // anchors, so text selection above it keeps working.
+      // The pdf.js PDFPageView sizes the canvas to the DPR'd physical size (CSS
+      // = logical × dpr), which overflows the holder. Force the CSS to the page
+      // box (the physical stays crisp at dpr) so the page never bleeds out.
+      const pageCanvas = pageViewContainer.querySelector("canvas")
+      if (pageCanvas) {
+        pageCanvas.style.width = `${wh.w}px`
+        pageCanvas.style.height = `${wh.h}px`
+      }
+      // The PDFPageView's text layer (TextLayerBuilder) drives the offsets.
+      const textLayer = pageView.textLayer as unknown as InstanceType<
+        typeof pdfjsLib.TextLayer
+      >
+      // Full-page overlay links (CC-license strips) must not intercept the
+      // pointer — disable their anchors (real links stay clickable).
+      try {
         const annLayerDiv = holder.querySelector<HTMLDivElement>(
-          ".pdf-annotationLayer"
+          ".pdf-pageview-container .annotationLayer"
         )
-        if (annLayerDiv) {
-          try {
-            const annotations = await page.getAnnotations()
-            annLayerDiv.replaceChildren()
-            if (annotations.length > 0) {
-              const viewport = page.getViewport({ scale })
-              // Minimal PDFLinkService: the AnnotationLayer only uses
-              // addLinkAttributes + getDestinationHash + goToDestination.
-              const linkService = {
-                addLinkAttributes: (
-                  link: HTMLAnchorElement,
-                  url: string,
-                  newWindow: boolean
-                ) => {
-                  link.href = url
-                  link.target = newWindow ? "_blank" : "_self"
-                  link.rel = "noopener"
-                },
-                getDestinationHash: () => "#",
-                // Internal link → resolve the destination to a page number and
-                // jump (the same path as the toolbar's page jump).
-                goToDestination: async (dest: any) => {
-                  try {
-                    let explicit: any = dest
-                    if (typeof dest === "string") {
-                      explicit = await doc.getDestination(dest)
-                    }
-                    const arr = Array.isArray(explicit) ? explicit : []
-                    const [ref] = arr
-                    let pageNumber: number | null = null
-                    if (ref && typeof ref === "object") {
-                      pageNumber = (await doc.getPageIndex(ref)) + 1
-                    } else if (Number.isInteger(ref)) {
-                      pageNumber = ref + 1
-                    }
-                    if (pageNumber) onNavigateTo?.(pageNumber)
-                  } catch (e) {
-                    console.warn("[lime] goToDestination failed:", e)
-                  }
-                }
-              }
-              const annotationLayer = new pdfjsLib.AnnotationLayer({
-                div: annLayerDiv,
-                page,
-                viewport,
-                linkService: linkService as never
-              } as never)
-              // A full-page overlay link (a CC-license strip covering ~the whole
-              // page) must not render — it would intercept the pointer, block
-              // text selection + annotation drawing, turn the whole page yellow
-              // on hover and navigate on any click. Real links (TOC /
-              // cross-refs, small rects) render normally.
-              // the annotation rects are in PDF user-space — compare against the
-              // scale-1 page box, not the scaled viewport.
-              const baseVp = page.getViewport({ scale: 1 })
-              const pageW = baseVp.width
-              const pageH = baseVp.height
-              const interactiveAnnotations =
-                pageW > 0 && pageH > 0
-                  ? annotations.filter((a: any) => {
-                      if (a.subtype !== "Link" || !Array.isArray(a.rect)) return true
-                      const w = a.rect[2] - a.rect[0]
-                      const h = a.rect[3] - a.rect[1]
-                      return !(w > pageW * 0.9 && h > pageH * 0.9)
-                    })
-                  : annotations
-              if (interactiveAnnotations.length > 0) {
-                await annotationLayer.render({
-                  viewport,
-                  div: annLayerDiv,
-                  annotations: interactiveAnnotations,
-                  page,
-                  linkService: linkService as never,
-                  renderForms: false
-                } as never)
-              }
+        if (annLayerDiv && wh.w > 0 && wh.h > 0) {
+          for (const a of Array.from(
+            annLayerDiv.querySelectorAll<HTMLAnchorElement>(
+              ".linkAnnotation > a"
+            )
+          )) {
+            const r = a.getBoundingClientRect()
+            if (r.width > wh.w * 0.9 && r.height > wh.h * 0.9) {
+              a.style.pointerEvents = "none"
             }
-          } catch (e) {
-            console.warn("[lime] annotation layer render failed:", e)
           }
         }
+      } catch {
+        /* the full-page-link guard is best-effort */
+      }
         // Draw the page's annotations on the Konva mark layer (the flash + the
         // search highlight live in their OWN effects — a flash/search change
         // must NOT re-render the canvas + text layer, which caused the laggy
@@ -626,7 +581,6 @@ function PageView({
         // Expose for the toolbar's selection→offset mapping.
         registerTextLayer(pageNumber, { holder, textLayer })
         textLayerRef.current = textLayer
-      }
     }
 
     // Jump pre-render: let the parent force this page's render BEFORE scrolling
@@ -774,21 +728,25 @@ function PageView({
       const sig = markSignature(ann)
       cur.set(ann.id, sig)
       if (prev.get(ann.id) !== sig) {
-        upsertMark(
-          stage,
-          ann,
-          (a) =>
-            a.kind === "text"
-              ? textLayerRects(ctx.tl, ctx.holder, a.startOffset ?? 0, a.endOffset ?? 0)
-              : (a.rects ?? []).map((r) => ({
-                  x: r.x * ctx.w,
-                  y: r.y * ctx.h,
-                  w: r.w * ctx.w,
-                  h: r.h * ctx.h
-                })),
-          ctx.w,
-          ctx.h
-        )
+        try {
+          upsertMark(
+            stage,
+            ann,
+            (a) =>
+              a.kind === "text"
+                ? textLayerRects(ctx.tl, ctx.holder, a.startOffset ?? 0, a.endOffset ?? 0)
+                : (a.rects ?? []).map((r) => ({
+                    x: r.x * ctx.w,
+                    y: r.y * ctx.h,
+                    w: r.w * ctx.w,
+                    h: r.h * ctx.h
+                  })),
+            ctx.w,
+            ctx.h
+          )
+        } catch (e) {
+          console.warn("[lime] upsertMark failed:", e)
+        }
       }
     }
     for (const id of Array.from(prev.keys())) {
@@ -827,11 +785,9 @@ function PageView({
         height: wh?.h ?? (paneW > 0 ? placeholderH : undefined),
         overflow: "hidden"
       }}>
-      <canvas style={{ display: "block" }} />
+      <div className="pdf-pageview-container" />
       <div className="pdf-annotations" />
       <div className="pdf-ann-flash-layer" />
-      <div className="pdf-textlayer" />
-      <div className="pdf-annotationLayer" />
       <div className="pdf-selection" />
       <style>{TEXT_LAYER_CSS}</style>
     </div>
@@ -888,6 +844,10 @@ export default function PdfRenderer({
   const containerRef = useRef<HTMLDivElement>(null)
   const renderRegistryRef = useRef(new Map<number, () => Promise<void> | void>())
   const [paneW, setPaneW] = useState(0)
+  const { eventBus, linkService } = useMemo(
+    () => createPdfViewerShared(doc, (page) => setLinkJump(page)),
+    [doc]
+  )
   const [linkJump, setLinkJump] = useState<number | null>(null)
   // Internal PDF link → scroll to the target page (the same pre-render +
   // scroll path as the toolbar's scrollTarget, so far pages don't flash).
@@ -976,7 +936,11 @@ export default function PdfRenderer({
   // search tab. Combined with -webkit-user-drag: none on the spans.
   useEffect(() => {
     const onDragStart = (e: DragEvent) => {
-      if ((e.target as HTMLElement | null)?.closest?.(".pdf-textlayer")) {
+      if (
+        (e.target as HTMLElement | null)?.closest?.(
+          ".pdf-pageview-container .textLayer"
+        )
+      ) {
         e.preventDefault()
       }
     }
@@ -1286,6 +1250,9 @@ export default function PdfRenderer({
             zoom={zoom ?? 1}
             fitMode={fitMode}
             pageAspect={pageAspects?.get(n) ?? 1.414}
+            eventBus={eventBus}
+            linkService={linkService}
+            onNavigateTo={setLinkJump}
             annotations={pageAnnMap.get(n) ?? EMPTY_ANNOTATIONS}
             flashAnnId={flashPage === n ? flashAnnId : null}
             searchFlash={searchFlash?.page === n ? searchFlash : null}
