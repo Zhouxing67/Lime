@@ -136,6 +136,10 @@ const TEXT_LAYER_CSS = `
   pointer-events: auto;
   font-size: 1em;
   transform-origin: 0 0;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
 }
 .pdf-annotationLayer .linkAnnotation > a:hover {
   background: rgba(255, 255, 0, 0.18);
@@ -357,13 +361,23 @@ function PageView({
       // Character-level rects (range.getClientRects) — NOT the whole textDiv
       // boxes, which snapped the highlight to full lines on per-line PDFs.
       const holderRect = holder.getBoundingClientRect()
+      const rawRects = Array.from(range.getClientRects())
       const rects = mergeRects(
-        Array.from(range.getClientRects()).map((r) => ({
+        rawRects.map((r) => ({
           x: r.left - holderRect.left,
           y: r.top - holderRect.top,
           w: r.width,
           h: r.height
         }))
+      )
+      // TEMP debug — the 'single-char highlight' investigation.
+      console.log(
+        "[lime-sel]",
+        JSON.stringify(range.toString().slice(0, 30)),
+        "raw:",
+        JSON.stringify(rawRects.map((r) => [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)])),
+        "merged:",
+        JSON.stringify(rects.map((r) => [Math.round(r.x), Math.round(r.y), Math.round(r.w), Math.round(r.h)]))
       )
       for (const r of rects) {
         const el = document.createElement("div")
@@ -638,9 +652,13 @@ function PageView({
           }
           const curPage = pageRef.current
           if (curPage) {
-            // The pdf.js type overloads cleanup ambiguously (page vs transport);
-            // the runtime returns the worker's cleanup promise.
-            ;(curPage.cleanup() as unknown as Promise<void>).catch(() => {})
+            // page.cleanup() resolves to the worker's cleanup promise — BUT a
+            // destroyed transport returns undefined (startCleanup early-returns),
+            // so guard before calling .catch.
+            const p = curPage.cleanup() as unknown
+            if (p && typeof (p as Promise<void>).catch === "function") {
+              ;(p as Promise<void>).catch(() => {})
+            }
           }
         }
       },
