@@ -7,8 +7,7 @@ import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
 import {
   Box,
   Button,
-  Checkbox,
-  FormControlLabel,
+  DialogContentText,
   Divider,
   Drawer,
   Stack,
@@ -20,6 +19,7 @@ import type { ReactNode } from "react"
 import type { PdfFile, TodoFilter, TodoStats } from "../types"
 import type { SidebarTab } from "./NavRail"
 import { RECENT_TOTAL as RECENT_TOTAL_SHARED } from "../constants"
+import DialogShell from "./DialogShell"
 import Well from "./Well"
 import { byRecency } from "../utils"
 
@@ -250,7 +250,7 @@ export default function SidebarFilters({
   onUploadSync,
   onDownloadSync
 }: SidebarFiltersProps) {
-  const [forceSync, setForceSync] = useState(false)
+  const [forceConfirmOpen, setForceConfirmOpen] = useState(false)
   const dragRef = useRef<() => void>(null)
 
   useEffect(() => {
@@ -444,7 +444,7 @@ export default function SidebarFilters({
                     size="small"
                     variant="outlined"
                     startIcon={<CloudUploadRoundedIcon />}
-                    onClick={() => onUploadSync(forceSync)}
+                    onClick={() => onUploadSync(false)}
                     fullWidth>
                     上传
                   </Button>
@@ -457,21 +457,32 @@ export default function SidebarFilters({
                     下载
                   </Button>
                 </Stack>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      size="small"
-                      checked={forceSync}
-                      onChange={(e) => setForceSync(e.target.checked)}
-                    />
-                  }
-                  label="强制同步（忽略「数据无变化」）"
-                  sx={{
-                    mt: 0.5,
-                    "& .MuiFormControlLabel-label": { fontSize: "0.75rem" }
-                  }}
-                />
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<CloudUploadRoundedIcon />}
+                  onClick={() => setForceConfirmOpen(true)}
+                  fullWidth
+                  sx={{ mt: 1 }}>
+                  强制上传
+                </Button>
               </Well>
+
+              <DialogShell
+                open={forceConfirmOpen}
+                onClose={() => setForceConfirmOpen(false)}
+                title="强制上传"
+                maxWidth="xs"
+                confirmLabel="确认上传"
+                confirmColor="error"
+                onConfirm={() => {
+                  setForceConfirmOpen(false)
+                  onUploadSync(true)
+                }}>
+                <DialogContentText>
+                  本操作会强制覆盖云端数据，确认执行？
+                </DialogContentText>
+              </DialogShell>
             </Box>
           ) : sidebarTab === "todo" ? (
             /* Todo tab: filter groups with counts */
