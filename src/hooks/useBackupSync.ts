@@ -13,10 +13,15 @@ import {
 } from "../database"
 import type { PdfFile, Project, ProjectCard } from "../types"
 import {
+  collectImageFiles,
+  downloadImageFiles,
   downloadPdfFiles,
   downloadRemote,
+  hydratePayloadImages,
+  pruneRemoteImages,
   pruneRemotePdfs,
   runSync,
+  uploadImageFiles,
   uploadPdfFiles,
   type SyncCredentials
 } from "../utils/sync"
@@ -163,6 +168,14 @@ export function useBackupSync(options: {
         // then prune the remote files the local has deleted.
         await uploadPdfFiles(cred, localPdfs, setSyncStatus)
         await pruneRemotePdfs(cred, localPdfs)
+        // Image file layer: the sync copies carry references only — PUT the
+        // missing /images/ files, then prune the ones no record references.
+        const images = await collectImageFiles(
+          allItemsUnfiltered,
+          annotations
+        )
+        await uploadImageFiles(cred, images, setSyncStatus)
+        await pruneRemoteImages(cred, images, setSyncStatus)
         chrome.storage.local.set({ lastSyncTime: Date.now() })
       }
       setSyncStatus(result.message)
@@ -208,14 +221,22 @@ export function useBackupSync(options: {
         return
       }
       if (remote.payload) {
+        // Image file layer: pull the referenced /images/ files + hydrate the
+        // stripped image fields (v6 references) back into local-form data-URLs.
+        const imageFiles = await downloadImageFiles(
+          cred,
+          remote.payload,
+          setSyncStatus
+        )
+        const hydrated = hydratePayloadImages(remote.payload, imageFiles)
         if (remote.direction === "download") {
           setSyncStatus("正在应用数据…")
           await bulkReplace(
-            remote.payload.projectCards ?? [],
-            remote.payload.pdfCards ?? [],
-            remote.payload.todos ?? [],
-            remote.payload.projects ?? [],
-            remote.payload.reviews ?? [],
+            hydrated.projectCards ?? [],
+            hydrated.pdfCards ?? [],
+            hydrated.todos ?? [],
+            hydrated.projects ?? [],
+            hydrated.reviews ?? [],
             await getAllProjectCards(),
             await getAllPdfCards(),
             await getAllTodos(),
@@ -225,8 +246,8 @@ export function useBackupSync(options: {
           // PDF domain (notes only — local file bytes are preserved).
           const localPdfs = await listPdfs()
           await applyPdfSync(
-            remote.payload.pdfs ?? [],
-            remote.payload.pdfAnnotations ?? [],
+            hydrated.pdfs ?? [],
+            hydrated.pdfAnnotations ?? [],
             localPdfs,
             annotations
           )

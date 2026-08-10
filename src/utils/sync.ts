@@ -42,6 +42,10 @@ export interface SyncPayload {
   reviews: ReviewEntry[]
   pdfAnnotations: PdfAnnotation[]
   pdfs: PdfSyncMeta[]
+  /** Image references (recordId → content-hash of the data-URL). The image
+   *  BYTES live in the remote /images/ folder (multi-file layer, like the
+   *  PDFs) — the sync copies carry the image field stripped. */
+  images?: Record<string, string>
 }
 
 export interface SyncResult {
@@ -154,6 +158,124 @@ export async function pruneRemotePdfs(
     if (res && res.status === 404) continue
     if (res && !res.ok)
       console.warn("[lime] prune remote pdf failed:", name, res.status)
+  }
+}
+
+/** Enumerate the remote /images/ folder → the stored "<contentHash>.png" names. */
+async function listRemoteImages(cred: SyncCredentials): Promise<string[]> {
+  const res = await bgFetch(cred, "/Apps/lime/images/", {
+    method: "PROPFIND"
+  })
+  if (res.status === 404) return []
+  if (!res.ok) throw new Error(`读取云端图片列表失败：HTTP ${res.status}`)
+  const doc = new DOMParser().parseFromString(res.body, "application/xml")
+  const names = new Set<string>()
+  for (const el of Array.from(doc.getElementsByTagName("*"))) {
+    if (el.localName !== "href") continue
+    const m = (el.textContent ?? "").match(/\/images\/([^/]+\.png)$/)
+    if (m) names.add(m[1])
+  }
+  return [...names]
+}
+
+/** PUT every image the remote /images/ folder lacks — content-hash named so an
+ *  unchanged image is uploaded once (deduped across records). */
+export async function uploadImageFiles(
+  cred: SyncCredentials,
+  images: Map<string, string>,
+  onStatus?: (status: string) => void
+): Promise<void> {
+  if (images.size === 0) return
+  const mkcol = await bgFetch(cred, "/Apps/lime/images/", {
+    method: "MKCOL"
+  }).catch(() => null)
+  if (mkcol && !mkcol.ok && ![405, 301, 302].includes(mkcol.status)) {
+    throw new Error(`创建云端图片目录失败：HTTP ${mkcol.status}`)
+  }
+  const remote = new Set(await listRemoteImages(cred))
+  let done = 0
+  for (const [hash, dataUrl] of images) {
+    if (remote.has(`${hash}.png`)) continue
+    done++
+    onStatus?.(`正在上传图片 (${done}/${images.size})…`)
+    const b64 = dataUrl.includes(",") ? dataUrl.split(",")[1] : dataUrl
+    const res = await bgFetchBinary(cred, `/Apps/lime/images/${hash}.png`, {
+      method: "PUT",
+      bodyBase64: bytesToBase64(base64ToBytes(b64))
+    })
+    if (!res.ok) throw new Error(`图片上传失败：HTTP ${res.status}`)
+  }
+}
+
+/** DELETE the remote /images/ files no longer referenced by ANY current image
+ *  — propagates image deletions (a card/annotation removed or its image
+ *  replaced) and is safe with the hash dedup (a hash still referenced by
+ *  another record survives). */
+export async function pruneRemoteImages(
+  cred: SyncCredentials,
+  images: Map<string, string>,
+  onStatus?: (status: string) => void
+): Promise<void> {
+  const remote = await listRemoteImages(cred)
+  for (const name of remote) {
+    const hash = name.slice(0, -".png".length)
+    if (images.has(hash)) continue
+    onStatus?.("正在清理云端图片…")
+    const res = await bgFetchBinary(cred, `/Apps/lime/images/${name}`, {
+      method: "DELETE"
+    }).catch(() => null)
+    if (res && res.status === 404) continue
+    if (res && !res.ok)
+      console.warn("[lime] prune remote image failed:", name, res.status)
+  }
+}
+
+/** Download the referenced image files the remote /images/ folder has that the
+ *  local lacks — returns { content-hash → data-URL } for the hydration step. */
+export async function downloadImageFiles(
+  cred: SyncCredentials,
+  payload: SyncPayload,
+  onStatus?: (status: string) => void
+): Promise<Map<string, string>> {
+  const refs = payload.images ?? {}
+  const hashes = new Set(Object.values(refs))
+  if (hashes.size === 0) return new Map()
+  const remote = new Set(await listRemoteImages(cred))
+  const out = new Map<string, string>()
+  let done = 0
+  for (const hash of hashes) {
+    if (!remote.has(`${hash}.png`)) continue
+    done++
+    onStatus?.(`正在下载图片 (${done}/${hashes.size})…`)
+    const res = await bgFetchBinary(cred, `/Apps/lime/images/${hash}.png`, {
+      method: "GET"
+    })
+    if (!res.ok) continue
+    out.set(hash, `data:image/png;base64,${res.body}`)
+  }
+  return out
+}
+
+/** Restore the payload's stripped image fields from the downloaded files —
+ *  v6 payloads (references) become local-form data-URLs; v5 payloads (the
+ *  images already inline) pass through unchanged. */
+export function hydratePayloadImages(
+  payload: SyncPayload,
+  imageFiles: Map<string, string>
+): SyncPayload {
+  const refs = payload.images ?? {}
+  return {
+    ...payload,
+    projectCards: payload.projectCards.map((c) =>
+      refs[c.id] && imageFiles.has(refs[c.id])
+        ? { ...c, image: imageFiles.get(refs[c.id]) }
+        : c
+    ),
+    pdfAnnotations: payload.pdfAnnotations.map((a) =>
+      refs[a.id] && imageFiles.has(refs[a.id])
+        ? { ...a, image: imageFiles.get(refs[a.id]) }
+        : a
+    )
   }
 }
 
@@ -312,9 +434,9 @@ async function downloadSyncFile(
     const payload = JSON.parse(res.body) as SyncPayload & {
       items?: LegacyItem[]
     }
-    // Read v3/v4 (legacy cloud data) and v5; older/newer → prompt to upgrade.
-    // The next upload writes v5, upgrading the cloud file automatically.
-    if (payload.version < 3 || payload.version > 5)
+    // Read v3/v4 (legacy cloud data) and v5/v6; older/newer → prompt to
+    // upgrade. The next upload writes v6, upgrading the cloud file.
+    if (payload.version < 3 || payload.version > 6)
       throw new Error("云端数据版本不兼容，请升级扩展后重试")
     if (payload.version >= 5) {
       if (!Array.isArray(payload.projectCards))
@@ -344,6 +466,27 @@ async function uploadSyncFile(
   if (!res.ok) throw new Error(`上传失败：HTTP ${res.status}`)
 }
 
+/** Collect every image the sync must carry (image cards + region crops),
+ *  keyed by the SHA-256 content hash of the data-URL — the image BYTES the
+ *  upload layer PUTs to the remote /images/ folder. */
+export async function collectImageFiles(
+  projectCards: ProjectCard[],
+  pdfAnnotations: PdfAnnotation[]
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>()
+  for (const card of projectCards) {
+    if (!card.image) continue
+    const hash = await computeItemHash(card.image, "")
+    out.set(hash, card.image)
+  }
+  for (const ann of pdfAnnotations) {
+    if (!ann.image) continue
+    const hash = await computeItemHash(ann.image, "")
+    out.set(hash, ann.image)
+  }
+  return out
+}
+
 async function buildPayload(
   projectCards: ProjectCard[],
   pdfCards: PdfCard[],
@@ -355,28 +498,48 @@ async function buildPayload(
 ): Promise<SyncPayload> {
   const byId = <T extends { id: string }>(arr: T[]) =>
     [...arr].sort((a, b) => a.id.localeCompare(b.id))
+  // v6: the image data-URLs leave the JSON — the sync copies carry the image
+  // field stripped and an `images` map (recordId → content-hash) references the
+  // remote /images/ folder (the bytes are a multi-file layer, like the PDFs).
+  const imageRefs: Record<string, string> = {}
+  const stripProjectCards = await Promise.all(
+    projectCards.map(async (c) => {
+      if (!c.image) return c
+      imageRefs[c.id] = await computeItemHash(c.image, "")
+      return { ...c, image: undefined }
+    })
+  )
+  const stripAnnotations = await Promise.all(
+    pdfAnnotations.map(async (a) => {
+      if (!a.image) return a
+      imageRefs[a.id] = await computeItemHash(a.image, "")
+      return { ...a, image: undefined }
+    })
+  )
   const raw = JSON.stringify({
-    projectCards: byId(projectCards),
+    projectCards: byId(stripProjectCards),
     pdfCards: byId(pdfCards),
     todos: byId(todos),
     projects: byId(projects),
     reviews: byId(reviews),
-    pdfAnnotations: byId(pdfAnnotations),
-    pdfs: byId(pdfs)
+    pdfAnnotations: byId(stripAnnotations),
+    pdfs: byId(pdfs),
+    images: imageRefs
   })
   const contentHash = await computeItemHash(raw, "")
   return {
-    version: 5,
+    version: 6,
     syncedAt: Date.now(),
     contentHash,
     deviceInfo: { version: "0.5.0" },
-    projectCards: byId(projectCards),
+    projectCards: byId(stripProjectCards),
     pdfCards: byId(pdfCards),
     todos: byId(todos),
     projects: byId(projects),
     reviews: byId(reviews),
-    pdfAnnotations: byId(pdfAnnotations),
-    pdfs: byId(pdfs)
+    pdfAnnotations: byId(stripAnnotations),
+    pdfs: byId(pdfs),
+    images: imageRefs
   }
 }
 
