@@ -61,6 +61,15 @@ export interface FetchPdfMessage {
   url: string
 }
 
+/** The PDF-saver content script hands the fetched bytes to the background to
+ *  addPdf + notify (the background owns the DB write). */
+export interface SaveWebPdfMessage {
+  kind: "save-web-pdf"
+  url: string
+  name: string
+  body: string
+}
+
 export type ExtensionMessage =
   | CaptureMessage
   | ToastMessage
@@ -71,6 +80,7 @@ export type ExtensionMessage =
   | AddProjectMessage
   | CaptureVisibleTabMessage
   | FetchPdfMessage
+  | SaveWebPdfMessage
 
 export function sendMessage<T = any>(msg: ExtensionMessage): Promise<T> {
   return new Promise((resolve, reject) => {

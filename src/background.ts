@@ -92,6 +92,7 @@ chrome.runtime.onInstalled.addListener(() => {
   })
 })
 
+import { addPdf } from "./database"
 import { base64ToBytes, bytesToBase64 } from "./utils"
 
 chrome.runtime.onStartup.addListener(() => {
@@ -202,6 +203,28 @@ chrome.runtime.onMessage.addListener((raw: any, _sender, sendResponse) => {
         .catch((e) => {
           clearTimeout(timer)
           sendResponse({ ok: false, error: `下载失败：${e?.message ?? e}` })
+        })
+      return true
+    }
+    case "save-web-pdf": {
+      addPdf({
+        id: crypto.randomUUID(),
+        name: msg.name,
+        bytes: new Blob([base64ToBytes(msg.body)], { type: "application/pdf" }),
+        pageCount: 0,
+        addedAt: Date.now()
+      })
+        .then(() => {
+          chrome.notifications.create({
+            type: "basic",
+            iconUrl: "icon128.plasmo.3c1ed2d2.png",
+            title: "Lime",
+            message: `已保存「${msg.name}」到 Lime`
+          })
+          sendResponse({ ok: true })
+        })
+        .catch((e) => {
+          sendResponse({ ok: false, error: String(e) })
         })
       return true
     }
