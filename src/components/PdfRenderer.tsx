@@ -123,6 +123,24 @@ const TEXT_LAYER_CSS = `
   background: rgba(99,102,241,0.26);
   border-radius: 2px;
 }
+/* PDF link annotations (pdf.js AnnotationLayer) — percentage-positioned
+   anchors over the page, clickable to jump / open the URL. */
+.pdf-annotationLayer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.pdf-annotationLayer .linkAnnotation > a {
+  position: absolute;
+  pointer-events: auto;
+  font-size: 1em;
+  transform-origin: 0 0;
+}
+.pdf-annotationLayer .linkAnnotation > a:hover {
+  background: rgba(255, 255, 0, 0.18);
+  box-shadow: 0 2px 10px rgba(255, 255, 0, 0.35);
+}
 .pdf-ann-flash-layer {
   /* Above the annotation overlay (z-index 2) so the jump flash is ALWAYS the
      topmost page layer — rendered last, nothing covers it. */
@@ -455,6 +473,53 @@ function PageView({
         // Enforce the exact page box (setLayerDimensions may round the width).
         layerDiv.style.width = `${wh.w}px`
         layerDiv.style.height = `${wh.h}px`
+        // PDF links: render the pdf.js AnnotationLayer (its anchors carry the
+        // URL links — clickable). The layer is pointer-transparent except the
+        // anchors, so text selection above it keeps working.
+        const annLayerDiv = holder.querySelector<HTMLDivElement>(
+          ".pdf-annotationLayer"
+        )
+        if (annLayerDiv) {
+          try {
+            const annotations = await page.getAnnotations()
+            annLayerDiv.replaceChildren()
+            if (annotations.length > 0) {
+              const viewport = page.getViewport({ scale })
+              // Minimal PDFLinkService: the AnnotationLayer only uses
+              // addLinkAttributes + getDestinationHash.
+              const linkService = {
+                addLinkAttributes: (
+                  link: HTMLAnchorElement,
+                  url: string,
+                  newWindow: boolean
+                ) => {
+                  link.href = url
+                  link.target = newWindow ? "_blank" : "_self"
+                  link.rel = "noopener"
+                },
+                // Internal PDF destinations are out of scope — the link
+                // still renders, the hash is inert.
+                getDestinationHash: () => "#"
+              }
+              const annotationLayer = new pdfjsLib.AnnotationLayer({
+                div: annLayerDiv,
+                page,
+                viewport,
+                linkService: linkService as never
+              } as never)
+              await annotationLayer.render({
+                viewport,
+                div: annLayerDiv,
+                annotations,
+                page,
+                linkService: linkService as never,
+                renderForms: false
+              } as never)
+            }
+          } catch (e) {
+            console.warn("[lime] annotation layer render failed:", e)
+          }
+        }
         // Draw the page's annotations on the Konva mark layer (the flash + the
         // search highlight live in their OWN effects — a flash/search change
         // must NOT re-render the canvas + text layer, which caused the laggy
@@ -703,6 +768,7 @@ function PageView({
       <div className="pdf-annotations" />
       <div className="pdf-ann-flash-layer" />
       <div className="pdf-textlayer" />
+      <div className="pdf-annotationLayer" />
       <div className="pdf-selection" />
       <style>{TEXT_LAYER_CSS}</style>
     </div>
