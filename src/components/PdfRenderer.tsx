@@ -255,6 +255,7 @@ function PageView({
   // popover. The Konva mark layer is pointer-transparent (so text selection
   // still reaches the text layer); clicks/hover hit-test the Konva hit graph.
   const marksStageRef = useRef<Konva.Stage | null>(null)
+  const pageRef = useRef<pdfjsLib.PDFPageProxy | null>(null)
   // Hover: dim the hovered annotation's shapes (brightness(0.92) equivalent).
   const hoverRef = useRef<(annId: string | null) => void>(() => {})
   // Last draw context so annotation-list changes can re-draw without re-rendering.
@@ -435,6 +436,7 @@ function PageView({
     const render = async () => {
       if (!wh) return
       const page = await doc.getPage(pageNumber)
+      pageRef.current = page
       if (cancelled) return
       const canvas = holder.querySelector("canvas")
       if (!canvas) return
@@ -604,13 +606,20 @@ function PageView({
             })
           }
         } else {
-          // P2: the page scrolled out of the pre-render margin — release its
-          // canvas (memory stays bounded to the pages near the viewport); it
-          // re-renders on re-entry.
+          // The page scrolled out of the pre-render margin — release its
+          // canvas AND the pdf.js worker's decoded resources for the page
+          // (page.cleanup); without the latter a large PDF's rendered pages
+          // accumulate GBs in the worker. It re-renders on re-entry.
           const c = holder.querySelector("canvas")
           if (c && c.width > 0) {
             c.width = 0
             c.height = 0
+          }
+          const curPage = pageRef.current
+          if (curPage) {
+            // The pdf.js type overloads cleanup ambiguously (page vs transport);
+            // the runtime returns the worker's cleanup promise.
+            ;(curPage.cleanup() as unknown as Promise<void>).catch(() => {})
           }
         }
       },
@@ -626,6 +635,7 @@ function PageView({
       textLayer?.cancel()
       marksStageRef.current?.destroy()
       marksStageRef.current = null
+      pageRef.current = null
       drawCtxRef.current = null
       unregisterTextLayer(pageNumber)
     }
