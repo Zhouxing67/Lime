@@ -207,6 +207,7 @@ function PageView({
   fitMode,
   pageAspect,
   annotations,
+  onNavigateTo,
   flashAnnId,
   onFlashDone,
   annotDrawMode,
@@ -225,6 +226,7 @@ function PageView({
   fitMode?: "reading" | "width" | "page"
   pageAspect: number
   annotations: PdfAnnotation[]
+  onNavigateTo?: (page: number) => void
   renderRegistry?: React.MutableRefObject<Map<number, () => Promise<void> | void>>
   onFlashDone?: () => void
   annotDrawMode?: "frame" | "freetext" | "freehand" | "free-highlight" | null
@@ -488,7 +490,7 @@ function PageView({
             if (annotations.length > 0) {
               const viewport = page.getViewport({ scale })
               // Minimal PDFLinkService: the AnnotationLayer only uses
-              // addLinkAttributes + getDestinationHash.
+              // addLinkAttributes + getDestinationHash + goToDestination.
               const linkService = {
                 addLinkAttributes: (
                   link: HTMLAnchorElement,
@@ -499,9 +501,28 @@ function PageView({
                   link.target = newWindow ? "_blank" : "_self"
                   link.rel = "noopener"
                 },
-                // Internal PDF destinations are out of scope — the link
-                // still renders, the hash is inert.
-                getDestinationHash: () => "#"
+                getDestinationHash: () => "#",
+                // Internal link → resolve the destination to a page number and
+                // jump (the same path as the toolbar's page jump).
+                goToDestination: async (dest: any) => {
+                  try {
+                    let explicit: any = dest
+                    if (typeof dest === "string") {
+                      explicit = await doc.getDestination(dest)
+                    }
+                    const arr = Array.isArray(explicit) ? explicit : []
+                    const [ref] = arr
+                    let pageNumber: number | null = null
+                    if (ref && typeof ref === "object") {
+                      pageNumber = (await doc.getPageIndex(ref)) + 1
+                    } else if (Number.isInteger(ref)) {
+                      pageNumber = ref + 1
+                    }
+                    if (pageNumber) onNavigateTo?.(pageNumber)
+                  } catch (e) {
+                    console.warn("[lime] goToDestination failed:", e)
+                  }
+                }
               }
               const annotationLayer = new pdfjsLib.AnnotationLayer({
                 div: annLayerDiv,
@@ -835,6 +856,45 @@ export default function PdfRenderer({
   const containerRef = useRef<HTMLDivElement>(null)
   const renderRegistryRef = useRef(new Map<number, () => Promise<void> | void>())
   const [paneW, setPaneW] = useState(0)
+  const [linkJump, setLinkJump] = useState<number | null>(null)
+  // Internal PDF link → scroll to the target page (the same pre-render +
+  // scroll path as the toolbar's scrollTarget, so far pages don't flash).
+  useEffect(() => {
+    if (!linkJump) return
+    const page = linkJump
+    setLinkJump(null)
+    let tries = 0
+    const el = () =>
+      containerRef.current?.querySelector(`[data-page="${page}"]`)
+    const scroll = () => {
+      const target = el()
+      if (target) {
+        target.scrollIntoView({ behavior: "auto", block: "start" })
+        return true
+      }
+      return false
+    }
+    const renderFn = renderRegistryRef.current.get(page)
+    const doScroll = () => {
+      if (scroll()) return
+      const timer = window.setInterval(() => {
+        tries++
+        if (scroll() || tries > 30) window.clearInterval(timer)
+      }, 150)
+    }
+    if (renderFn) {
+      Promise.resolve(renderFn())
+        .then(doScroll)
+        .catch(doScroll)
+      return
+    }
+    doScroll()
+    const timer = window.setInterval(() => {
+      tries++
+      if (scroll() || tries > 30) window.clearInterval(timer)
+    }, 150)
+    return () => window.clearInterval(timer)
+  }, [linkJump])
   const [paneH, setPaneH] = useState(0)
   const [pageAspects, setPageAspects] = useState<Map<number, number> | null>(
     null

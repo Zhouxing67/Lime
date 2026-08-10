@@ -381,8 +381,10 @@ export default function PdfView({
   // Text selection → show the selection bar at the selected text.
   const handleTextSelected = useCallback((range: Range | null) => {
     if (!range) {
-      // The selection collapsed / moved out of the PDF — dismiss the bar.
-      setSelBar(null)
+      // The live selection collapsed (mouseup) — the bar STAYS: the captured
+      // range keeps its position, and the Popover's click-away + the tools are
+      // the only dismissals. An immediate close here would flash or never show
+      // the bar (the drag + mouseup fire many transient collapses).
       return
     }
     // Capture the range AT SELECTION TIME — the bar's button mousedown collapses
