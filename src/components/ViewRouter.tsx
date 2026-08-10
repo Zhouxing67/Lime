@@ -79,6 +79,7 @@ interface PdfViewRouterProps {
   onOpenUrl?: () => void
   pdfFileInputRef: React.RefObject<HTMLInputElement | null>
   handleDeletePdf: (pdf: PdfFile) => void
+  onRenamePdf?: (id: string, name: string) => void
   handleNewTopic: (name: string) => void
   handleRenameTopic: (oldName: string, name: string) => void
   handleDeleteTopic: (name: string) => void
@@ -217,6 +218,7 @@ function PdfViewRouter(props: PdfViewRouterProps) {
     onOpenUrl,
     pdfFileInputRef,
     handleDeletePdf,
+    onRenamePdf,
     handleNewTopic,
     handleRenameTopic,
     handleDeleteTopic,
@@ -239,6 +241,7 @@ function PdfViewRouter(props: PdfViewRouterProps) {
             onNewPdf={() => pdfFileInputRef.current?.click()}
             onOpenUrl={onOpenUrl}
             onDeletePdf={handleDeletePdf}
+            onRenamePdf={onRenamePdf}
             topics={topics}
             onNewTopic={handleNewTopic}
             onRenameTopic={handleRenameTopic}

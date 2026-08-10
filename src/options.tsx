@@ -5,6 +5,7 @@ import DoneAllRoundedIcon from "@mui/icons-material/DoneAllRounded"
 import NoteAddRoundedIcon from "@mui/icons-material/NoteAddRounded"
 import SearchOffRoundedIcon from "@mui/icons-material/SearchOffRounded"
 import {
+  renamePdfName,
   alpha,
   Box,
   Button,
@@ -1540,6 +1541,14 @@ export default function OptionsPage() {
     [openPdf]
   )
 
+  const handleRenamePdf = useCallback(
+    async (id: string, name: string) => {
+      await renamePdfName(id, name)
+      setSnackbarMsg("已重命名 PDF")
+    },
+    []
+  )
+
   const handleDeletePdf = useCallback(
     (pdf: PdfFile) => {
       setPdfDeleteTarget(pdf)
@@ -1972,6 +1981,7 @@ export default function OptionsPage() {
           onOpenPdfClick={() => pdfFileInputRef.current?.click()}
           onOpenPdf={handleOpenPdf}
           onOpenUrl={() => setPdfUrlOpen(true)}
+          onRenamePdf={handleRenamePdf}
           onWidthChange={(w) => setDrawerWidth(w)}
           onNewProjectClick={() => setCreateDialogOpen(true)}
           backupScope={backupScope}
@@ -2377,6 +2387,7 @@ export default function OptionsPage() {
                 onOpenUrl: () => setPdfUrlOpen(true),
                 pdfFileInputRef,
                 handleDeletePdf,
+                onRenamePdf: handleRenamePdf,
                 handleNewTopic,
                 handleRenameTopic,
                 handleDeleteTopic,

@@ -4,11 +4,14 @@ import CloudUploadRoundedIcon from "@mui/icons-material/CloudUploadRounded"
 import FileUploadRoundedIcon from "@mui/icons-material/FileUploadRounded"
 import LinkRoundedIcon from "@mui/icons-material/LinkRounded"
 import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded"
+import EditRoundedIcon from "@mui/icons-material/EditRounded"
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
 import {
   Box,
   Button,
+  IconButton,
   DialogContentText,
+  TextField,
   Divider,
   Drawer,
   Stack,
@@ -40,6 +43,7 @@ interface SidebarFiltersProps {
   onOpenPdfClick: () => void
   onOpenPdf: (id: string) => void
   onOpenUrl?: () => void
+  onRenamePdf?: (id: string, name: string) => void
   children?: ReactNode
   onReviewDateClick: (dateKey: string | null) => void
   onWidthChange: (w: number) => void
@@ -87,7 +91,8 @@ function PdfTab({
   countByPdf,
   onOpenPdfClick,
   onOpenPdf,
-  onOpenUrl
+  onOpenUrl,
+  onRenamePdf
 }: {
   activePdfId: string | null
   pdfs: PdfFile[]
@@ -95,8 +100,11 @@ function PdfTab({
   onOpenPdfClick: () => void
   onOpenPdf: (id: string) => void
   onOpenUrl?: () => void
+  onRenamePdf?: (id: string, name: string) => void
 }) {
   const [showAll, setShowAll] = useState(false)
+  const [renamingPdf, setRenamingPdf] = useState<string | null>(null)
+  const [renamingPdfName, setRenamingPdfName] = useState("")
   const RECENT_TOTAL = RECENT_TOTAL_SHARED
   // Active PDF pins to the top (like the project tree's active project).
   const byLastOpened = byRecency<PdfFile>(
@@ -148,7 +156,8 @@ function PdfTab({
                   cursor: "pointer",
                   bgcolor: isActive ? "action.selected" : "transparent",
                   color: isActive ? "text.primary" : "text.secondary",
-                  "&:hover": { bgcolor: "action.hover", color: "text.primary" }
+                  "&:hover": { bgcolor: "action.hover", color: "text.primary" },
+                  "&:hover .pdf-rename": { opacity: 1 }
                 }}>
                 <PictureAsPdfRoundedIcon
                   sx={{
@@ -161,19 +170,64 @@ function PdfTab({
                     flexShrink: 0
                   }}
                 />
-                <Typography
-                  variant="body2"
-                  sx={{
-                    fontSize: "0.8rem",
-                    fontWeight: isActive ? 600 : 400,
-                    color: isActive ? "primary.main" : "inherit",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    flex: 1
-                  }}>
-                  {p.name}
-                </Typography>
+                {renamingPdf === p.id ? (
+                  <TextField
+                    autoFocus
+                    size="small"
+                    value={renamingPdfName}
+                    onChange={(e) => setRenamingPdfName(e.target.value)}
+                    onBlur={() => {
+                      const name = renamingPdfName.trim()
+                      if (name && name !== p.name) onRenamePdf?.(p.id, name)
+                      setRenamingPdf(null)
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        const name = renamingPdfName.trim()
+                        if (name && name !== p.name) onRenamePdf?.(p.id, name)
+                        setRenamingPdf(null)
+                      }
+                      if (e.key === "Escape") setRenamingPdf(null)
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    sx={{ flex: 1, "& .MuiInputBase-input": { fontSize: "0.8rem" } }}
+                  />
+                ) : (
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      fontSize: "0.8rem",
+                      fontWeight: isActive ? 600 : 400,
+                      color: isActive ? "primary.main" : "inherit",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      flex: 1
+                    }}>
+                    {p.name}
+                  </Typography>
+                )}
+                {onRenamePdf && (
+                  <IconButton
+                    size="small"
+                    title="重命名"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setRenamingPdf(p.id)
+                      setRenamingPdfName(p.name)
+                    }}
+                    className="pdf-rename"
+                    sx={{
+                      p: 0.25,
+                      color: "text.disabled",
+                      opacity: 0,
+                      flexShrink: 0,
+                      transition: "opacity 0.15s",
+                      "&:hover": { color: "primary.main", bgcolor: "transparent" }
+                    }}>
+                    <EditRoundedIcon sx={{ fontSize: 14 }} />
+                  </IconButton>
+                )}
                 {isPlaceholder && (
                   <Typography
                     variant="caption"
@@ -277,6 +331,7 @@ export default function SidebarFilters({
   onOpenPdfClick,
   onOpenPdf,
   onOpenUrl,
+  onRenamePdf,
   children,
   onReviewDateClick,
   onWidthChange,
@@ -584,6 +639,7 @@ export default function SidebarFilters({
               onOpenPdfClick={onOpenPdfClick}
               onOpenPdf={onOpenPdf}
               onOpenUrl={onOpenUrl}
+              onRenamePdf={onRenamePdf}
             />
           ) : (
             /* Project tab content: tree + actions */

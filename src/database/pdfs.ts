@@ -93,6 +93,31 @@ export async function updatePdfTopic(
   }, { broadcastKey: "_dbpdfTouch" })
 }
 
+/** Rename a PDF (metadata-only — the name changes re-sort the library via the
+ *  lightweight `_dbpdfTouch` stamp, never the card/annotation reload chain). */
+export async function renamePdfName(
+  id: string,
+  name: string
+): Promise<boolean | void> {
+  const trimmed = name.trim()
+  if (!trimmed) return false
+  return withStore("pdfs", "readwrite", async (store) => {
+    const pdf = await new Promise<PdfFile | undefined>((resolve, reject) => {
+      const r = store.get(id)
+      r.onsuccess = () => resolve(r.result as PdfFile | undefined)
+      r.onerror = () => reject(r.error)
+    })
+    if (!pdf) return false
+    if (pdf.name === trimmed) return false
+    pdf.name = trimmed
+    await new Promise<void>((resolve, reject) => {
+      const r = store.put(pdf)
+      r.onsuccess = () => resolve()
+      r.onerror = () => reject(r.error)
+    })
+  }, { broadcastKey: "_dbpdfTouch" })
+}
+
 export async function getPdf(id: string): Promise<PdfFile | undefined> {
   return withStore("pdfs", "readonly", (store) => {
     return new Promise((resolve, reject) => {

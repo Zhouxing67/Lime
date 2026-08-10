@@ -36,6 +36,7 @@ interface PdfHubProps {
   onNewPdf: () => void
   onOpenUrl?: () => void
   onDeletePdf: (pdf: PdfFile) => void
+  onRenamePdf?: (id: string, name: string) => void
   keyword?: string
   /** Read-only multi-select mode (backup view): click toggles selection. */
   selectable?: boolean
@@ -56,6 +57,7 @@ export default function PdfHub({
   onNewPdf,
   onOpenUrl,
   onDeletePdf,
+  onRenamePdf,
   keyword = "",
   selectable,
   selected,
@@ -73,6 +75,8 @@ export default function PdfHub({
   const [newTopicName, setNewTopicName] = useState("")
   const [renamingTopic, setRenamingTopic] = useState<string | null>(null)
   const [renamingName, setRenamingName] = useState("")
+  const [renamingPdf, setRenamingPdf] = useState<string | null>(null)
+  const [renamingPdfName, setRenamingPdfName] = useState("")
   const [moveMenu, setMoveMenu] = useState<{
     pdfId: string
     anchor: HTMLElement
@@ -488,6 +492,27 @@ export default function PdfHub({
                   <IconButton
                     className="hub-delete"
                     size="small"
+                    title="重命名"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setRenamingPdf(p.id)
+                      setRenamingPdfName(p.name)
+                    }}
+                    sx={{
+                      position: "absolute",
+                      top: 4,
+                      right: 50,
+                      p: 0.5,
+                      opacity: 0,
+                      color: "text.disabled",
+                      transition: "opacity 0.15s",
+                      "&:hover": { color: "primary.main", bgcolor: "transparent" }
+                    }}>
+                    <EditRoundedIcon sx={{ fontSize: 16 }} />
+                  </IconButton>
+                  <IconButton
+                    className="hub-delete"
+                    size="small"
                     title="移动到主题"
                     onClick={(e) => {
                       e.stopPropagation()
@@ -523,16 +548,40 @@ export default function PdfHub({
                   <PictureAsPdfRoundedIcon sx={{ fontSize: 20 }} />
                 </Box>
                 <Box sx={{ minWidth: 0 }}>
-                  <Typography
-                    variant="body2"
-                    noWrap
-                    sx={{
-                      fontWeight: 600,
-                      fontSize: "0.95rem",
-                      fontFamily: (t: Theme) => t.custom.serif
-                    }}>
-                    {p.name}
-                  </Typography>
+                  {renamingPdf === p.id ? (
+                    <TextField
+                      autoFocus
+                      size="small"
+                      value={renamingPdfName}
+                      onChange={(e) => setRenamingPdfName(e.target.value)}
+                      onBlur={() => {
+                        const name = renamingPdfName.trim()
+                        if (name && name !== p.name) onRenamePdf?.(p.id, name)
+                        setRenamingPdf(null)
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          const name = renamingPdfName.trim()
+                          if (name && name !== p.name) onRenamePdf?.(p.id, name)
+                          setRenamingPdf(null)
+                        }
+                        if (e.key === "Escape") setRenamingPdf(null)
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      sx={{ "& .MuiInputBase-input": { fontSize: "0.85rem" } }}
+                    />
+                  ) : (
+                    <Typography
+                      variant="body2"
+                      noWrap
+                      sx={{
+                        fontWeight: 600,
+                        fontSize: "0.95rem",
+                        fontFamily: (t: Theme) => t.custom.serif
+                      }}>
+                      {p.name}
+                    </Typography>
+                  )}
                   <Typography
                     variant="caption"
                     sx={{ color: "text.secondary" }}>
