@@ -135,6 +135,28 @@ export async function uploadPdfFiles(
   }
 }
 
+/** Delete the remote /pdfs/ files the local no longer holds — propagates a
+ *  local PDF deletion to the cloud (the metadata already leaves the sync file;
+ *  this prunes the orphaned file). Tolerant of already-gone files and of
+ *  per-file failures (a prune problem never fails the whole sync). */
+export async function pruneRemotePdfs(
+  cred: SyncCredentials,
+  localPdfs: PdfFile[]
+): Promise<void> {
+  const localIds = new Set(localPdfs.map((p) => p.id))
+  const remote = await listRemotePdfs(cred)
+  for (const name of remote) {
+    const id = name.slice(0, -".pdf".length)
+    if (localIds.has(id)) continue
+    const res = await bgFetchBinary(cred, `/Apps/lime/pdfs/${name}`, {
+      method: "DELETE"
+    }).catch(() => null)
+    if (res && res.status === 404) continue
+    if (res && !res.ok)
+      console.warn("[lime] prune remote pdf failed:", name, res.status)
+  }
+}
+
 /** Download the PDF files the remote has that the local lacks (or only holds
  *  as a placeholder) — returns the fetched files for the caller to addPdf. */
 export async function downloadPdfFiles(

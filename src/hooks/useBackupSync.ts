@@ -15,6 +15,7 @@ import type { PdfFile, Project, ProjectCard } from "../types"
 import {
   downloadPdfFiles,
   downloadRemote,
+  pruneRemotePdfs,
   runSync,
   uploadPdfFiles,
   type SyncCredentials
@@ -158,8 +159,10 @@ export function useBackupSync(options: {
         setSyncStatus
       )
       if (result.success) {
-        // PDF file layer: upload every local file the remote /pdfs/ lacks.
+        // PDF file layer: upload every local file the remote /pdfs/ lacks,
+        // then prune the remote files the local has deleted.
         await uploadPdfFiles(cred, localPdfs, setSyncStatus)
+        await pruneRemotePdfs(cred, localPdfs)
         chrome.storage.local.set({ lastSyncTime: Date.now() })
       }
       setSyncStatus(result.message)
