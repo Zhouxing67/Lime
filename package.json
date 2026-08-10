@@ -17,9 +17,6 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
   },
-  "alias": {
-    "pdfjs-dist/web/pdf_viewer.mjs": "./assets/pdfjs/pdf_viewer.mjs"
-  },
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
