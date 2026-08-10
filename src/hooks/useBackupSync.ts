@@ -172,7 +172,8 @@ export function useBackupSync(options: {
         // missing /images/ files, then prune the ones no record references.
         const images = await collectImageFiles(
           allItemsUnfiltered,
-          annotations
+          annotations,
+          pdfCards
         )
         await uploadImageFiles(cred, images, setSyncStatus)
         await pruneRemoteImages(cred, images, setSyncStatus)

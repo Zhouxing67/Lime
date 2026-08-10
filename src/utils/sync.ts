@@ -271,6 +271,11 @@ export function hydratePayloadImages(
         ? { ...c, image: imageFiles.get(refs[c.id]) }
         : c
     ),
+    pdfCards: payload.pdfCards.map((c) =>
+      refs[c.id] && imageFiles.has(refs[c.id])
+        ? { ...c, content: imageFiles.get(refs[c.id]) }
+        : c
+    ),
     pdfAnnotations: payload.pdfAnnotations.map((a) =>
       refs[a.id] && imageFiles.has(refs[a.id])
         ? { ...a, image: imageFiles.get(refs[a.id]) }
@@ -471,18 +476,38 @@ async function uploadSyncFile(
  *  upload layer PUTs to the remote /images/ folder. */
 export async function collectImageFiles(
   projectCards: ProjectCard[],
-  pdfAnnotations: PdfAnnotation[]
+  pdfAnnotations: PdfAnnotation[],
+  pdfCards: PdfCard[] = []
 ): Promise<Map<string, string>> {
   const out = new Map<string, string>()
   for (const card of projectCards) {
-    if (!card.image) continue
-    const hash = await computeItemHash(card.image, "")
-    out.set(hash, card.image)
+    // card.image (the current model) or the legacy content data-URL.
+    const img =
+      card.image ||
+      (card.type === "image" &&
+      typeof card.content === "string" &&
+      card.content.startsWith("data:image")
+        ? card.content
+        : undefined)
+    if (!img) continue
+    const hash = await computeItemHash(img, "")
+    out.set(hash, img)
   }
   for (const ann of pdfAnnotations) {
     if (!ann.image) continue
     const hash = await computeItemHash(ann.image, "")
     out.set(hash, ann.image)
+  }
+  // Legacy region pdfCards whose frame lives in content (pre-image model).
+  for (const card of pdfCards) {
+    if (
+      card.kind === "region" &&
+      typeof card.content === "string" &&
+      card.content.startsWith("data:image")
+    ) {
+      const hash = await computeItemHash(card.content, "")
+      out.set(hash, card.content)
+    }
   }
   return out
 }
@@ -504,9 +529,33 @@ async function buildPayload(
   const imageRefs: Record<string, string> = {}
   const stripProjectCards = await Promise.all(
     projectCards.map(async (c) => {
-      if (!c.image) return c
-      imageRefs[c.id] = await computeItemHash(c.image, "")
-      return { ...c, image: undefined }
+      // The current image field OR a legacy image card whose data-URL lives in
+      // content (pre card-type-v2) — both leave the JSON for the /images/ layer.
+      const legacyContent =
+        c.type === "image" &&
+        typeof c.content === "string" &&
+        c.content.startsWith("data:image")
+      const img = c.image || (legacyContent ? c.content : undefined)
+      if (!img) return c
+      imageRefs[c.id] = await computeItemHash(img, "")
+      return {
+        ...c,
+        image: undefined,
+        content: legacyContent ? "" : c.content
+      }
+    })
+  )
+  const stripPdfCards = await Promise.all(
+    pdfCards.map(async (c) => {
+      if (
+        c.kind === "region" &&
+        typeof c.content === "string" &&
+        c.content.startsWith("data:image")
+      ) {
+        imageRefs[c.id] = await computeItemHash(c.content, "")
+        return { ...c, content: "" }
+      }
+      return c
     })
   )
   const stripAnnotations = await Promise.all(
@@ -518,7 +567,7 @@ async function buildPayload(
   )
   const raw = JSON.stringify({
     projectCards: byId(stripProjectCards),
-    pdfCards: byId(pdfCards),
+    pdfCards: byId(stripPdfCards),
     todos: byId(todos),
     projects: byId(projects),
     reviews: byId(reviews),
@@ -533,7 +582,7 @@ async function buildPayload(
     contentHash,
     deviceInfo: { version: "0.5.0" },
     projectCards: byId(stripProjectCards),
-    pdfCards: byId(pdfCards),
+    pdfCards: byId(stripPdfCards),
     todos: byId(todos),
     projects: byId(projects),
     reviews: byId(reviews),
