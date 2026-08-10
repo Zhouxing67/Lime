@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+## 7.0.0 — 同步图片文件分离 + 视图模块化架构
+
+**同步 v6（SyncPayload 图片文件分离）**：图片 dataURL（图像卡 `card.image` / region 裁剪图 `annotation.image` / 旧模型 content 里的图片）全部剥离出 sync JSON，改存 WebDAV `/images/<contentHash>.png` 多文件层（content-hash 命名去重，无损、增量）；JSON 从 MB 级瘦到几百 KB。上传 PUT 缺失图片 + **清理无引用孤儿**（删除传播从设计内置）；下载拉取引用图片并水合回本地；版本门控 v3-v6，兼容读 v5（内联图片透传）。同步慢的问题就此根治。
+
+**PDF 删除传播**：上传侧 `pruneRemotePdfs` 清理本地已删除的远程 PDF 文件（含历史孤儿）——本地删除真正传播到云端。
+
+**强制上传**：备份侧栏新增「强制上传」按钮（同款样式 + 确认弹窗「本操作会强制覆盖云端数据」）——清零 lastSyncTime 强制上传，用于 v6 迁移等场景。
+
+**视图模块化架构**：options 组合根从 3364 行瘦身到 ~2700 行——数据中枢 `useAppData`（共享数据 + maps + loaders + 广播）、路由 `useWorkspaceView` + `ViewRouter`（主区三元 → 分组 props 视图映射）、项目视图 `useProjectsView`、复习/待办/备份视图 hooks（`useReviewView`/`useTodoView`/`useBackupView`）。加视图 = ViewRouter 加分支；加数据源 = useAppData 一处。6 次 Oracle 门评审全过。
+
+**编辑器 UX 系列**：编辑区单卡化（移除 surface2 底带，标题行内嵌「只读|编辑」icon 切换）；只读内容收敛为 create-image 专属（placed/图像编辑仅备注）；只读页图片绝对定位填充（超尺寸缩放无滚动条）；引文阅读卡 `PdfQuoteCard`（重排 PDF 断字 `flowPdfQuote` + 柔和底 + 主题色竖条 + 自适应容器宽度，preview/full/复习背面复用）；图像卡草稿可更换图片；create-image 无图保存校验；编辑区占位/边界改版；离开提醒（丢弃/存草稿/取消）。
+
+**Code review 批次**：草稿期分区计数修正（`visibleProjectCards`）；zip 移除死 images/ 文件夹；复制逻辑去重（`copyCardToProject` + 单卡复制缺失的 snackbar）；`CardGrid` memo + 稳定 props（网格不再随无关状态重渲染）；leave-confirm 存草稿 spinner。
+
 ## 6.1.0 — 工作区卡片编辑器 + 草稿中间态
 
 **工作区卡片编辑器**：卡片查看回归弹窗浏览（上/下一张 + 箭头键 + 复制引用），编辑与新建进入**主工作区编辑模式**——Header 56px（返回/类型切换/标题+dirty 圆点/视图切换）、条件工具条（编辑或分栏时聚焦字段即现）、纸面容器（全宽 + 卡片阴影）、吸底操作栏（丢弃二次确认/存草稿/保存，icon-only + 保存 spinner）。网格 hover 编辑 icon 直达工作区编辑。导航切换自动关闭编辑器。
