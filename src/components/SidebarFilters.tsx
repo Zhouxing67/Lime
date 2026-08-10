@@ -247,8 +247,8 @@ function PdfTab({
                       e.stopPropagation()
                       onDeletePdf(p)
                     }}
+                    className="pdf-rename"
                     sx={{
-                      className: "pdf-rename",
                       p: 0.25,
                       color: "text.disabled",
                       opacity: 0,
