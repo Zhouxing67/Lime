@@ -7,6 +7,8 @@ import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
 import {
   Box,
   Button,
+  Checkbox,
+  FormControlLabel,
   Divider,
   Drawer,
   Stack,
@@ -43,7 +45,7 @@ interface SidebarFiltersProps {
   backupScope: "projects" | "pdfs"
   onBackupScopeChange: (scope: "projects" | "pdfs") => void
   onImportBackup: () => void
-  onUploadSync: () => void
+  onUploadSync: (force: boolean) => void
   onDownloadSync: () => void
 }
 
@@ -248,6 +250,7 @@ export default function SidebarFilters({
   onUploadSync,
   onDownloadSync
 }: SidebarFiltersProps) {
+  const [forceSync, setForceSync] = useState(false)
   const dragRef = useRef<() => void>(null)
 
   useEffect(() => {
@@ -441,7 +444,7 @@ export default function SidebarFilters({
                     size="small"
                     variant="outlined"
                     startIcon={<CloudUploadRoundedIcon />}
-                    onClick={onUploadSync}
+                    onClick={() => onUploadSync(forceSync)}
                     fullWidth>
                     上传
                   </Button>
@@ -454,6 +457,20 @@ export default function SidebarFilters({
                     下载
                   </Button>
                 </Stack>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      size="small"
+                      checked={forceSync}
+                      onChange={(e) => setForceSync(e.target.checked)}
+                    />
+                  }
+                  label="强制同步（忽略「数据无变化」）"
+                  sx={{
+                    mt: 0.5,
+                    "& .MuiFormControlLabel-label": { fontSize: "0.75rem" }
+                  }}
+                />
               </Well>
             </Box>
           ) : sidebarTab === "todo" ? (

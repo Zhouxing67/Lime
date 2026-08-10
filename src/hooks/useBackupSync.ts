@@ -132,8 +132,12 @@ export function useBackupSync(options: {
     }
   }
 
-  const handleUploadSync = async () => {
+  const handleUploadSync = async (force = false) => {
     try {
+      // Force: a previous sync may have set lastSyncTime with no new writes —
+      // the runSync would skip ("数据无变化"). Zeroing it makes the next run
+      // always proceed (e.g. to migrate the remote to a newer payload format).
+      if (force) await chrome.storage.local.set({ lastSyncTime: 0 })
       const cred = await getSyncCredentials()
       if (!cred) {
         setSyncStatus("请先在设置中配置坚果云")
