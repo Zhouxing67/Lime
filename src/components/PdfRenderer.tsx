@@ -131,6 +131,9 @@ const TEXT_LAYER_CSS = `
   overflow: hidden;
   pointer-events: none;
 }
+.pdf-annotationLayer .linkAnnotation {
+  position: relative;
+}
 .pdf-annotationLayer .linkAnnotation > a {
   position: absolute;
   pointer-events: auto;
@@ -361,23 +364,13 @@ function PageView({
       // Character-level rects (range.getClientRects) — NOT the whole textDiv
       // boxes, which snapped the highlight to full lines on per-line PDFs.
       const holderRect = holder.getBoundingClientRect()
-      const rawRects = Array.from(range.getClientRects())
       const rects = mergeRects(
-        rawRects.map((r) => ({
+        Array.from(range.getClientRects()).map((r) => ({
           x: r.left - holderRect.left,
           y: r.top - holderRect.top,
           w: r.width,
           h: r.height
         }))
-      )
-      // TEMP debug — the 'single-char highlight' investigation.
-      console.log(
-        "[lime-sel]",
-        JSON.stringify(range.toString().slice(0, 30)),
-        "raw:",
-        JSON.stringify(rawRects.map((r) => [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)])),
-        "merged:",
-        JSON.stringify(rects.map((r) => [Math.round(r.x), Math.round(r.y), Math.round(r.w), Math.round(r.h)]))
       )
       for (const r of rects) {
         const el = document.createElement("div")
@@ -544,14 +537,35 @@ function PageView({
                 viewport,
                 linkService: linkService as never
               } as never)
-              await annotationLayer.render({
-                viewport,
-                div: annLayerDiv,
-                annotations,
-                page,
-                linkService: linkService as never,
-                renderForms: false
-              } as never)
+              // A full-page overlay link (a CC-license strip covering ~the whole
+              // page) must not render — it would intercept the pointer, block
+              // text selection + annotation drawing, turn the whole page yellow
+              // on hover and navigate on any click. Real links (TOC /
+              // cross-refs, small rects) render normally.
+              // the annotation rects are in PDF user-space — compare against the
+              // scale-1 page box, not the scaled viewport.
+              const baseVp = page.getViewport({ scale: 1 })
+              const pageW = baseVp.width
+              const pageH = baseVp.height
+              const interactiveAnnotations =
+                pageW > 0 && pageH > 0
+                  ? annotations.filter((a: any) => {
+                      if (a.subtype !== "Link" || !Array.isArray(a.rect)) return true
+                      const w = a.rect[2] - a.rect[0]
+                      const h = a.rect[3] - a.rect[1]
+                      return !(w > pageW * 0.9 && h > pageH * 0.9)
+                    })
+                  : annotations
+              if (interactiveAnnotations.length > 0) {
+                await annotationLayer.render({
+                  viewport,
+                  div: annLayerDiv,
+                  annotations: interactiveAnnotations,
+                  page,
+                  linkService: linkService as never,
+                  renderForms: false
+                } as never)
+              }
             }
           } catch (e) {
             console.warn("[lime] annotation layer render failed:", e)
