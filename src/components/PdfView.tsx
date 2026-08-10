@@ -379,7 +379,12 @@ export default function PdfView({
   // ---- PDF text search (moved to the right-sidebar panel via options) ----
 
   // Text selection → show the selection bar at the selected text.
-  const handleTextSelected = useCallback((range: Range) => {
+  const handleTextSelected = useCallback((range: Range | null) => {
+    if (!range) {
+      // The selection collapsed / moved out of the PDF — dismiss the bar.
+      setSelBar(null)
+      return
+    }
     // Capture the range AT SELECTION TIME — the bar's button mousedown collapses
     // the live browser selection, so reading it at the bar-click is too late
     // (the 高亮/下划线/删除线 tools silently no-oped).
@@ -743,6 +748,7 @@ export default function PdfView({
               {TEXT_TOOLS.map((t) => (
                 <Box
                   key={t}
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => handleSelBarTool(t)}
                   sx={{
                     px: 1,

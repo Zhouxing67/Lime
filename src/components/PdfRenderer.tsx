@@ -304,6 +304,8 @@ function PageView({
   // doubles at CJK/Latin boundaries + steps span-by-span). Uses the SAME tight
   // item boxes as the annotation marks (textLayerRects), rAF-throttled so the
   // transient drag ranges don't flicker.
+  const onTextSelectedRef = useRef(onTextSelected)
+  onTextSelectedRef.current = onTextSelected
   useEffect(() => {
     const holder = holderRef.current
     if (!holder) return
@@ -316,12 +318,21 @@ function PageView({
       if (!selOverlay || !layerDiv || !tl) return
       selOverlay.replaceChildren()
       const sel = document.getSelection()
-      if (!sel || sel.isCollapsed || sel.rangeCount === 0) return
+      if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
+        // The selection collapsed / moved away — dismiss the selection bar.
+        onTextSelectedRef.current?.(null)
+        return
+      }
       const range = sel.getRangeAt(0)
       const inLayer =
         layerDiv.contains(range.startContainer) &&
         layerDiv.contains(range.endContainer)
-      if (!inLayer) return
+      if (!inLayer) {
+        onTextSelectedRef.current?.(null)
+        return
+      }
+      // Native selection drives the bar too (Medium-style follow).
+      onTextSelectedRef.current?.(range.cloneRange())
       const offsets = textLayerOffsets(tl, sel)
       if (!offsets) return
       const rects = mergeRects(
@@ -348,67 +359,6 @@ function PageView({
       holder.querySelector(".pdf-selection")?.replaceChildren()
     }
   }, [])
-  // Custom drag-selection: the text layer is `user-select: none` (so Edge's
-  // native selection never appears / triggers its search popup), so selecting
-  // is driven here — a programmatic Selection is built from the pointer path
-  // via caretRangeFromPoint; the rAF overlay above draws its highlight, and
-  // textLayerOffsets/annotation-creation keep working on the real Selection.
-  const customSelRef = useRef<Range | null>(null)
-  const onTextSelectedRef = useRef(onTextSelected)
-  onTextSelectedRef.current = onTextSelected
-  const handleTextMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      if (annotDrawMode) return
-      const holder = holderRef.current
-      const tlEl = holder?.querySelector<HTMLElement>(".pdf-textlayer")
-      if (!tlEl || !tlEl.contains(e.target as Node)) return
-      if (e.button !== 0) return
-      // preventDefault stops the browser's NATIVE selection from starting —
-      // that gesture is what triggers Edge's search popup. Our custom handler
-      // builds a programmatic Selection instead (no popup).
-      e.preventDefault()
-      const anchor = document.caretRangeFromPoint(e.clientX, e.clientY)
-      if (!anchor) return
-      customSelRef.current = anchor
-      // Clear any stale drag listeners (a mouseup outside the window lingers).
-      const mv = (ev: MouseEvent) => {
-        const a = customSelRef.current
-        const end = document.caretRangeFromPoint(ev.clientX, ev.clientY)
-        if (!a || !end) return
-        const sel = document.getSelection()
-        if (!sel) return
-        sel.removeAllRanges()
-        const r = document.createRange()
-        const after = a.compareBoundaryPoints(Range.START_TO_START, end) <= 0
-        const start = after ? a : end
-        const finish = after ? end : a
-        r.setStart(start.startContainer, start.startOffset)
-        r.setEnd(finish.startContainer, finish.startOffset)
-        sel.addRange(r)
-      }
-      const up = () => {
-        document.removeEventListener("mousemove", mv)
-        document.removeEventListener("mouseup", up)
-        // The release ALSO fires a click — its default (moving the caret)
-        // would collapse our programmatic selection and dismiss the selection
-        // bar before it shows. Swallow that one click.
-        const swallowClick = (ce: MouseEvent) => {
-          ce.preventDefault()
-          document.removeEventListener("click", swallowClick, true)
-        }
-        document.addEventListener("click", swallowClick, true)
-        const sel = document.getSelection()
-        if (sel && !sel.isCollapsed && sel.rangeCount > 0) {
-          onTextSelectedRef.current?.(sel.getRangeAt(0))
-        }
-      }
-      document.removeEventListener("mousemove", mv)
-      document.removeEventListener("mouseup", up)
-      document.addEventListener("mousemove", mv)
-      document.addEventListener("mouseup", up)
-    },
-    [annotDrawMode]
-  )
   const ratio = fitMode === "reading" ? PAGE_RATIO : FIT_RATIO
   const placeholderH =
     paneW > 0
@@ -731,7 +681,6 @@ function PageView({
     <div
       ref={holderRef}
       data-page={pageNumber}
-      onMouseDown={handleTextMouseDown}
       style={{
         position: "relative",
         margin: "0 auto 12px",
