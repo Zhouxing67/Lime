@@ -48,7 +48,7 @@ import type { PdfAnnotation, PdfMark, PdfOutlineItem } from "../types"
 import { usePdfDocument } from "../hooks/usePdfDocument"
 import { markBlockFor, MARK_DOT, MARK_LABEL } from "./pdfTheme"
 import { getTextLayer } from "./pdfRegistry"
-import { textLayerOffsets, textLayerRects } from "./pdfText"
+import { textLayerOffsets, textLayerRects, buildTextLayerIndex } from "./pdfText"
 import type { PdfSearchEntry, PdfSearchMatch } from "./pdfText"
 import PdfRenderer from "./PdfRenderer"
 
@@ -286,22 +286,155 @@ export default function PdfView({
   // Apply an annotation tool to the current text selection → auto-card.
   const handleTool = useCallback(
     async (type: Exclude<PdfMark, "frame">) => {
-      if (!pdfId) return
+      if (!pdfId) {
+        console.log("[pdf][diag] handleTool: no pdfId")
+        return
+      }
       const sel = window.getSelection()
-      if (!sel || sel.isCollapsed || sel.rangeCount === 0) return
+      if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
+        console.log("[pdf][diag] handleTool: no live selection", sel?.isCollapsed)
+        return
+      }
       const holder = sel.anchorNode?.parentElement?.closest?.(
         "[data-page]"
       ) as HTMLElement | null
-      if (!holder) return
+      if (!holder) {
+        console.log("[pdf][diag] handleTool: no holder, anchorNode =", sel.anchorNode)
+        return
+      }
       const page = Number(holder.getAttribute("data-page"))
       const entry = getTextLayer(page)
-      if (!entry) return
+      if (!entry) {
+        console.log("[pdf][diag] handleTool: no text layer registered for page", page)
+        return
+      }
       const offsets = textLayerOffsets(entry.textLayer, sel)
-      if (!offsets || offsets.end <= offsets.start) return
+      if (!offsets || offsets.end <= offsets.start) {
+        console.log("[pdf][diag] handleTool: no offsets", offsets)
+        return
+      }
       const text = sel.toString().trim()
-      if (!text) return
+      if (!text) {
+        console.log("[pdf][diag] handleTool: empty text")
+        return
+      }
+      console.log("[pdf][diag] handleTool: creating", type, "page", page, "offsets", offsets, "text", JSON.stringify(text.slice(0, 20)))
       try {
         const rects = textLayerRects(entry.textLayer, holder, offsets.start, offsets.end)
+        // Deep diagnostic — offset-space + pixel-level rect comparison.
+        try {
+          // 1) Reconstruct the text at [offsets.start, offsets.end) from the
+          //    index — if it differs from the selection, offsets are in the
+          //    wrong coordinate space (stale index / shifted cumulative).
+          const idx = buildTextLayerIndex(entry.textLayer)
+          const divList = Array.from(idx.divIndex.keys())
+          let recon = ""
+          for (let i = 0; i < divList.length; i++) {
+            const dStart = idx.cumulative[i]
+            const dEnd = i + 1 < divList.length ? idx.cumulative[i + 1] : idx.total
+            if (dEnd <= offsets.start || dStart >= offsets.end) continue
+            const from = Math.max(dStart, offsets.start) - dStart
+            const to = Math.min(dEnd, offsets.end) - dStart
+            recon += (divList[i].textContent ?? "").slice(from, to)
+          }
+          console.log(
+            "[pdf][diag] recon==sel?",
+            recon === sel.toString(),
+            "| recon:",
+            JSON.stringify(recon.slice(0, 30)),
+            "| sel:",
+            JSON.stringify(sel.toString().slice(0, 30))
+          )
+          // 2) Mark position in VIEWPORT coords (overlay origin + rect) vs the
+          //    selection's viewport rects — the exact residual pixel delta.
+          const overlay = holder.querySelector(".pdf-annotations")
+          const or = overlay ? overlay.getBoundingClientRect() : null
+          const selVp = Array.from(sel.getRangeAt(0).getClientRects())
+            .filter((r) => r.width > 0 && r.height > 0)
+            .slice(0, 3)
+            .map((r) => `${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)}`)
+          const markVp = or
+            ? rects
+                .slice(0, 3)
+                .map((r) => `${Math.round(or.left + r.x)},${Math.round(or.top + r.y)} ${Math.round(r.w)}x${Math.round(r.h)}`)
+            : []
+          console.log("[pdf][diag] selViewport:", JSON.stringify(selVp))
+          console.log("[pdf][diag] markViewport:", JSON.stringify(markVp))
+          const hr = holder.getBoundingClientRect()
+          // 4) min-font-size + span metrics — is the layout box still inflated?
+          const tlDiv = (entry.textLayer as unknown as { div?: HTMLElement }).div
+          const mfs = tlDiv
+            ? getComputedStyle(tlDiv).getPropertyValue("--min-font-size")
+            : "n/a"
+          const firstSpan = tlDiv?.querySelector("span")
+          const spanFs = firstSpan ? getComputedStyle(firstSpan).fontSize : "n/a"
+          const spanH = firstSpan ? Math.round(firstSpan.getBoundingClientRect().height) : "n/a"
+          console.log(
+            "[pdf][diag] min-font-size:",
+            mfs,
+            "| span fontSize:",
+            spanFs,
+            "| span boxH:",
+            spanH
+          )
+          console.log(
+            "[pdf][diag] holderRect:",
+            Math.round(hr.left),
+            Math.round(hr.top),
+            "| overlayRect:",
+            or ? `${Math.round(or.left)},${Math.round(or.top)}` : "none",
+            "| border:",
+            getComputedStyle(holder).borderTopWidth,
+            getComputedStyle(holder).borderLeftWidth,
+            "| clientTop/Left:",
+            holder.clientTop,
+            holder.clientLeft
+          )
+          // 5) Pure-translation hunt: compare the span's ACTUAL box vs the page
+          //    canvas origin vs the span's own left% mapping — where is the x
+          //    offset coming from?
+          try {
+            const anchorSpan = (
+              sel.anchorNode?.nodeType === Node.TEXT_NODE
+                ? sel.anchorNode.parentElement
+                : sel.anchorNode
+            ) as HTMLElement | null
+            const spanRect = anchorSpan?.getBoundingClientRect()
+            const cspan = anchorSpan ? getComputedStyle(anchorSpan) : null
+            const canvas = holder.querySelector(".canvasWrapper canvas")
+            const canvasRect = canvas?.getBoundingClientRect()
+            const tlRect = tlDiv?.getBoundingClientRect()
+            const pagePadLeft = hr.left + holder.clientLeft
+            const expectedGlyphX =
+              canvasRect && cspan?.left && cspan.left.endsWith("%")
+                ? canvasRect.left + (parseFloat(cspan.left) / 100) * canvasRect.width
+                : "n/a"
+            console.log(
+              "[pdf][diag] spanRect:",
+              spanRect
+                ? `${Math.round(spanRect.left)},${Math.round(spanRect.top)} ${Math.round(spanRect.width)}x${Math.round(spanRect.height)}`
+                : "n/a",
+              "| cs.left:",
+              cspan?.left,
+              "| cs.transform:",
+              cspan?.transform
+            )
+            console.log(
+              "[pdf][diag] tlRect:",
+              tlRect ? `${Math.round(tlRect.left)},${Math.round(tlRect.top)} ${Math.round(tlRect.width)}` : "n/a",
+              "| canvasRect:",
+              canvasRect ? `${Math.round(canvasRect.left)},${Math.round(canvasRect.top)} ${Math.round(canvasRect.width)}` : "n/a",
+              "| pagePadLeft:",
+              Math.round(pagePadLeft),
+              "| expectedGlyphX:",
+              typeof expectedGlyphX === "number" ? Math.round(expectedGlyphX) : expectedGlyphX
+            )
+          } catch (de2) {
+            console.warn("[pdf][diag] layer-origin log failed:", de2)
+          }
+        } catch (de) {
+          console.warn("[pdf][diag] deep log failed:", de)
+        }
         const pos = rectsUnionCenter(rects, {
           w: holder.clientWidth,
           h: holder.clientHeight
@@ -315,6 +448,7 @@ export default function PdfView({
           endOffset: offsets.end,
           pos
         })
+        console.log("[pdf][diag] handleTool: annotation created OK")
         sel.removeAllRanges()
         // The write broadcasts _dbpdf → the storage listener reloads.
       } catch (e) {

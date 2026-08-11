@@ -25,6 +25,29 @@ if (existsSync(viewer)) {
   console.log("[pdfjs-assets] copied + patched pdf_viewer.mjs")
 }
 
+// Defensive page-number coercion — a string page number reaching the viewer
+// (e.g. injected via _location.pageNumber on some load paths) makes pdf.js's
+// currentScale setter throw "scrollPageIntoView: "1" is not a valid pageNumber".
+// Coerce at the two entry points that STORE the value. Reads the ALREADY-PATCHED
+// dest (the regex fix above wrote it) so the coercion stacks on top.
+if (existsSync(viewer)) {
+  const destFile = resolve(dest, "pdf_viewer.mjs")
+  const original = readFileSync(destFile, "utf8")
+  let content = original
+  content = content.replace(
+    "  _setCurrentPageNumber(val, resetCurrentPageView = false) {",
+    "  _setCurrentPageNumber(val, resetCurrentPageView = false) {\n    val = Number(val) | 0;"
+  )
+  content = content.replace(
+    "    const pageView = Number.isInteger(pageNumber) && this._pages[pageNumber - 1];",
+    "    pageNumber = Number(pageNumber) | 0;\n    const pageView = Number.isInteger(pageNumber) && this._pages[pageNumber - 1];"
+  )
+  if (content !== original) {
+    writeFileSync(destFile, content)
+    console.log("[pdfjs-assets] patched pdf_viewer.mjs page-number coercion")
+  }
+}
+
 // The ORIGINAL ESM worker (self-contained) — must NOT go through Parcel's
 // bundler, or pdf.js's `new Worker(src, {type:"module"})` gets a UMD wrapper
 // that breaks, and the fake-worker fallback hits a transpiled `import()`.
@@ -42,4 +65,18 @@ for (const dir of ["cmaps", "standard_fonts"]) {
   mkdirSync(resolve(dest, dir), { recursive: true })
   cpSync(from, resolve(dest, dir), { recursive: true })
 }
-console.log("[pdfjs-assets] copied worker + cmaps + standard_fonts -> assets/pdfjs")
+
+// Official viewer CSS + its image assets — the official PDFViewer (BaseViewer)
+// contract REQUIRES this stylesheet (`.pdfViewer .page` variables, textLayer
+// layout + selection bridge, annotationLayer links). Without it the viewer
+// renders but text selection/links break.
+const css = resolve(src, "web/pdf_viewer.css")
+if (existsSync(css)) cpSync(css, resolve(dest, "pdf_viewer.css"))
+const cssImages = resolve(src, "web/images")
+if (existsSync(cssImages)) {
+  mkdirSync(resolve(dest, "images"), { recursive: true })
+  cpSync(cssImages, resolve(dest, "images"), { recursive: true })
+}
+console.log(
+  "[pdfjs-assets] copied worker + cmaps + standard_fonts + pdf_viewer.css -> assets/pdfjs"
+)
