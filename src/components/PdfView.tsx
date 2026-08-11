@@ -2,8 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Box, CircularProgress, Typography } from "@mui/material"
 
 import PdfEngineView from "./PdfEngineView"
+import PdfReaderPanel from "./PdfReaderPanel"
 import { usePdfDocument } from "../hooks/usePdfDocument"
+import { usePdfSearch } from "../hooks/usePdfSearch"
 import { getAnnotationsByPdf, deleteAnnotationWithCard, saveAnnotationFromStore } from "../database"
+import { outlinePageNumber } from "./pdfText"
 import type { PdfOutlineItem } from "../types"
 import type { PdfSearchEntry, PdfSearchMatch } from "./pdfText"
 import type { IAnnotationStore } from "../pdf/inklayer/extensions/annotator/const/definitions"
@@ -43,7 +46,23 @@ export default function PdfView({
   const { loaded, error } = usePdfDocument(pdfId)
   const [stores, setStores] = useState<IAnnotationStore[]>([])
   const [bytes, setBytes] = useState<ArrayBuffer | null>(null)
+  const [pageJump, setPageJump] = useState<{ page: number; seq: number } | null>(null)
+  const pageJumpSeqRef = useRef(0)
+  const [currentPage, setCurrentPage] = useState(1)
   const annIdToCardId = useRef<Map<string, string>>(new Map())
+
+  const navigateTo = useCallback((page: number) => {
+    pageJumpSeqRef.current += 1
+    setPageJump({ page, seq: pageJumpSeqRef.current })
+  }, [])
+
+  usePdfSearch(
+    loaded?.doc ?? null,
+    searchRequest ?? null,
+    onSearchResults,
+    jumpRequest ?? null,
+    navigateTo
+  )
 
   useEffect(() => {
     if (loaded) onPageCountChange?.(loaded.pageCount)
@@ -97,9 +116,20 @@ export default function PdfView({
 
   const handleVisiblePage = useCallback(
     (page: number) => {
+      setCurrentPage(page)
       onVisiblePageChange?.(page)
     },
     [onVisiblePageChange]
+  )
+
+  const handleOutlineClick = useCallback(
+    async (item: PdfOutlineItem) => {
+      if (!loaded?.doc) return
+      onOutlineClick?.(item)
+      const page = await outlinePageNumber(loaded.doc, item)
+      if (page) navigateTo(page)
+    },
+    [loaded, onOutlineClick, navigateTo]
   )
 
   const handleAdd = useCallback(
@@ -176,22 +206,46 @@ export default function PdfView({
   }
 
   return (
-    <Box sx={{ height: "100%", minHeight: 0, overflow: "hidden" }}>
-      <PdfEngineView
-        data={bytes}
-        title={loaded.file.name}
-        annotations={stores}
-        onAnnotationAdd={handleAdd}
-        onAnnotationDelete={handleDelete}
-        onAnnotationChanged={handleChanged}
-        onAnnotationSelected={handleSelected}
-        onVisiblePageChange={handleVisiblePage}
-        onSearchClick={onSearchClick}
-        onToggleReader={onToggleReader}
-        onSwapLeft={onSwapLeft}
-        readerOpen={readerOpen}
-        flashTarget={flashTarget}
-      />
+    <Box sx={{ display: "flex", height: "100%", minHeight: 0, overflow: "hidden" }}>
+      {readerOpen && (
+        <Box
+          sx={{
+            width: 250,
+            minWidth: 250,
+            borderRight: "1px solid",
+            borderColor: "divider",
+            bgcolor: "background.paper",
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column"
+          }}>
+          <PdfReaderPanel
+            outline={loaded.outline}
+            doc={loaded.doc}
+            currentPage={currentPage}
+            onOutlineClick={handleOutlineClick}
+            onJumpPage={navigateTo}
+          />
+        </Box>
+      )}
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <PdfEngineView
+          data={bytes}
+          title={loaded.file.name}
+          annotations={stores}
+          onAnnotationAdd={handleAdd}
+          onAnnotationDelete={handleDelete}
+          onAnnotationChanged={handleChanged}
+          onAnnotationSelected={handleSelected}
+          onVisiblePageChange={handleVisiblePage}
+          onSearchClick={onSearchClick}
+          onToggleReader={onToggleReader}
+          onSwapLeft={onSwapLeft}
+          readerOpen={readerOpen}
+          flashTarget={flashTarget}
+          pageJump={pageJump}
+        />
+      </Box>
     </Box>
   )
 }

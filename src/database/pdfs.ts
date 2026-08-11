@@ -485,6 +485,22 @@ export async function saveAnnotationFromStore(input: {
   return annotation
 }
 
+/** Delete legacy offset-based PdfAnnotations (no `store` Konva geometry) that
+ *  the inklayer engine can't render, plus their pdfCards / placements /
+ *  reviews. Idempotent — run on app init to sweep pre-rewrite data. */
+export async function cleanupLegacyPdfAnnotations(): Promise<number> {
+  const all = await getAllAnnotations()
+  const legacy = all.filter((a) => !a.store)
+  for (const ann of legacy) {
+    try {
+      await deleteAnnotationWithCard(ann.id)
+    } catch (e) {
+      console.warn("[lime] cleanup legacy annotation failed:", ann.id, e)
+    }
+  }
+  return legacy.length
+}
+
 /** Delete an annotation + its pdfCard + any placement (1:1 coupling). */
 export async function deleteAnnotationWithCard(
   annotationId: string

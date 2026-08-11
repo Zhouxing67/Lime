@@ -1,4 +1,26 @@
 import * as pdfjsLib from "pdfjs-dist"
+import type { PdfOutlineItem } from "../types"
+
+/** Resolve an outline item's `.dest` to a 1-based page number. Only named
+ *  (string) dests need `getDestination`; array dests carry the page ref already. */
+export async function outlinePageNumber(
+  doc: pdfjsLib.PDFDocumentProxy,
+  item: PdfOutlineItem
+): Promise<number | null> {
+  try {
+    let dest = item.dest
+    if (typeof dest === "string") {
+      dest = (await doc.getDestination(dest)) ?? undefined
+    }
+    if (Array.isArray(dest) && dest.length > 0) {
+      const pageRef = dest[0]
+      if (pageRef) {
+        return (await doc.getPageIndex(pageRef)) + 1
+      }
+    }
+  } catch {}
+  return null
+}
 
 export interface PdfSearchMatch {
   page: number

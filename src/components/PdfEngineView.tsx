@@ -439,6 +439,8 @@ export interface PdfEngineViewProps {
   readerOpen?: boolean
   /** External card click → navigate + flash this annotation. */
   flashTarget?: { page: number; annId: string; token: number } | null
+  /** External page jump (search entry / outline click) → scroll to the page. */
+  pageJump?: { page: number; seq: number } | null
   onLoad?: () => void
 }
 
@@ -455,6 +457,7 @@ function EngineBridge({
   onSwapLeft,
   readerOpen,
   flashTarget,
+  pageJump,
   onLoad,
   textRange,
   onTextSelected
@@ -476,6 +479,7 @@ function EngineBridge({
   onSwapLeft?: () => void
   readerOpen?: boolean
   flashTarget?: { page: number; annId: string; token: number } | null
+  pageJump?: { page: number; seq: number } | null
   onLoad?: () => void
   textRange: Range | null
   onTextSelected: (range: Range | null) => void
@@ -586,6 +590,16 @@ function EngineBridge({
     [onAnnotationAdd, pdfViewer]
   )
 
+  const pageJumpSeqRef = useRef(pageJump?.seq ?? 0)
+  useEffect(() => {
+    const seq = pageJump?.seq
+    if (seq == null || seq === pageJumpSeqRef.current) return
+    pageJumpSeqRef.current = seq
+    if (!pdfViewer) return
+    pdfViewer.scrollPageIntoView({ pageNumber: pageJump.page })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageJump?.seq, pdfViewer])
+
   const flashTokenRef = useRef(flashTarget?.token ?? 0)
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
@@ -654,6 +668,7 @@ export default function PdfEngineView({
   onSwapLeft,
   readerOpen,
   flashTarget,
+  pageJump,
   onLoad
 }: PdfEngineViewProps) {
   const [textRange, setTextRange] = useState<Range | null>(null)
@@ -720,6 +735,7 @@ export default function PdfEngineView({
                 onSwapLeft={onSwapLeft}
                 readerOpen={readerOpen}
                 flashTarget={flashTarget}
+                pageJump={pageJump}
                 onLoad={onLoad}
                 textRange={textRange}
                 onTextSelected={handleTextSelected}

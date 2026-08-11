@@ -21,7 +21,7 @@ import {
   getDueCount,
   listPdfs
 } from "../database/index"
-import { ensureRegionImage } from "../database/pdfs"
+import { cleanupLegacyPdfAnnotations, ensureRegionImage } from "../database/pdfs"
 import { applyBadge } from "../utils"
 
 export interface UseAppDataOpts {
@@ -212,6 +212,11 @@ export function useAppData({
     getAllPdfCards().then(setAllPdfCards)
     getAllAnnotations().then((list) =>
       setAnnotationById(new Map(list.map((a) => [a.id, a])))
+    )
+    // One-time sweep of pre-rewrite offset-based annotations (no Konva store)
+    // that the inklayer engine can't render + their cards/reviews.
+    void cleanupLegacyPdfAnnotations().catch((e) =>
+      console.warn("[lime] legacy pdf cleanup failed:", e)
     )
   }, [])
 
