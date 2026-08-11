@@ -111,7 +111,10 @@ export async function renderRegionImage(
       const full = document.createElement("canvas")
       full.width = Math.ceil(vp.width)
       full.height = Math.ceil(vp.height)
-      await page.render({ canvas: full, viewport: vp }).promise
+      await page.render({
+        canvasContext: full.getContext("2d")!,
+        viewport: vp
+      }).promise
       const crop = document.createElement("canvas")
       crop.width = Math.max(1, Math.ceil(bbox.w * scale))
       crop.height = Math.max(1, Math.ceil(bbox.h * scale))

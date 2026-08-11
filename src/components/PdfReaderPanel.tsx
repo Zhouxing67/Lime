@@ -138,7 +138,7 @@ const PdfThumb = memo(function PdfThumb({
             canvas.height = Math.floor(viewport.height)
             setSize({ w: canvas.width, h: canvas.height })
             await page.render({
-              canvas,
+              canvasContext: canvas.getContext("2d")!,
               viewport
             }).promise
           })().catch(() => {

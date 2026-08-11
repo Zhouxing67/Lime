@@ -8,31 +8,15 @@ const dest = resolve(root, "assets/pdfjs")
 
 mkdirSync(dest, { recursive: true })
 
-// The official pdf_viewer.mjs — copied + patched: it carries one regex with the
-// `v` (UnicodeSets) flag that Parcel's parser rejects. Swap it for a v-flag-free
-// URL/email regex (the autolinker is a minor sub-feature of the viewer).
+// The official pdf_viewer.mjs — copied + patched with DEFENSIVE page-number
+// coercion: a string page number reaching the viewer (e.g. injected via
+// _location.pageNumber on some load paths) makes pdf.js's currentScale setter
+// throw "scrollPageIntoView: "1" is not a valid pageNumber". Coerce at the two
+// entry points that STORE the value.
 const viewer = resolve(src, "web/pdf_viewer.mjs")
 if (existsSync(viewer)) {
-  let content = readFileSync(viewer, "utf8")
-  const lines = content.split("\n")
-  const idx = lines.findIndex((l) => l.includes("/gv;"))
-  if (idx >= 0) {
-    lines[idx] =
-      '    this.#regex ??= /(?:\\bhttps?:\\/\\/|\\bwww\\.)[^\\s<>"\']+|[\\w.+-]+@[\\w-]+(?:\\.[\\w-]+)+/g;'
-    content = lines.join("\n")
-  }
-  writeFileSync(resolve(dest, "pdf_viewer.mjs"), content)
-  console.log("[pdfjs-assets] copied + patched pdf_viewer.mjs")
-}
-
-// Defensive page-number coercion — a string page number reaching the viewer
-// (e.g. injected via _location.pageNumber on some load paths) makes pdf.js's
-// currentScale setter throw "scrollPageIntoView: "1" is not a valid pageNumber".
-// Coerce at the two entry points that STORE the value. Reads the ALREADY-PATCHED
-// dest (the regex fix above wrote it) so the coercion stacks on top.
-if (existsSync(viewer)) {
   const destFile = resolve(dest, "pdf_viewer.mjs")
-  const original = readFileSync(destFile, "utf8")
+  const original = readFileSync(viewer, "utf8")
   let content = original
   content = content.replace(
     "  _setCurrentPageNumber(val, resetCurrentPageView = false) {",
@@ -45,6 +29,9 @@ if (existsSync(viewer)) {
   if (content !== original) {
     writeFileSync(destFile, content)
     console.log("[pdfjs-assets] patched pdf_viewer.mjs page-number coercion")
+  } else {
+    writeFileSync(destFile, original)
+    console.log("[pdfjs-assets] copied pdf_viewer.mjs (no patches applied)")
   }
 }
 
