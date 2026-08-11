@@ -144,6 +144,8 @@ const TEXT_LAYER_CSS = `
   left: 0;
   width: 100%;
   height: 100%;
+  /* Debug aid: mark every area the PDF declares as a link. */
+  border-bottom: 1px solid rgba(99, 102, 241, 0.55);
 }
 /* Custom unified selection highlight (merged rects — no per-span overlap at
    CJK/Latin boundaries, no per-span stepping). */
