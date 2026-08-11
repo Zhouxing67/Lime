@@ -1,0 +1,91 @@
+.InkLayer_Annotator_painter_wrapper {
+    position: absolute;
+    text-align: initial;
+    top: 0;
+    inset: 0;
+    overflow: hidden;
+    line-height: 1;
+    text-size-adjust: none;
+    forced-color-adjust: none;
+    transform-origin: 0 0;
+    z-index: 1;
+}
+
+.InkLayer_Annotator_annotation_author_labels_layer {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    overflow: hidden;
+    pointer-events: none;
+    user-select: none;
+}
+
+.InkLayer_Annotator_annotation_author_label {
+    position: absolute;
+    top: 0;
+    left: 0;
+    box-sizing: border-box;
+    color: var(--accent-contrast, #ffffff);
+    max-width: 160px;
+    overflow: hidden;
+    padding: 4px 6px;
+    border-radius: 3px;
+    font-family: system-ui, sans-serif;
+    font-size: 12px;
+    line-height: 1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    will-change: transform;
+    pointer-events: none;
+}
+
+.InkLayer_Annotator_selector_hover {
+    .InkLayer_Annotator_painter_wrapper {
+        cursor: pointer !important;
+    }
+}
+
+.InkLayer_Annotator_is_painting {
+    .InkLayer_Annotator_painter_wrapper {
+        z-index: 999;
+    }
+}
+
+.InkLayer_Annotator_painting_type_1,
+.InkLayer_Annotator_painting_type_2,
+.InkLayer_Annotator_painting_type_3 {
+    .textLayer {
+        &:not(.free) span {
+            cursor: var(--editorHighlight-editing-cursor);
+        }
+    }
+}
+
+.InkLayer_Annotator_painting_type_4,
+.InkLayer_Annotator_painting_type_5,
+.InkLayer_Annotator_painting_type_6,
+.InkLayer_Annotator_painting_type_11,
+.InkLayer_Annotator_painting_type_12,
+.InkLayer_Annotator_painting_type_13 {
+    .InkLayer_Annotator_painter_wrapper {
+        cursor: crosshair;
+    }
+}
+.InkLayer_Annotator_painting_type_7 {
+    .InkLayer_Annotator_painter_wrapper {
+        cursor: var(--editorInk-editing-cursor);
+    }
+}
+
+.InkLayer_Annotator_painting_type_8 {
+    .InkLayer_Annotator_painter_wrapper {
+        cursor: var(--editorFreeHighlight-editing-cursor);
+    }
+}
+
+.InkLayer_Annotator_painting_type_9,
+.InkLayer_Annotator_painting_type_10 {
+    .InkLayer_Annotator_painter_wrapper {
+        cursor: var(--InkLayer_Annotator-image-cursor);
+    }
+}

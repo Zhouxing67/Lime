@@ -1,0 +1,212 @@
+export default {
+    common: {
+        save: 'Save',
+        export: 'Export',
+        author: 'Author',
+        type: 'Type',
+        loading: 'PDF Loading...',
+        error: 'Load failed',
+        success: 'Successfully',
+        default: 'Default',
+        custom: 'Custom',
+        upload: 'Upload',
+        ok: 'OK',
+        cancel: 'Cancel',
+        clear: 'Clear',
+        selectAll: 'Select All',
+        draw: 'Draw',
+        enter: 'Enter',
+        back: 'Back',
+        confirm: 'Confirm',
+        reply: 'Reply',
+        edit: 'Edit',
+        delete: 'Delete',
+        restore: 'Restore',
+        restoreAll: 'Restore all',
+        more: 'More',
+        color: 'Color',
+        strokeWidth: 'Stroke',
+        opacity: 'Opacity',
+        transparent: 'Transparent',
+        comment: 'Comment',
+        fileSizeLimit: 'The file size exceeds the {{value}} limit',
+        print: 'Print',
+        dateFormat: {
+            full: '{{month}}/{{day}}/{{year}} {{hour}}:{{minute}}',
+            dayMonth: '{{month}}/{{day}}',
+            dayMonthYear: '{{month}}/{{day}}/{{year}}',
+            compact: '{{month}}/{{day}} {{hour}}:{{minute}}',
+            compactWithYear: '{{month}}/{{day}}/{{year}} {{hour}}:{{minute}}'
+        }
+    },
+
+    viewer: {
+        zoom: {
+            auto: 'auto',
+            actual: 'actual',
+            fit: 'page-fit',
+            width: 'page-width',
+            zoomIn: 'Zoom In',
+            zoomOut: 'Zoom Out',
+        },
+        sidebar: {
+            toggle: 'Toggle Sidebar'
+        },
+        navigation: {
+            toggle: 'Toggle document navigation',
+            label: 'Document navigation',
+            thumbnails: 'Thumbnails',
+            outline: 'Outline',
+            page: 'Page {{value}}',
+            pageWithMarkers: 'Page {{value}}, {{count}} annotations',
+            pageInput: 'Page number',
+            previousPage: 'Previous page',
+            nextPage: 'Next page',
+            thumbnailError: 'Unable to render this page',
+            outlineLoading: 'Loading outline…',
+            outlineEmpty: 'This document has no outline',
+            outlineError: 'Unable to load the document outline',
+            untitledOutlineItem: 'Untitled section',
+            expandOutlineItem: 'Expand {{title}}',
+            collapseOutlineItem: 'Collapse {{title}}'
+        },
+        search: {
+            search: 'Search',
+            placeholder: 'Search the docs…',
+            searching: 'Searching...',
+            page: 'Page {{value}}',
+            resultTotal: '{{total}} results found', 
+            caseSensitive: 'Case Sensitive',
+            entireWord: 'Entire Word',
+        }
+    },
+
+    annotator: {
+        tool: {
+            select: 'Select',
+            highlight: 'Highlight',
+            strikeout: 'Strikeout',
+            underline: 'Underline',
+            rectangle: 'Rectangle',
+            circle: 'Circle',
+            freehand: 'Free Hand',
+            freeHighlight: 'Free Highlight',
+            freeText: 'Text',
+            signature: 'Signature',
+            stamp: 'Stamp',
+            note: 'Note',
+            arrow: 'Arrow',
+            cloud: 'Cloud'
+        },
+        sidebar: {
+            toggle: 'Show Annotations'
+        },
+        authorLabels: {
+            show: 'Show annotation authors · Hold {{shortcut}} to peek',
+            hide: 'Hide annotation authors'
+        },
+        deleteUndo: {
+            annotationDeleted: 'Deleted{{reference}}',
+            annotationDeletedDetailed: 'Deleted{{reference}} · {{detail}}',
+            commentDeleted: 'Deleted comment in{{reference}}',
+            commentDeletedDetailed: 'Deleted comment in{{reference}} · {{detail}}',
+            commentDeletedByAuthor: 'Deleted {{author}}’s comment in{{reference}}',
+            annotationsDeleted: '{{count}} annotations deleted',
+            annotationsDeletedDetailed: '{{count}} annotations deleted · {{references}}',
+            commentsDeleted: '{{count}} comments deleted',
+            commentsDeletedDetailed: '{{count}} comments deleted · {{references}}',
+            itemsDeleted: '{{count}} items deleted',
+            itemsDeletedDetailed: '{{count}} items deleted · {{references}}',
+            typeAndPage: '{{type}}, page {{page}}',
+            page: 'Page {{page}}',
+            referencesMore: '{{references}}, and more',
+            deletedCommentPreview: 'Deleted comment',
+            deletedCommentsMore: '{{count}} more'
+        },
+        common: {
+            createStamp: 'Create Stamp',
+            createSignature: 'Create signature',
+            loadError: 'Annotation load failed',
+            errorCode: 'Error code',
+            unknownError: 'Unknown error',
+            loading: 'Annotation loading...',
+            loadingHint: 'Annotation loading time is long, please wait...'
+        },
+        editor: {
+            text: {
+                startTyping: 'Start typing…'
+            },
+            stamp: {
+                stampText: 'Stamp Text',
+                fontStyle: 'Font Style',
+                fontFamily: 'Font Family',
+                textColor: 'Text Color',
+                backgroundColor: 'Background Color',
+                borderColor: 'Border Color',
+                borderStyle: 'Border Style',
+                timestampText: 'Timestamp Text',
+                customTimestamp: 'Custom Text',
+                username: 'Username',
+                date: 'Date',
+                time: 'Time',
+                dateFormat: 'Date Format',
+                solid: 'Solid',
+                dashed: 'Dashed',
+                none: 'None',
+                defaultText: 'Draft',
+                defaultStampNotSet: 'Default Stamp Not Set', 
+                upload: 'Choose Image'
+            },
+            signature: {
+                area: 'Signature',
+                upload: 'Image',
+                choose: 'Choose Image',
+                uploadHint: '{{format}}, maxSize {{maxSize}}'
+            }
+        },
+        comment: {
+            total: 'Comment {{value}}',
+            page: 'Page {{value}}',
+            status: {
+                accepted: 'Accepted',
+                rejected: 'Rejected',
+                cancelled: 'Cancelled',
+                completed: 'Completed',
+                none: 'None',
+                closed: 'Closed'
+            },
+            statusText: 'Set Status: {{value}}',
+            nativeAnnotation: 'Native Annotation',
+            reference: {
+                commentPlaceholder: 'Comment or use “#” to reference an annotation',
+                empty: 'No matching annotations',
+                inputLabel: 'Comment with annotation references',
+                noContent: 'No comment content',
+                open: 'Go to annotation {{value}}',
+                previewNoContent: 'No annotation content',
+                previewPage: 'Page {{value}}',
+                replyCount: '{{count}} replies',
+                replyCount_one: '{{count}} reply',
+                replyCount_other: '{{count}} replies',
+                replyPlaceholder: 'Reply or use “#” to reference an annotation',
+                unavailable: 'Annotation {{value}} is unavailable'
+            }
+        },
+        export: {
+            fields: {
+                id: 'ID',
+                page: 'Page',
+                author: 'Author',
+                date: 'Date',
+                content: 'Content',
+                status: 'Status',
+                annotationType: 'Annotation Type',
+                recordType: 'Type'
+            },
+            recordType: {
+                annotation: 'Annotation',
+                reply: 'Reply'
+            }
+        }
+    }
+}

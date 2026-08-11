@@ -58,7 +58,19 @@ for (const dir of ["cmaps", "standard_fonts"]) {
 // layout + selection bridge, annotationLayer links). Without it the viewer
 // renders but text selection/links break.
 const css = resolve(src, "web/pdf_viewer.css")
-if (existsSync(css)) cpSync(css, resolve(dest, "pdf_viewer.css"))
+if (existsSync(css)) {
+  let cssContent = readFileSync(css, "utf8")
+  // The annotation-editor cursor custom properties carry RELATIVE urls, which
+  // resolve against the ELEMENT's document base at usage time (inklayer reuses
+  // these variables for its own tool cursors) — on a page under tabs/ that
+  // becomes tabs/images/cursor-*.svg → 404. Rewrite to root-absolute
+  // (/assets/pdfjs/images/...) which resolves to the extension origin.
+  cssContent = cssContent.replace(
+    /url\(images\/cursor-([a-zA-Z]+)\.svg\)/g,
+    "url(/assets/pdfjs/images/cursor-$1.svg)"
+  )
+  writeFileSync(resolve(dest, "pdf_viewer.css"), cssContent)
+}
 const cssImages = resolve(src, "web/images")
 if (existsSync(cssImages)) {
   mkdirSync(resolve(dest, "images"), { recursive: true })

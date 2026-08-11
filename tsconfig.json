@@ -5,8 +5,10 @@
   "compilerOptions": {
     // 👇 加上这一行，告诉 TS 5.3.3 忽略那些旧配置的警告
     "ignoreDeprecations": "5.0",
+    "verbatimModuleSyntax": false,
     "paths": {
-      "~*": ["./*"]
+      "~*": ["./*"],
+      "@/*": ["src/pdf/inklayer/*"]
     },
     "baseUrl": "."
   }

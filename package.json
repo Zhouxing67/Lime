@@ -10,6 +10,7 @@
     "predev": "node scripts/copy-pdfjs-assets.mjs",
     "build": "plasmo build",
     "prebuild": "node scripts/copy-pdfjs-assets.mjs",
+    "postbuild": "node scripts/fix-empty-chunks.mjs",
     "package": "python3 scripts/package.py",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -18,7 +19,8 @@
     "test:coverage": "jest --coverage"
   },
   "alias": {
-    "pdfjs-dist/web/pdf_viewer.mjs": "./assets/pdfjs/pdf_viewer.mjs"
+    "pdfjs-dist/web/pdf_viewer.mjs": "./assets/pdfjs/pdf_viewer.mjs",
+    "@/*": "./src/pdf/inklayer/*"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -26,16 +28,27 @@
     "@floating-ui/dom": "^1.8.0",
     "@mui/icons-material": "^7.3.5",
     "@mui/material": "^7.3.5",
+    "@radix-ui/themes": "^3.3.0",
+    "@types/file-saver": "^2.0.7",
+    "dayjs": "^1.11.21",
+    "exceljs": "^4.4.0",
+    "file-saver": "^2.0.5",
+    "i18next": "^26.3.6",
     "jszip": "^3.10.1",
     "katex": "^0.18.1",
     "konva": "^9.0.0",
     "marked-react": "^4.0.0",
     "nanoid": "^5.1.16",
+    "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^4.3.136",
     "plasmo": "0.90.5",
     "react": "18.2.0",
+    "react-colorful": "^5.8.0",
     "react-dom": "18.2.0",
+    "react-i18next": "^17.0.11",
+    "react-icons": "^5.7.0",
     "react-masonry-css": "^1.0.16",
+    "sass": "^1.102.0",
     "web-highlighter": "^0.7.4",
     "zustand": "^4.5.7"
   },
