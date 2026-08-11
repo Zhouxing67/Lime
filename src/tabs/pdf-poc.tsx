@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { PdfAnnotator } from "~/src/pdf/inklayer/features/annotator"
+import PdfEngineView from "~/src/components/PdfEngineView"
 
 import { listPdfs, getPdf } from "~/src/database"
 
@@ -44,15 +44,16 @@ export default function PdfPoc() {
   return (
     <div style={{ height: "100vh" }}>
       <div style={{ padding: "8px 16px", fontFamily: "sans-serif", fontSize: 13 }}>
-        PoC — {name}（选区→高亮/下划线/删除线；缩放后 mark 应对齐；onSave 输出到 console）
+        PoC — {name}（顶部工具条 = 我们的 MUI；选文字 → 弹出 MUI 选择栏；缩放对齐应正确）
       </div>
-      <PdfAnnotator
-        title={name}
-        data={bytes}
-        user={{ id: "poc", name: "PoC" }}
-        onSave={(anns) => console.log("[poc] onSave", JSON.stringify(anns))}
-        layoutStyle={{ width: "100%", height: "calc(100vh - 40px)" }}
-      />
+      <div style={{ width: "100%", height: "calc(100vh - 40px)" }}>
+        <PdfEngineView
+          data={bytes}
+          onAnnotationAdd={(a) => console.log("[poc] add", a.id, a.type)}
+          onAnnotationDelete={(id) => console.log("[poc] del", id)}
+          onAnnotationChanged={(a) => console.log("[poc] changed", a.id)}
+        />
+      </div>
     </div>
   )
 }

@@ -4,22 +4,12 @@ import { Painter } from './painter'
 import { useUserContext } from '@/context/user_context'
 import { usePainter } from './context/use_painter'
 import { PDFPageView } from 'pdfjs-dist/types/web/pdf_page_view'
-import { PopoverBarRef } from '@/components/popover_bar'
-import { SelectionBar } from './components/selection_bar'
 import { useOptionsContext } from './context/options_context'
-import { MenuBar, MenuBarRef } from './components/menu_bar'
 import { IAnnotationStore } from './const/definitions'
 import { FREE_TEXT_EDITOR } from './painter/const'
 import { useAnnotationStore } from './store'
 import { debounce } from '@/utils'
 import type { AnnotationPermissions } from './types/annotator'
-import {
-    NAVIGATION_PAGE_MARKERS_CHANGED_EVENT,
-    type NavigationPageMarkersChangedEvent,
-} from '@/components/navigation_page_markers'
-import { DeleteUndoSnackbar } from './components/delete_undo_snackbar'
-
-const ANNOTATOR_PAGE_MARKER_SOURCE = 'inklayer-annotator'
 
 interface AnnotatorExtensionProps {
     enableNativeAnnotations: boolean
@@ -33,6 +23,8 @@ interface AnnotatorExtensionProps {
     onAnnotationDelete: (id: string) => void
     onAnnotationSelected: (annotation: IAnnotationStore | null, isClick: boolean) => void
     onAnnotationChanged: (annotation: IAnnotationStore) => void
+    /** Text selection made inside the PDF — our own selection bar listens. */
+    onTextSelected?: (range: Range | null) => void
 }
 
 export const AnnotatorExtension: React.FC<AnnotatorExtensionProps> = ({
@@ -44,7 +36,8 @@ export const AnnotatorExtension: React.FC<AnnotatorExtensionProps> = ({
     onAnnotationAdd,
     onAnnotationDelete,
     onAnnotationSelected,
-    onAnnotationChanged
+    onAnnotationChanged,
+    onTextSelected
 }) => {
     const { isReady, pdfViewer, eventBus, isSidebarCollapsed } = usePdfViewerContext()
     const { user } = useUserContext()
@@ -61,7 +54,8 @@ export const AnnotatorExtension: React.FC<AnnotatorExtensionProps> = ({
         onAnnotationAdd,
         onAnnotationDelete,
         onAnnotationSelected,
-        onAnnotationChanged
+        onAnnotationChanged,
+        onTextSelected
     })
     latestPropsRef.current = {
         annotations: annotations ?? [],
@@ -70,11 +64,10 @@ export const AnnotatorExtension: React.FC<AnnotatorExtensionProps> = ({
         onAnnotationAdd,
         onAnnotationDelete,
         onAnnotationSelected,
-        onAnnotationChanged
+        onAnnotationChanged,
+        onTextSelected
     }
 
-    const selectionBarRef = useRef<PopoverBarRef>(null)
-    const menuBarRef = useRef<MenuBarRef>(null)
     const painterRef = useRef<Painter | null>(null)
     const latestUserRef = useRef(user)
     const latestPermissionsRef = useRef(annotationPermissions)
@@ -85,9 +78,6 @@ export const AnnotatorExtension: React.FC<AnnotatorExtensionProps> = ({
     const debouncedViewAreaChanged = useRef(
         debounce(
             () => {
-                menuBarRef.current?.close()
-                selectionBarRef.current?.close()
-
                 const element = document.querySelector(`#${FREE_TEXT_EDITOR}`)
                 if (element?.parentNode) {
                     try {
@@ -124,7 +114,7 @@ export const AnnotatorExtension: React.FC<AnnotatorExtensionProps> = ({
             PDFViewerApplication: pdfViewer,
 
             onTextSelected: (range) => {
-                selectionBarRef.current?.open(range)
+                latestPropsRef.current.onTextSelected?.(range)
             },
 
             onAnnotationAdd: (annotation) => {
@@ -135,24 +125,14 @@ export const AnnotatorExtension: React.FC<AnnotatorExtensionProps> = ({
                 latestPropsRef.current.onAnnotationDelete(id)
             },
 
-            onAnnotationSelected: (annotation, isClick, selectorRect) => {
-                if (isClick && annotation) {
-                    menuBarRef.current?.open(annotation, selectorRect)
-                }
+            onAnnotationSelected: (annotation, isClick, _selectorRect) => {
                 latestPropsRef.current.onAnnotationSelected(annotation ?? null, isClick)
             },
 
-            onAnnotationChanging: () => {
-                menuBarRef.current?.close()
-            },
+            onAnnotationChanging: () => {},
 
-            onAnnotationChanged: (annotation, selectorRect) => {
-                if (annotation && selectorRect) {
-                    menuBarRef.current?.open(annotation, selectorRect)
-                }
-                if (annotation) {
-                    latestPropsRef.current.onAnnotationChanged(annotation)
-                }
+            onAnnotationChanged: (annotation) => {
+                latestPropsRef.current.onAnnotationChanged(annotation)
             }
         })
 
@@ -235,53 +215,14 @@ export const AnnotatorExtension: React.FC<AnnotatorExtensionProps> = ({
 
     useLayoutEffect(() => {
         if (latestUserRef.current) {
-            menuBarRef.current?.close()
             painterRef.current?.setPermissionContext(latestUserRef.current, latestPermissionsRef.current)
             if (painterRef.current) refreshPainter()
         }
     }, [annotationPermissions, refreshPainter, user])
 
     useEffect(() => {
-        if (!eventBus) return
-
-        const publishPageMarkers = (annotationMap: Map<string, IAnnotationStore>) => {
-            const markers = new Map<number, number>()
-            annotationMap.forEach((annotation) => {
-                markers.set(annotation.pageNumber, (markers.get(annotation.pageNumber) ?? 0) + 1)
-            })
-
-            eventBus.dispatch(NAVIGATION_PAGE_MARKERS_CHANGED_EVENT, {
-                source: ANNOTATOR_PAGE_MARKER_SOURCE,
-                markers,
-            } satisfies NavigationPageMarkersChangedEvent)
-        }
-
-        publishPageMarkers(useAnnotationStore.getState().annotations)
-        const unsubscribe = useAnnotationStore.subscribe((state, previousState) => {
-            if (state.annotations !== previousState.annotations) {
-                publishPageMarkers(state.annotations)
-            }
-        })
-
-        return () => {
-            unsubscribe()
-            eventBus.dispatch(NAVIGATION_PAGE_MARKERS_CHANGED_EVENT, {
-                source: ANNOTATOR_PAGE_MARKER_SOURCE,
-                markers: new Map(),
-            } satisfies NavigationPageMarkersChangedEvent)
-        }
-    }, [eventBus])
-
-
-    useEffect(() => {
         handleViewAreaChanged()
     }, [handleViewAreaChanged, isSidebarCollapsed])
 
-    return (
-        <>
-            <SelectionBar ref={selectionBarRef} />
-            <MenuBar ref={menuBarRef} />
-            <DeleteUndoSnackbar />
-        </>
-    )
+    return <></>
 }
