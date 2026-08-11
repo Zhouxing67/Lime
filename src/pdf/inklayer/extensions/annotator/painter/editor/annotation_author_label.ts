@@ -27,12 +27,9 @@ export function getAnnotationAuthorName(
 export function getAnnotationAuthorLabelText(
     annotation: Pick<IAnnotationStore, 'user' | 'title' | 'referenceNumber'>
 ): string | null {
-    const authorName = getAnnotationAuthorName(annotation)
-    const hasReferenceNumber = isValidReferenceNumber(annotation.referenceNumber)
-
-    if (hasReferenceNumber && authorName) return `#${annotation.referenceNumber} · ${authorName}`
-    if (hasReferenceNumber) return `#${annotation.referenceNumber}`
-    return authorName
+    // Reference-number author labels ("#3 · 我") are an inklayer collaboration
+    // feature — removed per Lime's design (no shared-author UI).
+    return null
 }
 
 interface AnnotationAuthorLabelPositionOptions {

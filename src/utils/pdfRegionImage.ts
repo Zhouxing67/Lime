@@ -1,4 +1,5 @@
 import * as pdfjsLib from "pdfjs-dist"
+import { ensurePdfWorker } from "./pdfWorker"
 
 import type { PdfAnnotation } from "../types"
 import { MARK_COLOR } from "../components/pdfTheme"
@@ -94,6 +95,7 @@ export async function renderRegionImage(
   ann: PdfAnnotation
 ): Promise<string | null> {
   try {
+    await ensurePdfWorker()
     const task = pdfjsLib.getDocument({
       data: await pdfBytes.arrayBuffer(),
       cMapUrl: chrome.runtime.getURL("assets/pdfjs/cmaps/"),
@@ -104,8 +106,17 @@ export async function renderRegionImage(
     try {
       const page = await doc.getPage(ann.page)
       const vp1 = page.getViewport({ scale: 1 })
-      const bbox = annotationBbox(ann, vp1.width, vp1.height)
-      if (!bbox || bbox.w <= 0 || bbox.h <= 0) return null
+      const bbox0 = annotationBbox(ann, vp1.width, vp1.height)
+      if (!bbox0 || bbox0.w <= 0 || bbox0.h <= 0) return null
+      // Pad the bbox so the crop keeps the mark's full extent + a little
+      // context (the Konva clientRect hugs the strokes — edges can clip).
+      const PAD = 6
+      const bbox = {
+        x: Math.max(0, bbox0.x - PAD),
+        y: Math.max(0, bbox0.y - PAD),
+        w: Math.min(vp1.width - Math.max(0, bbox0.x - PAD), bbox0.w + PAD * 2),
+        h: Math.min(vp1.height - Math.max(0, bbox0.y - PAD), bbox0.h + PAD * 2)
+      }
       const scale = 3
       const vp = page.getViewport({ scale })
       const full = document.createElement("canvas")

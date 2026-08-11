@@ -452,10 +452,18 @@ export class Selector {
     private cleanupTween(groupId: string) {
         const tweenEntry = this.tweenStore.get(groupId);
         if (tweenEntry) {
+            // Reset the node's opacity so an interrupted flash (a new highlight
+            // cancelling this one mid-animation) never leaves the mark faded or
+            // invisible — repeated card→annotation jumps used to fade the mark
+            // to opacity 0 permanently.
             if (tweenEntry.fadeOut) {
+                const node = tweenEntry.fadeOut.node;
+                if (node) node.opacity(1);
                 tweenEntry.fadeOut.destroy();
             }
             if (tweenEntry.fadeIn) {
+                const node = tweenEntry.fadeIn.node;
+                if (node) node.opacity(1);
                 tweenEntry.fadeIn.destroy();
             }
             this.tweenStore.delete(groupId);

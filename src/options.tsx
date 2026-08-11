@@ -1199,6 +1199,9 @@ export default function OptionsPage() {
       annId: card.annotationId,
       token: pdfFlashToken.current
     })
+    // Highlight the clicked card in the panel too (bidirectional border).
+    pdfScrollToken.current += 1
+    setPdfScrollTarget({ cardId: card.id, token: pdfScrollToken.current })
   }, [openPdf])
 
   // Project card's PDF-source footer → jump to the PDF + flash its annotation.

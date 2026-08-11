@@ -5,7 +5,7 @@ import { useUserContext } from '@/context/user_context'
 import { usePainter } from './context/use_painter'
 import { PDFPageView } from 'pdfjs-dist/types/web/pdf_page_view'
 import { useOptionsContext } from './context/options_context'
-import { IAnnotationStore } from './const/definitions'
+import { annotationDefinitions, IAnnotationStore } from './const/definitions'
 import { FREE_TEXT_EDITOR } from './painter/const'
 import { useAnnotationStore } from './store'
 import { debounce } from '@/utils'
@@ -138,6 +138,9 @@ export const AnnotatorExtension: React.FC<AnnotatorExtensionProps> = ({
 
         painterRef.current = painterInstance
         setPainter(painterInstance)
+        // Default to SELECT mode so the selector (mark click → onAnnotationSelected)
+        // is live from the first render — activate(null) would leave it dormant.
+        painterInstance.activate(annotationDefinitions[0], null)
 
         const handlePageRendered = ({ source, cssTransform, pageNumber }: { source: PDFPageView; cssTransform: boolean; pageNumber: number }) => {
             painterInstance.initCanvas({
@@ -223,6 +226,24 @@ export const AnnotatorExtension: React.FC<AnnotatorExtensionProps> = ({
     useEffect(() => {
         handleViewAreaChanged()
     }, [handleViewAreaChanged, isSidebarCollapsed])
+
+    // Sync the in-memory marks with the persisted annotation list: annotations
+    // deleted in the cards panel (broadcast via _dbpdf → reloaded annotations
+    // prop) must drop their Konva marks immediately, without a viewer remount.
+    const annotationsKeyRef = useRef('')
+    useEffect(() => {
+        const key = JSON.stringify((annotations ?? []).map((a) => a.id))
+        if (key === annotationsKeyRef.current) return
+        annotationsKeyRef.current = key
+        const painter = painterRef.current
+        if (!painter) return
+        const ids = new Set((annotations ?? []).map((a) => a.id))
+        useAnnotationStore.getState().annotations.forEach((_a, id) => {
+            if (!ids.has(id)) {
+                painter.removeAnnotationFromPanel(id)
+            }
+        })
+    }, [annotations])
 
     return <></>
 }

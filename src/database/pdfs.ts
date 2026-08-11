@@ -415,6 +415,12 @@ export async function saveAnnotationFromStore(input: {
     contentsObj?: { selectedText?: string } | null
   }
   pos?: { x: number; y: number }
+  /** Normalized (0-1) bbox — the view computes it from konvaClientRect ÷ page
+   *  box; consumed by region crop rendering (annotationBbox/drawOverlay). */
+  rects?: { x: number; y: number; w: number; h: number }[]
+  /** Normalized (0-1) stroke points for freehand / free-highlight — extracted
+   *  from the Konva serialization; consumed by the crop overlay. */
+  path?: { x: number; y: number }[]
 }): Promise<PdfAnnotation> {
   const s = input.store
   const type = inkTypeToPdfMark(s.type)
@@ -430,6 +436,8 @@ export async function saveAnnotationFromStore(input: {
     text,
     color: s.color ?? undefined,
     pos: input.pos,
+    rects: input.rects,
+    path: input.path,
     store: s,
     ...(existing?.cardId ? { cardId: existing.cardId } : {}),
     updatedAt: Date.now(),
@@ -619,9 +627,18 @@ export async function ensureRegionImage(
 ): Promise<boolean> {
   try {
     const ann = await getAnnotation(annotationId)
-    if (!ann || ann.image) return false
+    if (!ann) {
+      console.warn("[lime] ensureRegionImage: annotation not found", annotationId)
+      return false
+    }
+    if (ann.image) {
+      return false
+    }
     const pdf = await getPdf(pdfId)
-    if (!pdf?.bytes) return false
+    if (!pdf?.bytes) {
+      console.warn("[lime] ensureRegionImage: pdf bytes missing", pdfId)
+      return false
+    }
     const image = await renderRegionImage(pdf.bytes, ann)
     if (!image) return false
     await updateAnnotationImage(annotationId, image)

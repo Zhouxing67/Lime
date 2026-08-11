@@ -4,12 +4,13 @@ import * as pdfjsLib from "pdfjs-dist"
 
 import { getPdf } from "../database"
 import type { PdfFile } from "../types"
+import { ensurePdfWorker } from "../utils/pdfWorker"
 
 // The ORIGINAL ESM worker served as a web-accessible asset (Parcel would wrap
-// the .mjs into a UMD bundle that pdf.js can't load as a module worker).
-pdfjsLib.GlobalWorkerOptions.workerSrc = chrome.runtime.getURL(
-  "assets/pdfjs/pdf.worker.min.mjs"
-)
+// the .mjs into a UMD bundle that pdf.js can't load as a module worker). A Blob
+// URL (via ensurePdfWorker) is robust for both the real Worker and pdf.js's
+// fake-worker fallback (whose bundled dynamic import can't resolve a runtime
+// chrome-extension:// URL). ensurePdfWorker() is awaited in the load effect.
 
 export interface LoadedPdf {
   file: PdfFile
@@ -44,6 +45,7 @@ export function usePdfDocument(pdfId: string | null) {
           setError("该 PDF 尚未同步文件，请打开本地文件后匹配批注")
           return
         }
+        await ensurePdfWorker()
         task = pdfjsLib.getDocument({
           data: await file.bytes.arrayBuffer(),
           cMapUrl: chrome.runtime.getURL("assets/pdfjs/cmaps/"),

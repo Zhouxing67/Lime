@@ -803,6 +803,12 @@ export class Painter {
         return true
     }
 
+    /** Remove a mark whose annotation was deleted outside the viewer (e.g. the
+     *  cards panel) — same store+Konva cleanup, no delete event re-emitted. */
+    public removeAnnotationFromPanel(id: string): void {
+        this.deleteAnnotation(id, false)
+    }
+
     private createDeletedAnnotationEntry(annotationStore: IAnnotationStore): DeletedAnnotationEntry {
         const annotationIds = Array.from(useAnnotationStore.getState().annotations.keys())
         const konvaStage = this.konvaCanvasStore.get(annotationStore.pageNumber)?.konvaStage
@@ -919,6 +925,46 @@ export class Painter {
      */
     public initWebSelection(rootElement: HTMLDivElement): void {
         this.webSelection.create(rootElement)
+        this.defaultClickRoot = rootElement
+        rootElement.addEventListener('click', this.handleDefaultClick)
+    }
+
+    /** Root the default-mode mark-click hit-test listens on. */
+    private defaultClickRoot: HTMLElement | null = null
+
+    /**
+     * In DEFAULT (non-painting) mode the Konva canvas is pointer-transparent so
+     * the text layer stays selectable. Mark clicks are routed HERE via a manual
+     * hit-test (stage.getIntersection) — the same architecture the legacy
+     * renderer used, letting text selection AND annotation→panel jump coexist.
+     */
+    private handleDefaultClick = (e: MouseEvent): void => {
+        if (document.body.classList.contains(PAINTER_IS_PAINTING_STYLE)) return
+        if (!this.currentAnnotation) return
+        for (const konvaCanvas of this.konvaCanvasStore.values()) {
+            const stage = konvaCanvas.konvaStage
+            const rect = stage.container().getBoundingClientRect()
+            const stagePoint = {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+            }
+            if (
+                stagePoint.x < 0 ||
+                stagePoint.y < 0 ||
+                stagePoint.x > rect.width ||
+                stagePoint.y > rect.height
+            ) {
+                continue
+            }
+            const shape = stage.getIntersection(stagePoint)
+            if (!shape) continue
+            const group = shape.findAncestor(`.${SHAPE_GROUP_NAME}`) as Konva.Group | undefined
+            if (!group) continue
+            this.setDefaultMode()
+            this.selector.select(group.id(), true)
+            this.selector.activate(konvaCanvas.pageNumber)
+            break
+        }
     }
 
     /**
@@ -950,13 +996,17 @@ export class Painter {
             case AnnotationType.FREE_HIGHLIGHT:
             case AnnotationType.SIGNATURE:
             case AnnotationType.STAMP:
-            case AnnotationType.SELECT:
             case AnnotationType.NOTE:
             case AnnotationType.ARROW:
             case AnnotationType.CLOUD:
                 this.setMode('painting') // 设置绘画模式
                 break
 
+            // SELECT must stay in DEFAULT mode (wrapper z-index 1) so the
+            // text layer (z-index 9) stays above the Konva canvas and text
+            // selection keeps working. The selector is still activated via
+            // enablePainting → enableEditor(SELECT), so mark clicks on canvas
+            // gaps still route to onAnnotationSelected.
             default:
                 this.setMode('default') // 设置默认模式
                 break
@@ -1240,6 +1290,10 @@ export class Painter {
         this.cancelHighlightRequest()
         this.deleteUndoController?.clear()
         this.disablePainting()
+        if (this.defaultClickRoot) {
+            this.defaultClickRoot.removeEventListener('click', this.handleDefaultClick)
+            this.defaultClickRoot = null
+        }
         this.webSelection.destroy()
         this.passiveHover.destroy()
         this.annotationHover.destroy()

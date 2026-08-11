@@ -43,6 +43,15 @@ if (existsSync(worker)) {
   cpSync(worker, resolve(dest, "pdf.worker.min.mjs"))
 }
 
+// The main pdf.js API is bundled via the `pdfjs-dist` alias (plain copy — no
+// patch: the fake-worker fallback is handled at runtime by a Blob workerSrc,
+// see src/utils/pdfWorker.ts, since an eval-based import would violate CSP).
+const api = resolve(src, "build/pdf.mjs")
+if (existsSync(api)) {
+  cpSync(api, resolve(dest, "pdf.mjs"))
+  console.log("[pdfjs-assets] copied pdf.mjs")
+}
+
 for (const dir of ["cmaps", "standard_fonts"]) {
   const from = resolve(src, dir)
   if (!existsSync(from)) {

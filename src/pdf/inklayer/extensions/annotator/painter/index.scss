@@ -9,6 +9,10 @@
     forced-color-adjust: none;
     transform-origin: 0 0;
     z-index: 1;
+    /* Default (non-painting): let the pdf.js text layer receive pointer events
+       so text selection works; mark clicks are routed by a manual hit-test
+       (painter.clickAnnotationAt). Drawing tools toggle this to auto. */
+    pointer-events: none;
 }
 
 .InkLayer_Annotator_annotation_author_labels_layer {
@@ -48,6 +52,7 @@
 .InkLayer_Annotator_is_painting {
     .InkLayer_Annotator_painter_wrapper {
         z-index: 999;
+        pointer-events: auto;
     }
 }
 
