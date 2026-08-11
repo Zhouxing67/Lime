@@ -426,7 +426,8 @@ export interface PdfEngineViewProps {
     annotation: IAnnotationStore,
     pos?: { x: number; y: number },
     rects?: { x: number; y: number; w: number; h: number }[],
-    path?: { x: number; y: number }[]
+    path?: { x: number; y: number }[],
+    paths?: { x: number; y: number }[][]
   ) => void
   onAnnotationDelete?: (id: string) => void
   onAnnotationSelected?: (annotation: IAnnotationStore | null, isClick: boolean) => void
@@ -463,7 +464,8 @@ function EngineBridge({
     annotation: IAnnotationStore,
     pos?: { x: number; y: number },
     rects?: { x: number; y: number; w: number; h: number }[],
-    path?: { x: number; y: number }[]
+    path?: { x: number; y: number }[],
+    paths?: { x: number; y: number }[][]
   ) => void
   onAnnotationDelete?: (id: string) => void
   onAnnotationSelected?: (annotation: IAnnotationStore | null, isClick: boolean) => void
@@ -527,6 +529,7 @@ function EngineBridge({
       let pos: { x: number; y: number } | undefined
       let rects: { x: number; y: number; w: number; h: number }[] | undefined
       let path: { x: number; y: number }[] | undefined
+      let allPaths: { x: number; y: number }[][] | undefined
       try {
         const pv = pdfViewer?.getPageView(store.pageNumber - 1)
         const vp = pv?.viewport
@@ -544,26 +547,32 @@ function EngineBridge({
           rects = [
             { x: r.x * sx, y: r.y * sy, w: r.width * sx, h: r.height * sy }
           ]
-          // Extract the stroke points (freehand / free-highlight) from the
-          // Konva serialization for the crop overlay.
+          // Extract ALL stroke points (freehand / free-highlight) from the
+          // Konva serialization — a multi-stroke annotation has several Lines,
+          // each a separate pen-up/pen-down; every stroke must render in the
+          // crop overlay.
           try {
             const json = JSON.parse(store.konvaString)
-            const findLine = (n: any): number[] | null => {
+            const allLines: number[][] = []
+            const collectLines = (n: any) => {
               if (n?.className === "Line" && Array.isArray(n?.attrs?.points)) {
-                return n.attrs.points as number[]
+                allLines.push(n.attrs.points as number[])
               }
-              for (const c of n?.children ?? []) {
-                const hit = findLine(c)
-                if (hit) return hit
-              }
-              return null
+              for (const c of n?.children ?? []) collectLines(c)
             }
-            const pts = findLine(json)
-            if (pts && pts.length >= 4) {
-              path = []
-              for (let i = 0; i < pts.length; i += 2) {
-                path.push({ x: pts[i] * sx, y: pts[i + 1] * sy })
-              }
+            collectLines(json)
+            const strokes = allLines
+              .filter((pts) => pts.length >= 4)
+              .map((pts) => {
+                const stroke: { x: number; y: number }[] = []
+                for (let i = 0; i < pts.length; i += 2) {
+                  stroke.push({ x: pts[i] * sx, y: pts[i + 1] * sy })
+                }
+                return stroke
+              })
+            if (strokes.length > 0) {
+              path = strokes.length === 1 ? strokes[0] : undefined
+              allPaths = strokes
             }
           } catch {
             // no path extracted — overlay falls back to the bbox stroke
@@ -572,7 +581,7 @@ function EngineBridge({
       } catch {
         // fall back to no pos/rects/path
       }
-      onAnnotationAdd?.(store, pos, rects, path)
+      onAnnotationAdd?.(store, pos, rects, path, allPaths)
     },
     [onAnnotationAdd, pdfViewer]
   )

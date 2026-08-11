@@ -174,6 +174,9 @@ export interface PdfAnnotation {
   rects?: { x: number; y: number; w: number; h: number }[]
   /** freehand / free-highlight strokes: NORMALIZED (0-1) points of the path. */
   path?: { x: number; y: number }[]
+  /** Multiple strokes (each a separate pen-up/pen-down) — the crop overlay
+   *  draws every stroke, not just the first. */
+  paths?: { x: number; y: number }[][]
   /** Optional region crop image (frame/free-hand/free-highlight) — generated
    *  when the annotation is placed into a project, so the placed card can show
    *  the annotated region's visual without re-rendering the PDF. */

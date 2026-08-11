@@ -412,7 +412,7 @@ export async function saveAnnotationFromStore(input: {
     title?: string
     color?: string | null
     konvaClientRect: { x: number; y: number; width: number; height: number }
-    contentsObj?: { selectedText?: string } | null
+    contentsObj?: { selectedText?: string; text?: string } | null
   }
   pos?: { x: number; y: number }
   /** Normalized (0-1) bbox — the view computes it from konvaClientRect ÷ page
@@ -421,11 +421,14 @@ export async function saveAnnotationFromStore(input: {
   /** Normalized (0-1) stroke points for freehand / free-highlight — extracted
    *  from the Konva serialization; consumed by the crop overlay. */
   path?: { x: number; y: number }[]
+  /** All strokes (multi-stroke annotations) — the crop draws every one. */
+  paths?: { x: number; y: number }[][]
 }): Promise<PdfAnnotation> {
   const s = input.store
   const type = inkTypeToPdfMark(s.type)
   const kind = inkTypeToKind(s.type)
-  const text = s.contentsObj?.selectedText || s.title || undefined
+  const text =
+    s.contentsObj?.selectedText || s.contentsObj?.text || s.title || undefined
   const existing = (await getAnnotation(s.id)) as PdfAnnotation | undefined
   const annotation: PdfAnnotation = {
     id: s.id,
@@ -438,6 +441,7 @@ export async function saveAnnotationFromStore(input: {
     pos: input.pos,
     rects: input.rects,
     path: input.path,
+    paths: input.paths,
     store: s,
     ...(existing?.cardId ? { cardId: existing.cardId } : {}),
     updatedAt: Date.now(),

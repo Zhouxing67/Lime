@@ -38,6 +38,41 @@ function annotationBbox(
 /** Draw the annotation's visual onto the crop context (crop coords). The path
  *  points are NORMALIZED to the whole page — map them via the page size minus
  *  the crop's bbox origin, or the stroke would be compressed toward the top-left. */
+/** The mark's ACTUAL visual from its Konva serialization (color/width/opacity)
+ *  — the crop overlay must match the live PDF mark, not a fixed palette. */
+function extractMarkStyle(ann: PdfAnnotation): {
+  color?: string
+  strokeWidth?: number
+  opacity?: number
+} {
+  try {
+    const s = ann.store as { konvaString?: string } | undefined
+    if (!s?.konvaString) return {}
+    const json = JSON.parse(s.konvaString)
+    const findShape = (n: unknown): any => {
+      const node = n as any
+      if (node?.className && ["Line", "Rect", "Path", "Text"].includes(node.className)) return node
+      for (const c of node?.children ?? []) {
+        const hit = findShape(c)
+        if (hit) return hit
+      }
+      return null
+    }
+    const shape = findShape(json)
+    if (!shape) return {}
+    const a = shape.attrs ?? {}
+    const strokeWidth =
+      typeof a.strokeWidth === "number" ? a.strokeWidth : undefined
+    return {
+      color: a.stroke || a.fill || ann.color,
+      strokeWidth,
+      opacity: typeof a.opacity === "number" ? a.opacity : undefined
+    }
+  } catch {
+    return {}
+  }
+}
+
 function drawOverlay(
   ctx: CanvasRenderingContext2D,
   ann: PdfAnnotation,
@@ -46,6 +81,7 @@ function drawOverlay(
   pageW: number,
   pageH: number
 ): void {
+  const style = extractMarkStyle(ann)
   ctx.lineCap = "round"
   ctx.lineJoin = "round"
   if (ann.type === "frame") {
@@ -53,8 +89,8 @@ function drawOverlay(
     const y = 0
     const w = bbox.w * scale
     const h = bbox.h * scale
-    ctx.strokeStyle = MARK_COLOR.frame
-    ctx.lineWidth = 1.5 * scale
+    ctx.strokeStyle = style.color ?? MARK_COLOR.frame
+    ctx.lineWidth = (style.strokeWidth ?? 1.5) * scale
     ctx.beginPath()
     ctx.moveTo(x + 2, y)
     ctx.lineTo(x + w - 2, y)
@@ -67,23 +103,34 @@ function drawOverlay(
     ctx.quadraticCurveTo(x, y, x + 2, y)
     ctx.stroke()
   } else if (ann.type === "freehand" || ann.type === "free-highlight") {
-    const pts = (ann.path ?? []).map((p) => ({
-      x: (p.x * pageW - bbox.x) * scale,
-      y: (p.y * pageH - bbox.y) * scale
-    }))
-    if (pts.length < 2) return
-    ctx.strokeStyle = MARK_COLOR[ann.type]
-    ctx.lineWidth = (ann.type === "free-highlight" ? 14 : 2) * scale
-    ctx.beginPath()
-    ctx.moveTo(pts[0].x, pts[0].y)
-    // Tension-0.35 smoothing (mid-point quadratic, same as the Konva render).
-    for (let i = 1; i < pts.length - 1; i++) {
-      const mx = (pts[i].x + pts[i + 1].x) / 2
-      const my = (pts[i].y + pts[i + 1].y) / 2
-      ctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my)
+    const strokes = ann.paths?.length
+      ? ann.paths
+      : ann.path
+        ? [ann.path]
+        : []
+    if (strokes.length === 0) return
+    ctx.globalAlpha = style.opacity ?? 1
+    ctx.strokeStyle = style.color ?? MARK_COLOR[ann.type]
+    ctx.lineWidth =
+      (style.strokeWidth ?? (ann.type === "free-highlight" ? 14 : 2)) * scale
+    for (const stroke of strokes) {
+      const pts = stroke.map((p) => ({
+        x: (p.x * pageW - bbox.x) * scale,
+        y: (p.y * pageH - bbox.y) * scale
+      }))
+      if (pts.length < 2) continue
+      ctx.beginPath()
+      ctx.moveTo(pts[0].x, pts[0].y)
+      // Tension-0.35 smoothing (mid-point quadratic, same as the Konva render).
+      for (let i = 1; i < pts.length - 1; i++) {
+        const mx = (pts[i].x + pts[i + 1].x) / 2
+        const my = (pts[i].y + pts[i + 1].y) / 2
+        ctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my)
+      }
+      ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y)
+      ctx.stroke()
     }
-    ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y)
-    ctx.stroke()
+    ctx.globalAlpha = 1
   }
 }
 

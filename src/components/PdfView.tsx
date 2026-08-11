@@ -107,7 +107,8 @@ export default function PdfView({
       annotation: IAnnotationStore,
       pos?: { x: number; y: number },
       rects?: { x: number; y: number; w: number; h: number }[],
-      path?: { x: number; y: number }[]
+      path?: { x: number; y: number }[],
+      paths?: { x: number; y: number }[][]
     ) => {
       if (!loaded) return
       try {
@@ -116,7 +117,8 @@ export default function PdfView({
           store: annotation,
           pos,
           rects,
-          path
+          path,
+          paths
         })
         if (saved.cardId) {
           annIdToCardId.current.set(saved.id, saved.cardId)

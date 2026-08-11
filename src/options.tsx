@@ -370,15 +370,17 @@ export default function OptionsPage() {
       // PDF quote (annotation.text). Legacy placements (type "text" in the DB)
       // are normalized here — no migration needed.
       const placedType: ProjectCardType = "placed"
+      const isTextLike =
+        ann?.kind === "text" || ann?.type === "freetext"
       const base = {
         ...card,
         type: placedType,
-        content:
-          ann?.kind === "text"
-            ? ann?.text ?? ""
-            : resolved.content,
+        content: isTextLike ? ann?.text ?? "" : resolved.content,
         comment: resolved.comment,
-        image: ann?.kind === "region" ? ann?.image : undefined
+        image:
+          ann?.kind === "region" && ann?.type !== "freetext"
+            ? ann?.image
+            : undefined
       }
       return pdfCard
         ? {
