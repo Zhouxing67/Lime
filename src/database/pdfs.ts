@@ -375,6 +375,104 @@ export async function createRegionAnnotationCard(input: {
   return { card, annotation }
 }
 
+/** Map an inklayer AnnotationType number to our PdfMark. */
+export function inkTypeToPdfMark(type: number): PdfMark {
+  switch (type) {
+    case 1:
+      return "highlight"
+    case 2:
+      return "strike"
+    case 3:
+      return "underline"
+    case 4:
+      return "freetext"
+    case 7:
+      return "freehand"
+    case 8:
+      return "free-highlight"
+    default:
+      return "frame"
+  }
+}
+
+/** Map an inklayer AnnotationType number to our annotation kind. */
+export function inkTypeToKind(type: number): "text" | "region" {
+  return type === 1 || type === 2 || type === 3 ? "text" : "region"
+}
+
+/** Persist an annotation created/changed by the inklayer engine + its pdfCard
+ *  in ONE transaction. `pos` is the normalized (0-1) center the view computes
+ *  from the Konva clientRect + the page box (column-aware panel sorting). */
+export async function saveAnnotationFromStore(input: {
+  pdfId: string
+  store: {
+    id: string
+    pageNumber: number
+    type: number
+    title?: string
+    color?: string | null
+    konvaClientRect: { x: number; y: number; width: number; height: number }
+    contentsObj?: { selectedText?: string } | null
+  }
+  pos?: { x: number; y: number }
+}): Promise<PdfAnnotation> {
+  const s = input.store
+  const type = inkTypeToPdfMark(s.type)
+  const kind = inkTypeToKind(s.type)
+  const text = s.contentsObj?.selectedText || s.title || undefined
+  const existing = (await getAnnotation(s.id)) as PdfAnnotation | undefined
+  const annotation: PdfAnnotation = {
+    id: s.id,
+    pdfId: input.pdfId,
+    page: s.pageNumber,
+    kind,
+    type,
+    text,
+    color: s.color ?? undefined,
+    pos: input.pos,
+    store: s,
+    ...(existing?.cardId ? { cardId: existing.cardId } : {}),
+    updatedAt: Date.now(),
+    createdAt: existing?.createdAt ?? Date.now()
+  }
+  if (!annotation.cardId) {
+    const card = createPdfCard({
+      pdfId: input.pdfId,
+      page: s.pageNumber,
+      kind,
+      type,
+      annotationId: s.id,
+      pdfOrder:
+        s.pageNumber * PDF_ORDER_BASE +
+        Math.round((input.pos?.y ?? 0) * 1e6)
+    })
+    annotation.cardId = card.id
+    await tx(
+      { pdfCards: "readwrite", pdfAnnotations: "readwrite" },
+      async (stores) => {
+        await new Promise<void>((resolve, reject) => {
+          const r1 = stores.pdfCards.put(card)
+          r1.onsuccess = () => {
+            const r2 = stores.pdfAnnotations.put(annotation)
+            r2.onsuccess = () => resolve()
+            r2.onerror = () => reject(r2.error)
+          }
+          r1.onerror = () => reject(r1.error)
+        })
+      }
+    )
+  } else {
+    await withStore("pdfAnnotations", "readwrite", async (store) => {
+      await new Promise<void>((resolve, reject) => {
+        const r = store.put(annotation)
+        r.onsuccess = () => resolve()
+        r.onerror = () => reject(r.error)
+      })
+    })
+  }
+  return annotation
+}
+
 /** Delete an annotation + its pdfCard + any placement (1:1 coupling). */
 export async function deleteAnnotationWithCard(
   annotationId: string

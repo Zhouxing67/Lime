@@ -182,6 +182,9 @@ export interface PdfAnnotation {
   /** Normalized (0-1) center of the mark — enables column-aware panel sorting
    *  (two-column papers: x<0.5 = left column, then top-to-bottom by y). */
   pos?: { x: number; y: number }
+  /** Serialized inklayer IAnnotationStore (Konva geometry) — the render source
+   *  for the new engine; legacy offset-based annotations don't carry it. */
+  store?: unknown
   /** Linked PdfCard id (annotation ↔ pdfCard are 1:1). */
   cardId?: string
   /** Last modification time (type/color/comment edits) — display date. */

@@ -14,6 +14,7 @@ import { defaultOptions as defaultAnnotatorOptions } from "~/src/pdf/inklayer/ex
 import { deepMerge } from "~/src/pdf/inklayer/utils"
 import { usePainter } from "~/src/pdf/inklayer/extensions/annotator/context/use_painter"
 import { useAnnotationStore } from "~/src/pdf/inklayer/extensions/annotator/store"
+import { usePdfViewerContext } from "~/src/pdf/inklayer/context/pdf_viewer_context"
 import {
   annotationDefinitions,
   type IAnnotationStore,
@@ -174,11 +175,88 @@ export interface PdfEngineViewProps {
   data: ArrayBuffer
   title?: string
   annotations?: IAnnotationStore[]
-  onAnnotationAdd?: (annotation: IAnnotationStore) => void
+  onAnnotationAdd?: (annotation: IAnnotationStore, pos?: { x: number; y: number }) => void
   onAnnotationDelete?: (id: string) => void
   onAnnotationSelected?: (annotation: IAnnotationStore | null, isClick: boolean) => void
   onAnnotationChanged?: (annotation: IAnnotationStore) => void
+  onVisiblePageChange?: (page: number) => void
   onLoad?: () => void
+}
+
+/** Bridge rendered INSIDE PdfViewerProvider — needs the pdfViewer/eventBus. */
+function EngineBridge({
+  annotations,
+  onAnnotationAdd,
+  onAnnotationDelete,
+  onAnnotationSelected,
+  onAnnotationChanged,
+  onVisiblePageChange,
+  onLoad,
+  textRange,
+  onTextSelected
+}: {
+  annotations?: IAnnotationStore[]
+  onAnnotationAdd?: (annotation: IAnnotationStore, pos?: { x: number; y: number }) => void
+  onAnnotationDelete?: (id: string) => void
+  onAnnotationSelected?: (annotation: IAnnotationStore | null, isClick: boolean) => void
+  onAnnotationChanged?: (annotation: IAnnotationStore) => void
+  onVisiblePageChange?: (page: number) => void
+  onLoad?: () => void
+  textRange: Range | null
+  onTextSelected: (range: Range | null) => void
+}) {
+  const { pdfViewer, eventBus } = usePdfViewerContext()
+
+  const onVisiblePageRef = useRef(onVisiblePageChange)
+  onVisiblePageRef.current = onVisiblePageChange
+  useEffect(() => {
+    if (!eventBus) return
+    const onPageChanging = (evt: { pageNumber: number }) => {
+      onVisiblePageRef.current?.(evt.pageNumber)
+    }
+    eventBus.on("pagechanging", onPageChanging)
+    return () => {
+      eventBus.off("pagechanging", onPageChanging)
+    }
+  }, [eventBus])
+
+  const handleAdd = useCallback(
+    (store: IAnnotationStore) => {
+      let pos: { x: number; y: number } | undefined
+      try {
+        const pv = pdfViewer?.getPageView(store.pageNumber - 1)
+        const vp = pv?.viewport
+        const r = store.konvaClientRect
+        if (vp && r && vp.width > 0 && vp.height > 0) {
+          pos = {
+            x: (r.x + r.width / 2) / vp.width,
+            y: (r.y + r.height / 2) / vp.height
+          }
+        }
+      } catch {
+        // fall back to no pos
+      }
+      onAnnotationAdd?.(store, pos)
+    },
+    [onAnnotationAdd, pdfViewer]
+  )
+
+  return (
+    <>
+      <EngineToolbar />
+      <EngineSelectionBar range={textRange} />
+      <AnnotatorExtension
+        enableNativeAnnotations={false}
+        annotations={annotations}
+        onLoad={onLoad ?? (() => {})}
+        onAnnotationAdd={handleAdd}
+        onAnnotationDelete={onAnnotationDelete ?? (() => {})}
+        onAnnotationSelected={onAnnotationSelected ?? (() => {})}
+        onAnnotationChanged={onAnnotationChanged ?? (() => {})}
+        onTextSelected={onTextSelected}
+      />
+    </>
+  )
 }
 
 /** The Lime PDF view — vendored inklayer engine + our MUI chrome. */
@@ -190,6 +268,7 @@ export default function PdfEngineView({
   onAnnotationDelete,
   onAnnotationSelected,
   onAnnotationChanged,
+  onVisiblePageChange,
   onLoad
 }: PdfEngineViewProps) {
   const [textRange, setTextRange] = useState<Range | null>(null)
@@ -197,6 +276,17 @@ export default function PdfEngineView({
     () => ({ defaultOptions: deepMerge(defaultAnnotatorOptions, {}), primaryColor: "#1272e8" }),
     []
   )
+
+  // The official pdf.js viewer CSS (page/textLayer/annotationLayer layout) is
+  // required by the vendored engine — load it as a runtime <link> like the old
+  // renderer did (kept out of Parcel's CSS pipeline).
+  useEffect(() => {
+    const cssLink = document.createElement("link")
+    cssLink.rel = "stylesheet"
+    cssLink.href = chrome.runtime.getURL("assets/pdfjs/pdf_viewer.css")
+    document.head.append(cssLink)
+    return () => cssLink.remove()
+  }, [])
 
   const rootRef = useRef<HTMLDivElement>(null)
   const [rootSize, setRootSize] = useState<{ w: number; h: number } | null>(null)
@@ -233,16 +323,15 @@ export default function PdfEngineView({
                 height: rootSize ? rootSize.h : "100%"
               }}
             >
-              <EngineToolbar />
-              <EngineSelectionBar range={textRange} />
-              <AnnotatorExtension
-                enableNativeAnnotations={false}
+              <EngineBridge
                 annotations={annotations}
-                onLoad={onLoad ?? (() => {})}
-                onAnnotationAdd={onAnnotationAdd ?? (() => {})}
-                onAnnotationDelete={onAnnotationDelete ?? (() => {})}
-                onAnnotationSelected={onAnnotationSelected ?? (() => {})}
-                onAnnotationChanged={onAnnotationChanged ?? (() => {})}
+                onAnnotationAdd={onAnnotationAdd}
+                onAnnotationDelete={onAnnotationDelete}
+                onAnnotationSelected={onAnnotationSelected}
+                onAnnotationChanged={onAnnotationChanged}
+                onVisiblePageChange={onVisiblePageChange}
+                onLoad={onLoad}
+                textRange={textRange}
                 onTextSelected={handleTextSelected}
               />
             </PdfViewerProvider>

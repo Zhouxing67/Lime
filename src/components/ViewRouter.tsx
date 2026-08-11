@@ -254,38 +254,42 @@ function PdfViewRouter(props: PdfViewRouterProps) {
   }
   return (
     <Box sx={{ height: "100%", minHeight: 0, overflow: "hidden" }}>
-      {openPdfIds.map((id) => (
-        <Box
-          key={id}
-          sx={{
-            display: id === activePdfId ? "block" : "none",
-            height: "100%",
-            minHeight: 0
-          }}>
+      {activePdfId && openPdfIds.includes(activePdfId) ? (
+        <Box key={activePdfId} sx={{ height: "100%", minHeight: 0 }}>
           <PdfView
-            pdfId={id}
+            pdfId={activePdfId}
             outlineDest={pdfOutlineDest}
             onOutlineClick={(item) => setPdfOutlineDest(item)}
-            readerOpen={pdfReaderOpen && id === activePdfId}
+            readerOpen={pdfReaderOpen}
             onToggleReader={toggleReader}
             onSwapLeft={swapLeft}
-            flashTarget={id === activePdfId ? pdfFlashTarget : null}
+            flashTarget={pdfFlashTarget}
             onJumpInPanel={handleJumpInPanel}
-            onVisiblePageChange={
-              id === activePdfId ? setPdfCurrentPage : undefined
-            }
-            onPageCountChange={
-              id === activePdfId ? setPdfPageCount : undefined
-            }
+            onVisiblePageChange={setPdfCurrentPage}
+            onPageCountChange={setPdfPageCount}
             onSearchClick={() => setPdfSidebarView("search")}
-            searchRequest={id === activePdfId ? searchRequest : null}
-            onSearchResults={
-              id === activePdfId ? handlePdfSearchResults : undefined
-            }
-            jumpRequest={id === activePdfId ? jumpRequest : null}
+            searchRequest={searchRequest}
+            onSearchResults={handlePdfSearchResults}
+            jumpRequest={jumpRequest}
           />
         </Box>
-      ))}
+      ) : (
+        <PdfHub
+          key={topics.join("|")}
+          pdfs={pdfs}
+          countByPdf={countByPdf}
+          onOpenPdf={handleOpenPdf}
+          onNewPdf={() => pdfFileInputRef.current?.click()}
+          onOpenUrl={onOpenUrl}
+          onDeletePdf={handleDeletePdf}
+          onRenamePdf={onRenamePdf}
+          topics={topics}
+          onNewTopic={handleNewTopic}
+          onRenameTopic={handleRenameTopic}
+          onDeleteTopic={handleDeleteTopic}
+          onMovePdf={handleMovePdf}
+        />
+      )}
     </Box>
   )
 }
