@@ -5,21 +5,15 @@ import { annotationDefinitions, AnnotationType, IAnnotationComment, IAnnotationS
 import { isElementInDOM, removeCssCustomProperty } from '../utils/utils'
 import { CURSOR_CSS_PROPERTY, PAINTER_IS_PAINTING_STYLE, PAINTER_PAINTING_TYPE, PAINTER_WRAPPER_PREFIX, SHAPE_GROUP_NAME } from './const'
 import { Editor } from './editor/editor'
-import { EditorCircle } from './editor/editor_circle'
 import { EditorFreeHand } from './editor/editor_free_hand'
 import { EditorFreeHighlight } from './editor/editor_free_highlight'
 import { EditorFreeText } from './editor/editor_free_text'
 import { EditorHighLight } from './editor/editor_highlight'
 import { EditorRectangle } from './editor/editor_rectangle'
-import { EditorSignature } from './editor/editor_signature'
-import { EditorStamp } from './editor/editor_stamp'
-import { EditorNote } from './editor/editor_note'
 import { Selector } from './editor/selector'
 import { SelectionSource, useAnnotationStore } from '../store'
 import { WebSelection } from './webSelection'
 import { Transform } from './transform/transform'
-import { EditorArrow } from './editor/editor_arrow'
-import { EditorCloud } from './editor/editor_cloud'
 import { IRect } from 'konva/lib/types'
 import { AnnotationPermissionAction, AnnotationPermissions, PdfAnnotatorOptions } from '../types/annotator'
 import { PageViewport } from 'pdfjs-dist/types/web/interfaces'
@@ -522,14 +516,6 @@ export class Painter {
     private enableEditor({ konvaStage, pageNumber, annotation }: { konvaStage: Konva.Stage; pageNumber: number; annotation: IAnnotationType }): void {
         const storeEditor = this.findEditor(pageNumber, annotation.type) // 查找存储中的编辑器实例
         if (storeEditor) {
-            if (storeEditor instanceof EditorSignature) {
-                storeEditor.activateWithSignature(konvaStage, annotation, this.tempDataTransfer) // 激活带有签名的编辑器
-                return
-            }
-            if (storeEditor instanceof EditorStamp) {
-                storeEditor.activateWithStamp(konvaStage, annotation, this.tempDataTransfer) // 激活带有图章的编辑器
-                return
-            }
             storeEditor.activate(konvaStage, annotation) // 激活编辑器
             return
         }
@@ -569,72 +555,6 @@ export class Painter {
                     }
                 })
                 break
-            case AnnotationType.ARROW:
-                editor = new EditorArrow({
-                    primaryColor: this.primaryColor,
-                    defaultOptions: this.defaultOptions,
-                    currentUser: this.currentUser,
-                    pdfViewerApplication: this.pdfViewerApplication,
-                    konvaStage,
-                    pageNumber,
-                    annotation,
-                    onAdd: (annotationStore) => {
-                        this.saveToStore(annotationStore)
-                    },
-                    onChange: (id, updates) => {
-                        this.updateStore(id, updates) // 更新存储
-                    }
-                })
-                break
-            case AnnotationType.CLOUD:
-                editor = new EditorCloud({
-                    primaryColor: this.primaryColor,
-                    defaultOptions: this.defaultOptions,
-                    currentUser: this.currentUser,
-                    pdfViewerApplication: this.pdfViewerApplication,
-                    konvaStage,
-                    pageNumber,
-                    annotation,
-                    onAdd: (annotationStore) => {
-                        this.saveToStore(annotationStore)
-                    },
-                    onChange: (id, updates) => {
-                        this.updateStore(id, updates) // 更新存储
-                    }
-                })
-                break
-            case AnnotationType.CIRCLE:
-                editor = new EditorCircle({
-                    primaryColor: this.primaryColor,
-                    defaultOptions: this.defaultOptions,
-                    currentUser: this.currentUser,
-                    pdfViewerApplication: this.pdfViewerApplication,
-                    konvaStage,
-                    pageNumber,
-                    annotation,
-                    onAdd: (annotationStore) => {
-                        this.saveToStore(annotationStore)
-                    },
-                    onChange: (id, updates) => {
-                        this.updateStore(id, updates) // 更新存储
-                    }
-                })
-                break
-            case AnnotationType.NOTE:
-                editor = new EditorNote({
-                    primaryColor: this.primaryColor,
-                    defaultOptions: this.defaultOptions,
-                    currentUser: this.currentUser,
-                    pdfViewerApplication: this.pdfViewerApplication,
-                    konvaStage,
-                    pageNumber,
-                    annotation,
-                    onAdd: (annotationStore) => {
-                        this.saveToStore(annotationStore)
-                    },
-                    onChange: () => {}
-                })
-                break
             case AnnotationType.FREEHAND:
                 editor = new EditorFreeHand({
                     primaryColor: this.primaryColor,
@@ -668,42 +588,6 @@ export class Painter {
                         this.updateStore(id, updates) // 更新存储
                     }
                 })
-                break
-            case AnnotationType.SIGNATURE:
-                editor = new EditorSignature(
-                    {
-                        primaryColor: this.primaryColor,
-                        defaultOptions: this.defaultOptions,
-                        currentUser: this.currentUser,
-                        pdfViewerApplication: this.pdfViewerApplication,
-                        konvaStage,
-                        pageNumber,
-                        annotation,
-                        onAdd: (annotationStore) => {
-                            this.saveToStore(annotationStore)
-                        },
-                        onChange: () => {}
-                    },
-                    this.tempDataTransfer
-                )
-                break
-            case AnnotationType.STAMP:
-                editor = new EditorStamp(
-                    {
-                        primaryColor: this.primaryColor,
-                        defaultOptions: this.defaultOptions,
-                        currentUser: this.currentUser,
-                        pdfViewerApplication: this.pdfViewerApplication,
-                        konvaStage,
-                        pageNumber,
-                        annotation,
-                        onAdd: (annotationStore) => {
-                            this.saveToStore(annotationStore)
-                        },
-                        onChange: () => {}
-                    },
-                    this.tempDataTransfer
-                )
                 break
             case AnnotationType.HIGHLIGHT:
             case AnnotationType.UNDERLINE:

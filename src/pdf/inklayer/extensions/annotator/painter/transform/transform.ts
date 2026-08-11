@@ -1,5 +1,4 @@
 import { IAnnotationStore, PdfjsAnnotationType } from '../../const/definitions'
-import { CircleDecoder } from './decoder_circle'
 import { Decoder, type IDecoderOptions, type InkLayerAnnotationMetadata } from './decoder'
 import { FreeTextDecoder } from './decoder_free_text'
 import { HighlightDecoder } from './decoder_highlight'
@@ -9,8 +8,6 @@ import { LineDecoder } from './decoder_line'
 import { PolygonDecoder } from './decoder_polygon'
 import { PolylineDecoder } from './decoder_polyline'
 import { TextDecoder } from './decoder_text'
-import { CloudDecoder } from './decoder_cloud'
-import { ArrowDecoder } from './decoder_arrow'
 import { InkLayerFreeTextDecoder } from './decoder_inklayer_freetext'
 import { PDFViewer } from 'pdfjs-dist/types/web/pdf_viewer'
 import { Annotation } from 'pdfjs'
@@ -106,7 +103,6 @@ export class Transform {
         inkLayerMetadata: Map<string, InkLayerAnnotationMetadata>
     ): IAnnotationStore | null {
         const decoderMap: { [key: string]: new (options: IDecoderOptions) => Decoder } = {
-            [PdfjsAnnotationType.CIRCLE]: CircleDecoder,
             [PdfjsAnnotationType.FREETEXT]: FreeTextDecoder,
             [PdfjsAnnotationType.HIGHLIGHT]: HighlightDecoder,
             [PdfjsAnnotationType.UNDERLINE]: HighlightDecoder,
@@ -120,15 +116,8 @@ export class Transform {
         }
         const metadata = inkLayerMetadata.get(annotation.id)
         let DecoderClass: new (options: IDecoderOptions) => Decoder = decoderMap[annotation.annotationType]
-        if (metadata?.type === 'Cloud' && (
-            annotation.annotationType === PdfjsAnnotationType.POLYGON ||
-            annotation.annotationType === PdfjsAnnotationType.INK
-        )) DecoderClass = CloudDecoder
         if (metadata?.type === 'FreeText' && annotation.annotationType === PdfjsAnnotationType.TEXT) {
             DecoderClass = InkLayerFreeTextDecoder
-        }
-        if (metadata?.type === 'Arrow' && annotation.annotationType === PdfjsAnnotationType.INK) {
-            DecoderClass = ArrowDecoder
         }
         if (DecoderClass) {
             const decoder = new DecoderClass({
