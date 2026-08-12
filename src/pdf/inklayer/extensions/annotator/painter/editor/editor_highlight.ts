@@ -82,8 +82,8 @@ export class EditorHighLight extends Editor {
     private mergeSpanRectsByRow(rects: SpanCanvasRect[]): SpanCanvasRect[] {
         if (rects.length === 0) return []
 
-        const ROW_TOLERANCE = 2   // px，同一行的 Y 容差
-        const MERGE_GAP = 1        // px，水平间隙小于此值则合并
+        const ROW_TOLERANCE = 3   // px，同一行的 Y 容差
+        const MERGE_GAP = 4        // px，水平间隙小于此值则合并
 
         // 按 Y 排序
         const sorted = [...rects].sort((a, b) => a.y - b.y)

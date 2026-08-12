@@ -58,6 +58,7 @@ interface PdfViewRouterProps {
   swapLeft: () => void
   pdfFlashTarget: { page: number; annId: string; token: number } | null
   pdfSelectedAnnId: string | null
+  pdfClearRingToken: number
   handlePdfAnnotationSelected: (annId: string | null) => void
   pdfTypeChangeTarget: { id: string; type: number; seq: number } | null
   handleJumpInPanel: (cardId: string) => void
@@ -209,6 +210,7 @@ function PdfViewRouter(props: PdfViewRouterProps) {
     swapLeft,
     pdfFlashTarget,
     pdfSelectedAnnId,
+    pdfClearRingToken,
     handlePdfAnnotationSelected,
     pdfTypeChangeTarget,
     handleJumpInPanel,
@@ -280,6 +282,7 @@ function PdfViewRouter(props: PdfViewRouterProps) {
             jumpRequest={jumpRequest}
             typeChangeRequest={pdfTypeChangeTarget}
             onAnnotationSelected={handlePdfAnnotationSelected}
+            clearRingToken={pdfClearRingToken}
           />
         </Box>
       ) : (

@@ -27,7 +27,8 @@ export default function PdfView({
   onSwapLeft,
   onOutlineClick,
   typeChangeRequest,
-  onAnnotationSelected
+  onAnnotationSelected,
+  clearRingToken
 }: {
   pdfId: string | null
   onOutlineLoaded?: (outline: PdfOutlineItem[] | null) => void
@@ -46,6 +47,7 @@ export default function PdfView({
   onOutlineClick?: (item: PdfOutlineItem) => void
   typeChangeRequest?: { id: string; type: number; seq: number } | null
   onAnnotationSelected?: (annId: string | null) => void
+  clearRingToken?: number
 }) {
   const { loaded, error } = usePdfDocument(pdfId)
   const [stores, setStores] = useState<IAnnotationStore[]>([])
@@ -276,6 +278,7 @@ export default function PdfView({
               : undefined
           }
           typeChangeRequest={typeChangeRequest}
+          clearRingToken={clearRingToken}
         />
       </Box>
     </Box>

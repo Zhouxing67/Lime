@@ -693,6 +693,13 @@ export class Painter {
         this.deleteAnnotation(id, false)
     }
 
+    /** Clear the current selection (ring + emit the deselect) — used by the app
+     *  to auto-dismiss the shared card↔mark highlight. */
+    public clearSelection(): void {
+        this.selector.currentTransformerId = null
+        this.onAnnotationSelected(undefined, false, { x: 0, y: 0, width: 0, height: 0 })
+    }
+
     /** Switch a TEXT annotation's type (highlight ↔ underline ↔ strikeout):
      *  rebuilds the mark's Konva shapes for the new type. A text-markup mark
      *  is ONE Rect PER TEXT LINE (a paragraph highlight = several Rects) — the

@@ -208,6 +208,21 @@ export default function OptionsPage() {
   const pdfFlashToken = useRef(0)
   const pdfScrollToken = useRef(0)
   const [pdfSelectedAnnId, setPdfSelectedAnnId] = useState<string | null>(null)
+  const [pdfClearRingToken, setPdfClearRingToken] = useState(0)
+  const pdfSelectedTimerRef = useRef<number | null>(null)
+  // The shared card↔mark highlight auto-dismisses after 2s (a brief "selected"
+  // cue) — no persistent selection to deselect.
+  const setPdfSelected = useCallback((annId: string | null) => {
+    setPdfSelectedAnnId(annId)
+    if (pdfSelectedTimerRef.current) window.clearTimeout(pdfSelectedTimerRef.current)
+    pdfSelectedTimerRef.current = null
+    if (!annId) return
+    pdfSelectedTimerRef.current = window.setTimeout(() => {
+      pdfSelectedTimerRef.current = null
+      setPdfSelectedAnnId(null)
+      setPdfClearRingToken((t) => t + 1)
+    }, 2000)
+  }, [])
   const [pdfTypeChangeTarget, setPdfTypeChangeTarget] = useState<{
     id: string
     type: number
@@ -1208,9 +1223,9 @@ export default function OptionsPage() {
       annId: card.annotationId,
       token: pdfFlashToken.current
     })
-    // Persistent bidirectional selection: the card + its PDF mark stay
-    // highlighted together until cleared.
-    setPdfSelectedAnnId(card.annotationId)
+    // Brief bidirectional selection: the card + its PDF mark stay highlighted
+    // together for ~2s then auto-dismiss.
+    setPdfSelected(card.annotationId)
     // Highlight the clicked card in the panel too (bidirectional border).
     pdfScrollToken.current += 1
     setPdfScrollTarget({ cardId: card.id, token: pdfScrollToken.current })
@@ -1231,7 +1246,7 @@ export default function OptionsPage() {
         annId: pdfCard?.annotationId ?? "",
         token: pdfFlashToken.current
       })
-      setPdfSelectedAnnId(pdfCard?.annotationId ?? null)
+      setPdfSelected(pdfCard?.annotationId ?? null)
       // Also scroll + highlight the matching sidebar card.
       pdfScrollToken.current += 1
       setPdfScrollTarget({
@@ -1249,12 +1264,12 @@ export default function OptionsPage() {
   }, [])
 
   // The engine's selector selection (mark click OR empty-click deselect) →
-  // mirrors it into the panel's persistent card highlight.
+  // mirrors it into the panel's card highlight (auto-dismisses after 2s).
   const handlePdfAnnotationSelected = useCallback(
     (annId: string | null) => {
-      setPdfSelectedAnnId(annId)
+      setPdfSelected(annId)
     },
-    []
+    [setPdfSelected]
   )
 
   // PdfCardsPanel "切换批注类型" → the engine rebuilds the mark + emits
@@ -2415,6 +2430,7 @@ export default function OptionsPage() {
                 swapLeft,
                 pdfFlashTarget,
                 pdfSelectedAnnId,
+                pdfClearRingToken,
                 handlePdfAnnotationSelected,
                 pdfTypeChangeTarget,
                 handleJumpInPanel,

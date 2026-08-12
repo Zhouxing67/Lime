@@ -450,6 +450,8 @@ export interface PdfEngineViewProps {
   searchOptions?: { caseSensitive: boolean; wholeWord: boolean }
   /** External text-annotation type switch (highlight/underline/strikeout). */
   typeChangeRequest?: { id: string; type: number; seq: number } | null
+  /** Bump → auto-clear the shared selection ring (the 2s card↔mark cue). */
+  clearRingToken?: number
   onLoad?: () => void
 }
 
@@ -471,6 +473,7 @@ function EngineBridge({
   searchQuery,
   searchOptions,
   typeChangeRequest,
+  clearRingToken,
   onLoad,
   textRange,
   onTextSelected
@@ -507,6 +510,7 @@ function EngineBridge({
   searchQuery?: string
   searchOptions?: { caseSensitive: boolean; wholeWord: boolean }
   typeChangeRequest?: { id: string; type: number; seq: number } | null
+  clearRingToken?: number
   onLoad?: () => void
   textRange: Range | null
   onTextSelected: (range: Range | null) => void
@@ -671,6 +675,15 @@ function EngineBridge({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [typeChangeRequest?.seq, painter])
 
+  const clearRingTokenRef = useRef(clearRingToken ?? 0)
+  useEffect(() => {
+    const token = clearRingToken ?? 0
+    if (token === 0 || token === clearRingTokenRef.current) return
+    clearRingTokenRef.current = token
+    if (painter) painter.clearSelection()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clearRingToken, painter])
+
   // Start at 0, NOT the mount-time flashTarget token: the flash often fires
   // while the engine is still loading (the PdfEngineView mounts AFTER the
   // flashTarget was set) — initializing from it would make the effect's
@@ -773,6 +786,7 @@ export default function PdfEngineView({
   searchQuery,
   searchOptions,
   typeChangeRequest,
+  clearRingToken,
   onLoad
 }: PdfEngineViewProps) {
   const [textRange, setTextRange] = useState<Range | null>(null)
@@ -854,6 +868,7 @@ export default function PdfEngineView({
                 searchQuery={searchQuery}
                 searchOptions={searchOptions}
                 typeChangeRequest={typeChangeRequest}
+                clearRingToken={clearRingToken}
                 onLoad={onLoad}
                 textRange={textRange}
                 onTextSelected={handleTextSelected}
