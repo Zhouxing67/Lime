@@ -631,10 +631,9 @@ function EngineBridge({
   const renderSearchFlash = useCallback(
     (flash: NonNullable<typeof searchFlash>) => {
       clearSearchFlash()
-      const pageEl = document.querySelector(
-        `.pdfViewer .page[data-page-number="${flash.page}"]`
-      ) as HTMLElement | null
-      const textLayer = pageEl?.querySelector(".textLayer")
+      const pageView = pdfViewer?.getPageView(flash.page - 1)
+      const pageEl = pageView?.div as HTMLElement | null
+      const textLayer = pageView?.textLayer
       if (!pageEl || !textLayer) {
         // Page not rendered yet (the flash fires before the jump completes) —
         // retry until the text layer appears.
@@ -654,13 +653,14 @@ function EngineBridge({
         } catch {
           rects = []
         }
+        const isCurrent = i === flash.current
         for (const r of rects) {
           if (r.w <= 0 || r.h <= 0) continue
           const div = document.createElement("div")
           div.style.cssText = `position:absolute;left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;background:${
-            i === flash.current
-              ? "rgba(99,102,241,0.45)"
-              : "rgba(99,102,241,0.22)"
+            isCurrent ? "rgba(99,102,241,0.40)" : "rgba(99,102,241,0.22)"
+          };border:${
+            isCurrent ? "1.5px solid rgba(99,102,241,0.85)" : "none"
           };border-radius:1px`
           overlay.appendChild(div)
         }
@@ -668,7 +668,7 @@ function EngineBridge({
       pageEl.appendChild(overlay)
       searchFlashRef.current = overlay
     },
-    [clearSearchFlash]
+    [clearSearchFlash, pdfViewer]
   )
 
   useEffect(() => {
@@ -687,27 +687,59 @@ function EngineBridge({
     }
   }, [searchFlash, clearSearchFlash, renderSearchFlash, eventBus])
 
-  const flashTokenRef = useRef(flashTarget?.token ?? 0)
+  const annotationsRef = useRef(annotations)
+  annotationsRef.current = annotations
+
+  // Start at 0, NOT the mount-time flashTarget token: the flash often fires
+  // while the engine is still loading (the PdfEngineView mounts AFTER the
+  // flashTarget was set) — initializing from it would make the effect's
+  // token-guard skip the flash entirely.
+  const flashTokenRef = useRef(0)
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
     const token = flashTarget?.token
     if (token == null || token === flashTokenRef.current) return
-    flashTokenRef.current = token
-    if (!pdfViewer || !painter) return
     const { page, annId } = flashTarget
-    const mark = annotations?.find((a) => a.id === annId)
     // Debounce rapid card→annotation jumps so the engine's flash animation
     // isn't interrupted mid-fade (a cancelled flash used to leave the mark at
     // opacity 0).
     if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
-    flashTimerRef.current = setTimeout(() => {
+    const tryFlash = () => {
       flashTimerRef.current = null
+      // The engine (pdfViewer/painter) or the annotations may not be ready yet
+      // (the PDF just opened) — retry until the mark exists, then flash.
+      if (!pdfViewer || !painter) {
+        flashTimerRef.current = setTimeout(tryFlash, 200)
+        return
+      }
+      const mark = annotationsRef.current?.find((a) => a.id === annId)
+      if (annId && !mark) {
+        flashTimerRef.current = setTimeout(tryFlash, 200)
+        return
+      }
+      flashTokenRef.current = token
       if (annId && mark) {
-        void painter.highlight(mark)
+        // The engine's highlight scrolls + draws the selection ring; its
+        // internal editor-retry (3s) may exhaust before the freshly-opened
+        // page's marks render — retry externally until it returns true.
+        let attempts = 0
+        const tryHighlight = () => {
+          attempts++
+          void painter.highlight(mark).then((ok) => {
+            if (ok || attempts >= 10) return
+            if (flashTimerRef.current) return
+            flashTimerRef.current = setTimeout(() => {
+              flashTimerRef.current = null
+              tryHighlight()
+            }, 300)
+          })
+        }
+        tryHighlight()
       } else {
         pdfViewer.scrollPageIntoView({ pageNumber: page })
       }
-    }, 150)
+    }
+    flashTimerRef.current = setTimeout(tryFlash, 150)
     return () => {
       if (flashTimerRef.current) {
         clearTimeout(flashTimerRef.current)
