@@ -16,6 +16,8 @@
 
 **工程**：pdf.js worker 改 Blob URL（规避 Parcel 转译 fake-worker 崩溃）；`_empty` chunk 后置重命名（Edge 保留前缀）；保留 keep-alive 移除（单活跃实例）；代码净删 ~3000 行（旧 PdfRenderer/pdfMarksKonva/pdfRegistry/pdfViewerShared/konvaStage）。
 
+**Code/UI review 修复批次**：选择栏换 MUI 图标（禁生僻字形）；`boxShadow` 走 `t.custom.cardShadow`；缩放字号对齐 0.75rem；批注编辑同步裁剪图几何（rects/path/paths）；`changeAnnotationType` 重建 mark 时保留源行 rect（类型切换幂等）+ 走引擎 editor 生命周期（flash 环不残留、无悬挂 mark）。
+
 ## 7.0.0 — 同步图片文件分离 + 视图模块化架构
 
 **同步 v6（SyncPayload 图片文件分离）**：图片 dataURL（图像卡 `card.image` / region 裁剪图 `annotation.image` / 旧模型 content 里的图片）全部剥离出 sync JSON，改存 WebDAV `/images/<contentHash>.png` 多文件层（content-hash 命名去重，无损、增量）；JSON 从 MB 级瘦到几百 KB。上传 PUT 缺失图片 + **清理无引用孤儿**（删除传播从设计内置）；下载拉取引用图片并水合回本地；版本门控 v3-v6，兼容读 v5（内联图片透传）。同步慢的问题就此根治。
