@@ -593,6 +593,12 @@ export class Selector {
     /**
      * 清除选择器的所有状态和事件。
      */
+    /** Destroy the current selection ring (transformers) — the lightest
+     *  deselect, without the full clear()'s event/group teardown. */
+    public clearSelection(): void {
+        this.clearTransformers()
+    }
+
     public clear(): void {
         this.clearCanvasHover()
         this.clearTransformers()

@@ -696,7 +696,7 @@ export class Painter {
     /** Clear the current selection (ring + emit the deselect) — used by the app
      *  to auto-dismiss the shared card↔mark highlight. */
     public clearSelection(): void {
-        this.selector.currentTransformerId = null
+        this.selector.clearSelection()
         this.onAnnotationSelected(undefined, false, { x: 0, y: 0, width: 0, height: 0 })
     }
 
