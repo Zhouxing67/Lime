@@ -753,6 +753,9 @@ export class Painter {
             this.enableEditor({ konvaStage: stage, pageNumber: store.pageNumber, annotation: def })
             this.findEditor(store.pageNumber, newType)?.addSerializedGroupToLayer(stage, newStore.konvaString)
         }
+        // Clear the selection ring: the old group is destroyed, so a stale
+        // transformer would otherwise linger on the previous annotation.
+        this.selector.currentTransformerId = null
         useAnnotationStore.getState().addAnnotation(newStore)
         this.onAnnotationChanged(newStore)
         return true
