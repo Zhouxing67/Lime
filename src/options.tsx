@@ -207,6 +207,7 @@ export default function OptionsPage() {
   )
   const pdfFlashToken = useRef(0)
   const pdfScrollToken = useRef(0)
+  const [pdfSelectedAnnId, setPdfSelectedAnnId] = useState<string | null>(null)
   const [pdfTypeChangeTarget, setPdfTypeChangeTarget] = useState<{
     id: string
     type: number
@@ -1207,6 +1208,9 @@ export default function OptionsPage() {
       annId: card.annotationId,
       token: pdfFlashToken.current
     })
+    // Persistent bidirectional selection: the card + its PDF mark stay
+    // highlighted together until cleared.
+    setPdfSelectedAnnId(card.annotationId)
     // Highlight the clicked card in the panel too (bidirectional border).
     pdfScrollToken.current += 1
     setPdfScrollTarget({ cardId: card.id, token: pdfScrollToken.current })
@@ -1227,6 +1231,7 @@ export default function OptionsPage() {
         annId: pdfCard?.annotationId ?? "",
         token: pdfFlashToken.current
       })
+      setPdfSelectedAnnId(pdfCard?.annotationId ?? null)
       // Also scroll + highlight the matching sidebar card.
       pdfScrollToken.current += 1
       setPdfScrollTarget({
@@ -1242,6 +1247,15 @@ export default function OptionsPage() {
     pdfScrollToken.current += 1
     setPdfScrollTarget({ cardId, token: pdfScrollToken.current })
   }, [])
+
+  // The engine's selector selection (mark click OR empty-click deselect) →
+  // mirrors it into the panel's persistent card highlight.
+  const handlePdfAnnotationSelected = useCallback(
+    (annId: string | null) => {
+      setPdfSelectedAnnId(annId)
+    },
+    []
+  )
 
   // PdfCardsPanel "切换批注类型" → the engine rebuilds the mark + emits
   // onAnnotationChanged (saves the new type + konvaString).
@@ -2400,6 +2414,8 @@ export default function OptionsPage() {
                 toggleReader,
                 swapLeft,
                 pdfFlashTarget,
+                pdfSelectedAnnId,
+                handlePdfAnnotationSelected,
                 pdfTypeChangeTarget,
                 handleJumpInPanel,
                 setPdfCurrentPage,
@@ -2822,6 +2838,7 @@ export default function OptionsPage() {
             onCreateProject={handleCreateProjectAndPlace}
             onJumpToProject={handleJumpToProject}
             onTypeChange={handlePdfTypeChange}
+            selectedAnnId={pdfSelectedAnnId}
           />
         )}
       </Box>

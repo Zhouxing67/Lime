@@ -26,7 +26,8 @@ export default function PdfView({
   onToggleReader,
   onSwapLeft,
   onOutlineClick,
-  typeChangeRequest
+  typeChangeRequest,
+  onAnnotationSelected
 }: {
   pdfId: string | null
   onOutlineLoaded?: (outline: PdfOutlineItem[] | null) => void
@@ -44,6 +45,7 @@ export default function PdfView({
   onSwapLeft?: () => void
   onOutlineClick?: (item: PdfOutlineItem) => void
   typeChangeRequest?: { id: string; type: number; seq: number } | null
+  onAnnotationSelected?: (annId: string | null) => void
 }) {
   const { loaded, error } = usePdfDocument(pdfId)
   const [stores, setStores] = useState<IAnnotationStore[]>([])
@@ -198,11 +200,14 @@ export default function PdfView({
 
   const handleSelected = useCallback(
     (annotation: IAnnotationStore | null) => {
+      // Mirror the engine's selector selection (mark click OR empty-click
+      // deselect) into the panel's persistent card highlight.
+      onAnnotationSelected?.(annotation ? annotation.id : null)
       if (!annotation || !onJumpInPanel) return
       const cardId = annIdToCardId.current.get(annotation.id)
       if (cardId) onJumpInPanel(cardId)
     },
-    [onJumpInPanel]
+    [onJumpInPanel, onAnnotationSelected]
   )
 
   if (error) {

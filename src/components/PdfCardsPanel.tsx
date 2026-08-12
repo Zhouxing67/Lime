@@ -78,6 +78,9 @@ interface PdfCardsPanelProps {
   onJumpToProject?: (card: PdfCard) => void
   /** Switch a text annotation's mark type (highlight/underline/strikeout). */
   onTypeChange?: (card: PdfCard, type: "highlight" | "underline" | "strike") => void
+  /** Persistent shared selection (annotation id) — the matching card stays
+   *  highlighted alongside the PDF mark until both are deselected. */
+  selectedAnnId?: string | null
 }
 
 export default function PdfCardsPanel({
@@ -95,7 +98,8 @@ export default function PdfCardsPanel({
   onDelete,
   onCreateProject,
   onJumpToProject,
-  onTypeChange
+  onTypeChange,
+  selectedAnnId
 }: PdfCardsPanelProps) {
   const [expandedCards, setExpandedCards] = useState<Set<string>>(
     () => new Set()
@@ -410,7 +414,9 @@ export default function PdfCardsPanel({
             const ann = annotations.find((x) => x.id === card.annotationId)
             const expanded = expandedCards.has(card.id)
             const isSelected = selected.has(card.id)
-            const highlighted = highlightId === card.id
+            const highlighted =
+              highlightId === card.id ||
+              Boolean(selectedAnnId && card.annotationId === selectedAnnId)
             const placement = card.projectCardId
               ? placements.get(card.projectCardId)
               : undefined

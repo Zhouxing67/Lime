@@ -57,6 +57,8 @@ interface PdfViewRouterProps {
   toggleReader: () => void
   swapLeft: () => void
   pdfFlashTarget: { page: number; annId: string; token: number } | null
+  pdfSelectedAnnId: string | null
+  handlePdfAnnotationSelected: (annId: string | null) => void
   pdfTypeChangeTarget: { id: string; type: number; seq: number } | null
   handleJumpInPanel: (cardId: string) => void
   setPdfCurrentPage: (page: number) => void
@@ -206,6 +208,8 @@ function PdfViewRouter(props: PdfViewRouterProps) {
     toggleReader,
     swapLeft,
     pdfFlashTarget,
+    pdfSelectedAnnId,
+    handlePdfAnnotationSelected,
     pdfTypeChangeTarget,
     handleJumpInPanel,
     setPdfCurrentPage,
@@ -275,6 +279,7 @@ function PdfViewRouter(props: PdfViewRouterProps) {
             onSearchResults={handlePdfSearchResults}
             jumpRequest={jumpRequest}
             typeChangeRequest={pdfTypeChangeTarget}
+            onAnnotationSelected={handlePdfAnnotationSelected}
           />
         </Box>
       ) : (
