@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+## 8.0.0 — PDF 阅读器全量重写（inklayer 引擎）
+
+**PDF 引擎迁移**：PDF 阅读区从自研渲染（pdfjs v6 + 手写文本层/几何换算）整体重写为 **inklayer-react 引擎（vendored，pdfjs-dist 4.3.136）**——选区视觉 = 原生浏览器选区（字符级精确，无自定义 overlay）、批注渲染 = Konva（缩放/翻页/重载稳定对齐）、选区与批注点击共存（wrapper pointer-events:none + 命中测试）。
+
+**批注工具**：高亮/下划线/删除线（文本选区选择栏）+ 框选/自由画笔/自由高亮/文本框（顶部工具栏）；移除签名/印章/注释/箭头/圆/云（裁剪）。
+
+**批注数据模型变更（⚠️ 旧批注自动失效）**：批注持久化从「字符偏移/归一化矩形」改为 **Konva store 序列化**（`store.konvaString` + 归一化 `rects`/`path`/`paths`）——缩放无关、跨设备稳定。旧 offset 批注在 app 启动时自动清理（连带卡片/复习）。
+
+**PDF 区域裁剪图**：置入项目时按批注实际笔画（从 Konva 数据提取颜色/线宽/透明度/多笔）渲染裁剪图；取消置入自动清除释放存储。
+
+**交互**：旧款工具栏完全复刻（导航/适应/缩放/页码 + 区域工具）；批注↔卡片**双向跳转**（面板卡↔PDF mark 高亮边框 + 居中）；搜索改用 pdf.js 官方 find controller（字符级精确高亮）；目录 TOC 面板；placed 项目卡点击直达 PDF 批注。
+
+**工程**：pdf.js worker 改 Blob URL（规避 Parcel 转译 fake-worker 崩溃）；`_empty` chunk 后置重命名（Edge 保留前缀）；保留 keep-alive 移除（单活跃实例）；代码净删 ~3000 行（旧 PdfRenderer/pdfMarksKonva/pdfRegistry/pdfViewerShared/konvaStage）。
+
 ## 7.0.0 — 同步图片文件分离 + 视图模块化架构
 
 **同步 v6（SyncPayload 图片文件分离）**：图片 dataURL（图像卡 `card.image` / region 裁剪图 `annotation.image` / 旧模型 content 里的图片）全部剥离出 sync JSON，改存 WebDAV `/images/<contentHash>.png` 多文件层（content-hash 命名去重，无损、增量）；JSON 从 MB 级瘦到几百 KB。上传 PUT 缺失图片 + **清理无引用孤儿**（删除传播从设计内置）；下载拉取引用图片并水合回本地；版本门控 v3-v6，兼容读 v5（内联图片透传）。同步慢的问题就此根治。
