@@ -13,7 +13,10 @@ import {
   FitScreenRounded,
   AspectRatioRounded,
   AddRounded,
-  RemoveRounded
+  RemoveRounded,
+  BorderColorRounded,
+  FormatUnderlinedRounded,
+  StrikethroughSRounded
 } from "@mui/icons-material"
 import { Theme } from "@radix-ui/themes"
 import { TooltipProvider } from "@radix-ui/react-tooltip"
@@ -62,16 +65,6 @@ const TOOL_LABELS: Record<(typeof LIME_TOOL_NAMES)[number], string> = {
   freehand: "画笔",
   freeHighlight: "自由高亮",
   freeText: "文本框"
-}
-
-const TOOL_ICONS: Record<(typeof LIME_TOOL_NAMES)[number], string> = {
-  highlight: "🖍",
-  underline: "＿",
-  strikeout: "𠝹",
-  rectangle: "▭",
-  freehand: "✏",
-  freeHighlight: "🖌",
-  freeText: "T"
 }
 
 function toolDef(name: (typeof LIME_TOOL_NAMES)[number]): IAnnotationType {
@@ -174,21 +167,12 @@ function EngineToolbar({
       pdfViewer.currentScaleValue === "page-width" ? "page-fit" : "page-width"
   }, [pdfViewer])
 
-  const onScaleChange = useCallback(
-    (scale: number) => {
-      setZoomPct(Math.round(scale * 100))
-    },
-    []
-  )
-
   useEffect(() => {
     if (!eventBus) return
     const onScale = (evt: { scale: number }) => setZoomPct(Math.round(evt.scale * 100))
     eventBus.on("scalechanging", onScale)
     return () => eventBus.off("scalechanging", onScale)
   }, [eventBus])
-
-  void onScaleChange
 
   const navBtn = (title: string, onClick: () => void, disabled = false, children: React.ReactNode) => (
     <Tooltip title={title}>
@@ -220,11 +204,7 @@ function EngineToolbar({
         borderBottom: "1px solid",
         borderColor: "divider",
         bgcolor: "background.paper",
-        position: "absolute",
-        top: 0,
-        left: 0,
-        right: 0,
-        zIndex: 1200
+        height: "100%"
       }}>
       {/* left: nav + view controls */}
       <Box sx={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 0.5 }}>
@@ -272,7 +252,7 @@ function EngineToolbar({
               if (pdfViewer) pdfViewer.currentScaleValue = "page-width"
             }}
             sx={{
-              fontSize: "0.68rem",
+              fontSize: "0.75rem",
               minWidth: 38,
               textAlign: "center",
               cursor: "pointer",
@@ -365,10 +345,11 @@ function EngineToolbar({
 /** Our MUI text-selection bar — highlight/underline/strikeout on the range. */
 function EngineSelectionBar({ range }: { range: Range | null }) {
   const { painter } = usePainter()
+  const theme = useTheme()
   const anchorRef = useRef<HTMLDivElement>(null)
   const [anchorPos, setAnchorPos] = useState<{ x: number; y: number } | null>(null)
 
-  useMemo(() => {
+  useEffect(() => {
     if (range && range.getBoundingClientRect) {
       const r = range.getBoundingClientRect()
       setAnchorPos({ x: r.left + r.width / 2, y: r.top })
@@ -398,20 +379,26 @@ function EngineSelectionBar({ range }: { range: Range | null }) {
             display: "flex",
             alignItems: "center",
             borderRadius: 1,
-            boxShadow: 4,
+            boxShadow: (t) => t.custom.cardShadow,
             border: 1,
             borderColor: "divider"
           }}
         >
-          {(["highlight", "underline", "strikeout"] as const).map((name) => (
-            <Tooltip key={name} title={TOOL_LABELS[name]}>
-              <IconButton size="small" onClick={() => apply(name)} sx={{ color: "text.secondary" }}>
-                <Box component="span" sx={{ fontSize: 14, lineHeight: 1 }}>
-                  {TOOL_ICONS[name]}
-                </Box>
-              </IconButton>
-            </Tooltip>
-          ))}
+          {(["highlight", "underline", "strikeout"] as const).map((name) => {
+            const Icon =
+              name === "highlight"
+                ? BorderColorRounded
+                : name === "underline"
+                  ? FormatUnderlinedRounded
+                  : StrikethroughSRounded
+            return (
+              <Tooltip key={name} title={TOOL_LABELS[name]}>
+                <IconButton size="small" onClick={() => apply(name)} sx={{ color: "text.secondary" }}>
+                  <Icon sx={{ fontSize: 16 }} />
+                </IconButton>
+              </Tooltip>
+            )
+          })}
         </Paper>
       </Popper>
     </>
@@ -431,7 +418,13 @@ export interface PdfEngineViewProps {
   ) => void
   onAnnotationDelete?: (id: string) => void
   onAnnotationSelected?: (annotation: IAnnotationStore | null, isClick: boolean) => void
-  onAnnotationChanged?: (annotation: IAnnotationStore) => void
+  onAnnotationChanged?: (
+    annotation: IAnnotationStore,
+    pos?: { x: number; y: number },
+    rects?: { x: number; y: number; w: number; h: number }[],
+    path?: { x: number; y: number }[],
+    paths?: { x: number; y: number }[][]
+  ) => void
   onVisiblePageChange?: (page: number) => void
   onSearchClick?: () => void
   onToggleReader?: () => void
@@ -485,7 +478,13 @@ function EngineBridge({
   ) => void
   onAnnotationDelete?: (id: string) => void
   onAnnotationSelected?: (annotation: IAnnotationStore | null, isClick: boolean) => void
-  onAnnotationChanged?: (annotation: IAnnotationStore) => void
+  onAnnotationChanged?: (
+    annotation: IAnnotationStore,
+    pos?: { x: number; y: number },
+    rects?: { x: number; y: number; w: number; h: number }[],
+    path?: { x: number; y: number }[],
+    paths?: { x: number; y: number }[][]
+  ) => void
   onVisiblePageChange?: (page: number) => void
   onSearchClick?: () => void
   onToggleReader?: () => void
@@ -507,34 +506,6 @@ function EngineBridge({
   const { pdfViewer, eventBus } = usePdfViewerContext()
   const { painter } = usePainter()
 
-  useEffect(() => {
-    const t = setTimeout(() => {
-      try {
-        const el = document.querySelector(".pdfViewer")
-        const textLayer = el?.querySelector(".textLayer") as HTMLElement | null
-        const wrapper = el?.querySelector(".InkLayer_Annotator_painter_wrapper") as HTMLElement | null
-        const cs = (n: HTMLElement | null) =>
-          n
-            ? `${getComputedStyle(n).zIndex}/${getComputedStyle(n).pointerEvents}`
-            : "none"
-        if (
-          textLayer &&
-          wrapper &&
-          getComputedStyle(wrapper).zIndex === "999"
-        ) {
-          console.warn(
-            "[pdf] painter wrapper stuck at z-index 999 — selection blocked",
-            JSON.stringify({ textLayer: cs(textLayer), wrapper: cs(wrapper) })
-          )
-        }
-      } catch {
-        // ignore
-      }
-    }, 2500)
-    return () => clearTimeout(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
   const onVisiblePageRef = useRef(onVisiblePageChange)
   onVisiblePageRef.current = onVisiblePageChange
   useEffect(() => {
@@ -548,7 +519,7 @@ function EngineBridge({
     }
   }, [eventBus])
 
-  const handleAdd = useCallback(
+  const computeGeometry = useCallback(
     (store: IAnnotationStore) => {
       let pos: { x: number; y: number } | undefined
       let rects: { x: number; y: number; w: number; h: number }[] | undefined
@@ -605,9 +576,25 @@ function EngineBridge({
       } catch {
         // fall back to no pos/rects/path
       }
+      return { pos, rects, path, allPaths }
+    },
+    [pdfViewer]
+  )
+
+  const handleAdd = useCallback(
+    (store: IAnnotationStore) => {
+      const { pos, rects, path, allPaths } = computeGeometry(store)
       onAnnotationAdd?.(store, pos, rects, path, allPaths)
     },
-    [onAnnotationAdd, pdfViewer]
+    [computeGeometry, onAnnotationAdd]
+  )
+
+  const handleChange = useCallback(
+    (store: IAnnotationStore) => {
+      const { pos, rects, path, allPaths } = computeGeometry(store)
+      onAnnotationChanged?.(store, pos, rects, path, allPaths)
+    },
+    [computeGeometry, onAnnotationChanged]
   )
 
   const pageJumpSeqRef = useRef(pageJump?.seq ?? 0)
@@ -727,12 +714,6 @@ function EngineBridge({
 
   return (
     <>
-      <EngineToolbar
-        onSearchClick={onSearchClick}
-        onToggleReader={onToggleReader}
-        onSwapLeft={onSwapLeft}
-        readerOpen={readerOpen}
-      />
       <EngineSelectionBar range={textRange} />
       <AnnotatorExtension
         enableNativeAnnotations={false}
@@ -741,7 +722,7 @@ function EngineBridge({
         onAnnotationAdd={handleAdd}
         onAnnotationDelete={onAnnotationDelete ?? (() => {})}
         onAnnotationSelected={onAnnotationSelected ?? (() => {})}
-        onAnnotationChanged={onAnnotationChanged ?? (() => {})}
+        onAnnotationChanged={handleChange}
         onTextSelected={onTextSelected}
       />
     </>
@@ -788,7 +769,8 @@ export default function PdfEngineView({
     const styleEl = document.createElement("style")
     styleEl.textContent = `
 .textLayer .highlight{--highlight-bg-color:rgba(99,102,241,0.22);margin-left:0.5ch}
-.textLayer .highlight.selected{--highlight-selected-bg-color:rgba(99,102,241,0.40);box-shadow:0 0 0 1.5px rgba(99,102,241,0.85)}`
+.textLayer .highlight.selected{--highlight-selected-bg-color:rgba(99,102,241,0.40);box-shadow:0 0 0 1.5px rgba(99,102,241,0.85)}
+#InkLayer > div[class*="viewerHeader"]{display:none}`
     document.head.append(styleEl)
     return () => {
       cssLink.remove()
@@ -824,7 +806,14 @@ export default function PdfEngineView({
               url={undefined}
               user={{ id: "local", name: "我" }}
               title={title}
-              toolbar={null}
+              toolbar={
+                <EngineToolbar
+                  onSearchClick={onSearchClick}
+                  onToggleReader={onToggleReader}
+                  onSwapLeft={onSwapLeft}
+                  readerOpen={readerOpen}
+                />
+              }
               sidebar={[]}
               style={{
                 width: rootSize ? rootSize.w : "100%",

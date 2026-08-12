@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Box, CircularProgress, Typography } from "@mui/material"
 
 import PdfEngineView from "./PdfEngineView"
@@ -168,10 +168,25 @@ export default function PdfView({
   }, [])
 
   const handleChanged = useCallback(
-    async (annotation: IAnnotationStore) => {
+    async (
+      annotation: IAnnotationStore,
+      pos?: { x: number; y: number },
+      rects?: { x: number; y: number; w: number; h: number }[],
+      path?: { x: number; y: number }[],
+      paths?: { x: number; y: number }[][]
+    ) => {
       if (!loaded) return
       try {
-        await saveAnnotationFromStore({ pdfId: loaded.file.id, store: annotation })
+        // Edits change the geometry — refresh the crop's normalized fields so
+        // the placed-card crop isn't stale after a move/resize.
+        await saveAnnotationFromStore({
+          pdfId: loaded.file.id,
+          store: annotation,
+          pos,
+          rects,
+          path,
+          paths
+        })
       } catch (e) {
         console.error("[pdf] saveAnnotationFromStore (changed) failed:", e)
       }
