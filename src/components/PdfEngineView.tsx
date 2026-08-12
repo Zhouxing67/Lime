@@ -29,7 +29,6 @@ import { deepMerge } from "~/src/pdf/inklayer/utils"
 import { usePainter } from "~/src/pdf/inklayer/extensions/annotator/context/use_painter"
 import { useAnnotationStore } from "~/src/pdf/inklayer/extensions/annotator/store"
 import { usePdfViewerContext } from "~/src/pdf/inklayer/context/pdf_viewer_context"
-import { textLayerRects } from "./pdfText"
 import {
   annotationDefinitions,
   type IAnnotationStore,
@@ -442,13 +441,16 @@ export interface PdfEngineViewProps {
   flashTarget?: { page: number; annId: string; token: number } | null
   /** External page jump (search entry / outline click) → scroll to the page. */
   pageJump?: { page: number; seq: number } | null
-  /** Search-match flash (char-offset matches on one page) → draw + keep until
-   *  the next search / clear. */
+  /** Search-match flash (char-offset matches on one page) → drive the official
+   *  pdf.js find controller (its text-layer highlight is char-exact). */
   searchFlash?: {
     page: number
     matches: { start: number; end: number }[]
     current: number
   } | null
+  /** The active search query — the find controller needs it to (re)run. */
+  searchQuery?: string
+  searchOptions?: { caseSensitive: boolean; wholeWord: boolean }
   onLoad?: () => void
 }
 
@@ -467,6 +469,8 @@ function EngineBridge({
   flashTarget,
   pageJump,
   searchFlash,
+  searchQuery,
+  searchOptions,
   onLoad,
   textRange,
   onTextSelected
@@ -494,6 +498,8 @@ function EngineBridge({
     matches: { start: number; end: number }[]
     current: number
   } | null
+  searchQuery?: string
+  searchOptions?: { caseSensitive: boolean; wholeWord: boolean }
   onLoad?: () => void
   textRange: Range | null
   onTextSelected: (range: Range | null) => void
@@ -614,78 +620,48 @@ function EngineBridge({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageJump?.seq, pdfViewer])
 
-  const searchFlashRef = useRef<HTMLElement | null>(null)
-  const searchFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const clearSearchFlash = useCallback(() => {
-    if (searchFlashTimerRef.current) {
-      clearTimeout(searchFlashTimerRef.current)
-      searchFlashTimerRef.current = null
-    }
-    if (searchFlashRef.current) {
-      searchFlashRef.current.remove()
-      searchFlashRef.current = null
-    }
-  }, [])
-
-  const renderSearchFlash = useCallback(
-    (flash: NonNullable<typeof searchFlash>) => {
-      clearSearchFlash()
-      const pageView = pdfViewer?.getPageView(flash.page - 1)
-      const pageEl = pageView?.div as HTMLElement | null
-      const textLayer = pageView?.textLayer
-      if (!pageEl || !textLayer) {
-        // Page not rendered yet (the flash fires before the jump completes) —
-        // retry until the text layer appears.
-        searchFlashTimerRef.current = setTimeout(
-          () => renderSearchFlash(flash),
-          150
-        )
-        return
-      }
-      const overlay = document.createElement("div")
-      overlay.style.cssText =
-        "position:absolute;inset:0;pointer-events:none;z-index:5;overflow:hidden"
-      flash.matches.forEach((m, i) => {
-        let rects: { x: number; y: number; w: number; h: number }[] = []
-        try {
-          rects = textLayerRects(textLayer as any, pageEl, m.start, m.end)
-        } catch {
-          rects = []
-        }
-        const isCurrent = i === flash.current
-        for (const r of rects) {
-          if (r.w <= 0 || r.h <= 0) continue
-          const div = document.createElement("div")
-          div.style.cssText = `position:absolute;left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;background:${
-            isCurrent ? "rgba(99,102,241,0.40)" : "rgba(99,102,241,0.22)"
-          };border:${
-            isCurrent ? "1.5px solid rgba(99,102,241,0.85)" : "none"
-          };border-radius:1px`
-          overlay.appendChild(div)
-        }
-      })
-      pageEl.appendChild(overlay)
-      searchFlashRef.current = overlay
-    },
-    [clearSearchFlash, pdfViewer]
-  )
-
+  // Search highlight = the OFFICIAL pdf.js find controller (char-exact on the
+  // text layer). On a jump we dispatch the `find` event; pdf.js re-searches +
+  // highlights every match + navigates to the current one. No custom geometry.
   useEffect(() => {
-    if (!searchFlash) {
-      clearSearchFlash()
+    if (!eventBus || !pdfViewer) return
+    const fc = (pdfViewer as any).findController
+    if (!fc) return
+    if (!searchFlash || !searchQuery) {
+      // Clear any active find highlights.
+      eventBus.dispatch("find", {
+        type: "",
+        query: "",
+        highlightAll: false
+      })
       return
     }
-    renderSearchFlash(searchFlash)
-    // Re-render on zoom (the text layer spans move) — keyed on the flash seq
-    // is impossible, so re-run when the page's scale changes instead.
-    const onScale = () => renderSearchFlash(searchFlash)
-    eventBus.on("scalechanging", onScale)
-    return () => {
-      eventBus.off("scalechanging", onScale)
-      clearSearchFlash()
+    const pageIdx = searchFlash.page - 1
+    // Best-effort current-match navigation via pdf.js's internal state (the
+    // published API doesn't expose a direct "jump to match").
+    const nav = fc as {
+      _selected?: { pageIdx: number; matchIdx: number }
+      _offset?: { pageIdx: number; matchIdx: number; wrapped: boolean }
+      _highlightMatches?: boolean
     }
-  }, [searchFlash, clearSearchFlash, renderSearchFlash, eventBus])
+    nav._selected = { pageIdx, matchIdx: searchFlash.current }
+    nav._offset = {
+      pageIdx,
+      matchIdx: Math.max(0, searchFlash.current - 1),
+      wrapped: false
+    }
+    nav._highlightMatches = true
+    eventBus.dispatch("find", {
+      type: "again",
+      query: searchQuery,
+      caseSensitive: searchOptions?.caseSensitive ?? false,
+      entireWord: searchOptions?.wholeWord ?? false,
+      findPrevious: false,
+      matchDiacritics: false,
+      highlightAll: true
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchFlash, searchQuery, eventBus, pdfViewer])
 
   const annotationsRef = useRef(annotations)
   annotationsRef.current = annotations
@@ -789,6 +765,8 @@ export default function PdfEngineView({
   flashTarget,
   pageJump,
   searchFlash,
+  searchQuery,
+  searchOptions,
   onLoad
 }: PdfEngineViewProps) {
   const [textRange, setTextRange] = useState<Range | null>(null)
@@ -805,7 +783,17 @@ export default function PdfEngineView({
     cssLink.rel = "stylesheet"
     cssLink.href = chrome.runtime.getURL("assets/pdfjs/pdf_viewer.css")
     document.head.append(cssLink)
-    return () => cssLink.remove()
+    // Match the find highlights to Lime's indigo (the official pdf.js default
+    // is a green/purple wash); the selected match gets a border.
+    const styleEl = document.createElement("style")
+    styleEl.textContent = `
+.textLayer .highlight{--highlight-bg-color:rgba(99,102,241,0.22);margin-left:0.5ch}
+.textLayer .highlight.selected{--highlight-selected-bg-color:rgba(99,102,241,0.40);box-shadow:0 0 0 1.5px rgba(99,102,241,0.85)}`
+    document.head.append(styleEl)
+    return () => {
+      cssLink.remove()
+      styleEl.remove()
+    }
   }, [])
 
   const rootRef = useRef<HTMLDivElement>(null)
@@ -857,6 +845,8 @@ export default function PdfEngineView({
                 flashTarget={flashTarget}
                 pageJump={pageJump}
                 searchFlash={searchFlash}
+                searchQuery={searchQuery}
+                searchOptions={searchOptions}
                 onLoad={onLoad}
                 textRange={textRange}
                 onTextSelected={handleTextSelected}

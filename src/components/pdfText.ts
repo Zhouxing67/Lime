@@ -378,7 +378,7 @@ function textWidth(text: string, font: string): number {
 /** Clip a span's rect horizontally to keep chars [from, to) of the span's text
  *  (Infinity to = keep to the end). The span's box is the tight glyph box; the
  *  boundary x is computed by measuring the kept fraction's natural width and
- *  scaling it to the (scaleX-transformed) box width. */
+ *  scaling it to the box width. */
 function clipDivText(
   div: HTMLElement,
   rect: PdfRect,
@@ -437,8 +437,7 @@ function mergeRectsSameLine(rects: PdfRect[]): PdfRect[] {
  *  into single boxes — removes per-span overlap at CJK/Latin boundaries.
  *  `holder` (viewport rect) converts viewport coords; omit it when the rects
  *  are already holder-relative (textLayerRects output). */
-export function mergeRects(
-  rects: PdfRect[],
+export function mergeRects(rects: PdfRect[],
   holder?: DOMRect
 ): PdfRect[] {
   const norm = holder

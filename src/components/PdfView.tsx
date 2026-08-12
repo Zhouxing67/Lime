@@ -244,6 +244,15 @@ export default function PdfView({
           flashTarget={flashTarget}
           pageJump={pageJump}
           searchFlash={searchFlash}
+          searchQuery={searchRequest?.query}
+          searchOptions={
+            searchRequest
+              ? {
+                  caseSensitive: searchRequest.caseSensitive,
+                  wholeWord: searchRequest.wholeWord
+                }
+              : undefined
+          }
         />
       </Box>
     </Box>
