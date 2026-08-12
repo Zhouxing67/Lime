@@ -124,6 +124,7 @@ interface ProjectsMainProps {
   handleOpenProject: (id: string) => void
   setCreateDialogOpen: (open: boolean) => void
   setProjectDeleteTarget: (p: Project | null) => void
+  onRenameProject: (id: string, name: string) => void
   activeSectionId: string | null
   handleSelectSection: (id: string | null) => void
   sectionPath: { id: string; title: string }[]
@@ -348,6 +349,7 @@ function ProjectsMain(props: ProjectsMainProps) {
     handleOpenProject,
     setCreateDialogOpen,
     setProjectDeleteTarget,
+    onRenameProject,
     activeSectionId,
     handleSelectSection,
     sectionPath,
@@ -400,6 +402,7 @@ function ProjectsMain(props: ProjectsMainProps) {
             const proj = projects.find((p) => p.id === id)
             if (proj) setProjectDeleteTarget(proj)
           }}
+          onRenameProject={onRenameProject}
         />
       )}
 

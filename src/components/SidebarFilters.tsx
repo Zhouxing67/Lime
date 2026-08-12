@@ -21,6 +21,7 @@ import {
 import { useEffect, useRef, useState } from "react"
 import type { ReactNode } from "react"
 
+import RenameDialog from "./RenameDialog"
 import type { PdfFile, TodoFilter, TodoStats } from "../types"
 import type { SidebarTab } from "./NavRail"
 import { RECENT_TOTAL as RECENT_TOTAL_SHARED } from "../constants"
@@ -107,8 +108,10 @@ function PdfTab({
   onDeletePdf?: (pdf: PdfFile) => void
 }) {
   const [showAll, setShowAll] = useState(false)
-  const [renamingPdf, setRenamingPdf] = useState<string | null>(null)
-  const [renamingPdfName, setRenamingPdfName] = useState("")
+  const [pdfRename, setPdfRename] = useState<{
+    id: string
+    name: string
+  } | null>(null)
   const RECENT_TOTAL = RECENT_TOTAL_SHARED
   // Active PDF pins to the top (like the project tree's active project).
   const byLastOpened = byRecency<PdfFile>(
@@ -124,6 +127,7 @@ function PdfTab({
   const hiddenCount = ordered.length - visible.length
 
   return (
+    <>
     <Box sx={{ py: 1 }}>
 <Well>
             <Box sx={{ display: "flex", alignItems: "center", mb: 0.5 }}>
@@ -174,51 +178,26 @@ function PdfTab({
                     flexShrink: 0
                   }}
                 />
-                {renamingPdf === p.id ? (
-                  <TextField
-                    autoFocus
-                    size="small"
-                    value={renamingPdfName}
-                    onChange={(e) => setRenamingPdfName(e.target.value)}
-                    onBlur={() => {
-                      const name = renamingPdfName.trim()
-                      if (name && name !== p.name) onRenamePdf?.(p.id, name)
-                      setRenamingPdf(null)
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        const name = renamingPdfName.trim()
-                        if (name && name !== p.name) onRenamePdf?.(p.id, name)
-                        setRenamingPdf(null)
-                      }
-                      if (e.key === "Escape") setRenamingPdf(null)
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                    sx={{ flex: 1, "& .MuiInputBase-input": { fontSize: "0.8rem" } }}
-                  />
-                ) : (
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      fontSize: "0.8rem",
-                      fontWeight: isActive ? 600 : 400,
-                      color: isActive ? "primary.main" : "inherit",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                      flex: 1
-                    }}>
-                    {p.name}
-                  </Typography>
-                )}
+                <Typography
+                  variant="body2"
+                  sx={{
+                    fontSize: "0.8rem",
+                    fontWeight: isActive ? 600 : 400,
+                    color: isActive ? "primary.main" : "inherit",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    flex: 1
+                  }}>
+                  {p.name}
+                </Typography>
                 {onRenamePdf && (
                   <IconButton
                     size="small"
                     title="重命名"
                     onClick={(e) => {
                       e.stopPropagation()
-                      setRenamingPdf(p.id)
-                      setRenamingPdfName(p.name)
+                      setPdfRename({ id: p.id, name: p.name })
                     }}
                     className="pdf-rename"
                     sx={{
@@ -327,6 +306,18 @@ function PdfTab({
             )}
           </Well>
         </Box>
+      <RenameDialog
+        open={Boolean(pdfRename)}
+        title="重命名 PDF"
+        label="PDF 名称"
+        value={pdfRename?.name ?? ""}
+        onClose={() => setPdfRename(null)}
+        onConfirm={(name) => {
+          if (name && pdfRename && name !== pdfRename.name)
+            onRenamePdf?.(pdfRename.id, name)
+        }}
+      />
+    </>
   )
 }
 

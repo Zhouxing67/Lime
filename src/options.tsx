@@ -2479,6 +2479,7 @@ export default function OptionsPage() {
                 handleOpenProject,
                 setCreateDialogOpen,
                 setProjectDeleteTarget,
+                onRenameProject: handleRenameProject,
                 activeSectionId,
                 handleSelectSection,
                 sectionPath,

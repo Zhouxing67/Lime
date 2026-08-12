@@ -1,11 +1,14 @@
 import AddRoundedIcon from "@mui/icons-material/AddRounded"
 import CheckRoundedIcon from "@mui/icons-material/CheckRounded"
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
+import EditRoundedIcon from "@mui/icons-material/EditRounded"
 import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded"
 import SearchOffRoundedIcon from "@mui/icons-material/SearchOffRounded"
 import { Box, Button, IconButton, Paper, Stack, Typography } from "@mui/material"
 import { alpha } from "@mui/material/styles"
+import { useState } from "react"
 
+import RenameDialog from "./RenameDialog"
 import type { Project } from "../types"
 import EmptyState from "./EmptyState"
 import { byRecency, relativeTime } from "../utils"
@@ -18,6 +21,7 @@ interface ProjectHubProps {
   onOpenProject: (id: string) => void
   onNewProject: () => void
   onDeleteProject: (id: string) => void
+  onRenameProject?: (id: string, name: string) => void
   /** Read-only multi-select mode (backup view): click toggles selection. */
   selectable?: boolean
   selected?: (id: string) => boolean
@@ -40,10 +44,15 @@ export default function ProjectHub({
   onOpenProject,
   onNewProject,
   onDeleteProject,
+  onRenameProject,
   selectable,
   selected,
   onToggleSelect
 }: ProjectHubProps) {
+  const [renameTarget, setRenameTarget] = useState<{
+    id: string
+    name: string
+  } | null>(null)
   const filtered = projects
     .filter((p) => {
       if (!keyword.trim()) return true
@@ -88,10 +97,11 @@ export default function ProjectHub({
   }
 
   return (
+    <>
     <Box
       sx={{
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+        gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
         gap: 1.5
       }}>
       {!selectable && (
@@ -134,7 +144,7 @@ export default function ProjectHub({
               borderColor: selectable
                 ? "primary.main"
                 : theme.custom.borderStrong,
-              ".hub-delete": { opacity: 1 }
+              ".hub-delete, .hub-rename": { opacity: 1 }
             }
           })}>
           {selectable && isSelected && (
@@ -147,6 +157,28 @@ export default function ProjectHub({
                 color: "primary.main"
               }}
             />
+          )}
+          {!selectable && onRenameProject && (
+          <IconButton
+            className="hub-rename"
+            size="small"
+            title="重命名"
+            onClick={(e) => {
+              e.stopPropagation()
+              setRenameTarget({ id: p.id, name: p.name })
+            }}
+            sx={{
+              position: "absolute",
+              top: 4,
+              right: 26,
+              p: 0.5,
+              opacity: 0,
+              color: "text.disabled",
+              transition: "opacity 0.15s",
+              "&:hover": { color: "primary.main", bgcolor: "transparent" }
+            }}>
+            <EditRoundedIcon sx={{ fontSize: 16 }} />
+          </IconButton>
           )}
           {!selectable && (
           <IconButton
@@ -256,5 +288,17 @@ export default function ProjectHub({
         </Box>
       )}
     </Box>
+      <RenameDialog
+        open={Boolean(renameTarget)}
+        title="重命名项目"
+        label="项目名称"
+        value={renameTarget?.name ?? ""}
+        onClose={() => setRenameTarget(null)}
+        onConfirm={(name) => {
+          if (name && renameTarget && name !== renameTarget.name)
+            onRenameProject?.(renameTarget.id, name)
+        }}
+      />
+    </>
   )
 }

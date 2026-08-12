@@ -75,7 +75,7 @@ export default function DialogShell({
           <CloseRoundedIcon fontSize="small" />
         </IconButton>
       </DialogTitle>
-      <DialogContent sx={{ px: 3, py: 1 }}>{children}</DialogContent>
+      <DialogContent sx={{ px: 3, pt: 2, pb: 1 }}>{children}</DialogContent>
       {actions === undefined ? defaultActions : actions}
     </Dialog>
   )
