@@ -306,17 +306,19 @@ function PdfTab({
             )}
           </Well>
         </Box>
-      <RenameDialog
-        open={Boolean(pdfRename)}
-        title="重命名 PDF"
-        label="PDF 名称"
-        value={pdfRename?.name ?? ""}
-        onClose={() => setPdfRename(null)}
-        onConfirm={(name) => {
-          if (name && pdfRename && name !== pdfRename.name)
-            onRenamePdf?.(pdfRename.id, name)
-        }}
-      />
+      {pdfRename && (
+        <RenameDialog
+          open
+          title="重命名 PDF"
+          label="PDF 名称"
+          value={pdfRename.name}
+          onClose={() => setPdfRename(null)}
+          onConfirm={(name) => {
+            if (name && name !== pdfRename.name)
+              onRenamePdf?.(pdfRename.id, name)
+          }}
+        />
+      )}
     </>
   )
 }

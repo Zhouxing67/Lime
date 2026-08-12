@@ -177,6 +177,7 @@ export default function PdfHub({
       }
     })
     return (
+      <>
       <Box
         sx={{
           display: "grid",
@@ -205,7 +206,13 @@ export default function PdfHub({
           <Paper
             key={t}
             elevation={0}
-            onClick={() => setTopicView(t)}
+            onClick={(e) => {
+              // The rename/delete ops icons are inside the tile — their own
+              // stopPropagation normally suffices, but a robust guard keeps a
+              // click on the ops from ALSO entering the topic.
+              if ((e.target as HTMLElement).closest(".topic-ops")) return
+              setTopicView(t)
+            }}
             sx={tileSx}>
               <>
                 <Box sx={{ color: "text.secondary" }}>
@@ -314,7 +321,32 @@ export default function PdfHub({
           />
         )}
       </Box>
-    )
+      {topicRename && (
+        <RenameDialog
+          open
+          title="重命名主题"
+          label="主题名称"
+          value={topicRename}
+          onClose={() => setTopicRename(null)}
+          onConfirm={(name) => {
+            if (name && name !== topicRename) onRenameTopic?.(topicRename, name)
+          }}
+        />
+      )}
+      {pdfRename && (
+        <RenameDialog
+          open
+          title="重命名 PDF"
+          label="PDF 名称"
+          value={pdfRename.name}
+          onClose={() => setPdfRename(null)}
+          onConfirm={(name) => {
+            if (name && name !== pdfRename.name) onRenamePdf?.(pdfRename.id, name)
+          }}
+        />
+      )}
+    </>
+  )
   }
 
   // ---- PDF grid (all / a topic / 未分类) ----
@@ -581,28 +613,30 @@ export default function PdfHub({
           ))}
         </Menu>
       )}
-      <RenameDialog
-        open={Boolean(topicRename)}
-        title="重命名主题"
-        label="主题名称"
-        value={topicRename ?? ""}
-        onClose={() => setTopicRename(null)}
-        onConfirm={(name) => {
-          if (name && topicRename && name !== topicRename)
-            onRenameTopic?.(topicRename, name)
-        }}
-      />
-      <RenameDialog
-        open={Boolean(pdfRename)}
-        title="重命名 PDF"
-        label="PDF 名称"
-        value={pdfRename?.name ?? ""}
-        onClose={() => setPdfRename(null)}
-        onConfirm={(name) => {
-          if (name && pdfRename && name !== pdfRename.name)
-            onRenamePdf?.(pdfRename.id, name)
-        }}
-      />
+      {topicRename && (
+        <RenameDialog
+          open
+          title="重命名主题"
+          label="主题名称"
+          value={topicRename}
+          onClose={() => setTopicRename(null)}
+          onConfirm={(name) => {
+            if (name && name !== topicRename) onRenameTopic?.(topicRename, name)
+          }}
+        />
+      )}
+      {pdfRename && (
+        <RenameDialog
+          open
+          title="重命名 PDF"
+          label="PDF 名称"
+          value={pdfRename.name}
+          onClose={() => setPdfRename(null)}
+          onConfirm={(name) => {
+            if (name && name !== pdfRename.name) onRenamePdf?.(pdfRename.id, name)
+          }}
+        />
+      )}
     </Box>
   )
 }

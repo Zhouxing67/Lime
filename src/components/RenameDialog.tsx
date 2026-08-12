@@ -44,6 +44,7 @@ export default function RenameDialog({
       open={open}
       onClose={onClose}
       title={title}
+      maxWidth="xs"
       confirmLabel={confirmLabel}
       confirmDisabled={!trimmed || (trimmed === value && draftNote === (note ?? ""))}
       onConfirm={() => {
@@ -54,7 +55,7 @@ export default function RenameDialog({
         autoFocus
         fullWidth
         size="small"
-        label={label}
+        placeholder={label}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => {
@@ -73,8 +74,7 @@ export default function RenameDialog({
           size="small"
           multiline
           minRows={2}
-          label={noteLabel}
-          placeholder="可选"
+          placeholder={noteLabel}
           value={draftNote}
           onChange={(e) => setDraftNote(e.target.value)}
           sx={{ mt: 1.5 }}

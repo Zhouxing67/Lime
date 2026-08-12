@@ -57,6 +57,7 @@ export default function DialogShell({
       onClose={onClose}
       maxWidth={maxWidth}
       fullWidth
+      keepMounted
       slotProps={{ paper: { sx: { borderRadius: 1 } } }}>
       <DialogTitle
         sx={{
@@ -75,7 +76,7 @@ export default function DialogShell({
           <CloseRoundedIcon fontSize="small" />
         </IconButton>
       </DialogTitle>
-      <DialogContent sx={{ px: 3, pt: 2, pb: 1 }}>{children}</DialogContent>
+      <DialogContent sx={{ px: 3, pt: 3, pb: 1 }}>{children}</DialogContent>
       {actions === undefined ? defaultActions : actions}
     </Dialog>
   )
