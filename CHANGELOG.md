@@ -18,6 +18,10 @@
 
 **Code/UI review 修复批次**：选择栏换 MUI 图标（禁生僻字形）；`boxShadow` 走 `t.custom.cardShadow`；缩放字号对齐 0.75rem；批注编辑同步裁剪图几何（rects/path/paths）；`changeAnnotationType` 重建 mark 时保留源行 rect（类型切换幂等）+ 走引擎 editor 生命周期（flash 环不残留、无悬挂 mark）。
 
+**重命名统一为弹窗**：新建共享 `RenameDialog`（DialogShell 模板，maxWidth xs）——项目（名称+备注）/章节/PDF 主题/PDF/瓦片全部改弹窗重命名，移除所有内联输入（含修复章节重命名签名不匹配 bug、PdfHub 主题网格提前 return 导致弹窗不渲染的根因）；输入框用 placeholder 规避 MUI label 裁剪。
+
+**同步稳健性**：`base64ToBytes` 加固（剥离 data-url 前缀/空白，损坏返回空）+ 上传跳过损坏图片 dataURL（单张坏图不拖垮整个同步）。
+
 ## 7.0.0 — 同步图片文件分离 + 视图模块化架构
 
 **同步 v6（SyncPayload 图片文件分离）**：图片 dataURL（图像卡 `card.image` / region 裁剪图 `annotation.image` / 旧模型 content 里的图片）全部剥离出 sync JSON，改存 WebDAV `/images/<contentHash>.png` 多文件层（content-hash 命名去重，无损、增量）；JSON 从 MB 级瘦到几百 KB。上传 PUT 缺失图片 + **清理无引用孤儿**（删除传播从设计内置）；下载拉取引用图片并水合回本地；版本门控 v3-v6，兼容读 v5（内联图片透传）。同步慢的问题就此根治。
