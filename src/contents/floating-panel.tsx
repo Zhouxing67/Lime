@@ -406,8 +406,6 @@ export default function LimePanel() {
     if (host) host.removeAttribute("aria-hidden")
   }, [open])
 
-  if (!data) return null
-
   const sharedProps = {
     data,
     projects,
@@ -429,7 +427,7 @@ export default function LimePanel() {
   return (
     <>
       {!open && <LimeFloatBall onOpen={openPanel} />}
-      {open && (
+      {open && data && (
         <CaptureSidebar
           {...sharedProps}
           width={sidebarWidth}
