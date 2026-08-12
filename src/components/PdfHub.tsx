@@ -21,6 +21,7 @@ import {
 import { alpha, type Theme } from "@mui/material/styles"
 import { useState } from "react"
 
+import RenameDialog from "./RenameDialog"
 import type { PdfFile } from "../types"
 import EmptyState from "./EmptyState"
 import { byRecency, relativeTime } from "../utils"
@@ -73,10 +74,11 @@ export default function PdfHub({
   )
   const [newTopicOpen, setNewTopicOpen] = useState(false)
   const [newTopicName, setNewTopicName] = useState("")
-  const [renamingTopic, setRenamingTopic] = useState<string | null>(null)
-  const [renamingName, setRenamingName] = useState("")
-  const [renamingPdf, setRenamingPdf] = useState<string | null>(null)
-  const [renamingPdfName, setRenamingPdfName] = useState("")
+  const [topicRename, setTopicRename] = useState<string | null>(null)
+  const [pdfRename, setPdfRename] = useState<{
+    id: string
+    name: string
+  } | null>(null)
   const [moveMenu, setMoveMenu] = useState<{
     pdfId: string
     anchor: HTMLElement
@@ -205,28 +207,6 @@ export default function PdfHub({
             elevation={0}
             onClick={() => setTopicView(t)}
             sx={tileSx}>
-            {renamingTopic === t ? (
-              <TextField
-                autoFocus
-                size="small"
-                value={renamingName}
-                onChange={(e) => setRenamingName(e.target.value)}
-                onBlur={() => {
-                  const name = renamingName.trim()
-                  if (name && name !== t) onRenameTopic?.(t, name)
-                  setRenamingTopic(null)
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    const name = renamingName.trim()
-                    if (name && name !== t) onRenameTopic?.(t, name)
-                    setRenamingTopic(null)
-                  }
-                  if (e.key === "Escape") setRenamingTopic(null)
-                }}
-                sx={{ "& .MuiInputBase-input": { fontSize: "0.85rem" } }}
-              />
-            ) : (
               <>
                 <Box sx={{ color: "text.secondary" }}>
                   <FolderRoundedIcon sx={{ fontSize: 26 }} />
@@ -257,8 +237,7 @@ export default function PdfHub({
                     size="small"
                     onClick={(e) => {
                       e.stopPropagation()
-                      setRenamingTopic(t)
-                      setRenamingName(t)
+                      setTopicRename(t)
                     }}
                     sx={{ p: 0.5, color: "text.disabled" }}>
                     <EditRoundedIcon sx={{ fontSize: 15 }} />
@@ -274,7 +253,6 @@ export default function PdfHub({
                   </IconButton>
                 </Box>
               </>
-            )}
           </Paper>
         ))}
 
@@ -495,8 +473,7 @@ export default function PdfHub({
                     title="重命名"
                     onClick={(e) => {
                       e.stopPropagation()
-                      setRenamingPdf(p.id)
-                      setRenamingPdfName(p.name)
+                      setPdfRename({ id: p.id, name: p.name })
                     }}
                     sx={{
                       position: "absolute",
@@ -548,54 +525,17 @@ export default function PdfHub({
                   <PictureAsPdfRoundedIcon sx={{ fontSize: 20 }} />
                 </Box>
                 <Box sx={{ minWidth: 0 }}>
-                  {renamingPdf === p.id ? (
-                    <TextField
-                      autoFocus
-                      size="small"
-                      value={renamingPdfName}
-                      onChange={(e) => setRenamingPdfName(e.target.value)}
-                      onBlur={() => {
-                        const name = renamingPdfName.trim()
-                        if (name && name !== p.name) onRenamePdf?.(p.id, name)
-                        setRenamingPdf(null)
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          const name = renamingPdfName.trim()
-                          if (name && name !== p.name) onRenamePdf?.(p.id, name)
-                          setRenamingPdf(null)
-                        }
-                        if (e.key === "Escape") setRenamingPdf(null)
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                      sx={{ "& .MuiInputBase-input": { fontSize: "0.85rem" } }}
-                    />
-                  ) : (
-                    <Typography
-                      variant="body2"
-                      noWrap
-                      sx={{
-                        fontWeight: 600,
-                        fontSize: "0.95rem",
-                        fontFamily: (t: Theme) => t.custom.serif
-                      }}>
-                      {p.name}
-                    </Typography>
-                  )}
                   <Typography
-                    variant="caption"
-                    sx={{ color: "text.secondary" }}>
-                    {countByPdf[p.id] ?? 0} 张摘录 ·{" "}
-                    {relativeTime(p.lastOpened) || "未打开"}
+                    variant="body2"
+                    noWrap
+                    sx={{
+                      fontWeight: 600,
+                      fontSize: "0.95rem",
+                      fontFamily: (t: Theme) => t.custom.serif
+                    }}>
+                    {p.name}
                   </Typography>
-                  {isPlaceholder && (
-                    <Typography
-                      variant="caption"
-                      sx={{ color: "primary.main", fontSize: "0.68rem" }}>
-                      未同步文件 · 点击打开本地 PDF 匹配
-                    </Typography>
-                  )}
-                 </Box>
+                </Box>
                </Stack>
              </Paper>
            )
@@ -641,6 +581,28 @@ export default function PdfHub({
           ))}
         </Menu>
       )}
+      <RenameDialog
+        open={Boolean(topicRename)}
+        title="重命名主题"
+        label="主题名称"
+        value={topicRename ?? ""}
+        onClose={() => setTopicRename(null)}
+        onConfirm={(name) => {
+          if (name && topicRename && name !== topicRename)
+            onRenameTopic?.(topicRename, name)
+        }}
+      />
+      <RenameDialog
+        open={Boolean(pdfRename)}
+        title="重命名 PDF"
+        label="PDF 名称"
+        value={pdfRename?.name ?? ""}
+        onClose={() => setPdfRename(null)}
+        onConfirm={(name) => {
+          if (name && pdfRename && name !== pdfRename.name)
+            onRenamePdf?.(pdfRename.id, name)
+        }}
+      />
     </Box>
   )
 }

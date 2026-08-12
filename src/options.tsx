@@ -1245,13 +1245,13 @@ export default function OptionsPage() {
 
   // PdfCardsPanel "切换批注类型" → the engine rebuilds the mark + emits
   // onAnnotationChanged (saves the new type + konvaString).
-  const TYPE_TO_ANNOTATION = { highlight: 1, underline: 3, strike: 2 } as const
   const handlePdfTypeChange = useCallback(
     (card: PdfCard, type: "highlight" | "underline" | "strike") => {
       pdfTypeChangeToken.current += 1
       setPdfTypeChangeTarget({
         id: card.annotationId,
-        type: TYPE_TO_ANNOTATION[type],
+        type:
+          type === "highlight" ? 1 : type === "underline" ? 3 : 2,
         seq: pdfTypeChangeToken.current
       })
     },

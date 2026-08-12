@@ -17,6 +17,7 @@ import {
 } from "@mui/material"
 import { useCallback, useMemo, useState } from "react"
 
+import RenameDialog from "./RenameDialog"
 import type { Project, Section } from "../types"
 import { RECENT_TOTAL as RECENT_TOTAL_SHARED } from "../constants"
 import { byRecency } from "../utils"
@@ -36,7 +37,7 @@ interface ProjectTreeProps {
   onSelectSection: (sectionId: string | null) => void
   onToggleExpanded: (id: string) => void
   onAddSection: (parentId: string | null, title: string) => void
-  onRenameSection: (parentId: string | null, sectionId: string, title: string) => void
+  onRenameSection: (sectionId: string, title: string) => void
   onDeleteSection: (
     sectionId: string,
     cardCount: number,
@@ -86,8 +87,15 @@ export default function ProjectTree({
     { type: "project"; id: string } | { type: "section"; id: string } | null
   >(null)
   const [addTitle, setAddTitle] = useState("")
-  const [renaming, setRenaming] = useState<string | null>(null)
-  const [renameDraft, setRenameDraft] = useState("")
+  const [sectionRename, setSectionRename] = useState<{
+    id: string
+    title: string
+  } | null>(null)
+  const [projectRename, setProjectRename] = useState<{
+    id: string
+    name: string
+    note?: string
+  } | null>(null)
   const [showAllProjects, setShowAllProjects] = useState(false)
 
   // Active project pinned first, then others by most-recently-opened, so the
@@ -130,19 +138,6 @@ export default function ProjectTree({
     onAddSection(addingFor.type === "project" ? null : addingFor.id, title)
     setAddingFor(null)
     setAddTitle("")
-  }
-
-  const startRename = (sectionId: string, currentTitle: string) => {
-    setRenaming(sectionId)
-    setRenameDraft(currentTitle)
-  }
-
-  const commitRename = () => {
-    if (renaming) {
-      onRenameSection(null, renaming, renameDraft.trim())
-    }
-    setRenaming(null)
-    setRenameDraft("")
   }
 
   // ---- Section drag (reorder among same-parent siblings only; no reparent) ----
@@ -244,7 +239,7 @@ export default function ProjectTree({
       </Box>
     ) : null
 
-  // Render a section node, or its rename input when renaming is active.
+  // Render a section node; rename goes through the shared dialog.
   const sectionRow = (
     section: Section,
     isChild: boolean,
@@ -255,30 +250,7 @@ export default function ProjectTree({
       onDelete?: () => void
       onExportMarkdown?: () => void
     }
-  ) =>
-    renaming === section.id ? (
-      <Box sx={{ pl: isChild ? 0 : 1, pr: 1.5, py: 0.25 }}>
-        <TextField
-          autoFocus
-          fullWidth
-          size="small"
-          value={renameDraft}
-          onChange={(e) => setRenameDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") commitRename()
-            if (e.key === "Escape") setRenaming(null)
-          }}
-          onBlur={commitRename}
-          sx={{
-            "& .MuiOutlinedInput-root": {
-              borderRadius: 1,
-              fontSize: "0.85rem",
-              py: 0.25
-            }
-          }}
-        />
-      </Box>
-    ) : (
+  ) => (
       <SectionNode
         section={section}
         isChild={isChild}
@@ -291,7 +263,7 @@ export default function ProjectTree({
         onToggle={opts.onToggle}
         onSelect={() => onSelectSection(section.id)}
         onAddChild={opts.onAddChild}
-        onRename={() => startRename(section.id, section.title)}
+        onRename={() => setSectionRename({ id: section.id, title: section.title })}
         onDelete={
           opts.onDelete ??
           (() =>
@@ -346,10 +318,15 @@ export default function ProjectTree({
                 if (!isExpanded) onSelectProject(project.id)
                 startAdd({ type: "project", id: project.id })
               }}
-              onRename={(name) => onRenameProject(project.id, name)}
-              onUpdateNote={(note) => onUpdateNote(project.id, note)}
               onDelete={() => onDeleteProject(project.id)}
               onExportMarkdown={() => onExportMarkdown(project.id)}
+              onRequestRename={() =>
+                setProjectRename({
+                  id: project.id,
+                  name: project.name,
+                  note: project.note ?? ""
+                })
+              }
             />
             {isExpanded && (
               <Box sx={{ pl: 1.5 }}>
@@ -471,6 +448,32 @@ export default function ProjectTree({
           </Typography>
         </Box>
       )}
+      {sectionRename && (
+        <RenameDialog
+          open={Boolean(sectionRename)}
+          title="重命名章节"
+          label="章节名称"
+          value={sectionRename.title}
+          onClose={() => setSectionRename(null)}
+          onConfirm={(title) => onRenameSection(sectionRename.id, title)}
+        />
+      )}
+      {projectRename && (
+        <RenameDialog
+          open={Boolean(projectRename)}
+          title="重命名项目"
+          label="项目名称"
+          value={projectRename.name}
+          note={projectRename.note ?? ""}
+          onClose={() => setProjectRename(null)}
+          onConfirm={(name, note) => {
+            if (name && name !== projectRename.name)
+              onRenameProject(projectRename.id, name)
+            if (note !== undefined && note !== (projectRename.note ?? ""))
+              onUpdateNote(projectRename.id, note)
+          }}
+        />
+      )}
     </Box>
   )
 }
@@ -569,10 +572,9 @@ function ProjectNode({
   onOpen,
   onClose,
   onAdd,
-  onRename,
-  onUpdateNote,
   onDelete,
-  onExportMarkdown
+  onExportMarkdown,
+  onRequestRename
 }: {
   project: Project
   active: boolean
@@ -580,78 +582,12 @@ function ProjectNode({
   onOpen: () => void
   onClose: () => void
   onAdd: () => void
-  onRename: (name: string) => void
-  onUpdateNote: (note: string) => void
   onDelete: () => void
   onExportMarkdown?: () => void
+  onRequestRename: () => void
 }) {
-  const [editing, setEditing] = useState(false)
-  const [draftName, setDraftName] = useState(project.name)
-  const [draftNote, setDraftNote] = useState(project.note ?? "")
   const [confirming, setConfirming] = useState(false)
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null)
-
-  const commitRename = () => {
-    const trimmed = draftName.trim()
-    if (trimmed && trimmed !== project.name) onRename(trimmed)
-    else setDraftName(project.name)
-    setEditing(false)
-  }
-
-  if (editing) {
-    return (
-      <Box sx={{ px: 1.5, py: 1, bgcolor: "action.selected" }}>
-        <TextField
-          autoFocus
-          fullWidth
-          size="small"
-          label="项目名称"
-          value={draftName}
-          onChange={(e) => setDraftName(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") commitRename()
-            if (e.key === "Escape") {
-              setDraftName(project.name)
-              setEditing(false)
-            }
-          }}
-          sx={{ mb: 1 }}
-        />
-        <TextField
-          fullWidth
-          size="small"
-          multiline
-          minRows={2}
-          label="备注"
-          placeholder="可选"
-          value={draftNote}
-          onChange={(e) => setDraftNote(e.target.value)}
-          sx={{ mb: 1 }}
-        />
-        <Stack direction="row" spacing={1} justifyContent="flex-end">
-          <Button
-            size="small"
-            onClick={() => {
-              setEditing(false)
-              setDraftName(project.name)
-              setDraftNote(project.note ?? "")
-            }}>
-            取消
-          </Button>
-          <Button
-            size="small"
-            variant="contained"
-            onClick={() => {
-              commitRename()
-              if (draftNote !== (project.note ?? ""))
-                onUpdateNote(draftNote.trim())
-            }}>
-            保存
-          </Button>
-        </Stack>
-      </Box>
-    )
-  }
 
   if (confirming) {
     return (
@@ -753,9 +689,7 @@ function ProjectNode({
                 sx={{ fontSize: "0.8rem" }}
                 onClick={() => {
                   setMenuAnchor(null)
-                  setDraftName(project.name)
-                  setDraftNote(project.note ?? "")
-                  setEditing(true)
+                  onRequestRename()
                 }}>
                 重命名 / 编辑备注
               </MenuItem>
