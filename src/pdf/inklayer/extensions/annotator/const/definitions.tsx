@@ -234,7 +234,8 @@ export const annotationDefinitions: IAnnotationType[] = [
         draggable: false,
         icon: <StrikeoutIcon />,
         style: {
-            color: '#ff6b6b', // 默认删除线颜色
+            // Legacy lime strikeout rgba(45,52,54,0.45)
+            color: 'rgba(45,52,54,0.45)',
         },
         styleEditable: {
             color: true,
@@ -253,7 +254,8 @@ export const annotationDefinitions: IAnnotationType[] = [
         draggable: false,
         icon: <UnderlineIcon />,
         style: {
-            color: '#1272e8', // 默认下划线颜色
+            // Legacy lime underline #6f9476
+            color: '#6f9476',
         },
         styleEditable: {
             color: true,
@@ -272,7 +274,8 @@ export const annotationDefinitions: IAnnotationType[] = [
         draggable: true,
         icon: <RectangleIcon />,
         style: {
-            color: '#ff6b6b', // 默认颜色
+            // Legacy lime frame rgba(99,102,241,0.35)
+            color: 'rgba(99,102,241,0.35)',
             strokeWidth: 2, // 默认线条宽度
             opacity: 1 // 默认透明度
         },
@@ -367,7 +370,8 @@ export const annotationDefinitions: IAnnotationType[] = [
         draggable: true,
         icon: <FreehandIcon />,
         style: {
-            color: '#ff6b6b', // 默认颜色
+            // Legacy lime freehand rgba(99,102,241,0.55)
+            color: 'rgba(99,102,241,0.55)',
             strokeWidth: 2, // 默认线条宽度
             opacity: 1 // 默认透明度
         },
@@ -411,7 +415,8 @@ export const annotationDefinitions: IAnnotationType[] = [
         draggable: true,
         icon: <FreetextIcon />,
         style: {
-            color: '#000', // 默认文字颜色
+            // Legacy lime freetext rgba(45,52,54,0.4)
+            color: 'rgba(45,52,54,0.4)',
             fontSize: 14, // 默认字体大小
         },
         styleEditable: {
