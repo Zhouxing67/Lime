@@ -269,22 +269,15 @@ async function handleCapture(
     return
   }
 
-  // No recent projects: open the new-project popup (reuses right-click flow)
-  await chrome.storage.session.set({
-    pendingCapture: {
-      type: payload.type,
-      content: payload.content,
-      source: payload.source
-    },
-    pendingTabId: senderTab?.id
-  })
-  chrome.windows.create({
-    url: chrome.runtime.getURL("tabs/new-project.html"),
-    type: "popup",
-    width: 480,
-    height: 460
-  })
-  sendResponse({ ok: true })
+  // No projects: fail the save with a clear reason — the capture panel keeps
+  // its draft and shows "请先创建一个项目" (the user creates one in the
+  // options page, then re-saves). No pending-capture popup.
+  if (senderTab?.id) {
+    chrome.tabs
+      .sendMessage(senderTab.id, { kind: "toast", text: "请先创建一个项目" })
+      .catch(() => {})
+  }
+  sendResponse({ ok: false, error: "no-project" })
 }
 
 chrome.action.onClicked.addListener(() => {

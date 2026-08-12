@@ -103,7 +103,7 @@ export default function PanelForm({
     setSaving(true)
     setError("")
     try {
-      const res = await sendMessage<{ ok: boolean; saved?: boolean }>({
+      const res = await sendMessage<{ ok: boolean; saved?: boolean; error?: string }>({
         kind: "capture",
         payload: {
           type: captureType,
@@ -113,6 +113,11 @@ export default function PanelForm({
           projectId: selectedProjectId || undefined
         }
       })
+      if (res?.error === "no-project") {
+        setError("请先创建一个项目，再保存（面板内容已保留）")
+        setSaving(false)
+        return
+      }
       if (res?.saved === false) {
         setError("内容重复，已跳过")
         setSaving(false)
