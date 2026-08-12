@@ -9,6 +9,7 @@ import ViewAgendaRoundedIcon from "@mui/icons-material/ViewAgendaRounded"
 import ViewColumnRoundedIcon from "@mui/icons-material/ViewColumnRounded"
 import FolderRoundedIcon from "@mui/icons-material/FolderRounded"
 import EditRoundedIcon from "@mui/icons-material/EditRounded"
+import SwapHorizRoundedIcon from "@mui/icons-material/SwapHorizRounded"
 import LinkOffRoundedIcon from "@mui/icons-material/LinkOffRounded"
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
 import {
@@ -75,6 +76,8 @@ interface PdfCardsPanelProps {
   onCreateProject?: (name: string, cardIds: string[]) => Promise<boolean>
   /** Placed card's project chip click → jump to that project. */
   onJumpToProject?: (card: PdfCard) => void
+  /** Switch a text annotation's mark type (highlight/underline/strikeout). */
+  onTypeChange?: (card: PdfCard, type: "highlight" | "underline" | "strike") => void
 }
 
 export default function PdfCardsPanel({
@@ -91,7 +94,8 @@ export default function PdfCardsPanel({
   onUnplace,
   onDelete,
   onCreateProject,
-  onJumpToProject
+  onJumpToProject,
+  onTypeChange
 }: PdfCardsPanelProps) {
   const [expandedCards, setExpandedCards] = useState<Set<string>>(
     () => new Set()
@@ -114,6 +118,10 @@ export default function PdfCardsPanel({
   const [placeMenu, setPlaceMenu] = useState<{
     anchor: HTMLElement
     cardIds: string[]
+  } | null>(null)
+  const [typeMenu, setTypeMenu] = useState<{
+    anchor: HTMLElement
+    card: PdfCard
   } | null>(null)
   const theme = useTheme()
   const [deleteTarget, setDeleteTarget] = useState<PdfCard | null>(null)
@@ -533,6 +541,19 @@ export default function PdfCardsPanel({
                           </IconButton>
                         </Tooltip>
                       )}
+                      {card.kind === "text" && (
+                        <Tooltip title="切换批注类型">
+                          <IconButton
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setTypeMenu({ anchor: e.currentTarget, card })
+                            }}
+                            sx={{ p: 0.75, color: "text.disabled" }}>
+                            <SwapHorizRoundedIcon sx={{ fontSize: 16 }} />
+                          </IconButton>
+                        </Tooltip>
+                      )}
                       <Tooltip title="编辑">
                         <IconButton
                           size="small"
@@ -688,6 +709,30 @@ export default function PdfCardsPanel({
         onCreateProject={onCreateProject}
         onClose={() => setPlaceMenu(null)}
       />
+      <Menu
+        anchorEl={typeMenu?.anchor ?? null}
+        open={Boolean(typeMenu)}
+        onClose={() => setTypeMenu(null)}
+        slotProps={{ paper: { sx: { py: 0.5, borderRadius: 1, minWidth: 120 } } }}>
+        {(
+          [
+            ["highlight", "高亮"],
+            ["underline", "下划线"],
+            ["strike", "删除线"]
+          ] as const
+        ).map(([type, label]) => (
+          <MenuItem
+            key={type}
+            selected={typeMenu?.card.type === type}
+            onClick={() => {
+              if (typeMenu && onTypeChange) onTypeChange(typeMenu.card, type)
+              setTypeMenu(null)
+            }}
+            sx={{ fontSize: "0.8rem" }}>
+            {label}
+          </MenuItem>
+        ))}
+      </Menu>
     </Box>
   )
 }

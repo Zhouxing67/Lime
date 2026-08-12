@@ -207,6 +207,12 @@ export default function OptionsPage() {
   )
   const pdfFlashToken = useRef(0)
   const pdfScrollToken = useRef(0)
+  const [pdfTypeChangeTarget, setPdfTypeChangeTarget] = useState<{
+    id: string
+    type: number
+    seq: number
+  } | null>(null)
+  const pdfTypeChangeToken = useRef(0)
   const [pdfCurrentPage, setPdfCurrentPage] = useState(1)
   const [pdfPageCount, setPdfPageCount] = useState(0)
   const [pdfSidebarView, setPdfSidebarView] = useState<"cards" | "search">("cards")
@@ -1236,6 +1242,21 @@ export default function OptionsPage() {
     pdfScrollToken.current += 1
     setPdfScrollTarget({ cardId, token: pdfScrollToken.current })
   }, [])
+
+  // PdfCardsPanel "切换批注类型" → the engine rebuilds the mark + emits
+  // onAnnotationChanged (saves the new type + konvaString).
+  const TYPE_TO_ANNOTATION = { highlight: 1, underline: 3, strike: 2 } as const
+  const handlePdfTypeChange = useCallback(
+    (card: PdfCard, type: "highlight" | "underline" | "strike") => {
+      pdfTypeChangeToken.current += 1
+      setPdfTypeChangeTarget({
+        id: card.annotationId,
+        type: TYPE_TO_ANNOTATION[type],
+        seq: pdfTypeChangeToken.current
+      })
+    },
+    []
+  )
 
   // Place PDF-sourced cards into a project (未分类) / unplace back to PDF-only.
   const handleCardWorkspaceClose = useCallback(() => closeCardWorkspace(), [closeCardWorkspace])
@@ -2379,6 +2400,7 @@ export default function OptionsPage() {
                 toggleReader,
                 swapLeft,
                 pdfFlashTarget,
+                pdfTypeChangeTarget,
                 handleJumpInPanel,
                 setPdfCurrentPage,
                 setPdfPageCount,
@@ -2798,6 +2820,7 @@ export default function OptionsPage() {
             onDelete={handleDeletePdfCards}
             onCreateProject={handleCreateProjectAndPlace}
             onJumpToProject={handleJumpToProject}
+            onTypeChange={handlePdfTypeChange}
           />
         )}
       </Box>

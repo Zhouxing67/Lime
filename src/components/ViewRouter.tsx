@@ -57,6 +57,7 @@ interface PdfViewRouterProps {
   toggleReader: () => void
   swapLeft: () => void
   pdfFlashTarget: { page: number; annId: string; token: number } | null
+  pdfTypeChangeTarget: { id: string; type: number; seq: number } | null
   handleJumpInPanel: (cardId: string) => void
   setPdfCurrentPage: (page: number) => void
   setPdfPageCount: (n: number) => void
@@ -204,6 +205,7 @@ function PdfViewRouter(props: PdfViewRouterProps) {
     toggleReader,
     swapLeft,
     pdfFlashTarget,
+    pdfTypeChangeTarget,
     handleJumpInPanel,
     setPdfCurrentPage,
     setPdfPageCount,
@@ -271,6 +273,7 @@ function PdfViewRouter(props: PdfViewRouterProps) {
             searchRequest={searchRequest}
             onSearchResults={handlePdfSearchResults}
             jumpRequest={jumpRequest}
+            typeChangeRequest={pdfTypeChangeTarget}
           />
         </Box>
       ) : (

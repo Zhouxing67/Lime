@@ -204,7 +204,11 @@ function EngineToolbar({
         borderBottom: "1px solid",
         borderColor: "divider",
         bgcolor: "background.paper",
-        height: "100%"
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 1200
       }}>
       {/* left: nav + view controls */}
       <Box sx={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 0.5 }}>
@@ -444,6 +448,8 @@ export interface PdfEngineViewProps {
   /** The active search query — the find controller needs it to (re)run. */
   searchQuery?: string
   searchOptions?: { caseSensitive: boolean; wholeWord: boolean }
+  /** External text-annotation type switch (highlight/underline/strikeout). */
+  typeChangeRequest?: { id: string; type: number; seq: number } | null
   onLoad?: () => void
 }
 
@@ -464,6 +470,7 @@ function EngineBridge({
   searchFlash,
   searchQuery,
   searchOptions,
+  typeChangeRequest,
   onLoad,
   textRange,
   onTextSelected
@@ -499,6 +506,7 @@ function EngineBridge({
   } | null
   searchQuery?: string
   searchOptions?: { caseSensitive: boolean; wholeWord: boolean }
+  typeChangeRequest?: { id: string; type: number; seq: number } | null
   onLoad?: () => void
   textRange: Range | null
   onTextSelected: (range: Range | null) => void
@@ -653,6 +661,16 @@ function EngineBridge({
   const annotationsRef = useRef(annotations)
   annotationsRef.current = annotations
 
+  const typeChangeSeqRef = useRef(typeChangeRequest?.seq ?? 0)
+  useEffect(() => {
+    const seq = typeChangeRequest?.seq
+    if (seq == null || seq === typeChangeSeqRef.current) return
+    typeChangeSeqRef.current = seq
+    if (!painter) return
+    painter.changeAnnotationType(typeChangeRequest.id, typeChangeRequest.type)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [typeChangeRequest?.seq, painter])
+
   // Start at 0, NOT the mount-time flashTarget token: the flash often fires
   // while the engine is still loading (the PdfEngineView mounts AFTER the
   // flashTarget was set) — initializing from it would make the effect's
@@ -714,6 +732,12 @@ function EngineBridge({
 
   return (
     <>
+      <EngineToolbar
+        onSearchClick={onSearchClick}
+        onToggleReader={onToggleReader}
+        onSwapLeft={onSwapLeft}
+        readerOpen={readerOpen}
+      />
       <EngineSelectionBar range={textRange} />
       <AnnotatorExtension
         enableNativeAnnotations={false}
@@ -748,6 +772,7 @@ export default function PdfEngineView({
   searchFlash,
   searchQuery,
   searchOptions,
+  typeChangeRequest,
   onLoad
 }: PdfEngineViewProps) {
   const [textRange, setTextRange] = useState<Range | null>(null)
@@ -769,8 +794,7 @@ export default function PdfEngineView({
     const styleEl = document.createElement("style")
     styleEl.textContent = `
 .textLayer .highlight{--highlight-bg-color:rgba(99,102,241,0.22);margin-left:0.5ch}
-.textLayer .highlight.selected{--highlight-selected-bg-color:rgba(99,102,241,0.40);box-shadow:0 0 0 1.5px rgba(99,102,241,0.85)}
-#InkLayer > div[class*="viewerHeader"]{display:none}`
+.textLayer .highlight.selected{--highlight-selected-bg-color:rgba(99,102,241,0.40);box-shadow:0 0 0 1.5px rgba(99,102,241,0.85)}`
     document.head.append(styleEl)
     return () => {
       cssLink.remove()
@@ -806,14 +830,7 @@ export default function PdfEngineView({
               url={undefined}
               user={{ id: "local", name: "我" }}
               title={title}
-              toolbar={
-                <EngineToolbar
-                  onSearchClick={onSearchClick}
-                  onToggleReader={onToggleReader}
-                  onSwapLeft={onSwapLeft}
-                  readerOpen={readerOpen}
-                />
-              }
+              toolbar={null}
               sidebar={[]}
               style={{
                 width: rootSize ? rootSize.w : "100%",
@@ -836,6 +853,7 @@ export default function PdfEngineView({
                 searchFlash={searchFlash}
                 searchQuery={searchQuery}
                 searchOptions={searchOptions}
+                typeChangeRequest={typeChangeRequest}
                 onLoad={onLoad}
                 textRange={textRange}
                 onTextSelected={handleTextSelected}

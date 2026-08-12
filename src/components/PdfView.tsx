@@ -25,7 +25,8 @@ export default function PdfView({
   readerOpen,
   onToggleReader,
   onSwapLeft,
-  onOutlineClick
+  onOutlineClick,
+  typeChangeRequest
 }: {
   pdfId: string | null
   onOutlineLoaded?: (outline: PdfOutlineItem[] | null) => void
@@ -42,6 +43,7 @@ export default function PdfView({
   onToggleReader?: () => void
   onSwapLeft?: () => void
   onOutlineClick?: (item: PdfOutlineItem) => void
+  typeChangeRequest?: { id: string; type: number; seq: number } | null
 }) {
   const { loaded, error } = usePdfDocument(pdfId)
   const [stores, setStores] = useState<IAnnotationStore[]>([])
@@ -268,6 +270,7 @@ export default function PdfView({
                 }
               : undefined
           }
+          typeChangeRequest={typeChangeRequest}
         />
       </Box>
     </Box>

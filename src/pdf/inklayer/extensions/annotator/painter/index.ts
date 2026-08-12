@@ -693,6 +693,43 @@ export class Painter {
         this.deleteAnnotation(id, false)
     }
 
+    /** Switch a TEXT annotation's type (highlight ↔ underline ↔ strikeout):
+     *  rebuilds the mark's Konva shape for the new type at the same bbox,
+     *  updates the engine store + re-draws, then emits onAnnotationChanged so
+     *  the app persists the new type + konvaString. */
+    public changeAnnotationType(id: string, newType: AnnotationType): boolean {
+        const store = useAnnotationStore.getState().getAnnotation(id)
+        if (!store) return false
+        const def = annotationDefinitions.find((d) => d.type === newType)
+        if (!def?.style) return false
+        const rect = store.konvaClientRect
+        const color = def.style.color ?? store.color
+        const isHi = newType === AnnotationType.HIGHLIGHT
+        const isUn = newType === AnnotationType.UNDERLINE
+        const shapeAttrs: Record<string, unknown> = isHi
+            ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height, fill: color, opacity: 0.5 }
+            : isUn
+                ? { x: rect.x, y: rect.y + rect.height - 2, width: rect.width, height: 1.5, fill: color, opacity: 1, hitStrokeWidth: 10 }
+                : { x: rect.x, y: rect.y + rect.height / 2, width: rect.width, height: 2, fill: color, opacity: 1, hitStrokeWidth: 10 }
+        // Remove the old mark + store entry.
+        this.deleteAnnotation(id, false)
+        // Rebuild the group + re-add to the engine store.
+        const group = new Konva.Group({ draggable: false, name: SHAPE_GROUP_NAME, id: store.id })
+        group.add(new Konva.Rect(shapeAttrs))
+        const newStore: IAnnotationStore = { ...store, type: newType, konvaString: group.toJSON() }
+        useAnnotationStore.getState().addAnnotation(newStore)
+        const canvas = this.konvaCanvasStore.get(store.pageNumber)
+        if (canvas) {
+            const layer = canvas.konvaStage.getLayers()[0]
+            if (layer) {
+                layer.add(group)
+                layer.batchDraw()
+            }
+        }
+        this.onAnnotationChanged(newStore)
+        return true
+    }
+
     private createDeletedAnnotationEntry(annotationStore: IAnnotationStore): DeletedAnnotationEntry {
         const annotationIds = Array.from(useAnnotationStore.getState().annotations.keys())
         const konvaStage = this.konvaCanvasStore.get(annotationStore.pageNumber)?.konvaStage
