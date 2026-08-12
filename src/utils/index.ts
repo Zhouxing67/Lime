@@ -442,9 +442,19 @@ export function bytesToBase64(data: Uint8Array): string {
   return btoa(bin)
 }
 
-/** Decode base64 → bytes (chunked, memory-safe). */
+/** Decode base64 → bytes (chunked, memory-safe). Tolerates a `data:*;base64,`
+ *  prefix and any whitespace/newlines (both break strict `atob`); returns an
+ *  empty buffer for genuinely malformed input instead of throwing. */
 export function base64ToBytes(base64: string): Uint8Array {
-  const bin = atob(base64)
+  const clean = String(base64 ?? "")
+    .replace(/^data:[^,]*;base64,/, "")
+    .replace(/\s+/g, "")
+  let bin = ""
+  try {
+    bin = atob(clean)
+  } catch {
+    return new Uint8Array(0)
+  }
   const bytes = new Uint8Array(bin.length)
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
   return bytes

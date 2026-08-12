@@ -199,6 +199,10 @@ export async function uploadImageFiles(
     done++
     onStatus?.(`正在上传图片 (${done}/${images.size})…`)
     const b64 = dataUrl.includes(",") ? dataUrl.split(",")[1] : dataUrl
+    if (!b64 || base64ToBytes(b64).length === 0) {
+      console.warn("[lime] sync: skipping malformed image data-URL", hash)
+      continue
+    }
     const res = await bgFetchBinary(cred, `/Apps/lime/images/${hash}.png`, {
       method: "PUT",
       bodyBase64: bytesToBase64(base64ToBytes(b64))
