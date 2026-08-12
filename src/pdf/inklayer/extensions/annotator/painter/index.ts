@@ -694,38 +694,66 @@ export class Painter {
     }
 
     /** Switch a TEXT annotation's type (highlight ↔ underline ↔ strikeout):
-     *  rebuilds the mark's Konva shape for the new type at the same bbox,
-     *  updates the engine store + re-draws, then emits onAnnotationChanged so
-     *  the app persists the new type + konvaString. */
+     *  rebuilds the mark's Konva shapes for the new type. A text-markup mark
+     *  is ONE Rect PER TEXT LINE (a paragraph highlight = several Rects) — the
+     *  new shape is derived from EACH original line rect (underline = line at
+     *  that line's bottom, strikeout = at its middle), NOT the overall bbox
+     *  (which would collapse a paragraph into a single line). */
     public changeAnnotationType(id: string, newType: AnnotationType): boolean {
         const store = useAnnotationStore.getState().getAnnotation(id)
         if (!store) return false
         const def = annotationDefinitions.find((d) => d.type === newType)
         if (!def?.style) return false
-        const rect = store.konvaClientRect
         const color = def.style.color ?? store.color
         const isHi = newType === AnnotationType.HIGHLIGHT
         const isUn = newType === AnnotationType.UNDERLINE
-        const shapeAttrs: Record<string, unknown> = isHi
-            ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height, fill: color, opacity: 0.5 }
-            : isUn
-                ? { x: rect.x, y: rect.y + rect.height - 2, width: rect.width, height: 1.5, fill: color, opacity: 1, hitStrokeWidth: 10 }
-                : { x: rect.x, y: rect.y + rect.height / 2, width: rect.width, height: 2, fill: color, opacity: 1, hitStrokeWidth: 10 }
-        // Remove the old mark + store entry.
-        this.deleteAnnotation(id, false)
-        // Rebuild the group + re-add to the engine store.
-        const group = new Konva.Group({ draggable: false, name: SHAPE_GROUP_NAME, id: store.id })
-        group.add(new Konva.Rect(shapeAttrs))
-        const newStore: IAnnotationStore = { ...store, type: newType, konvaString: group.toJSON() }
-        useAnnotationStore.getState().addAnnotation(newStore)
-        const canvas = this.konvaCanvasStore.get(store.pageNumber)
-        if (canvas) {
-            const layer = canvas.konvaStage.getLayers()[0]
-            if (layer) {
-                layer.add(group)
-                layer.batchDraw()
+        // Per-line source rects: the annotation's preserved text lines (the
+        // type is just a visualization of the SAME lines) — falls back to the
+        // serialized current shapes when absent (legacy/pre-sourceRects data).
+        let lineRects = store.sourceRects?.length ? store.sourceRects : []
+        if (lineRects.length === 0) {
+            try {
+                const parsed = JSON.parse(store.konvaString) as {
+                    children?: { className?: string; attrs?: Record<string, number> }[]
+                }
+                lineRects = (parsed.children ?? [])
+                    .filter((c) => c.className === 'Rect' && typeof c.attrs?.width === 'number')
+                    .map((c) => ({
+                        x: c.attrs!.x ?? 0,
+                        y: c.attrs!.y ?? 0,
+                        width: c.attrs!.width,
+                        height: c.attrs!.height ?? 0
+                    }))
+            } catch {
+                lineRects = []
             }
         }
+        const r = store.konvaClientRect
+        if (lineRects.length === 0) {
+            lineRects = [{ x: r.x, y: r.y, width: r.width, height: r.height }]
+        }
+        // Build the new group: one shape per source line rect.
+        const group = new Konva.Group({ draggable: false, name: SHAPE_GROUP_NAME, id: store.id })
+        for (const lr of lineRects) {
+            const shapeAttrs: Record<string, unknown> = isHi
+                ? { x: lr.x, y: lr.y, width: lr.width, height: lr.height, fill: color, opacity: 0.5 }
+                : isUn
+                    ? { x: lr.x, y: lr.y + lr.height - 2, width: lr.width, height: 1.5, fill: color, opacity: 1, hitStrokeWidth: 10 }
+                    : { x: lr.x, y: lr.y + lr.height / 2, width: lr.width, height: 2, fill: color, opacity: 1, hitStrokeWidth: 10 }
+            group.add(new Konva.Rect(shapeAttrs))
+        }
+        const newStore: IAnnotationStore = { ...store, type: newType, konvaString: group.toJSON() }
+        // Rebuild through the ENGINE's mark lifecycle so the new type's editor
+        // exists — the card→annotation flash (painter.highlight) resolves the
+        // editor via findEditor(page, type) and renders the selection ring on
+        // it; a directly-added group would leave findEditor empty.
+        const stage = this.konvaCanvasStore.get(store.pageNumber)?.konvaStage
+        if (stage) {
+            stage.findOne(`#${id}`)?.destroy()
+            this.enableEditor({ konvaStage: stage, pageNumber: store.pageNumber, annotation: def })
+            this.findEditor(store.pageNumber, newType)?.addSerializedGroupToLayer(stage, newStore.konvaString)
+        }
+        useAnnotationStore.getState().addAnnotation(newStore)
         this.onAnnotationChanged(newStore)
         return true
     }

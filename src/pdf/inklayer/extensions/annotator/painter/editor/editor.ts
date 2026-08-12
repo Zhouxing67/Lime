@@ -106,11 +106,13 @@ export abstract class Editor {
         shapeGroup,
         contentsObj,
         color,
+        sourceRects,
     }: {
         shapeGroup: IShapeGroup
         contentsObj?: IAnnotationContentsObj
         pageRanges?: number[]
         color?: string
+        sourceRects?: { x: number; y: number; width: number; height: number }[]
     }) {
         const { id, pageNumber, konvaGroup, annotation } = shapeGroup
 
@@ -127,6 +129,7 @@ export abstract class Editor {
                 color,
                 date: formatTimestamp(Date.now()),
                 contentsObj,
+                sourceRects,
                 comments: [],
                 user: this.currentUser,
                 native: false
@@ -231,11 +234,13 @@ export abstract class Editor {
         id,
         contentsObj,
         color,
+        sourceRects,
     }: {
         id: string
         contentsObj?: IAnnotationContentsObj
         pageRanges?: number[]
         color?: string
+        sourceRects?: { x: number; y: number; width: number; height: number }[]
     }) {
         const shapeGroup = this.shapeGroupStore.get(id) // 获取指定 ID 的形状组对象
         if (shapeGroup) {
@@ -243,7 +248,8 @@ export abstract class Editor {
             this.dispatchAddEvent({
                 shapeGroup,
                 contentsObj,
-                color
+                color,
+                sourceRects
             }) // 触发添加事件
         }
     }

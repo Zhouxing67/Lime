@@ -65,7 +65,8 @@ export class EditorHighLight extends Editor {
                 text: '',
                 selectedText: this.getSelectedText(elements)
             },
-            color: this.currentAnnotation!.style!.color
+            color: this.currentAnnotation!.style!.color,
+            sourceRects: mergedRects
         })
     }
 

@@ -179,6 +179,10 @@ export interface IAnnotationStore {
     pdfjsType: PdfjsAnnotationType; // PDF.js 批注类型
     date: string | null; // 创建或修改日期
     contentsObj?: IAnnotationContentsObj | null; // 可选的内容对象
+    /** Source per-line rects of the underlying text (a text-markup annotation
+     *  visualizes the SAME text lines as highlight/underline/strikeout) —
+     *  preserved at creation so a type switch can rebuild any visualization. */
+    sourceRects?: { x: number; y: number; width: number; height: number }[];
     comments: IAnnotationComment[]; // 与批注相关的评论数组
     user: User
     native: boolean // 是否为原生批注
