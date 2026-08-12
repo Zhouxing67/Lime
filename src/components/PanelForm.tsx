@@ -560,7 +560,7 @@ export default function PanelForm({
         </button>
         <button
           type="button"
-          disabled={saving || saved || !content.trim()}
+          disabled={saving || saved || !content.trim() || projects.length === 0}
           onClick={save}
           style={{
             borderRadius: 8,

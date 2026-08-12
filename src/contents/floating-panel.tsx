@@ -1,5 +1,8 @@
 import type { PlasmoCSConfig } from "plasmo"
 import { useCallback, useEffect, useRef, useState } from "react"
+import Menu from "@mui/material/Menu"
+import MenuItem from "@mui/material/MenuItem"
+import TextFieldsRoundedIcon from "@mui/icons-material/TextFieldsRounded"
 
 import CaptureSidebar from "../components/CaptureSidebar"
 import type { PanelData } from "../components/FloatingPanel"
@@ -18,6 +21,55 @@ import {
 export const config: PlasmoCSConfig = {
   matches: ["https://*/*", "http://*/*"],
   all_frames: false
+}
+
+/** 常驻 Lime 悬浮球 — 点开菜单，「打开面板」唤起捕获侧栏。 */
+function LimeFloatBall({ onOpen }: { onOpen: () => void }) {
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null)
+  return (
+    <>
+      <button
+        onClick={(e) => setAnchor(e.currentTarget)}
+        title="Lime"
+        aria-label="Lime"
+        style={{
+          position: "fixed",
+          right: 20,
+          bottom: 20,
+          zIndex: 2147483646,
+          width: 44,
+          height: 44,
+          borderRadius: "50%",
+          border: "none",
+          background: "#4f46e5",
+          color: "#ffffff",
+          cursor: "pointer",
+          fontSize: 16,
+          fontWeight: 700,
+          boxShadow: "0 2px 12px rgba(0,0,0,0.25)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center"
+        }}>
+        L
+      </button>
+      <Menu
+        anchorEl={anchor}
+        open={Boolean(anchor)}
+        onClose={() => setAnchor(null)}
+        slotProps={{ paper: { sx: { py: 0.5, borderRadius: 1, minWidth: 140 } } }}>
+        <MenuItem
+          sx={{ fontSize: "0.85rem", gap: 1 }}
+          onClick={() => {
+            setAnchor(null)
+            onOpen()
+          }}>
+          <TextFieldsRoundedIcon sx={{ fontSize: 16 }} />
+          打开面板
+        </MenuItem>
+      </Menu>
+    </>
+  )
 }
 
 /** Region-select (框选) capture: a mask overlay + a drag rectangle, then a
@@ -264,12 +316,6 @@ export default function LimePanel() {
         hide()
         return
       }
-      // Alt+L: PURE sidebar open — no capture, no perception.
-      if (e.altKey && e.key.toLowerCase() === "l") {
-        e.preventDefault()
-        openPanel()
-        return
-      }
       // Alt+S: CAPTURE — the perception modes (selection/formula/image).
       // Fill when the draft is empty (or the sidebar is closed), append when it
       // is open with a draft.
@@ -360,7 +406,7 @@ export default function LimePanel() {
     if (host) host.removeAttribute("aria-hidden")
   }, [open])
 
-  if (!open || !data) return null
+  if (!data) return null
 
   const sharedProps = {
     data,
@@ -381,10 +427,15 @@ export default function LimePanel() {
   }
 
   return (
-    <CaptureSidebar
-      {...sharedProps}
-      width={sidebarWidth}
-      onWidthChange={setSidebarWidth}
-    />
+    <>
+      {!open && <LimeFloatBall onOpen={openPanel} />}
+      {open && (
+        <CaptureSidebar
+          {...sharedProps}
+          width={sidebarWidth}
+          onWidthChange={setSidebarWidth}
+        />
+      )}
+    </>
   )
 }
