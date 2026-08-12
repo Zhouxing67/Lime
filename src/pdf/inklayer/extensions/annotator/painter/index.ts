@@ -909,13 +909,18 @@ export class Painter {
                 continue
             }
             const shape = stage.getIntersection(stagePoint)
-            if (!shape) continue
-            const group = shape.findAncestor(`.${SHAPE_GROUP_NAME}`) as Konva.Group | undefined
-            if (!group) continue
+            const group = shape?.findAncestor(`.${SHAPE_GROUP_NAME}`) as Konva.Group | undefined
+            if (!group) {
+                // Empty click on the PDF (no mark hit) → clear the shared
+                // selection: the mark ring + the panel card highlight together.
+                this.selector.currentTransformerId = null
+                this.onAnnotationSelected(undefined, false, { x: 0, y: 0, width: 0, height: 0 })
+                return
+            }
             this.setDefaultMode()
             this.selector.select(group.id(), true)
             this.selector.activate(konvaCanvas.pageNumber)
-            break
+            return
         }
     }
 
