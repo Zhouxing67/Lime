@@ -29,6 +29,7 @@ import { deepMerge } from "~/src/pdf/inklayer/utils"
 import { usePainter } from "~/src/pdf/inklayer/extensions/annotator/context/use_painter"
 import { useAnnotationStore } from "~/src/pdf/inklayer/extensions/annotator/store"
 import { usePdfViewerContext } from "~/src/pdf/inklayer/context/pdf_viewer_context"
+import { textLayerRects } from "./pdfText"
 import {
   annotationDefinitions,
   type IAnnotationStore,
@@ -441,6 +442,13 @@ export interface PdfEngineViewProps {
   flashTarget?: { page: number; annId: string; token: number } | null
   /** External page jump (search entry / outline click) → scroll to the page. */
   pageJump?: { page: number; seq: number } | null
+  /** Search-match flash (char-offset matches on one page) → draw + keep until
+   *  the next search / clear. */
+  searchFlash?: {
+    page: number
+    matches: { start: number; end: number }[]
+    current: number
+  } | null
   onLoad?: () => void
 }
 
@@ -458,6 +466,7 @@ function EngineBridge({
   readerOpen,
   flashTarget,
   pageJump,
+  searchFlash,
   onLoad,
   textRange,
   onTextSelected
@@ -480,6 +489,11 @@ function EngineBridge({
   readerOpen?: boolean
   flashTarget?: { page: number; annId: string; token: number } | null
   pageJump?: { page: number; seq: number } | null
+  searchFlash?: {
+    page: number
+    matches: { start: number; end: number }[]
+    current: number
+  } | null
   onLoad?: () => void
   textRange: Range | null
   onTextSelected: (range: Range | null) => void
@@ -600,6 +614,79 @@ function EngineBridge({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageJump?.seq, pdfViewer])
 
+  const searchFlashRef = useRef<HTMLElement | null>(null)
+  const searchFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const clearSearchFlash = useCallback(() => {
+    if (searchFlashTimerRef.current) {
+      clearTimeout(searchFlashTimerRef.current)
+      searchFlashTimerRef.current = null
+    }
+    if (searchFlashRef.current) {
+      searchFlashRef.current.remove()
+      searchFlashRef.current = null
+    }
+  }, [])
+
+  const renderSearchFlash = useCallback(
+    (flash: NonNullable<typeof searchFlash>) => {
+      clearSearchFlash()
+      const pageEl = document.querySelector(
+        `.pdfViewer .page[data-page-number="${flash.page}"]`
+      ) as HTMLElement | null
+      const textLayer = pageEl?.querySelector(".textLayer")
+      if (!pageEl || !textLayer) {
+        // Page not rendered yet (the flash fires before the jump completes) —
+        // retry until the text layer appears.
+        searchFlashTimerRef.current = setTimeout(
+          () => renderSearchFlash(flash),
+          150
+        )
+        return
+      }
+      const overlay = document.createElement("div")
+      overlay.style.cssText =
+        "position:absolute;inset:0;pointer-events:none;z-index:5;overflow:hidden"
+      flash.matches.forEach((m, i) => {
+        let rects: { x: number; y: number; w: number; h: number }[] = []
+        try {
+          rects = textLayerRects(textLayer as any, pageEl, m.start, m.end)
+        } catch {
+          rects = []
+        }
+        for (const r of rects) {
+          if (r.w <= 0 || r.h <= 0) continue
+          const div = document.createElement("div")
+          div.style.cssText = `position:absolute;left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;background:${
+            i === flash.current
+              ? "rgba(99,102,241,0.45)"
+              : "rgba(99,102,241,0.22)"
+          };border-radius:1px`
+          overlay.appendChild(div)
+        }
+      })
+      pageEl.appendChild(overlay)
+      searchFlashRef.current = overlay
+    },
+    [clearSearchFlash]
+  )
+
+  useEffect(() => {
+    if (!searchFlash) {
+      clearSearchFlash()
+      return
+    }
+    renderSearchFlash(searchFlash)
+    // Re-render on zoom (the text layer spans move) — keyed on the flash seq
+    // is impossible, so re-run when the page's scale changes instead.
+    const onScale = () => renderSearchFlash(searchFlash)
+    eventBus.on("scalechanging", onScale)
+    return () => {
+      eventBus.off("scalechanging", onScale)
+      clearSearchFlash()
+    }
+  }, [searchFlash, clearSearchFlash, renderSearchFlash, eventBus])
+
   const flashTokenRef = useRef(flashTarget?.token ?? 0)
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
@@ -669,6 +756,7 @@ export default function PdfEngineView({
   readerOpen,
   flashTarget,
   pageJump,
+  searchFlash,
   onLoad
 }: PdfEngineViewProps) {
   const [textRange, setTextRange] = useState<Range | null>(null)
@@ -736,6 +824,7 @@ export default function PdfEngineView({
                 readerOpen={readerOpen}
                 flashTarget={flashTarget}
                 pageJump={pageJump}
+                searchFlash={searchFlash}
                 onLoad={onLoad}
                 textRange={textRange}
                 onTextSelected={handleTextSelected}

@@ -56,14 +56,13 @@ export default function PdfView({
     setPageJump({ page, seq: pageJumpSeqRef.current })
   }, [])
 
-  usePdfSearch(
+  const searchFlash = usePdfSearch(
     loaded?.doc ?? null,
     searchRequest ?? null,
     onSearchResults,
     jumpRequest ?? null,
     navigateTo
   )
-
   useEffect(() => {
     if (loaded) onPageCountChange?.(loaded.pageCount)
   }, [loaded, onPageCountChange])
@@ -244,6 +243,7 @@ export default function PdfView({
           readerOpen={readerOpen}
           flashTarget={flashTarget}
           pageJump={pageJump}
+          searchFlash={searchFlash}
         />
       </Box>
     </Box>
