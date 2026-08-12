@@ -213,7 +213,9 @@ export const annotationDefinitions: IAnnotationType[] = [
         draggable: false,
         icon: <HighlightIcon />,
         style: {
-            color: '#b4fa56', // 默认高亮颜色
+            // Legacy lime highlight (rgba(183,149,91,0.26)) — the Konva shape
+            // renders at opacity 0.5, so the fill alpha doubles to 0.52.
+            color: 'rgba(183,149,91,0.52)',
         },
         styleEditable: {
             color: true,
@@ -386,7 +388,9 @@ export const annotationDefinitions: IAnnotationType[] = [
         draggable: true,
         icon: <FreeHighlightIcon />,
         style: {
-            color: '#ff6b6b', // 默认自由高亮颜色
+            // Legacy lime free-highlight (rgba(183,149,91,0.22)) at the
+            // shape's opacity 0.5 → fill alpha 0.44.
+            color: 'rgba(183,149,91,0.44)',
             strokeWidth: 10, // 默认线条宽度
             opacity: 0.5 // 默认透明度
         },
