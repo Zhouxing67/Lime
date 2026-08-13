@@ -33,8 +33,6 @@ import { deepMerge } from "~/src/pdf/inklayer/utils"
 import { usePainter } from "~/src/pdf/inklayer/extensions/annotator/context/use_painter"
 import { useAnnotationStore } from "~/src/pdf/inklayer/extensions/annotator/store"
 import { usePdfViewerContext } from "~/src/pdf/inklayer/context/pdf_viewer_context"
-import { mergeRects, clipToLineAdvance, offsetsToRange } from "./pdfText"
-import type { PdfRect } from "./pdfText"
 import {
   annotationDefinitions,
   type IAnnotationStore,
@@ -474,6 +472,8 @@ export interface PdfEngineViewProps {
     current: number
   } | null
   /** The active search query — the find controller needs it to (re)run. */
+  searchQuery?: string
+  searchOptions?: { caseSensitive: boolean; wholeWord: boolean }
   /** External text-annotation type switch (highlight/underline/strikeout). */
   typeChangeRequest?: { id: string; type: number; seq: number } | null
   /** Bump → auto-clear the shared selection ring (the 2s card↔mark cue). */
@@ -495,6 +495,8 @@ function EngineBridge({
   flashTarget,
   pageJump,
   searchFlash,
+  searchQuery,
+  searchOptions,
   typeChangeRequest,
   clearRingToken,
   textRange,
@@ -529,12 +531,14 @@ function EngineBridge({
     matches: { start: number; end: number }[]
     current: number
   } | null
+  searchQuery?: string
+  searchOptions?: { caseSensitive: boolean; wholeWord: boolean }
   typeChangeRequest?: { id: string; type: number; seq: number } | null
   clearRingToken?: number
   textRange: Range | null
   onTextSelected: (range: Range | null) => void
 }) {
-  const { pdfViewer, eventBus, pdfDocument } = usePdfViewerContext()
+  const { pdfViewer, eventBus } = usePdfViewerContext()
   const { painter } = usePainter()
 
   const onVisiblePageRef = useRef(onVisiblePageChange)
@@ -638,188 +642,48 @@ function EngineBridge({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageJump?.seq, pdfViewer])
 
-  // ── Unified glyph-precise highlight overlay (selection + search) ─────────
-  // Rects come from geometryRects (authoritative getTextContent items), never
-  // from DOM line boxes — no adjacent-line bleed, no character offset drift.
-  const overlayRef = useRef<HTMLDivElement | null>(null)
-  const overlayPageRef = useRef(-1)
-
-  const drawOverlay = useCallback(
-    (page: number, rects: PdfRect[], current: Set<number>) => {
-      if (!pdfViewer) return
-      const pageEl = pdfViewer.getPageView(page - 1)?.div as
-        | HTMLElement
-        | undefined
-      if (!pageEl) return
-      if (overlayPageRef.current !== page) {
-        overlayRef.current?.remove()
-        const div = document.createElement("div")
-        div.style.cssText =
-          "position:absolute;inset:0;pointer-events:none;z-index:5;overflow:hidden"
-        pageEl.appendChild(div)
-        overlayRef.current = div
-        overlayPageRef.current = page
-      }
-      const div = overlayRef.current!
-      div.replaceChildren()
-      rects.forEach((r, i) => {
-        const el = document.createElement("div")
-        const isCurrent = current.has(i)
-        el.style.cssText = `position:absolute;left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;background:${
-          isCurrent ? "rgba(99,102,241,0.42)" : "rgba(99,102,241,0.26)"
-        };border-radius:1px${
-          isCurrent
-            ? ";box-shadow:0 0 0 1.5px rgba(99,102,241,0.85)"
-            : ""
-        }`
-        div.appendChild(el)
-      })
-    },
-    [pdfViewer]
-  )
-
-  const clearOverlay = useCallback(() => {
-    overlayRef.current?.remove()
-    overlayRef.current = null
-    overlayPageRef.current = -1
-  }, [])
-
-  // The last search/selection data, kept so scale changes can re-render the
-  // overlay with the CURRENT viewport (a stale captured viewport would draw the
-  // rects at the wrong scale — "way off" after zoom / initial fit).
-  const lastSearchRef = useRef<{
-    page: number
-    matches: { start: number; end: number }[]
-    current: number
-  } | null>(null)
-  const lastSelectionRef = useRef<{
-    page: number
-    range: Range
-  } | null>(null)
-
-  // Native selection rects → holder-relative + same-line merge + line-advance
-  // clip (the browser's own geometry: char-precise, covers formula/subscript
-  // spans, no mark fragmentation).
-  const nativeRangeRects = useCallback(
-    (page: number, range: Range): PdfRect[] => {
-      const holder = pdfViewer?.getPageView(page - 1)?.div as
-        | HTMLElement
-        | undefined
-      if (!holder) return []
-      const hr = holder.getBoundingClientRect()
-      const raw = Array.from(range.getClientRects()).map((r) => ({
-        x: r.left - (hr.left + holder.clientLeft),
-        y: r.top - (hr.top + holder.clientTop),
-        w: r.width,
-        h: r.height
-      }))
-      return clipToLineAdvance(mergeRects(raw))
-    },
-    [pdfViewer]
-  )
-
-  const renderSearchOverlay = useCallback(async () => {
-    const data = lastSearchRef.current
-    if (!data) return
-    const { page, matches, current } = data
-    const textLayer = pdfViewer?.getPageView(page - 1)?.textLayer
-    if (!textLayer) return
-    const perMatch: { r: PdfRect; isCurrent: boolean }[] = []
-    for (let i = 0; i < matches.length; i++) {
-      const range = offsetsToRange(textLayer, matches[i].start, matches[i].end)
-      if (!range) continue
-      const rects = nativeRangeRects(page, range)
-      rects.forEach((r) => perMatch.push({ r, isCurrent: i === current }))
-    }
-    const flat = perMatch.map((a) => a.r)
-    const cur = new Set(
-      perMatch.map((a, i) => (a.isCurrent ? i : -1)).filter((i) => i >= 0)
-    )
-    drawOverlay(page, flat, cur)
-  }, [pdfViewer, nativeRangeRects, drawOverlay])
-
-  const renderSelectionOverlay = useCallback(async () => {
-    const selData = lastSelectionRef.current
-    if (!selData) return
-    const { page, range } = selData
-    drawOverlay(page, nativeRangeRects(page, range), new Set())
-  }, [nativeRangeRects, drawOverlay])
-
-  // Search highlight: the searchFlash carries char-offset matches for one page
-  // (current-page scope) → web-highlighter mark rects → the overlay. The
-  // current match gets the emphasis ring; every jump re-renders the target
-  // page's matches.
+  // Search highlight = the OFFICIAL pdf.js find controller (char-exact on the
+  // text layer). On a jump we dispatch the `find` event; pdf.js re-searches +
+  // highlights every match + navigates to the current one. No custom geometry.
   useEffect(() => {
-    if (!searchFlash) {
-      lastSearchRef.current = null
-      clearOverlay()
+    if (!eventBus || !pdfViewer) return
+    const fc = (pdfViewer as any).findController
+    if (!fc) return
+    if (!searchFlash || !searchQuery) {
+      // Clear any active find highlights.
+      eventBus.dispatch("find", {
+        type: "",
+        query: "",
+        highlightAll: false
+      })
       return
     }
-    lastSearchRef.current = {
-      page: searchFlash.page,
-      matches: searchFlash.matches,
-      current: searchFlash.current
+    const pageIdx = searchFlash.page - 1
+    // Best-effort current-match navigation via pdf.js's internal state (the
+    // published API doesn't expose a direct "jump to match").
+    const nav = fc as {
+      _selected?: { pageIdx: number; matchIdx: number }
+      _offset?: { pageIdx: number; matchIdx: number; wrapped: boolean }
+      _highlightMatches?: boolean
     }
-    void renderSearchOverlay()
-  }, [searchFlash, renderSearchOverlay, clearOverlay])
-
-  // Selection highlight: native interaction stays on the text layer; the
-  // browser's own ::selection is suppressed above, so we draw the char-exact
-  // web-highlighter mark rects live on selectionchange (rAF-debounced).
-  useEffect(() => {
-    if (!eventBus || !pdfViewer || !pdfDocument) return
-    let raf = 0
-    const onSelChange = () => {
-      const sel = window.getSelection()
-      if (!sel || sel.rangeCount === 0) {
-        lastSelectionRef.current = null
-        clearOverlay()
-        return
-      }
-      const range = sel.getRangeAt(0)
-      const anchor = range.startContainer
-      const tl =
-        anchor instanceof Node
-          ? anchor.parentElement?.closest(".textLayer")
-          : null
-      if (!tl) {
-        lastSelectionRef.current = null
-        clearOverlay()
-        return
-      }
-      const pageEl = tl.closest("[data-page-number]") as HTMLElement | null
-      if (!pageEl) return
-      const page = Number(pageEl.dataset.pageNumber)
-      if (raf) return
-      raf = requestAnimationFrame(() => {
-        raf = 0
-        lastSelectionRef.current = { page, range }
-        void renderSelectionOverlay()
-      })
+    nav._selected = { pageIdx, matchIdx: searchFlash.current }
+    nav._offset = {
+      pageIdx,
+      matchIdx: Math.max(0, searchFlash.current - 1),
+      wrapped: false
     }
-    document.addEventListener("selectionchange", onSelChange)
-    return () => {
-      document.removeEventListener("selectionchange", onSelChange)
-      if (raf) cancelAnimationFrame(raf)
-    }
-  }, [eventBus, pdfViewer, pdfDocument, renderSelectionOverlay, clearOverlay])
-
-  // Re-render the active overlay when the zoom changes (and after a page
-  // render settles) — the rects must follow the CURRENT viewport.
-  useEffect(() => {
-    if (!eventBus) return
-    const onRezoom = () => {
-      if (lastSelectionRef.current) void renderSelectionOverlay()
-      else if (lastSearchRef.current) void renderSearchOverlay()
-    }
-    eventBus.on("scalechanging", onRezoom)
-    eventBus.on("textlayerrendered", onRezoom)
-    return () => {
-      eventBus.off("scalechanging", onRezoom)
-      eventBus.off("textlayerrendered", onRezoom)
-    }
-  }, [eventBus, renderSearchOverlay, renderSelectionOverlay])
-
+    nav._highlightMatches = true
+    eventBus.dispatch("find", {
+      type: "again",
+      query: searchQuery,
+      caseSensitive: searchOptions?.caseSensitive ?? false,
+      entireWord: searchOptions?.wholeWord ?? false,
+      findPrevious: false,
+      matchDiacritics: false,
+      highlightAll: true
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchFlash, searchQuery, eventBus, pdfViewer])
 
   const annotationsRef = useRef(annotations)
   annotationsRef.current = annotations
@@ -918,8 +782,8 @@ function EngineBridge({
         onAnnotationDelete={onAnnotationDelete ?? (() => {})}
         onAnnotationSelected={onAnnotationSelected ?? (() => {})}
         onAnnotationChanged={handleChange}
-                onTextSelected={onTextSelected}
-              />
+        onTextSelected={onTextSelected}
+      />
     </>
   )
 }
@@ -941,6 +805,8 @@ export default function PdfEngineView({
   flashTarget,
   pageJump,
   searchFlash,
+  searchQuery,
+  searchOptions,
   typeChangeRequest,
   clearRingToken
 }: PdfEngineViewProps) {
@@ -962,7 +828,8 @@ export default function PdfEngineView({
     // is a green/purple wash); the selected match gets a border.
     const styleEl = document.createElement("style")
     styleEl.textContent = `
-.textLayer ::selection,.textLayer ::-moz-selection{background:transparent !important;color:transparent !important}`
+.textLayer .highlight{--highlight-bg-color:rgba(99,102,241,0.22);margin-left:0.5ch}
+.textLayer .highlight.selected{--highlight-selected-bg-color:rgba(99,102,241,0.40);box-shadow:0 0 0 1.5px rgba(99,102,241,0.85)}`
     document.head.append(styleEl)
     return () => {
       cssLink.remove()
@@ -1019,6 +886,8 @@ export default function PdfEngineView({
                 flashTarget={flashTarget}
                 pageJump={pageJump}
                 searchFlash={searchFlash}
+                searchQuery={searchQuery}
+                searchOptions={searchOptions}
                 typeChangeRequest={typeChangeRequest}
                 clearRingToken={clearRingToken}
                 textRange={textRange}

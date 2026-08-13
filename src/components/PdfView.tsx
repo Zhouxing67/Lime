@@ -232,8 +232,8 @@ export default function PdfView({
       {readerOpen && (
         <Box
           sx={{
-            width: 220,
-            minWidth: 220,
+            width: 250,
+            minWidth: 250,
             borderRight: "1px solid",
             borderColor: "divider",
             bgcolor: "background.paper",
@@ -267,7 +267,17 @@ export default function PdfView({
           flashTarget={flashTarget}
           pageJump={pageJump}
           searchFlash={searchFlash}
+          searchQuery={searchRequest?.query}
+          searchOptions={
+            searchRequest
+              ? {
+                  caseSensitive: searchRequest.caseSensitive,
+                  wholeWord: searchRequest.wholeWord
+                }
+              : undefined
+          }
           typeChangeRequest={typeChangeRequest}
+          clearRingToken={clearRingToken}
         />
       </Box>
     </Box>
