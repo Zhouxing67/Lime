@@ -543,22 +543,27 @@ export async function geometryRects(
     const baseX = t[4]
     const baseY = t[5]
     const w = item.width ?? 0
-    const h = item.height ?? 0
-    if (w <= 0 || h <= 0) continue
+    // The em-box height is the transform's vertical scale (the font size in
+    // PDF units) — NOT item.height, which is a normalized text-space value
+    // that renders as a sub-pixel sliver at the baseline.
+    const fontSize = Math.abs(t[3]) || Math.abs(t[0]) || 0
+    if (w <= 0 || fontSize <= 0) continue
     const subFrom = (from / len) * w
     const subTo = (to / len) * w
     const left = baseX + subFrom
     const right = baseX + subTo
-    const top = viewport.convertToViewportPoint(left, baseY - h)[1]
-    const bottom = viewport.convertToViewportPoint(left, baseY)[1]
+    const topPt = viewport.convertToViewportPoint(left, baseY - fontSize)
+    const botPt = viewport.convertToViewportPoint(left, baseY)
+    // The viewport's y-axis is flipped (transform[3] is negative) — topPt may
+    // exceed botPt, so always use abs + the min for the origin.
     raw.push({
       x: viewport.convertToViewportPoint(left, baseY)[0],
-      y: top,
+      y: Math.min(topPt[1], botPt[1]),
       w: Math.abs(
         viewport.convertToViewportPoint(right, baseY)[0] -
           viewport.convertToViewportPoint(left, baseY)[0]
       ),
-      h: Math.max(1, bottom - top)
+      h: Math.max(1, Math.abs(botPt[1] - topPt[1]))
     })
   }
   return mergeRects(clipToLineAdvance(raw))
