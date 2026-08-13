@@ -33,7 +33,7 @@ import { deepMerge } from "~/src/pdf/inklayer/utils"
 import { usePainter } from "~/src/pdf/inklayer/extensions/annotator/context/use_painter"
 import { useAnnotationStore } from "~/src/pdf/inklayer/extensions/annotator/store"
 import { usePdfViewerContext } from "~/src/pdf/inklayer/context/pdf_viewer_context"
-import { rangePageRects, offsetsToRange } from "./pdfText"
+import { mergeRects, clipToLineAdvance, offsetsToRange } from "./pdfText"
 import type { PdfRect } from "./pdfText"
 import {
   annotationDefinitions,
@@ -498,10 +498,8 @@ function EngineBridge({
   typeChangeRequest,
   clearRingToken,
   textRange,
-  onTextSelected,
-  engineRoot
+  onTextSelected
 }: {
-  engineRoot: HTMLElement | null
   annotations?: IAnnotationStore[]
   onAnnotationAdd?: (
     annotation: IAnnotationStore,
@@ -699,9 +697,30 @@ function EngineBridge({
     range: Range
   } | null>(null)
 
+  // Native selection rects → holder-relative + same-line merge + line-advance
+  // clip (the browser's own geometry: char-precise, covers formula/subscript
+  // spans, no mark fragmentation).
+  const nativeRangeRects = useCallback(
+    (page: number, range: Range): PdfRect[] => {
+      const holder = pdfViewer?.getPageView(page - 1)?.div as
+        | HTMLElement
+        | undefined
+      if (!holder) return []
+      const hr = holder.getBoundingClientRect()
+      const raw = Array.from(range.getClientRects()).map((r) => ({
+        x: r.left - (hr.left + holder.clientLeft),
+        y: r.top - (hr.top + holder.clientTop),
+        w: r.width,
+        h: r.height
+      }))
+      return clipToLineAdvance(mergeRects(raw))
+    },
+    [pdfViewer]
+  )
+
   const renderSearchOverlay = useCallback(async () => {
     const data = lastSearchRef.current
-    if (!data || !engineRoot) return
+    if (!data) return
     const { page, matches, current } = data
     const textLayer = pdfViewer?.getPageView(page - 1)?.textLayer
     if (!textLayer) return
@@ -709,8 +728,7 @@ function EngineBridge({
     for (let i = 0; i < matches.length; i++) {
       const range = offsetsToRange(textLayer, matches[i].start, matches[i].end)
       if (!range) continue
-      const pageRects = rangePageRects(engineRoot, range)
-      const rects = pageRects.get(page) ?? []
+      const rects = nativeRangeRects(page, range)
       rects.forEach((r) => perMatch.push({ r, isCurrent: i === current }))
     }
     const flat = perMatch.map((a) => a.r)
@@ -718,15 +736,14 @@ function EngineBridge({
       perMatch.map((a, i) => (a.isCurrent ? i : -1)).filter((i) => i >= 0)
     )
     drawOverlay(page, flat, cur)
-  }, [pdfViewer, engineRoot, drawOverlay])
+  }, [pdfViewer, nativeRangeRects, drawOverlay])
 
   const renderSelectionOverlay = useCallback(async () => {
     const selData = lastSelectionRef.current
-    if (!selData || !engineRoot) return
+    if (!selData) return
     const { page, range } = selData
-    const pageRects = rangePageRects(engineRoot, range)
-    drawOverlay(page, pageRects.get(page) ?? [], new Set())
-  }, [engineRoot, drawOverlay])
+    drawOverlay(page, nativeRangeRects(page, range), new Set())
+  }, [nativeRangeRects, drawOverlay])
 
   // Search highlight: the searchFlash carries char-offset matches for one page
   // (current-page scope) → web-highlighter mark rects → the overlay. The
@@ -796,10 +813,10 @@ function EngineBridge({
       else if (lastSearchRef.current) void renderSearchOverlay()
     }
     eventBus.on("scalechanging", onRezoom)
-    eventBus.on("pagerendered", onRezoom)
+    eventBus.on("textlayerrendered", onRezoom)
     return () => {
       eventBus.off("scalechanging", onRezoom)
-      eventBus.off("pagerendered", onRezoom)
+      eventBus.off("textlayerrendered", onRezoom)
     }
   }, [eventBus, renderSearchOverlay, renderSelectionOverlay])
 
@@ -993,7 +1010,6 @@ export default function PdfEngineView({
                 onAnnotationAdd={onAnnotationAdd}
                 onAnnotationDelete={onAnnotationDelete}
                 onAnnotationSelected={onAnnotationSelected}
-                engineRoot={rootRef.current}
                 onAnnotationChanged={onAnnotationChanged}
                 onVisiblePageChange={onVisiblePageChange}
                 onSearchClick={onSearchClick}

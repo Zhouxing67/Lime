@@ -477,7 +477,7 @@ export function mergeRects(rects: PdfRect[],
 /** Group rects into text lines (same baseline → same line) + clip each line's
  *  height to its line advance so tight-leading PDFs never overlap the
  *  adjacent line (the native-selection line-box bleed). */
-function clipToLineAdvance(rects: PdfRect[]): PdfRect[] {
+export function clipToLineAdvance(rects: PdfRect[]): PdfRect[] {
   if (rects.length <= 1) return rects
   const sorted = [...rects].sort((a, b) => a.y - b.y)
   const groups: PdfRect[][] = []
