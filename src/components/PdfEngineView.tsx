@@ -103,7 +103,10 @@ function EngineToolbar({
       setPage(evt.pageNumber)
       const prev = evt.previous as number | undefined
       if (prev && prev !== evt.pageNumber) {
+        // Cap the back-history so long reading sessions don't grow unbounded.
         navHistoryRef.current.push(prev)
+        if (navHistoryRef.current.length > 50)
+          navHistoryRef.current.shift()
         setCanGoBack(navHistoryRef.current.length > 0)
       }
     }
@@ -452,7 +455,6 @@ export interface PdfEngineViewProps {
   typeChangeRequest?: { id: string; type: number; seq: number } | null
   /** Bump → auto-clear the shared selection ring (the 2s card↔mark cue). */
   clearRingToken?: number
-  onLoad?: () => void
 }
 
 /** Bridge rendered INSIDE PdfViewerProvider — needs the pdfViewer/eventBus. */
@@ -474,7 +476,6 @@ function EngineBridge({
   searchOptions,
   typeChangeRequest,
   clearRingToken,
-  onLoad,
   textRange,
   onTextSelected
 }: {
@@ -511,7 +512,6 @@ function EngineBridge({
   searchOptions?: { caseSensitive: boolean; wholeWord: boolean }
   typeChangeRequest?: { id: string; type: number; seq: number } | null
   clearRingToken?: number
-  onLoad?: () => void
   textRange: Range | null
   onTextSelected: (range: Range | null) => void
 }) {
@@ -681,7 +681,6 @@ function EngineBridge({
     if (token === 0 || token === clearRingTokenRef.current) return
     clearRingTokenRef.current = token
     if (painter) painter.clearSelection()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clearRingToken, painter])
 
   // Start at 0, NOT the mount-time flashTarget token: the flash often fires
@@ -755,7 +754,7 @@ function EngineBridge({
       <AnnotatorExtension
         enableNativeAnnotations={false}
         annotations={annotations}
-        onLoad={onLoad ?? (() => {})}
+        onLoad={() => {}}
         onAnnotationAdd={handleAdd}
         onAnnotationDelete={onAnnotationDelete ?? (() => {})}
         onAnnotationSelected={onAnnotationSelected ?? (() => {})}
@@ -786,8 +785,7 @@ export default function PdfEngineView({
   searchQuery,
   searchOptions,
   typeChangeRequest,
-  clearRingToken,
-  onLoad
+  clearRingToken
 }: PdfEngineViewProps) {
   const [textRange, setTextRange] = useState<Range | null>(null)
   const optionsValue = useMemo(
@@ -869,7 +867,6 @@ export default function PdfEngineView({
                 searchOptions={searchOptions}
                 typeChangeRequest={typeChangeRequest}
                 clearRingToken={clearRingToken}
-                onLoad={onLoad}
                 textRange={textRange}
                 onTextSelected={handleTextSelected}
               />

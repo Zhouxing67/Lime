@@ -919,9 +919,10 @@ export class Painter {
             const group = shape?.findAncestor(`.${SHAPE_GROUP_NAME}`) as Konva.Group | undefined
             if (!group) {
                 // Empty click on the PDF (no mark hit) → clear the shared
-                // selection: the mark ring + the panel card highlight together.
-                this.selector.currentTransformerId = null
-                this.onAnnotationSelected(undefined, false, { x: 0, y: 0, width: 0, height: 0 })
+                // selection. Uses clearSelection() (destroys the transformer) —
+                // setting currentTransformerId=null only deactivates the ring's
+                // drag, leaving it visible on the stale mark.
+                this.clearSelection()
                 return
             }
             this.setDefaultMode()

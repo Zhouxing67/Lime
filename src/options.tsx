@@ -223,6 +223,13 @@ export default function OptionsPage() {
       setPdfClearRingToken((t) => t + 1)
     }, 2000)
   }, [])
+  useEffect(
+    () => () => {
+      if (pdfSelectedTimerRef.current)
+        window.clearTimeout(pdfSelectedTimerRef.current)
+    },
+    []
+  )
   const [pdfTypeChangeTarget, setPdfTypeChangeTarget] = useState<{
     id: string
     type: number
@@ -1229,7 +1236,7 @@ export default function OptionsPage() {
     // Highlight the clicked card in the panel too (bidirectional border).
     pdfScrollToken.current += 1
     setPdfScrollTarget({ cardId: card.id, token: pdfScrollToken.current })
-  }, [openPdf])
+  }, [openPdf, setPdfSelected])
 
   // Project card's PDF-source footer → jump to the PDF + flash its annotation.
   // The display card carries `pdfSource` (pdfId + page); the annotation id is
@@ -1254,7 +1261,7 @@ export default function OptionsPage() {
         token: pdfScrollToken.current
       })
     },
-    [openPdf, navigate, pdfById]
+    [openPdf, navigate, pdfById, setPdfSelected]
   )
 
   // PdfView annotation popover "跳转卡片" → scroll the panel to that card.

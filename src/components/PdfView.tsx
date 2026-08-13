@@ -31,7 +31,6 @@ export default function PdfView({
   clearRingToken
 }: {
   pdfId: string | null
-  onOutlineLoaded?: (outline: PdfOutlineItem[] | null) => void
   outlineDest?: PdfOutlineItem | null
   flashTarget?: { page: number; annId: string; token: number } | null
   onJumpInPanel?: (cardId: string) => void

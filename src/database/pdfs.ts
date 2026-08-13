@@ -443,6 +443,12 @@ export async function saveAnnotationFromStore(input: {
     path: input.path,
     paths: input.paths,
     store: s,
+    // A geometry edit (rects/path/paths present) invalidates the crop image —
+    // keep it only when no geometry changed, so the placed crop re-renders
+    // from the new shape on the next placement.
+    ...(input.rects || input.path || input.paths
+      ? { image: undefined }
+      : { ...(existing?.image ? { image: existing.image } : {}) }),
     ...(existing?.cardId ? { cardId: existing.cardId } : {}),
     updatedAt: Date.now(),
     createdAt: existing?.createdAt ?? Date.now()
