@@ -33,7 +33,7 @@ import { deepMerge } from "~/src/pdf/inklayer/utils"
 import { usePainter } from "~/src/pdf/inklayer/extensions/annotator/context/use_painter"
 import { useAnnotationStore } from "~/src/pdf/inklayer/extensions/annotator/store"
 import { usePdfViewerContext } from "~/src/pdf/inklayer/context/pdf_viewer_context"
-import { geometryRects, textLayerOffsets } from "./pdfText"
+import { rangePageRects, offsetsToRange } from "./pdfText"
 import type { PdfRect } from "./pdfText"
 import {
   annotationDefinitions,
@@ -498,8 +498,10 @@ function EngineBridge({
   typeChangeRequest,
   clearRingToken,
   textRange,
-  onTextSelected
+  onTextSelected,
+  engineRoot
 }: {
+  engineRoot: HTMLElement | null
   annotations?: IAnnotationStore[]
   onAnnotationAdd?: (
     annotation: IAnnotationStore,
@@ -694,49 +696,42 @@ function EngineBridge({
   } | null>(null)
   const lastSelectionRef = useRef<{
     page: number
-    start: number
-    end: number
+    range: Range
   } | null>(null)
 
   const renderSearchOverlay = useCallback(async () => {
     const data = lastSearchRef.current
-    const doc = pdfDocument
-    if (!data || !doc) return
+    if (!data || !engineRoot) return
     const { page, matches, current } = data
-    const pv = pdfViewer?.getPageView(page - 1)?.viewport
-    if (!pv) return
-    const all: { r: PdfRect; isCurrent: boolean }[] = []
+    const textLayer = pdfViewer?.getPageView(page - 1)?.textLayer
+    if (!textLayer) return
+    const perMatch: { r: PdfRect; isCurrent: boolean }[] = []
     for (let i = 0; i < matches.length; i++) {
-      const rects = await geometryRects(
-        doc,
-        page,
-        pv,
-        matches[i].start,
-        matches[i].end
-      )
-      rects.forEach((r) => all.push({ r, isCurrent: i === current }))
+      const range = offsetsToRange(textLayer, matches[i].start, matches[i].end)
+      if (!range) continue
+      const pageRects = rangePageRects(engineRoot, range)
+      const rects = pageRects.get(page) ?? []
+      rects.forEach((r) => perMatch.push({ r, isCurrent: i === current }))
     }
-    const flat = all.map((a) => a.r)
+    const flat = perMatch.map((a) => a.r)
     const cur = new Set(
-      all.map((a, i) => (a.isCurrent ? i : -1)).filter((i) => i >= 0)
+      perMatch.map((a, i) => (a.isCurrent ? i : -1)).filter((i) => i >= 0)
     )
     drawOverlay(page, flat, cur)
-  }, [pdfDocument, pdfViewer, drawOverlay])
+  }, [pdfViewer, engineRoot, drawOverlay])
 
   const renderSelectionOverlay = useCallback(async () => {
     const selData = lastSelectionRef.current
-    const doc = pdfDocument
-    if (!selData || !doc) return
-    const { page, start, end } = selData
-    const pv = pdfViewer?.getPageView(page - 1)?.viewport
-    if (!pv) return
-    const rects = await geometryRects(doc, page, pv, start, end)
-    drawOverlay(page, rects, new Set())
-  }, [pdfDocument, pdfViewer, drawOverlay])
+    if (!selData || !engineRoot) return
+    const { page, range } = selData
+    const pageRects = rangePageRects(engineRoot, range)
+    drawOverlay(page, pageRects.get(page) ?? [], new Set())
+  }, [engineRoot, drawOverlay])
 
   // Search highlight: the searchFlash carries char-offset matches for one page
-  // (current-page scope) → geometryRects → the overlay. The current match gets
-  // the emphasis ring; every jump re-renders the target page's matches.
+  // (current-page scope) → web-highlighter mark rects → the overlay. The
+  // current match gets the emphasis ring; every jump re-renders the target
+  // page's matches.
   useEffect(() => {
     if (!searchFlash) {
       lastSearchRef.current = null
@@ -752,8 +747,8 @@ function EngineBridge({
   }, [searchFlash, renderSearchOverlay, clearOverlay])
 
   // Selection highlight: native interaction stays on the text layer; the
-  // browser's own ::selection is suppressed above, so we draw the glyph-precise
-  // geometry overlay live on selectionchange (rAF-debounced).
+  // browser's own ::selection is suppressed above, so we draw the char-exact
+  // web-highlighter mark rects live on selectionchange (rAF-debounced).
   useEffect(() => {
     if (!eventBus || !pdfViewer || !pdfDocument) return
     let raf = 0
@@ -781,13 +776,7 @@ function EngineBridge({
       if (raf) return
       raf = requestAnimationFrame(() => {
         raf = 0
-        const offsets = textLayerOffsets(tl, sel)
-        if (!offsets || offsets.start >= offsets.end) {
-          lastSelectionRef.current = null
-          clearOverlay()
-          return
-        }
-        lastSelectionRef.current = { page, start: offsets.start, end: offsets.end }
+        lastSelectionRef.current = { page, range }
         void renderSelectionOverlay()
       })
     }
@@ -912,8 +901,8 @@ function EngineBridge({
         onAnnotationDelete={onAnnotationDelete ?? (() => {})}
         onAnnotationSelected={onAnnotationSelected ?? (() => {})}
         onAnnotationChanged={handleChange}
-        onTextSelected={onTextSelected}
-      />
+                onTextSelected={onTextSelected}
+              />
     </>
   )
 }
@@ -1004,6 +993,7 @@ export default function PdfEngineView({
                 onAnnotationAdd={onAnnotationAdd}
                 onAnnotationDelete={onAnnotationDelete}
                 onAnnotationSelected={onAnnotationSelected}
+                engineRoot={rootRef.current}
                 onAnnotationChanged={onAnnotationChanged}
                 onVisiblePageChange={onVisiblePageChange}
                 onSearchClick={onSearchClick}

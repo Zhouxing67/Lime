@@ -1,4 +1,5 @@
 import * as pdfjsLib from "pdfjs-dist"
+import Highlighter from "web-highlighter"
 import type { PdfOutlineItem } from "../types"
 
 /** Resolve an outline item's `.dest` to a 1-based page number. Only named
@@ -567,4 +568,87 @@ export async function geometryRects(
     })
   }
   return mergeRects(clipToLineAdvance(raw))
+}
+
+/** Precise per-page rects for a DOM Range using web-highlighter's mark wrapping
+ *  (the same source the inklayer annotation marks use — char-exact rendered
+ *  boxes, no char-proportion approximation). Returns holder-relative rects,
+ *  merged per row. The marks are unwrapped + the instance disposed after. */
+export function rangePageRects(
+  root: HTMLElement,
+  range: Range
+): Map<number, PdfRect[]> {
+  const highlighter = new Highlighter({ $root: root, wrapTag: "mark" })
+  const perPage = new Map<number, PdfRect[]>()
+  const handler = (data: { sources: { id: string }[] }) => {
+    for (const source of data.sources) {
+      const doms = highlighter.getDoms(source.id)
+      for (const dom of doms) {
+        const pageEl = dom.closest("[data-page-number]") as HTMLElement | null
+        if (!pageEl) continue
+        const page = Number(pageEl.dataset.pageNumber)
+        const holder = pageEl.getBoundingClientRect()
+        const r = dom.getBoundingClientRect()
+        const list = perPage.get(page) ?? []
+        list.push({
+          x: r.left - (holder.left + pageEl.clientLeft),
+          y: r.top - (holder.top + pageEl.clientTop),
+          w: r.width,
+          h: r.height
+        })
+        perPage.set(page, list)
+      }
+    }
+  }
+  highlighter.on("selection:create", handler)
+  try {
+    highlighter.fromRange(range)
+  } catch {
+    // invalid / empty range — no rects
+  }
+  highlighter.off("selection:create", handler)
+  highlighter.removeAll()
+  highlighter.dispose()
+  for (const [page, rects] of perPage) {
+    perPage.set(page, mergeRects(rects))
+  }
+  return perPage
+}
+
+/** Char offsets → a DOM Range over the text layer's spans (the reverse of
+ *  textLayerOffsets). Used to feed a search match's offsets into the
+ *  web-highlighter mark measurement. */
+export function offsetsToRange(
+  textLayer: any,
+  start: number,
+  end: number
+): Range | null {
+  if (start >= end) return null
+  const idx = getTextLayerIndex(textLayer)
+  const divs = getTextDivs(textLayer)
+  const startDiv = findDivAtOffset(idx, start)
+  const endDiv = findDivAtOffset(idx, Math.max(start, end - 1))
+  if (startDiv < 0 || endDiv < 0) return null
+  const startNode = divs[startDiv]?.firstChild
+  const endNode = divs[endDiv]?.firstChild
+  if (
+    !startNode ||
+    !endNode ||
+    startNode.nodeType !== Node.TEXT_NODE ||
+    endNode.nodeType !== Node.TEXT_NODE
+  ) {
+    return null
+  }
+  const s = startDiv > 0 ? idx.cumulative[startDiv] : 0
+  const e = endDiv > 0 ? idx.cumulative[endDiv] : 0
+  const range = document.createRange()
+  const startText = startNode as Text
+  const endText = endNode as Text
+  try {
+    range.setStart(startText, Math.min(Math.max(0, start - s), startText.length))
+    range.setEnd(endText, Math.min(Math.max(0, end - e), endText.length))
+  } catch {
+    return null
+  }
+  return range
 }
