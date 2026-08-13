@@ -33,6 +33,8 @@ import { deepMerge } from "~/src/pdf/inklayer/utils"
 import { usePainter } from "~/src/pdf/inklayer/extensions/annotator/context/use_painter"
 import { useAnnotationStore } from "~/src/pdf/inklayer/extensions/annotator/store"
 import { usePdfViewerContext } from "~/src/pdf/inklayer/context/pdf_viewer_context"
+import { mergeRects } from "./pdfText"
+import type { PdfRect } from "./pdfText"
 import {
   annotationDefinitions,
   type IAnnotationStore,
@@ -706,6 +708,115 @@ function EngineBridge({
     if (painter) painter.clearSelection()
   }, [clearRingToken, painter])
 
+  // ── Selection highlight ──────────────────────────────────────────────────
+  // The browser's native selection box carries the line's leading (the diag:
+  // selection rect h=13 vs the text span's tight em box h=9, 3px high + tall).
+  // We suppress the native ::selection + redraw the char-exact getClientRects
+  // boxes, SNAPPING each rect's vertical to the covering line span's tight
+  // em box — the true rendered glyph position. No overlap, no offset.
+  const selOverlayRef = useRef<HTMLDivElement | null>(null)
+  const selOverlayPageRef = useRef(-1)
+
+  const drawSelectionOverlay = useCallback(
+    (page: number, rects: PdfRect[]) => {
+      if (!pdfViewer) return
+      const pageEl = pdfViewer.getPageView(page - 1)?.div as
+        | HTMLElement
+        | undefined
+      if (!pageEl) return
+      if (selOverlayPageRef.current !== page) {
+        selOverlayRef.current?.remove()
+        const div = document.createElement("div")
+        div.style.cssText =
+          "position:absolute;inset:0;pointer-events:none;z-index:5;overflow:hidden"
+        pageEl.appendChild(div)
+        selOverlayRef.current = div
+        selOverlayPageRef.current = page
+      }
+      const div = selOverlayRef.current!
+      div.replaceChildren()
+      for (const r of rects) {
+        const el = document.createElement("div")
+        el.style.cssText = `position:absolute;left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;background:rgba(99,102,241,0.26);border-radius:1px`
+        div.appendChild(el)
+      }
+    },
+    [pdfViewer]
+  )
+
+  const clearSelectionOverlay = useCallback(() => {
+    selOverlayRef.current?.remove()
+    selOverlayRef.current = null
+    selOverlayPageRef.current = -1
+  }, [])
+
+  useEffect(() => {
+    if (!eventBus || !pdfViewer) return
+    let raf = 0
+    const onSelChange = () => {
+      const sel = window.getSelection()
+      if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
+        clearSelectionOverlay()
+        return
+      }
+      const range = sel.getRangeAt(0)
+      const pageEl = (
+        range.startContainer instanceof Node
+          ? range.startContainer.parentElement?.closest(
+              "[data-page-number]"
+            )
+          : null
+      ) as HTMLElement | null
+      if (!pageEl) {
+        clearSelectionOverlay()
+        return
+      }
+      const page = Number(pageEl.dataset.pageNumber)
+      if (raf) return
+      raf = requestAnimationFrame(() => {
+        raf = 0
+        const holder = pageEl.getBoundingClientRect()
+        const baseX = holder.left + pageEl.clientLeft
+        const baseY = holder.top + pageEl.clientTop
+        const raw = Array.from(range.getClientRects()).map((r) => ({
+          x: r.left - baseX,
+          y: r.top - baseY,
+          w: r.width,
+          h: r.height
+        }))
+        // Snap each box's vertical to the covering text-layer span's tight
+        // em box (the browser's box includes the leading — the offset source).
+        const snapped: PdfRect[] = []
+        for (const r of raw) {
+          const el = document.elementFromPoint(
+            baseX + r.x + r.w / 2,
+            baseY + r.y + r.h / 2
+          ) as HTMLElement | null
+          const span = el?.closest(
+            ".textLayer span, .textLayer .markedContent span"
+          ) as HTMLElement | null
+          if (span) {
+            const sr = span.getBoundingClientRect()
+            snapped.push({
+              x: r.x,
+              y: sr.top - baseY,
+              w: r.w,
+              h: sr.height
+            })
+          } else {
+            snapped.push(r)
+          }
+        }
+        drawSelectionOverlay(page, mergeRects(snapped))
+      })
+    }
+    document.addEventListener("selectionchange", onSelChange)
+    return () => {
+      document.removeEventListener("selectionchange", onSelChange)
+      if (raf) cancelAnimationFrame(raf)
+    }
+  }, [eventBus, pdfViewer, drawSelectionOverlay, clearSelectionOverlay])
+
   // Start at 0, NOT the mount-time flashTarget token: the flash often fires
   // while the engine is still loading (the PdfEngineView mounts AFTER the
   // flashTarget was set) — initializing from it would make the effect's
@@ -829,7 +940,8 @@ export default function PdfEngineView({
     const styleEl = document.createElement("style")
     styleEl.textContent = `
 .textLayer .highlight{--highlight-bg-color:rgba(99,102,241,0.22);margin-left:0.5ch}
-.textLayer .highlight.selected{--highlight-selected-bg-color:rgba(99,102,241,0.40);box-shadow:0 0 0 1.5px rgba(99,102,241,0.85)}`
+.textLayer .highlight.selected{--highlight-selected-bg-color:rgba(99,102,241,0.40);box-shadow:0 0 0 1.5px rgba(99,102,241,0.85)}
+.textLayer ::selection,.textLayer ::-moz-selection{background:transparent !important;color:transparent !important}`
     document.head.append(styleEl)
     return () => {
       cssLink.remove()
@@ -852,6 +964,71 @@ export default function PdfEngineView({
 
   const handleTextSelected = useCallback((range: Range | null) => {
     setTextRange(range)
+    if (range && !(window as any).__limeAlignDiag) {
+      ;(window as any).__limeAlignDiag = true
+      try {
+        const pageEl = range.startContainer?.parentElement?.closest(
+          "[data-page-number]"
+        ) as HTMLElement | null
+        if (pageEl) {
+          const page = pageEl.getBoundingClientRect()
+          const canvas = pageEl.querySelector("canvas")?.getBoundingClientRect()
+          const tl = pageEl.querySelector(".textLayer")?.getBoundingClientRect()
+          const span = (range.startContainer as Node)?.parentElement?.getBoundingClientRect()
+          const tlEl = pageEl.querySelector(".textLayer") as HTMLElement | null
+          const scaleVar = tlEl
+            ? getComputedStyle(tlEl).getPropertyValue("--scale-factor")
+            : null
+          const rects = Array.from(range.getClientRects()).map((r) => ({
+            x: Math.round(r.left),
+            y: Math.round(r.top),
+            w: Math.round(r.width),
+            h: Math.round(r.height)
+          }))
+          console.log(
+            "[pdf] align diag:",
+            JSON.stringify({
+              pageNo: pageEl.dataset.pageNumber,
+              page: {
+                x: Math.round(page.left),
+                y: Math.round(page.top),
+                w: Math.round(page.width),
+                h: Math.round(page.height)
+              },
+              canvas: canvas
+                ? {
+                    x: Math.round(canvas.left),
+                    y: Math.round(canvas.top),
+                    w: Math.round(canvas.width),
+                    h: Math.round(canvas.height)
+                  }
+                : null,
+              textLayer: tl
+                ? {
+                    x: Math.round(tl.left),
+                    y: Math.round(tl.top),
+                    w: Math.round(tl.width),
+                    h: Math.round(tl.height)
+                  }
+                : null,
+              span: span
+                ? {
+                    x: Math.round(span.left),
+                    y: Math.round(span.top),
+                    w: Math.round(span.width),
+                    h: Math.round(span.height)
+                  }
+                : null,
+              scaleVar,
+              selText: range.toString().slice(0, 40),
+              rects
+            })
+          )
+        }
+      } catch (e) {
+        console.warn("[pdf] align diag failed:", e)
+      }
+    }
   }, [])
 
   return (
