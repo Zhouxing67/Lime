@@ -232,8 +232,8 @@ export default function PdfView({
       {readerOpen && (
         <Box
           sx={{
-            width: 250,
-            minWidth: 250,
+            width: 220,
+            minWidth: 220,
             borderRight: "1px solid",
             borderColor: "divider",
             bgcolor: "background.paper",

@@ -215,8 +215,8 @@ export default function PdfReaderPanel({
   return (
     <Box
       sx={{
-        width: 280,
-        flexShrink: 0,
+        width: "100%",
+        flex: 1,
         display: "flex",
         flexDirection: "column",
         borderRight: "1px solid",
