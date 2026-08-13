@@ -472,3 +472,94 @@ export function mergeRects(rects: PdfRect[],
   }
   return merged
 }
+
+/** Group rects into text lines (same baseline → same line) + clip each line's
+ *  height to its line advance so tight-leading PDFs never overlap the
+ *  adjacent line (the native-selection line-box bleed). */
+function clipToLineAdvance(rects: PdfRect[]): PdfRect[] {
+  if (rects.length <= 1) return rects
+  const sorted = [...rects].sort((a, b) => a.y - b.y)
+  const groups: PdfRect[][] = []
+  for (const r of sorted) {
+    const g = groups[groups.length - 1]
+    const bot = r.y + r.h
+    if (g) {
+      const gBot = g[0].y + g[0].h
+      if (Math.abs(bot - gBot) < 3) g.push(r)
+      else groups.push([r])
+    } else {
+      groups.push([r])
+    }
+  }
+  const out: PdfRect[] = []
+  for (let i = 0; i < groups.length; i++) {
+    const g = groups[i]
+    const lineTop = Math.min(...g.map((r) => r.y))
+    const lineBottom = Math.max(...g.map((r) => r.y + r.h))
+    const nextTop =
+      i < groups.length - 1
+        ? Math.min(...groups[i + 1].map((r) => r.y))
+        : lineBottom
+    const advance = Math.max(4, nextTop - lineTop)
+    for (const r of g) {
+      out.push({ x: r.x, y: r.y, w: r.w, h: Math.min(r.h, advance) })
+    }
+  }
+  return out
+}
+
+/** Char offsets → glyph-precise page rects derived from the AUTHORITATIVE PDF
+ *  text data (getTextContent items' str/transform/width/height + viewport) —
+ *  never from DOM text-layer boxes. Returns holder-relative rects (the same
+ *  space as textLayerRects), horizontally merged per line + line-advance
+ *  clipped so adjacent lines never overlap. Used by the selection overlay and
+ *  the search-match overlay. */
+export async function geometryRects(
+  doc: pdfjsLib.PDFDocumentProxy,
+  pageNumber: number,
+  viewport: pdfjsLib.PageViewport,
+  start: number,
+  end: number
+): Promise<PdfRect[]> {
+  if (start >= end) return []
+  const page = await doc.getPage(pageNumber)
+  const tc = await page.getTextContent({ disableNormalization: true })
+  const items = tc.items as {
+    str?: string
+    transform?: number[]
+    width?: number
+    height?: number
+  }[]
+  let acc = 0
+  const raw: PdfRect[] = []
+  for (const item of items) {
+    const len = item.str?.length ?? 0
+    const itemStart = acc
+    acc += len
+    if (len <= 0 || itemStart >= end || acc <= start) continue
+    const from = Math.max(0, start - itemStart)
+    const to = Math.min(len, end - itemStart)
+    const t = item.transform ?? [1, 0, 0, 1, 0, 0]
+    const baseX = t[4]
+    const baseY = t[5]
+    const w = item.width ?? 0
+    const h = item.height ?? 0
+    if (w <= 0 || h <= 0) continue
+    const subFrom = (from / len) * w
+    const subTo = (to / len) * w
+    const left = baseX + subFrom
+    const right = baseX + subTo
+    const top = viewport.convertToViewportPoint(left, baseY - h)[1]
+    const bottom = viewport.convertToViewportPoint(left, baseY)[1]
+    raw.push({
+      x: viewport.convertToViewportPoint(left, baseY)[0],
+      y: top,
+      w: Math.abs(
+        viewport.convertToViewportPoint(right, baseY)[0] -
+          viewport.convertToViewportPoint(left, baseY)[0]
+      ),
+      h: Math.max(1, bottom - top)
+    })
+  }
+  return mergeRects(clipToLineAdvance(raw))
+}
