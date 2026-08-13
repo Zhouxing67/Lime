@@ -772,6 +772,15 @@ function EngineBridge({
         return
       }
       const page = Number(pageEl.dataset.pageNumber)
+      // A live text selection supersedes the search highlight — clear the
+      // find controller's `.highlight` spans so two visuals don't stack.
+      if (eventBus) {
+        eventBus.dispatch("find", {
+          type: "",
+          query: "",
+          highlightAll: false
+        })
+      }
       if (raf) return
       raf = requestAnimationFrame(() => {
         raf = 0
@@ -941,7 +950,7 @@ export default function PdfEngineView({
     styleEl.textContent = `
 .textLayer .highlight{--highlight-bg-color:rgba(99,102,241,0.22);margin-left:0.5ch}
 .textLayer .highlight.selected{--highlight-selected-bg-color:rgba(99,102,241,0.40);box-shadow:0 0 0 1.5px rgba(99,102,241,0.85)}
-.textLayer ::selection,.textLayer ::-moz-selection{background:transparent !important;color:transparent !important}`
+.textLayer::selection,.textLayer ::selection,.textLayer :is(span,br)::selection{background:transparent !important;color:transparent !important}`
     document.head.append(styleEl)
     return () => {
       cssLink.remove()
