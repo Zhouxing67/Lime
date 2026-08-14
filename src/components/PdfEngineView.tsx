@@ -821,6 +821,47 @@ function EngineBridge({
     for (let i = 0; i < matches.length; i++) {
       const range = offsetsToRange(textLayer, matches[i].start, matches[i].end)
       if (!range) continue
+      if (!(window as any).__limeSearchDiag && i === 0) {
+        ;(window as any).__limeSearchDiag = true
+        const raw = Array.from(range.getClientRects()).map((r) => ({
+          x: Math.round(r.left),
+          y: Math.round(r.top),
+          w: Math.round(r.width),
+          h: Math.round(r.height)
+        }))
+        const snapped = snappedRectsForRange(page, range)
+        console.log(
+          "[pdf] search diag:",
+          JSON.stringify({
+            match: matches[i],
+            rangeText: range.toString().slice(0, 60),
+            raw,
+            snapped: snapped.map((r) => ({
+              x: Math.round(r.x),
+              y: Math.round(r.y),
+              w: Math.round(r.w),
+              h: Math.round(r.h)
+            })),
+            spanBox: (() => {
+              const el = document.elementFromPoint(
+                (raw[0]?.x ?? 0) + (raw[0]?.w ?? 0) / 2,
+                (raw[0]?.y ?? 0) + (raw[0]?.h ?? 0) / 2
+              )
+              const sp = el?.closest(
+                ".textLayer span, .textLayer .markedContent span"
+              ) as HTMLElement | null
+              if (!sp) return null
+              const sr = sp.getBoundingClientRect()
+              return {
+                x: Math.round(sr.left),
+                y: Math.round(sr.top),
+                w: Math.round(sr.width),
+                h: Math.round(sr.height)
+              }
+            })()
+          })
+        )
+      }
       const rects = snappedRectsForRange(page, range)
       rects.forEach((r) => all.push({ r, isCurrent: i === current }))
     }

@@ -191,10 +191,15 @@ function getTextDivs(textLayer: any): HTMLElement[] {
   }
   const div = textLayer?.div as HTMLElement | undefined
   if (div) {
-    return Array.from(
-      div.querySelectorAll(":scope > span, :scope .markedContent span")
-    ).filter(
-      (d) => d.textContent && d.textContent.length > 0
+    // LEAF text containers only — a `span.markedContent` wrapper contains child
+    // spans, so including both the wrapper AND its children double-counts the
+    // char offsets and drifts the search/selection mapping on markedContent
+    // PDFs (the "highlights unrelated words" bug).
+    return Array.from(div.querySelectorAll("span")).filter(
+      (d) =>
+        !d.querySelector(":scope > span") &&
+        d.textContent &&
+        d.textContent.length > 0
     ) as HTMLElement[]
   }
   return []
