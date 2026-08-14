@@ -2,13 +2,13 @@ import { useEffect, useMemo, useState } from "react"
 import { init } from "@embedpdf/pdfium"
 import { PdfiumNative, PdfEngine, browserImageDataToBlobConverter } from "@embedpdf/engines"
 import { createPluginRegistration } from "@embedpdf/core"
-import { EmbedPDF } from "@embedpdf/core/dist/react/index"
-import { DocumentManagerPluginPackage, DocumentContent } from "@embedpdf/plugin-document-manager/dist/react/index"
-import { ViewportPluginPackage, Viewport } from "@embedpdf/plugin-viewport/dist/react/index"
-import { ScrollPluginPackage, Scroller } from "@embedpdf/plugin-scroll/dist/react/index"
-import { RenderPluginPackage, RenderLayer } from "@embedpdf/plugin-render/dist/react/index"
-import { SelectionPluginPackage } from "@embedpdf/plugin-selection/dist/react/index"
-import { InteractionManagerPluginPackage } from "@embedpdf/plugin-interaction-manager/dist/react/index"
+import { EmbedPDF } from "@embedpdf/core/react"
+import { DocumentManagerPluginPackage, DocumentContent } from "@embedpdf/plugin-document-manager/react"
+import { ViewportPluginPackage, Viewport } from "@embedpdf/plugin-viewport/react"
+import { ScrollPluginPackage, Scroller } from "@embedpdf/plugin-scroll/react"
+import { RenderPluginPackage, RenderLayer } from "@embedpdf/plugin-render/react"
+import { SelectionPluginPackage } from "@embedpdf/plugin-selection/react"
+import { InteractionManagerPluginPackage } from "@embedpdf/plugin-interaction-manager/react"
 
 import { listPdfs, getPdf } from "~/src/database"
 
@@ -80,6 +80,28 @@ export default function PdfPoc2() {
     [pdfUrl]
   )
 
+  useEffect(() => {
+    if (!engine || !pdfUrl) return
+    console.log("[poc2] engine + doc ready, state:", {
+      pdfUrl: pdfUrl.slice(0, 60)
+    })
+    ;(window as any).__poc2Engine = engine
+    // Direct openDocument test — isolates whether the ENGINE can parse the PDF.
+    void (async () => {
+      try {
+        const doc = await engine
+          .openDocumentUrl({ url: pdfUrl, id: "poc2-direct" })
+          .toPromise()
+        console.log("[poc2] engine.openDocumentUrl OK:", {
+          pageCount: doc.pageCount,
+          id: doc.id
+        })
+      } catch (e) {
+        console.error("[poc2] engine.openDocumentUrl FAILED:", e)
+      }
+    })()
+  }, [engine, pdfUrl])
+
   if (error) {
     return (
       <div style={{ padding: 24, fontFamily: "sans-serif", color: "#c00" }}>
@@ -97,42 +119,86 @@ export default function PdfPoc2() {
 
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
-      <EmbedPDF engine={engine} plugins={plugins}>
-        {({ activeDocumentId }) =>
-          activeDocumentId ? (
+      <EmbedPDF
+        engine={engine}
+        plugins={plugins}
+        onInitialized={async (registry) => {
+          console.log("[poc2] registry ready")
+          ;(window as any).__poc2Registry = registry
+          const state = (registry as any)["store"]?.getState?.()
+          const core = state?.core
+          console.log(
+            "[poc2] core state:",
+            JSON.stringify({
+              activeDocumentId: core?.activeDocumentId,
+              documentOrder: core?.documentOrder,
+              docKeys: core?.documents ? Object.keys(core.documents) : null
+            })
+          )
+        }}>
+        {({ activeDocumentId }) => {
+          const reg = (window as any).__poc2Registry
+          if (activeDocumentId && reg) {
+            const core = reg["store"]?.getState?.().core
+            console.log(
+              "[poc2] state on active:",
+              JSON.stringify({
+                activeDocumentId,
+                docStatus: core?.documents?.[activeDocumentId]?.status,
+                docKeys: core?.documents ? Object.keys(core.documents) : null
+              })
+            )
+          }
+          console.log("[poc2] activeDocumentId:", activeDocumentId)
+          return activeDocumentId ? (
             <div style={{ flex: 1, overflow: "auto", background: "#525659" }}>
               <DocumentContent documentId={activeDocumentId}>
-                {({ isLoaded }) =>
-                  isLoaded ? (
+                {({ documentState, isLoading, isError, isLoaded }) => {
+                  console.log("[poc2] DocumentContent state:", {
+                    status: documentState?.status,
+                    isLoading,
+                    isError,
+                    isLoaded
+                  })
+                  return isLoaded ? (
                     <Viewport documentId={activeDocumentId}>
                       <Scroller
                         documentId={activeDocumentId}
-                        renderPage={({ width, height, pageIndex }) => (
-                          <div
-                            style={{
+                        renderPage={({ width, height, pageIndex }) => {
+                          if (pageIndex === 0) {
+                            console.log("[poc2] renderPage:", {
+                              pageIndex,
                               width,
-                              height,
-                              position: "relative",
-                              margin: "8px auto",
-                              background: "#fff",
-                              boxShadow: "0 2px 8px rgba(0,0,0,0.4)"
-                            }}>
-                            <RenderLayer
-                              documentId={activeDocumentId}
-                              pageIndex={pageIndex}
-                            />
-                          </div>
-                        )}
+                              height
+                            })
+                          }
+                          return (
+                            <div
+                              style={{
+                                width,
+                                height,
+                                position: "relative",
+                                margin: "8px auto",
+                                background: "#fff",
+                                boxShadow: "0 2px 8px rgba(0,0,0,0.4)"
+                              }}>
+                              <RenderLayer
+                                documentId={activeDocumentId}
+                                pageIndex={pageIndex}
+                              />
+                            </div>
+                          )
+                        }}
                       />
                     </Viewport>
                   ) : (
                     <div style={{ padding: 24, color: "#fff" }}>加载文档…</div>
                   )
-                }
+                }}
               </DocumentContent>
             </div>
           ) : null
-        }
+        }}
       </EmbedPDF>
     </div>
   )
