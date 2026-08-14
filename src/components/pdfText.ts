@@ -437,8 +437,10 @@ function mergeRectsSameLine(rects: PdfRect[]): PdfRect[] {
  *  into single boxes — removes per-span overlap at CJK/Latin boundaries.
  *  `holder` (viewport rect) converts viewport coords; omit it when the rects
  *  are already holder-relative (textLayerRects output). */
-export function mergeRects(rects: PdfRect[],
-  holder?: DOMRect
+export function mergeRects(
+  rects: PdfRect[],
+  holder?: DOMRect,
+  gapTolerance = 1
 ): PdfRect[] {
   const norm = holder
     ? rects.map((r) => ({
@@ -451,12 +453,13 @@ export function mergeRects(rects: PdfRect[],
   norm.sort((a, b) => a.y - b.y || a.x - b.x)
   const merged: PdfRect[] = []
   for (const r of norm) {
+    if (r.w <= 0 || r.h <= 0) continue
     const last = merged[merged.length - 1]
-    // Same line (vertical overlap) + touching/horizontal overlap → union.
+    // Same line (vertical overlap) + touching/nearby horizontally → union.
     if (
       last &&
       r.y < last.y + last.h &&
-      r.x <= last.x + last.w + 1
+      r.x <= last.x + last.w + gapTolerance
     ) {
       const x0 = Math.min(last.x, r.x)
       const x1 = Math.max(last.x + last.w, r.x + r.w)

@@ -750,7 +750,7 @@ function EngineBridge({
           out.push(r)
         }
       }
-      return mergeRects(out)
+      return mergeRects(out, undefined, 6)
     },
     [pdfViewer]
   )
@@ -790,29 +790,6 @@ function EngineBridge({
       raf = requestAnimationFrame(() => {
         raf = 0
         const rects = snappedRectsForRange(page, range)
-        if (!(window as any).__limeSelGapDiag && rects.length > 1) {
-          ;(window as any).__limeSelGapDiag = true
-          const raw = Array.from(range.getClientRects()).map((r) => ({
-            x: Math.round(r.left),
-            y: Math.round(r.top),
-            w: Math.round(r.width),
-            h: Math.round(r.height)
-          }))
-          console.log(
-            "[pdf] sel-gap diag:",
-            JSON.stringify({
-              selText: range.toString().slice(0, 60),
-              rawCount: raw.length,
-              raw,
-              snapped: rects.map((r) => ({
-                x: Math.round(r.x),
-                y: Math.round(r.y),
-                w: Math.round(r.w),
-                h: Math.round(r.h)
-              }))
-            })
-          )
-        }
         drawOverlay(page, rects, new Set())
       })
     }
