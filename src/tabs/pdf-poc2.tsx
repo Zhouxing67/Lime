@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
-import { createPdfiumDirectEngine as createPdfiumEngine } from "@embedpdf/engines"
+import { init } from "@embedpdf/pdfium"
+import { PdfiumNative, PdfEngine, browserImageDataToBlobConverter } from "@embedpdf/engines"
 import { createPluginRegistration } from "@embedpdf/core"
 import { EmbedPDF } from "@embedpdf/core/dist/react/index"
 import { DocumentManagerPluginPackage, DocumentContent } from "@embedpdf/plugin-document-manager/dist/react/index"
@@ -13,7 +14,7 @@ import { listPdfs, getPdf } from "~/src/database"
 
 export default function PdfPoc2() {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
-  const [engine, setEngine] = useState<Awaited<ReturnType<typeof createPdfiumEngine>> | null>(null)
+  const [engine, setEngine] = useState<PdfEngine | null>(null)
   const [error, setError] = useState("")
 
   useEffect(() => {
@@ -34,9 +35,20 @@ export default function PdfPoc2() {
         const url = URL.createObjectURL(blob)
         setPdfUrl(url)
         console.log("[poc2] loading pdfium engine…")
-        const eng = await createPdfiumEngine(
+        const wasmRes = await fetch(
           chrome.runtime.getURL("assets/pdfium/pdfium.wasm")
         )
+        const wasmBinary = await wasmRes.arrayBuffer()
+        // `locateFile` avoids the Emscripten glue's `new URL(...)` branch —
+        // Parcel rewrites it to a broken `new URL(C(...))` (C is not a function).
+        const pdfiumModule = await init({
+          wasmBinary,
+          locateFile: () => "pdfium.wasm"
+        })
+        const native = new PdfiumNative(pdfiumModule)
+        const eng = new PdfEngine(native, {
+          imageConverter: browserImageDataToBlobConverter
+        })
         console.log("[poc2] engine ready")
         setEngine(eng)
       } catch (e) {
