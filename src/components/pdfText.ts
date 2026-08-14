@@ -472,3 +472,41 @@ export function mergeRects(rects: PdfRect[],
   }
   return merged
 }
+
+/** Char offsets → a DOM Range over the text layer's spans (the reverse of
+ *  textLayerOffsets). Used to feed a search match's offsets into the
+ *  native getClientRects highlight. */
+export function offsetsToRange(
+  textLayer: any,
+  start: number,
+  end: number
+): Range | null {
+  if (start >= end) return null
+  const idx = getTextLayerIndex(textLayer)
+  const divs = getTextDivs(textLayer)
+  const startDiv = findDivAtOffset(idx, start)
+  const endDiv = findDivAtOffset(idx, Math.max(start, end - 1))
+  if (startDiv < 0 || endDiv < 0) return null
+  const startNode = divs[startDiv]?.firstChild
+  const endNode = divs[endDiv]?.firstChild
+  if (
+    !startNode ||
+    !endNode ||
+    startNode.nodeType !== Node.TEXT_NODE ||
+    endNode.nodeType !== Node.TEXT_NODE
+  ) {
+    return null
+  }
+  const s = startDiv > 0 ? idx.cumulative[startDiv] : 0
+  const e = endDiv > 0 ? idx.cumulative[endDiv] : 0
+  const range = document.createRange()
+  const startText = startNode as Text
+  const endText = endNode as Text
+  try {
+    range.setStart(startText, Math.min(Math.max(0, start - s), startText.length))
+    range.setEnd(endText, Math.min(Math.max(0, end - e), endText.length))
+  } catch {
+    return null
+  }
+  return range
+}

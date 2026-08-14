@@ -33,7 +33,7 @@ import { deepMerge } from "~/src/pdf/inklayer/utils"
 import { usePainter } from "~/src/pdf/inklayer/extensions/annotator/context/use_painter"
 import { useAnnotationStore } from "~/src/pdf/inklayer/extensions/annotator/store"
 import { usePdfViewerContext } from "~/src/pdf/inklayer/context/pdf_viewer_context"
-import { mergeRects } from "./pdfText"
+import { mergeRects, offsetsToRange } from "./pdfText"
 import type { PdfRect } from "./pdfText"
 import {
   annotationDefinitions,
@@ -474,8 +474,6 @@ export interface PdfEngineViewProps {
     current: number
   } | null
   /** The active search query — the find controller needs it to (re)run. */
-  searchQuery?: string
-  searchOptions?: { caseSensitive: boolean; wholeWord: boolean }
   /** External text-annotation type switch (highlight/underline/strikeout). */
   typeChangeRequest?: { id: string; type: number; seq: number } | null
   /** Bump → auto-clear the shared selection ring (the 2s card↔mark cue). */
@@ -497,8 +495,6 @@ function EngineBridge({
   flashTarget,
   pageJump,
   searchFlash,
-  searchQuery,
-  searchOptions,
   typeChangeRequest,
   clearRingToken,
   textRange,
@@ -533,8 +529,6 @@ function EngineBridge({
     matches: { start: number; end: number }[]
     current: number
   } | null
-  searchQuery?: string
-  searchOptions?: { caseSensitive: boolean; wholeWord: boolean }
   typeChangeRequest?: { id: string; type: number; seq: number } | null
   clearRingToken?: number
   textRange: Range | null
@@ -647,46 +641,6 @@ function EngineBridge({
   // Search highlight = the OFFICIAL pdf.js find controller (char-exact on the
   // text layer). On a jump we dispatch the `find` event; pdf.js re-searches +
   // highlights every match + navigates to the current one. No custom geometry.
-  useEffect(() => {
-    if (!eventBus || !pdfViewer) return
-    const fc = (pdfViewer as any).findController
-    if (!fc) return
-    if (!searchFlash || !searchQuery) {
-      // Clear any active find highlights.
-      eventBus.dispatch("find", {
-        type: "",
-        query: "",
-        highlightAll: false
-      })
-      return
-    }
-    const pageIdx = searchFlash.page - 1
-    // Best-effort current-match navigation via pdf.js's internal state (the
-    // published API doesn't expose a direct "jump to match").
-    const nav = fc as {
-      _selected?: { pageIdx: number; matchIdx: number }
-      _offset?: { pageIdx: number; matchIdx: number; wrapped: boolean }
-      _highlightMatches?: boolean
-    }
-    nav._selected = { pageIdx, matchIdx: searchFlash.current }
-    nav._offset = {
-      pageIdx,
-      matchIdx: Math.max(0, searchFlash.current - 1),
-      wrapped: false
-    }
-    nav._highlightMatches = true
-    eventBus.dispatch("find", {
-      type: "again",
-      query: searchQuery,
-      caseSensitive: searchOptions?.caseSensitive ?? false,
-      entireWord: searchOptions?.wholeWord ?? false,
-      findPrevious: false,
-      matchDiacritics: false,
-      highlightAll: true
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchFlash, searchQuery, eventBus, pdfViewer])
-
   const annotationsRef = useRef(annotations)
   annotationsRef.current = annotations
 
@@ -717,8 +671,8 @@ function EngineBridge({
   const selOverlayRef = useRef<HTMLDivElement | null>(null)
   const selOverlayPageRef = useRef(-1)
 
-  const drawSelectionOverlay = useCallback(
-    (page: number, rects: PdfRect[]) => {
+  const drawOverlay = useCallback(
+    (page: number, rects: PdfRect[], current: Set<number>) => {
       if (!pdfViewer) return
       const pageEl = pdfViewer.getPageView(page - 1)?.div as
         | HTMLElement
@@ -735,11 +689,16 @@ function EngineBridge({
       }
       const div = selOverlayRef.current!
       div.replaceChildren()
-      for (const r of rects) {
+      rects.forEach((r, i) => {
+        const isCurrent = current.has(i)
         const el = document.createElement("div")
-        el.style.cssText = `position:absolute;left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;background:rgba(99,102,241,0.26);border-radius:1px`
+        el.style.cssText = `position:absolute;left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;background:${
+          isCurrent ? "rgba(99,102,241,0.42)" : "rgba(99,102,241,0.26)"
+        };border-radius:1px${
+          isCurrent ? ";box-shadow:0 0 0 1.5px rgba(99,102,241,0.85)" : ""
+        }`
         div.appendChild(el)
-      }
+      })
     },
     [pdfViewer]
   )
@@ -749,6 +708,52 @@ function EngineBridge({
     selOverlayRef.current = null
     selOverlayPageRef.current = -1
   }, [])
+
+  // Char-exact selection/search rects: the browser's getClientRects (exact
+  // horizontal) with each box's vertical SNAPPED to the covering text-layer
+  // span's tight em box — the browser's selection box carries the line's
+  // leading (the persistent offset/overlap source).
+  const snappedRectsForRange = useCallback(
+    (page: number, range: Range): PdfRect[] => {
+      if (!pdfViewer) return []
+      const pageEl = pdfViewer.getPageView(page - 1)?.div as
+        | HTMLElement
+        | undefined
+      if (!pageEl) return []
+      const holder = pageEl.getBoundingClientRect()
+      const baseX = holder.left + pageEl.clientLeft
+      const baseY = holder.top + pageEl.clientTop
+      const raw = Array.from(range.getClientRects()).map((r) => ({
+        x: r.left - baseX,
+        y: r.top - baseY,
+        w: r.width,
+        h: r.height
+      }))
+      const out: PdfRect[] = []
+      for (const r of raw) {
+        const el = document.elementFromPoint(
+          baseX + r.x + r.w / 2,
+          baseY + r.y + r.h / 2
+        ) as HTMLElement | null
+        const span = el?.closest(
+          ".textLayer span, .textLayer .markedContent span"
+        ) as HTMLElement | null
+        if (span) {
+          const sr = span.getBoundingClientRect()
+          out.push({
+            x: r.x,
+            y: sr.top - baseY,
+            w: r.w,
+            h: sr.height
+          })
+        } else {
+          out.push(r)
+        }
+      }
+      return mergeRects(out)
+    },
+    [pdfViewer]
+  )
 
   useEffect(() => {
     if (!eventBus || !pdfViewer) return
@@ -784,39 +789,31 @@ function EngineBridge({
       if (raf) return
       raf = requestAnimationFrame(() => {
         raf = 0
-        const holder = pageEl.getBoundingClientRect()
-        const baseX = holder.left + pageEl.clientLeft
-        const baseY = holder.top + pageEl.clientTop
-        const raw = Array.from(range.getClientRects()).map((r) => ({
-          x: r.left - baseX,
-          y: r.top - baseY,
-          w: r.width,
-          h: r.height
-        }))
-        // Snap each box's vertical to the covering text-layer span's tight
-        // em box (the browser's box includes the leading — the offset source).
-        const snapped: PdfRect[] = []
-        for (const r of raw) {
-          const el = document.elementFromPoint(
-            baseX + r.x + r.w / 2,
-            baseY + r.y + r.h / 2
-          ) as HTMLElement | null
-          const span = el?.closest(
-            ".textLayer span, .textLayer .markedContent span"
-          ) as HTMLElement | null
-          if (span) {
-            const sr = span.getBoundingClientRect()
-            snapped.push({
-              x: r.x,
-              y: sr.top - baseY,
-              w: r.w,
-              h: sr.height
+        const rects = snappedRectsForRange(page, range)
+        if (!(window as any).__limeSelGapDiag && rects.length > 1) {
+          ;(window as any).__limeSelGapDiag = true
+          const raw = Array.from(range.getClientRects()).map((r) => ({
+            x: Math.round(r.left),
+            y: Math.round(r.top),
+            w: Math.round(r.width),
+            h: Math.round(r.height)
+          }))
+          console.log(
+            "[pdf] sel-gap diag:",
+            JSON.stringify({
+              selText: range.toString().slice(0, 60),
+              rawCount: raw.length,
+              raw,
+              snapped: rects.map((r) => ({
+                x: Math.round(r.x),
+                y: Math.round(r.y),
+                w: Math.round(r.w),
+                h: Math.round(r.h)
+              }))
             })
-          } else {
-            snapped.push(r)
-          }
+          )
         }
-        drawSelectionOverlay(page, mergeRects(snapped))
+        drawOverlay(page, rects, new Set())
       })
     }
     document.addEventListener("selectionchange", onSelChange)
@@ -824,7 +821,68 @@ function EngineBridge({
       document.removeEventListener("selectionchange", onSelChange)
       if (raf) cancelAnimationFrame(raf)
     }
-  }, [eventBus, pdfViewer, drawSelectionOverlay, clearSelectionOverlay])
+  }, [eventBus, pdfViewer, drawOverlay, clearSelectionOverlay, snappedRectsForRange])
+
+  // ── Search highlight ─────────────────────────────────────────────────────
+  // The searchFlash's char-offset matches → the text-layer DOM range → the
+  // SAME snapped getClientRects path as the selection. No find controller —
+  // its normalized-text mapping (ligatures/diacritics) shifted some matches by
+  // a char, which is why "some results were offset + some weren't".
+  const lastSearchRef = useRef<{
+    page: number
+    matches: { start: number; end: number }[]
+    current: number
+  } | null>(null)
+
+  const renderSearchOverlay = useCallback(() => {
+    const data = lastSearchRef.current
+    if (!data) return
+    const { page, matches, current } = data
+    const textLayer = pdfViewer?.getPageView(page - 1)?.textLayer
+    if (!textLayer) return
+    const all: { r: PdfRect; isCurrent: boolean }[] = []
+    for (let i = 0; i < matches.length; i++) {
+      const range = offsetsToRange(textLayer, matches[i].start, matches[i].end)
+      if (!range) continue
+      const rects = snappedRectsForRange(page, range)
+      rects.forEach((r) => all.push({ r, isCurrent: i === current }))
+    }
+    const flat = all.map((a) => a.r)
+    const cur = new Set(
+      all.map((a, i) => (a.isCurrent ? i : -1)).filter((i) => i >= 0)
+    )
+    drawOverlay(page, flat, cur)
+  }, [pdfViewer, snappedRectsForRange, drawOverlay])
+
+  useEffect(() => {
+    if (!searchFlash) {
+      lastSearchRef.current = null
+      clearSelectionOverlay()
+      return
+    }
+    lastSearchRef.current = {
+      page: searchFlash.page,
+      matches: searchFlash.matches,
+      current: searchFlash.current
+    }
+    renderSearchOverlay()
+  }, [searchFlash, renderSearchOverlay, clearSelectionOverlay])
+
+  // Re-render the search overlay when the zoom changes / the text layer
+  // settles — the rects must follow the CURRENT layout (a stale viewport used
+  // to draw the rects "way off" after zoom).
+  useEffect(() => {
+    if (!eventBus) return
+    const onRezoom = () => {
+      if (lastSearchRef.current) renderSearchOverlay()
+    }
+    eventBus.on("scalechanging", onRezoom)
+    eventBus.on("textlayerrendered", onRezoom)
+    return () => {
+      eventBus.off("scalechanging", onRezoom)
+      eventBus.off("textlayerrendered", onRezoom)
+    }
+  }, [eventBus, renderSearchOverlay])
 
   // Start at 0, NOT the mount-time flashTarget token: the flash often fires
   // while the engine is still loading (the PdfEngineView mounts AFTER the
@@ -925,8 +983,6 @@ export default function PdfEngineView({
   flashTarget,
   pageJump,
   searchFlash,
-  searchQuery,
-  searchOptions,
   typeChangeRequest,
   clearRingToken
 }: PdfEngineViewProps) {
@@ -948,8 +1004,6 @@ export default function PdfEngineView({
     // is a green/purple wash); the selected match gets a border.
     const styleEl = document.createElement("style")
     styleEl.textContent = `
-.textLayer .highlight{--highlight-bg-color:rgba(99,102,241,0.22);margin-left:0.5ch}
-.textLayer .highlight.selected{--highlight-selected-bg-color:rgba(99,102,241,0.40);box-shadow:0 0 0 1.5px rgba(99,102,241,0.85)}
 .textLayer::selection,.textLayer ::selection,.textLayer :is(span,br)::selection{background:transparent !important;color:transparent !important}`
     document.head.append(styleEl)
     return () => {
@@ -1072,8 +1126,6 @@ export default function PdfEngineView({
                 flashTarget={flashTarget}
                 pageJump={pageJump}
                 searchFlash={searchFlash}
-                searchQuery={searchQuery}
-                searchOptions={searchOptions}
                 typeChangeRequest={typeChangeRequest}
                 clearRingToken={clearRingToken}
                 textRange={textRange}
