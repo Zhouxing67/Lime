@@ -21,7 +21,8 @@
   "alias": {
     "pdfjs-dist/web/pdf_viewer.mjs": "./assets/pdfjs/pdf_viewer.mjs",
     "pdfjs-dist": "./assets/pdfjs/pdf.mjs",
-    "@/*": "./src/pdf/inklayer/*"
+    "@/*": "./src/pdf/inklayer/*",
+    "@embedpdf/pdfium": "./assets/pdfium/pdfium.js"
   },
   "dependencies": {
     "@embedpdf/core": "^2.15.0",
