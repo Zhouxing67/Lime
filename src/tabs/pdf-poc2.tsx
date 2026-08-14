@@ -7,8 +7,8 @@ import { DocumentManagerPluginPackage, DocumentContent } from "@embedpdf/plugin-
 import { ViewportPluginPackage, Viewport } from "@embedpdf/plugin-viewport/react"
 import { ScrollPluginPackage, Scroller } from "@embedpdf/plugin-scroll/react"
 import { RenderPluginPackage, RenderLayer } from "@embedpdf/plugin-render/react"
-import { SelectionPluginPackage } from "@embedpdf/plugin-selection/react"
-import { InteractionManagerPluginPackage } from "@embedpdf/plugin-interaction-manager/react"
+import { SelectionPluginPackage, SelectionLayer } from "@embedpdf/plugin-selection/react"
+import { InteractionManagerPluginPackage, PagePointerProvider } from "@embedpdf/plugin-interaction-manager/react"
 
 import { listPdfs, getPdf } from "~/src/database"
 
@@ -182,10 +182,20 @@ export default function PdfPoc2() {
                                 background: "#fff",
                                 boxShadow: "0 2px 8px rgba(0,0,0,0.4)"
                               }}>
-                              <RenderLayer
+                              <PagePointerProvider
                                 documentId={activeDocumentId}
                                 pageIndex={pageIndex}
-                              />
+                                style={{ position: "absolute", inset: 0 }}>
+                                <RenderLayer
+                                  documentId={activeDocumentId}
+                                  pageIndex={pageIndex}
+                                  style={{ width: "100%", height: "100%" }}
+                                />
+                                <SelectionLayer
+                                  documentId={activeDocumentId}
+                                  pageIndex={pageIndex}
+                                />
+                              </PagePointerProvider>
                             </div>
                           )
                         }}
