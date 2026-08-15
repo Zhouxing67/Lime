@@ -255,6 +255,8 @@ export default function PdfHub({
                       e.stopPropagation()
                       onDeleteTopic?.(t)
                     }}
+                    title="删除主题"
+                    aria-label="删除主题"
                     sx={{ p: 0.5, color: "text.disabled" }}>
                     <DeleteOutlineRoundedIcon sx={{ fontSize: 15 }} />
                   </IconButton>
@@ -481,7 +483,6 @@ export default function PdfHub({
               {!selectable && (
                 <>
                   <IconButton
-                    className="hub-delete"
                     size="small"
                     onClick={(e) => {
                       e.stopPropagation()
@@ -492,10 +493,12 @@ export default function PdfHub({
                       top: 4,
                       right: 4,
                       p: 0.5,
-                      opacity: 0,
+                      // Destructive actions stay visible (设计基线), not
+                      // hover-revealed like the tile's other actions.
+                      opacity: 0.6,
                       color: "text.disabled",
                       transition: "opacity 0.15s",
-                      "&:hover": { color: "error.main", bgcolor: "transparent" }
+                      "&:hover": { opacity: 1, color: "error.main", bgcolor: "transparent" }
                     }}>
                     <DeleteOutlineRoundedIcon sx={{ fontSize: 16 }} />
                   </IconButton>

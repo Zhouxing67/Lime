@@ -207,8 +207,14 @@ export default function TodoCard({
               <EditRoundedIcon sx={{ fontSize: 16 }} />
             </IconButton>
           </Tooltip>
+        </Box>
+        {/* Destructive action stays visible (设计基线), outside the hover group. */}
+        <Box onClick={(e) => e.stopPropagation()}>
           <Tooltip title="删除">
-            <IconButton size="small" onClick={onDelete} sx={{ p: 0.75 }}>
+            <IconButton
+              size="small"
+              onClick={onDelete}
+              sx={{ p: 0.75, opacity: 0.6, transition: "opacity 0.15s", "&:hover": { opacity: 1 } }}>
               <DeleteOutlineRoundedIcon sx={{ fontSize: 16 }} />
             </IconButton>
           </Tooltip>
@@ -229,7 +235,7 @@ export default function TodoCard({
               height: "100%",
               width: `${pct}%`,
               bgcolor: done ? "success.main" : "primary.main",
-              transition: "width 0.3s"
+              transition: "width 0.2s"
             }}
           />
         </Box>

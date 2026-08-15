@@ -118,34 +118,44 @@ export default function ItemDialog({
         }}>
         {onNavigate && (
           <>
-            <IconButton
-              size="small"
-              onClick={() => handleNavigate("prev")}
-              disabled={!hasPrev}
-              sx={{
-                color: "text.secondary",
-                bgcolor: "action.hover",
-                borderRadius: 1,
-                p: 0.5,
-                "&:hover": { bgcolor: "action.selected", color: "primary.main" },
-                "&.Mui-disabled": { opacity: 0.5 }
-              }}>
-              <ChevronLeftRoundedIcon fontSize="small" />
-            </IconButton>
-            <IconButton
-              size="small"
-              onClick={() => handleNavigate("next")}
-              disabled={!hasNext}
-              sx={{
-                color: "text.secondary",
-                bgcolor: "action.hover",
-                borderRadius: 1,
-                p: 0.5,
-                "&:hover": { bgcolor: "action.selected", color: "primary.main" },
-                "&.Mui-disabled": { opacity: 0.5 }
-              }}>
-              <ChevronRightRoundedIcon fontSize="small" />
-            </IconButton>
+            <Tooltip title="上一条">
+              <span>
+                <IconButton
+                  size="small"
+                  onClick={() => handleNavigate("prev")}
+                  disabled={!hasPrev}
+                  aria-label="上一条"
+                  sx={{
+                    color: "text.secondary",
+                    bgcolor: "action.hover",
+                    borderRadius: 1,
+                    p: 0.5,
+                    "&:hover": { bgcolor: "action.selected", color: "primary.main" },
+                    "&.Mui-disabled": { opacity: 0.5 }
+                  }}>
+                  <ChevronLeftRoundedIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+            <Tooltip title="下一条">
+              <span>
+                <IconButton
+                  size="small"
+                  onClick={() => handleNavigate("next")}
+                  disabled={!hasNext}
+                  aria-label="下一条"
+                  sx={{
+                    color: "text.secondary",
+                    bgcolor: "action.hover",
+                    borderRadius: 1,
+                    p: 0.5,
+                    "&:hover": { bgcolor: "action.selected", color: "primary.main" },
+                    "&.Mui-disabled": { opacity: 0.5 }
+                  }}>
+                  <ChevronRightRoundedIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
           </>
         )}
         <Box

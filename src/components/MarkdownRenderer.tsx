@@ -129,7 +129,7 @@ function createRenderer(
             justifyContent: "center",
             width: 16,
             height: 16,
-            borderRadius: 0.5,
+            borderRadius: 1,
             mr: 0.75,
             flexShrink: 0,
             verticalAlign: "middle",
@@ -224,7 +224,7 @@ function createRenderer(
           bgcolor: "action.hover",
           px: 0.8,
           py: 0.2,
-          borderRadius: 0.5,
+          borderRadius: 1,
           fontSize: "0.875em",
           fontFamily: '"JetBrains Mono", "Fira Code", "Consolas", monospace'
         }}>

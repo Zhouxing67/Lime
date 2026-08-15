@@ -136,7 +136,7 @@ export default function ItemCard({
                 flexShrink: 0,
                 px: 0.5,
                 py: 0.1,
-                borderRadius: 0.5,
+                borderRadius: 1,
                 bgcolor: "action.selected",
                 color: "primary.main",
                 fontSize: "0.6rem",

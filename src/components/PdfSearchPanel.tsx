@@ -287,7 +287,7 @@ export default function PdfSearchPanel({
                               sx={{
                                 bgcolor: theme.custom.searchHit,
                                 color: theme.custom.searchHitText,
-                                borderRadius: 0.5,
+                                borderRadius: 1,
                                 px: 0.25
                               }}>
                               {e.snippet.slice(hitStart, hitStart + hitLen) || e.snippet}
