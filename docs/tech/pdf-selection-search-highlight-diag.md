@@ -62,8 +62,8 @@
 ## 四、附带发现（与高亮无关，记录备用）
 
 - 引擎与搜索**同一 PDF 被解析两次**（`usePdfDocument` + inklayer `usePdfViewer`），参数还不一致 → R2 顺带收敛为单实例。
-- `assets/pdfjs/pdf_viewer.mjs`（带 2 处本地补丁）是**死代码**：运行时 import 的是 npm `pdfjs-dist/legacy/web/pdf_viewer.mjs`，alias 目标无人引用 → R5 清理。
-- `pdfText.ts` 的 `mergeRects`/`snappedRectsForRange`/`renderSearchOverlay` 在 R3 后可整体删除（不再有自绘 overlay）。
+- ~~`assets/pdfjs/pdf_viewer.mjs`（带 2 处本地补丁）是死代码~~ → **R5 已移除**：运行时 import 的是 npm `pdfjs-dist/legacy/web/pdf_viewer.mjs`（带补丁的 vendor 副本从不被加载）。已删 alias、copy 脚本补丁块与文件本体。
+- `pdfText.ts` 死导出（`offsetsToRange`/`textLayerRects`/`findDivAtOffset`/`textWidth`/`clipDivText`/`mergeRectsSameLine`）→ **R5 已删除**（R3-REV 后无生产调用）。
 
 ## 五、R2/R3/R3-REV 结果（2026-08-15 追加）
 

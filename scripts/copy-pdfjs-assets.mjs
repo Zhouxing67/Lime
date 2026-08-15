@@ -8,33 +8,6 @@ const dest = resolve(root, "assets/pdfjs")
 
 mkdirSync(dest, { recursive: true })
 
-// The official pdf_viewer.mjs — copied + patched with DEFENSIVE page-number
-// coercion: a string page number reaching the viewer (e.g. injected via
-// _location.pageNumber on some load paths) makes pdf.js's currentScale setter
-// throw "scrollPageIntoView: "1" is not a valid pageNumber". Coerce at the two
-// entry points that STORE the value.
-const viewer = resolve(src, "web/pdf_viewer.mjs")
-if (existsSync(viewer)) {
-  const destFile = resolve(dest, "pdf_viewer.mjs")
-  const original = readFileSync(viewer, "utf8")
-  let content = original
-  content = content.replace(
-    "  _setCurrentPageNumber(val, resetCurrentPageView = false) {",
-    "  _setCurrentPageNumber(val, resetCurrentPageView = false) {\n    val = Number(val) | 0;"
-  )
-  content = content.replace(
-    "    const pageView = Number.isInteger(pageNumber) && this._pages[pageNumber - 1];",
-    "    pageNumber = Number(pageNumber) | 0;\n    const pageView = Number.isInteger(pageNumber) && this._pages[pageNumber - 1];"
-  )
-  if (content !== original) {
-    writeFileSync(destFile, content)
-    console.log("[pdfjs-assets] patched pdf_viewer.mjs page-number coercion")
-  } else {
-    writeFileSync(destFile, original)
-    console.log("[pdfjs-assets] copied pdf_viewer.mjs (no patches applied)")
-  }
-}
-
 // The ORIGINAL ESM worker (self-contained) — must NOT go through Parcel's
 // bundler, or pdf.js's `new Worker(src, {type:"module"})` gets a UMD wrapper
 // that breaks, and the fake-worker fallback hits a transpiled `import()`.

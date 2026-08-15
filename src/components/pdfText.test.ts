@@ -4,8 +4,7 @@ import {
   extractLines,
   highlightRectsForOffsets,
   scanText,
-  textLayerOffsets,
-  textLayerRects
+  textLayerOffsets
 } from "./pdfText"
 
 describe("textLayer index + offsets + rects", () => {
@@ -44,18 +43,6 @@ describe("textLayer index + offsets + rects", () => {
       fakeSel({ anchorNode: d1.firstChild, anchorOffset: 0, focusNode: br, focusOffset: 0 })
     )
     expect(offs).toEqual({ start: 0, end: 3 })
-  })
-
-  it("rects cover only the selected divs (binary search)", () => {
-    const { holder, d1, d2, d3, textLayer } = makeLayer()
-    const box = (x: number) => ({ left: x, top: 0, width: 30, height: 12 })
-    d1.getBoundingClientRect = () => box(0) as any
-    d2.getBoundingClientRect = () => box(30) as any
-    d3.getBoundingClientRect = () => box(60) as any
-    holder.getBoundingClientRect = () => box(0) as any
-    const rects = textLayerRects(textLayer, holder, 3, 6) // "def"
-    expect(rects).toHaveLength(1)
-    expect(rects[0].x).toBeCloseTo(30)
   })
 })
 
