@@ -1,0 +1,59 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 559 >>
+stream
+BT
+/F1 16 Tf
+1 0 0 1 72 760 Tm
+<B5DAD2BBD5C220B8C5CAF6> Tj
+/F1 16 Tf
+1 0 0 1 72 722 Tm
+<B1BEB1A8B8E6BFBCB2ECD1A1C7F8B8DFC1C1D3EBCBD1CBF7C6ABD2C6CECACCE2A1A3> Tj
+/F1 16 Tf
+1 0 0 1 72 684 Tm
+<B1BED2B3CEC4D7D6D2C0C0B5CDE2B2BFD7D6B7FBD3B3C9E4B1EDBDE2CEF6A1A3> Tj
+/F1 16 Tf
+1 0 0 1 72 646 Tm
+<CBD1CBF7C6ABD2C6B5C4B8F9D2F2BFC9C4DCD4DAD3DAD7D6B7FBD3B3C9E4C8B1CAA7A1A3> Tj
+/F1 16 Tf
+1 0 0 1 72 608 Tm
+<D1A1C7F8B8DFC1C1D3A6B5B1C1ACD0F8C7D2CCF9BACFCEC4D7D6A1A3> Tj
+/F1 16 Tf
+1 0 0 1 72 570 Tm
+<C8F4C8B1C9D9D3B3C9E4B1EDB1BED2B3CEC4B1BECEDEB7A8D5FDC8B7BDE2C2EBA1A3> Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type0 /BaseFont /STSong-Light /Encoding /GBK-EUC-H /DescendantFonts [6 0 R] >>
+endobj
+6 0 obj
+<< /Type /Font /Subtype /CIDFontType0 /BaseFont /STSong-Light /CIDSystemInfo << /Registry (Adobe) /Ordering (GB1) /Supplement 5 >> /FontDescriptor 7 0 R /DW 1000 /W [1 95 1000] >>
+endobj
+7 0 obj
+<< /Type /FontDescriptor /FontName /STSong-Light /Flags 4 /FontBBox [-25 -254 1000 880] /ItalicAngle 0 /Ascent 880 /Descent -120 /CapHeight 880 /StemV 80 >>
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000000851 00000 n 
+0000000970 00000 n 
+0000001165 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R >>
+startxref
+1337
+%%EOF
