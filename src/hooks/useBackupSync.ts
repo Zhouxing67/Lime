@@ -36,7 +36,6 @@ export function useBackupSync(options: {
   pdfs: PdfFile[]
   syncStatus: string
   setSyncStatus: (status: string) => void
-  refreshAllData: () => Promise<void>
   setSnackbarMsg: (msg: string) => void
 }) {
   const {
@@ -47,7 +46,6 @@ export function useBackupSync(options: {
     backupSelectedPdfIds,
     pdfs,
     setSyncStatus,
-    refreshAllData,
     setSnackbarMsg
   } = options
 
@@ -280,9 +278,8 @@ export function useBackupSync(options: {
         chrome.storage.local.set({ lastSyncTime: Date.now() })
         const msg = remote.message || "从云端同步"
         setSyncStatus(msg)
-        if (remote.direction === "download" || fetched.length > 0) {
-          await refreshAllData()
-        }
+        // Download writes broadcast every store stamp — the per-stamp
+        // listeners reload each source; no explicit full refresh (R5).
       }
     } catch (e) {
       setSnackbarMsg(`下载失败：${e}`)

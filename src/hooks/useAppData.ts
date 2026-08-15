@@ -176,20 +176,25 @@ export function useAppData({
   }, [loadPdfs, loadPdfPanelData])
 
   // Coalesce burst writes: a batch/annotation/toggle sequence fires many _dbi
-  // broadcasts within ~150ms — debounce them into ONE refreshAllData instead of
-  // a full-store re-scan per write.
+  // broadcasts within ~150ms — debounce them into ONE grid (search) refresh.
+  // The heavy full refresh is gone from this path: the immediate per-stamp
+  // handlers above already reloaded what changed (cards list / projects), and
+  // todos/pdfs/reviews have their own stamps. Only the VISIBLE grid (search
+  // results) needs the debounced catch-up.
   const refreshTimerRef = useRef<number | null>(null)
-  const scheduleFullReload = useCallback(() => {
+  const scheduleSearchReload = useCallback(() => {
     if (sidebarTabRef.current !== "pdf") {
       if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current)
       refreshTimerRef.current = window.setTimeout(() => {
         refreshTimerRef.current = null
-        refreshAllDataRef.current()
+        void onSearchRef.current()
       }, 150)
     }
   }, [sidebarTabRef])
 
-  const refreshAllDataRef = useRef<() => Promise<void>>(async () => {})
+  // The heavy hammer — only for the pdf-view EXIT path (useWorkspaceView's
+  // refreshRef): card/project writes during the pdf session were gated out of
+  // the reloads above, so leaving the view catches the grid up in one pass.
   const refreshAllData = useCallback(async () => {
     await loadProjectsRef.current()
     await onSearchRef.current()
@@ -201,7 +206,6 @@ export function useAppData({
     setAllProjectCardsUnfiltered(all)
     setAllPdfCards(pdfs)
   }, [loadTodos, loadProjectsRef, onSearchRef])
-  refreshAllDataRef.current = refreshAllData
 
   // ---- initial + reactive loads ----
   // Load unfiltered cards for review + hub counts + backup scope
@@ -224,7 +228,10 @@ export function useAppData({
     loadPdfs()
   }, [loadPdfs])
 
-  // Load review states (refresh when items or review data change)
+  // Load review states — re-read ONLY when review data changes (_dbr stamp →
+  // reviewsVersion) or on mount. The derived sets (reviewItemIds / reviewSrsMap
+  // / masteredItemIds) depend on the reviews alone, so a projectCards write
+  // must NOT re-scan this store (R5: targeted reloads).
   useEffect(() => {
     getAllReviews().then((reviews) => {
       setAllReviews(reviews)
@@ -238,7 +245,7 @@ export function useAppData({
         )
       )
     })
-  }, [allProjectCardsUnfiltered, reviewsVersion])
+  }, [reviewsVersion])
 
   useEffect(() => {
     loadPdfPanelData()
@@ -312,7 +319,7 @@ export function useAppData({
         loadProjectsRef.current()
         schedulePdfPanelReload()
         refreshLiteCounts()
-        if (sidebarTabRef.current !== "pdf") scheduleFullReload()
+        if (sidebarTabRef.current !== "pdf") scheduleSearchReload()
       }
       // projectCards writes: refresh the placements + the grids. The heavy
       // full reload stays gated behind the pdf view (the panel reload covers
@@ -321,7 +328,7 @@ export function useAppData({
         getAllProjectCards().then(setAllProjectCardsUnfiltered)
         schedulePdfPanelReload()
         refreshLiteCounts()
-        if (sidebarTabRef.current !== "pdf") scheduleFullReload()
+        if (sidebarTabRef.current !== "pdf") scheduleSearchReload()
       }
       // todos writes: light — refresh the todo list + the badge only, never
       // the project-card scan / full reload chain.
@@ -355,7 +362,7 @@ export function useAppData({
     loadPdfPanelData,
     loadTodos,
     refreshLiteCounts,
-    scheduleFullReload,
+    scheduleSearchReload,
     schedulePdfDataReload,
     schedulePdfPanelReload,
     sidebarTabRef,
@@ -365,22 +372,15 @@ export function useAppData({
 
   return {
     pdfs,
-    setPdfs,
     allProjectCardsUnfiltered,
-    setAllProjectCardsUnfiltered,
     allPdfCards,
-    setAllPdfCards,
     annotationById,
-    setAnnotationById,
     allTodos,
-    setAllTodos,
     allReviews,
-    reviewsVersion,
     setReviewsVersion,
     reviewItemIds,
     setReviewItemIds,
     reviewSrsMap,
-    setReviewSrsMap,
     masteredItemIds,
     pdfPanelAnnotations,
     pdfPanelCards,
@@ -393,11 +393,6 @@ export function useAppData({
     draftByOriginal,
     loadTodos,
     loadPdfs,
-    loadPdfPanelData,
-    refreshLiteCounts,
-    schedulePdfPanelReload,
-    schedulePdfDataReload,
-    scheduleFullReload,
     refreshAllData
   }
 }

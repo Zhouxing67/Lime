@@ -782,7 +782,8 @@ export default function OptionsPage() {
     setMergeState(null)
     setSelectedIds([])
     setSelectMode(false)
-    await refreshAllData()
+    // The DB writes broadcast _dbi/_dbp — the broadcast listener refreshes the
+    // grid; no explicit full refresh here (R5: single refresh source).
     setSnackbarMsg(`已合并为「${mergedTitle}」`)
   }
 
@@ -951,7 +952,6 @@ export default function OptionsPage() {
     pdfs,
     syncStatus,
     setSyncStatus,
-    refreshAllData,
     setSnackbarMsg
   })
 
@@ -971,7 +971,8 @@ export default function OptionsPage() {
         console.warn("[lime] 导入跳过/失败的条目：", result.errors)
       }
       setSnackbarMsg(msg + skipMsg)
-      await refreshAllData()
+      // Import writes broadcast every store stamp — the per-stamp listeners
+      // reload each source; no explicit full refresh (R5).
     } catch (err) {
       console.error("[lime] 导入失败：", err)
       setSnackbarMsg(`导入失败：${err}`)
@@ -1083,7 +1084,7 @@ export default function OptionsPage() {
         order: idx
       }))
       await batchUpdateProjectCards(updates)
-      await refreshAllData()
+      // The tx broadcasts _dbi — the listener refreshes the cards + grid.
       // Only toast when the card actually moved to another section — a
       // same-section reorder is its own visual feedback.
       if ((origSectionId ?? null) !== (targetSectionId ?? null)) {
@@ -1094,7 +1095,7 @@ export default function OptionsPage() {
         )
       }
     },
-    [activeProjectId, allProjectCards, refreshAllData, projects]
+    [activeProjectId, allProjectCards, projects]
   )
 
   // Load LXGW WenKai font from CDN
