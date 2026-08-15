@@ -190,7 +190,7 @@ export function useAppData({
         void onSearchRef.current()
       }, 150)
     }
-  }, [sidebarTabRef])
+  }, [sidebarTabRef, onSearchRef])
 
   // The heavy hammer — only for the pdf-view EXIT path (useWorkspaceView's
   // refreshRef): card/project writes during the pdf session were gated out of
