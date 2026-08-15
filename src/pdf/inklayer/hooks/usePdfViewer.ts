@@ -147,18 +147,37 @@ export function usePdfViewer(containerRef: React.RefObject<HTMLDivElement>, opti
 
     const createLoadingTask = useCallback(
         async (useRange: boolean) => {
+            // Params MUST match the search side (src/hooks/usePdfDocument.ts) —
+            // a bare getDocument extracts CMap-dependent CID fonts (e.g.
+            // non-embedded GBK CJK) as empty/garbage text, so the engine's
+            // text layer diverges from the search offsets (the "search
+            // highlights offset / whole page unsearchable" class, fixture
+            // test/fixtures/pdf/fixture-cjk-gbk.pdf).
+            const pdfConfig = {
+                cMapUrl: chrome.runtime.getURL('assets/pdfjs/cmaps/'),
+                cMapPacked: true,
+                standardFontDataUrl: chrome.runtime.getURL(
+                    'assets/pdfjs/standard_fonts/'
+                )
+            }
             if (data) {
                 // 如果提供了 data，则直接使用数据
                 return getDocument({
                     data: data,
                     disableRange: true,
-                    disableStream: true
+                    disableStream: true,
+                    ...pdfConfig
                 })
             } else if (url && useRange) {
                 const transport = await createTransport(url as string)
-                return getDocument({ range: transport })
+                return getDocument({ range: transport, ...pdfConfig })
             } else if (url) {
-                return getDocument({ url, disableRange: true, disableStream: true })
+                return getDocument({
+                    url,
+                    disableRange: true,
+                    disableStream: true,
+                    ...pdfConfig
+                })
             } else {
                 throw new Error('Either url or data must be provided')
             }

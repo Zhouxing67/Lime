@@ -83,6 +83,23 @@ export function extractLines(
   return { full: items.map((i) => i.str ?? "").join(""), lines }
 }
 
+/** Length-preserving lowercase fold. Replaces each code point by its lowercase
+ *  ONLY when the result is a single code point of the same length; multi-code
+ *  point folds (U+0130 İ → "i\u0307") keep the ORIGINAL char. Guarantees
+ *  `fold(s).length === s.length`, so scanText's folded-haystack indices map
+ *  1:1 back onto the original string / text layer — a length-changing
+ *  toLowerCase would shift every later offset by the diff (the F2 drift). */
+export function caseFoldPreserving(s: string): string {
+  let out = ""
+  for (const ch of s) {
+    const lower = ch.toLowerCase()
+    out += lower.length === ch.length ? lower : ch
+  }
+  // Belt-and-braces: if the unicode table ever yields a fold that still
+  // changes total length, bail to the unfolded string (indices stay valid).
+  return out.length === s.length ? out : s
+}
+
 /** Pure per-page scan: all hits + one line-entry per line-with-hits. */
 export function scanText(
   full: string,
@@ -93,8 +110,8 @@ export function scanText(
   const matches: PdfSearchMatch[] = []
   const entries: PdfSearchEntry[] = []
   const coveredLines = new Set<number>()
-  const needle = opts.caseSensitive ? q : q.toLowerCase()
-  const haystack = opts.caseSensitive ? full : full.toLowerCase()
+  const needle = opts.caseSensitive ? q : caseFoldPreserving(q)
+  const haystack = opts.caseSensitive ? full : caseFoldPreserving(full)
   // Hits scan in ascending order → a forward line pointer is O(lines + hits).
   let linePtr = 0
   let idx = haystack.indexOf(needle)
@@ -141,7 +158,7 @@ export async function searchPdfText(
   maxMatches = 500,
   signal?: AbortSignal
 ): Promise<PdfSearchResult> {
-  const q = opts.caseSensitive ? query.trim() : query.trim().toLowerCase()
+  const q = opts.caseSensitive ? query.trim() : caseFoldPreserving(query.trim())
   if (!q) return { matches: [], entries: [] }
   const matches: PdfSearchMatch[] = []
   const entries: PdfSearchEntry[] = []

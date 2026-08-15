@@ -1,5 +1,6 @@
 import {
   buildTextLayerIndex,
+  caseFoldPreserving,
   extractLines,
   mergeRects,
   scanText,
@@ -153,5 +154,35 @@ describe("scanText (line-unit entries + snippet)", () => {
     const short = "prefix KEY tail"
     const { entries } = scanText(short, [{ start: 0, end: short.length }], "KEY", {})
     expect(entries[0].snippet.endsWith("…")).toBe(false)
+  })
+})
+
+describe("caseFoldPreserving / length-changing folds (F2 regression)", () => {
+  it("keeps the fold length identical even for İ → i\\u0307", () => {
+    const full = "İstanbul 的港口"
+    const folded = caseFoldPreserving(full)
+    expect(folded.length).toBe(full.length)
+    // The dotted capital I is NOT folded (its lowercase expands to 2 code
+    // points) — indices stay aligned with the original string.
+    expect(folded[0]).toBe("İ")
+  })
+
+  it("maps a query hit back onto the ORIGINAL characters", () => {
+    // "İl xyz": old toLowerCase folded İ to "i\u0307" (2 units), shifting every
+    // later index by +1 — "xyz" hit landed at 5 and highlighted "yz" instead.
+    const full = "İl xyz"
+    const { matches } = scanText(full, [{ start: 0, end: full.length }], "xyz", {})
+    expect(matches).toHaveLength(1)
+    const m = matches[0]
+    // The preserved fold keeps "xyz" at its true offset 3.
+    expect(m.start).toBe(3)
+    expect(full.slice(m.start, m.end)).toBe("xyz")
+  })
+
+  it("still folds ordinary ASCII case-insensitively", () => {
+    const full = "Alpha BETA"
+    const { matches } = scanText(full, [{ start: 0, end: full.length }], "alpha", {})
+    expect(matches).toHaveLength(1)
+    expect(full.slice(matches[0].start, matches[0].end)).toBe("Alpha")
   })
 })
