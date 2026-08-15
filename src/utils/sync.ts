@@ -326,14 +326,19 @@ async function hasChangesSince(lastSync: number): Promise<boolean> {
     "_dbp",
     "_dbr",
     "_dbt",
-    "_dbpdf"
+    "_dbpdf",
+    "_dbpdfTouch"
   ])
   return (
     (data._dbi ?? 0) > lastSync ||
     (data._dbp ?? 0) > lastSync ||
     (data._dbr ?? 0) > lastSync ||
     (data._dbt ?? 0) > lastSync ||
-    (data._dbpdf ?? 0) > lastSync
+    (data._dbpdf ?? 0) > lastSync ||
+    // Metadata-only PDF writes (rename / topic) — without this the hashes
+    // don't change and "无变化" skips the upload, so a rename never syncs
+    // (A2).
+    (data._dbpdfTouch ?? 0) > lastSync
   )
 }
 

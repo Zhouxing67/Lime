@@ -103,16 +103,19 @@ export default function PanelForm({
     setSaving(true)
     setError("")
     try {
-      const res = await sendMessage<{ ok: boolean; saved?: boolean; error?: string }>({
-        kind: "capture",
-        payload: {
-          type: captureType,
-          content: content.trim(),
-          title: title.trim() || undefined,
-          source: currentSourceMeta(),
-          projectId: selectedProjectId || undefined
-        }
-      })
+      const res = await sendMessage<{ ok: boolean; saved?: boolean; error?: string }>(
+        {
+          kind: "capture",
+          payload: {
+            type: captureType,
+            content: content.trim(),
+            title: title.trim() || undefined,
+            source: currentSourceMeta(),
+            projectId: selectedProjectId || undefined
+          }
+        },
+        15000
+      )
       if (res?.error === "no-project") {
         setError("请先创建一个项目，再保存（面板内容已保留）")
         setSaving(false)

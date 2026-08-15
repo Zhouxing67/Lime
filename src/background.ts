@@ -235,44 +235,52 @@ async function handleCapture(
   senderTab: chrome.tabs.Tab | undefined,
   sendResponse: (response: any) => void
 ) {
-  // If payload specifies a projectId, use it; otherwise fall back to most recent
-  const targetProject = payload.projectId
-    ? (await listProjects()).find((p) => p.id === payload.projectId)
-    : (await getRecentProjects(1))[0]
+  try {
+    // If payload specifies a projectId, use it; otherwise fall back to most recent
+    const targetProject = payload.projectId
+      ? (await listProjects()).find((p) => p.id === payload.projectId)
+      : (await getRecentProjects(1))[0]
 
-  if (targetProject) {
-    // Captured cards land in 未分类 (no sectionId) — the same as before.
-    // Text/image captures go through the typed creation interfaces (the raw
-    // builder is not a business-layer creation API).
-    const saved =
-      payload.type === "image"
-        ? await createImageCard({
-            image: payload.content,
-            title: payload.title,
-            source: payload.source,
-            projectId: targetProject.id
-          })
-        : await createTextCard({
-            content: payload.content,
-            title: payload.title,
-            source: payload.source,
-            projectId: targetProject.id
-          })
-    if (saved) touchProject(targetProject.id).catch(() => {})
-    notifyTab(senderTab?.id, saved, payload.type)
-    sendResponse({ ok: true, saved })
-    return
-  }
+    if (targetProject) {
+      // Captured cards land in 未分类 (no sectionId) — the same as before.
+      // Text/image captures go through the typed creation interfaces (the raw
+      // builder is not a business-layer creation API).
+      const saved =
+        payload.type === "image"
+          ? await createImageCard({
+              image: payload.content,
+              title: payload.title,
+              source: payload.source,
+              projectId: targetProject.id
+            })
+          : await createTextCard({
+              content: payload.content,
+              title: payload.title,
+              source: payload.source,
+              projectId: targetProject.id
+            })
+      if (saved) touchProject(targetProject.id).catch(() => {})
+      notifyTab(senderTab?.id, saved, payload.type)
+      sendResponse({ ok: true, saved })
+      return
+    }
 
-  // No projects: fail the save with a clear reason — the capture panel keeps
-  // its draft and shows "请先创建一个项目" (the user creates one in the
-  // options page, then re-saves). No pending-capture popup.
-  if (senderTab?.id) {
-    chrome.tabs
-      .sendMessage(senderTab.id, { kind: "toast", text: "请先创建一个项目" })
-      .catch(() => {})
+    // No projects: fail the save with a clear reason — the capture panel keeps
+    // its draft and shows "请先创建一个项目" (the user creates one in the
+    // options page, then re-saves). No pending-capture popup.
+    if (senderTab?.id) {
+      chrome.tabs
+        .sendMessage(senderTab.id, { kind: "toast", text: "请先创建一个项目" })
+        .catch(() => {})
+    }
+    sendResponse({ ok: false, error: "no-project" })
+  } catch (err) {
+    // Any DB/list error must still close the capture's response channel — an
+    // unhandled rejection here leaves the panel stuck on "保存中…" forever
+    // (A4).
+    console.warn("[lime] capture failed:", err)
+    sendResponse({ ok: false, error: "保存失败" })
   }
-  sendResponse({ ok: false, error: "no-project" })
 }
 
 chrome.action.onClicked.addListener(() => {

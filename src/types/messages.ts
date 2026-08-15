@@ -73,9 +73,21 @@ export type ExtensionMessage =
   | FetchPdfMessage
   | SaveWebPdfMessage
 
-export function sendMessage<T = any>(msg: ExtensionMessage): Promise<T> {
+export function sendMessage<T = any>(
+  msg: ExtensionMessage,
+  timeoutMs = 0
+): Promise<T> {
   return new Promise((resolve, reject) => {
+    let timer: ReturnType<typeof globalThis.setTimeout> | undefined
+    if (timeoutMs > 0) {
+      // A Service Worker that dies mid-handle never invokes the callback, so
+      // without a timeout the caller hangs forever (A4).
+      timer = globalThis.setTimeout(() => {
+        reject(new Error(`sendMessage timeout: ${msg.kind}`))
+      }, timeoutMs)
+    }
     chrome.runtime.sendMessage(msg, (response) => {
+      if (timer !== undefined) globalThis.clearTimeout(timer)
       if (chrome.runtime.lastError) {
         reject(chrome.runtime.lastError)
       } else {

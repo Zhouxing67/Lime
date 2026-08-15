@@ -281,7 +281,24 @@ function openDb(version?: number): Promise<IDBDatabase> {
       await migratePdfCardContentIfNeeded(db)
       resolve(db)
     }
-    req.onerror = () => reject(req.error)
+    req.onerror = () => {
+      const err = req.error
+      // The disk DB is at a HIGHER version than requested (a defensive
+      // store-creation heal once bumped it). Open at the disk version instead
+      // of failing forever with VersionError (A3).
+      if (err?.name === "VersionError") {
+        const probe = indexedDB.open(DB_NAME)
+        probe.onsuccess = () => {
+          const diskVersion = probe.result.version
+          probe.result.close()
+          if (diskVersion > v) openDb(diskVersion).then(resolve, reject)
+          else reject(err)
+        }
+        probe.onerror = () => reject(probe.error ?? err)
+      } else {
+        reject(err)
+      }
+    }
   })
 }
 
@@ -472,9 +489,20 @@ export async function withStore<T>(
     })
     return result
   } catch (err) {
-    // If the store doesn't exist, force a version upgrade to create it
+    // A needed store is missing — probe the ON-DISK version and bump ONE above
+    // it so onupgradeneeded re-runs (its store-creation is idempotent via
+    // contains-checks). Never open at a fixed DB_VERSION+1: if the disk was
+    // already bumped by an earlier heal, a fixed +1 wouldn't re-run the
+    // upgrade (A3). The VersionError handler in openDb heals every later open.
     if (opts?.retry !== false && err instanceof DOMException && err.name === "NotFoundError") {
-      const upDb = await openDb(DB_VERSION + 1)
+      const probe = await new Promise<IDBDatabase>((resolve, reject) => {
+        const r = indexedDB.open(DB_NAME)
+        r.onsuccess = () => resolve(r.result)
+        r.onerror = () => reject(r.error)
+      })
+      const diskVersion = probe.version
+      probe.close()
+      const upDb = await openDb(diskVersion + 1)
       upDb.close()
       return withStore(name, mode, fn, { retry: false, broadcastKey: opts?.broadcastKey })
     }
