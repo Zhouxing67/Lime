@@ -450,53 +450,11 @@ function mergeRectsSameLine(rects: PdfRect[]): PdfRect[] {
 /** Clip each rect's height to the underlying span's GLYPH box and merge rects
  *  on the SAME line into one box. Range.getClientRects() returns the full LINE
  *  box (font leading inflates it past the line-to-line advance), so adjacent
- *  lines' rects overlap vertically and a plain overlap-based merge (mergeRects)
- *  collapses whole paragraphs into one giant block — which broke underline
- *  (pushed to the merged bottom) and strike (one line at the merged middle).
- *  The span's own getBoundingClientRect is the tight glyph box; clipping to it
- *  stops the bleed into the next line AND keeps lines from merging. */
-/** Union selection rects per line (same vertical band + horizontal adjacency)
- *  into single boxes — removes per-span overlap at CJK/Latin boundaries.
- *  `holder` (viewport rect) converts viewport coords; omit it when the rects
- *  are already holder-relative (textLayerRects output). */
-export function mergeRects(
-  rects: PdfRect[],
-  holder?: DOMRect,
-  gapTolerance = 1
-): PdfRect[] {
-  const norm = holder
-    ? rects.map((r) => ({
-        x: r.x - holder.left,
-        y: r.y - holder.top,
-        w: r.w,
-        h: r.h
-      }))
-    : rects.map((r) => ({ ...r }))
-  norm.sort((a, b) => a.y - b.y || a.x - b.x)
-  const merged: PdfRect[] = []
-  for (const r of norm) {
-    if (r.w <= 0 || r.h <= 0) continue
-    const last = merged[merged.length - 1]
-    // Same line (vertical overlap) + touching/nearby horizontally → union.
-    if (
-      last &&
-      r.y < last.y + last.h &&
-      r.x <= last.x + last.w + gapTolerance
-    ) {
-      const x0 = Math.min(last.x, r.x)
-      const x1 = Math.max(last.x + last.w, r.x + r.w)
-      const y0 = Math.min(last.y, r.y)
-      const y1 = Math.max(last.y + last.h, r.y + r.h)
-      last.x = x0
-      last.y = y0
-      last.w = x1 - x0
-      last.h = y1 - y0
-    } else {
-      merged.push({ ...r })
-    }
-  }
-  return merged
-}
+ *  lines' rects overlap vertically and a plain overlap-based merge collapses
+ *  whole paragraphs into one giant block — which broke underline (pushed to the
+ *  merged bottom) and strike (one line at the merged middle). The span's own
+ *  getBoundingClientRect is the tight glyph box; clipping to it stops the bleed
+ *  into the next line AND keeps lines from merging. */
 
 /** Char offsets → a DOM Range over the text layer's spans (the reverse of
  *  textLayerOffsets). Used to feed a search match's offsets into the
@@ -534,4 +492,131 @@ export function offsetsToRange(
     return null
   }
   return range
+}
+
+/** Range covering the local char range [from, to) inside a leaf span, walking
+ *  through ANY nested structure (a web-highlighter `<mark>` wrap splits the
+ *  span's text into several text nodes) — offsets are into the span's full
+ *  textContent, so we accumulate across text nodes to find the true nodes. */
+function rangeForLocal(span: HTMLElement, from: number, to: number): Range | null {
+  const walker = document.createTreeWalker(span, NodeFilter.SHOW_TEXT)
+  let node: Node | null
+  let acc = 0
+  let startNode: Text | null = null
+  let startOff = 0
+  let endNode: Text | null = null
+  let endOff = 0
+  while ((node = walker.nextNode())) {
+    const len = (node as Text).data.length
+    const nStart = acc
+    const nEnd = acc + len
+    if (from < nEnd && to > nStart) {
+      const sOff = Math.max(0, from - nStart)
+      const eOff = Math.min(len, to - nStart)
+      if (!startNode) {
+        startNode = node as Text
+        startOff = sOff
+      }
+      endNode = node as Text
+      endOff = eOff
+    }
+    acc = nEnd
+  }
+  if (!startNode || !endNode) return null
+  const r = document.createRange()
+  r.setStart(startNode, startOff)
+  r.setEnd(endNode, endOff)
+  return r
+}
+
+/** Merged, per-LINE highlight rects for the char range [start, end) in a page's
+ *  text content.
+ *
+ *  Why not `range.getClientRects()` on the whole range? The pdf.js text layer
+ *  positions every text item in its OWN absolutely-positioned span, so a Range
+ *  spanning several items yields per-span boxes and BOTH native ::selection and
+ *  the CSS Highlight API paint each box separately — the gaps between words
+ *  (justified text) read as broken highlights. Instead we walk the COVERED leaf
+ *  spans, clip each to the char range (char-precise horizontal), group them
+ *  into visual LINES by em-box overlap, and merge every fragment on a line into
+ *  ONE box spanning [minX, maxX] at the line's tight em box. No elementFromPoint
+ *  probing, no merge-tolerance guesswork.
+ *
+ *  `holder` is the page element; the returned rects are padding-box-relative
+ *  (the overlay lives inside the page, which pdf.js gives a 9px border).
+ */
+export function highlightRectsForOffsets(
+  textLayer: any,
+  holder: HTMLElement,
+  start: number,
+  end: number
+): PdfRect[] {
+  if (end <= start) return []
+  const idx = getTextLayerIndex(textLayer)
+  const divs = getTextDivs(textLayer)
+  if (idx.divIndex.size === 0) return []
+  const holderRect = holder.getBoundingClientRect()
+  const originX = holderRect.left + holder.clientLeft
+  const originY = holderRect.top + holder.clientTop
+  const s = Math.max(0, start)
+  const e = Math.min(idx.total, end)
+  if (e <= s) return []
+
+  // covered leaf spans (their char range intersects [s, e))
+  const covered: { span: HTMLElement; from: number; to: number }[] = []
+  for (let i = 0; i < divs.length; i++) {
+    const spanStart = idx.cumulative[i]
+    const len = divs[i].textContent?.length ?? 0
+    const spanEnd = spanStart + len
+    if (spanEnd <= s || spanStart >= e) continue
+    covered.push({
+      span: divs[i],
+      from: Math.max(0, s - spanStart),
+      to: Math.min(len, e - spanStart)
+    })
+  }
+  if (covered.length === 0) return []
+
+  // group covered spans into visual lines by em-box vertical overlap
+  type Line = { top: number; bottom: number; items: typeof covered }
+  const lines: Line[] = []
+  for (const c of covered) {
+    const r = c.span.getBoundingClientRect()
+    if (r.height <= 0) continue
+    const line = lines.find((l) => r.top < l.bottom && r.bottom > l.top)
+    if (line) {
+      if (r.top < line.top) line.top = r.top
+      if (r.bottom > line.bottom) line.bottom = r.bottom
+      line.items.push(c)
+    } else {
+      lines.push({ top: r.top, bottom: r.bottom, items: [c] })
+    }
+  }
+
+  const out: PdfRect[] = []
+  for (const line of lines) {
+    let minX = Infinity
+    let maxX = -Infinity
+    for (const c of line.items) {
+      if (c.from >= c.to) continue
+      const sub = rangeForLocal(c.span, c.from, c.to)
+      if (!sub) continue
+      for (const r of sub.getClientRects()) {
+        const left = r.left - originX
+        const right = r.right - originX
+        if (right <= left) continue
+        if (left < minX) minX = left
+        if (right > maxX) maxX = right
+      }
+    }
+    if (minX <= maxX) {
+      out.push({
+        x: minX,
+        y: line.top - originY,
+        w: maxX - minX,
+        h: line.bottom - line.top
+      })
+    }
+  }
+  return out
 }

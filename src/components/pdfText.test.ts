@@ -2,46 +2,11 @@ import {
   buildTextLayerIndex,
   caseFoldPreserving,
   extractLines,
-  mergeRects,
+  highlightRectsForOffsets,
   scanText,
   textLayerOffsets,
   textLayerRects
 } from "./pdfText"
-
-const holder = { left: 100, top: 200 } as DOMRect
-
-describe("mergeRects (unified selection highlight)", () => {
-  it("unions overlapping same-line rects (CJK/Latin boundary)", () => {
-    // Two adjacent/overlapping rects on the same line.
-    const rects = [
-      { x: 120, y: 220, w: 40, h: 14 }, // Latin "ab"
-      { x: 156, y: 220, w: 60, h: 14 } // CJK "你好" (overlaps the Latin box)
-    ]
-    const merged = mergeRects(rects, holder)
-    expect(merged).toHaveLength(1)
-    expect(merged[0].x).toBeCloseTo(20)
-    expect(merged[0].w).toBeCloseTo(96)
-  })
-
-  it("keeps different-line rects separate", () => {
-    const rects = [
-      { x: 120, y: 220, w: 40, h: 14 },
-      { x: 120, y: 260, w: 40, h: 14 }
-    ]
-    const merged = mergeRects(rects, holder)
-    expect(merged).toHaveLength(2)
-  })
-
-  it("merges touching rects (no gap)", () => {
-    const rects = [
-      { x: 120, y: 220, w: 30, h: 14 },
-      { x: 150, y: 220, w: 30, h: 14 }
-    ]
-    const merged = mergeRects(rects, holder)
-    expect(merged).toHaveLength(1)
-    expect(merged[0].w).toBeCloseTo(60)
-  })
-})
 
 describe("textLayer index + offsets + rects", () => {
   function makeLayer() {
@@ -184,5 +149,134 @@ describe("caseFoldPreserving / length-changing folds (F2 regression)", () => {
     const { matches } = scanText(full, [{ start: 0, end: full.length }], "alpha", {})
     expect(matches).toHaveLength(1)
     expect(full.slice(matches[0].start, matches[0].end)).toBe("Alpha")
+  })
+})
+
+describe("highlightRectsForOffsets (line-bridging overlay)", () => {
+  // One visual line of words separated by huge "justify" gaps (the fracture
+  // trigger). x-layout: word(0..200) space(200..205) is(305..320) space(320..325)
+  // a(425..435) space(435..440) gap(540..560), all at y 100..120.
+  function makeLine() {
+    const holder = document.createElement("div")
+    document.body.appendChild(holder)
+    const words = [
+      "antidisestablishmentarianism",
+      " ",
+      "is",
+      " ",
+      "a",
+      " ",
+      "gap"
+    ]
+    const spans = words.map((w) => {
+      const s = document.createElement("span")
+      s.textContent = w
+      holder.appendChild(s)
+      return s
+    })
+    const xs = [
+      [0, 200],
+      [200, 5],
+      [305, 15],
+      [320, 5],
+      [425, 10],
+      [435, 5],
+      [540, 20]
+    ]
+    spans.forEach((s, i) => {
+      s.getBoundingClientRect = () =>
+        ({
+          left: xs[i][0],
+          top: 100,
+          right: xs[i][0] + xs[i][1],
+          bottom: 120,
+          width: xs[i][1],
+          height: 20
+        }) as DOMRect
+    })
+    holder.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, right: 600, bottom: 600, width: 600, height: 600 }) as DOMRect
+    const textLayer = { textDivs: spans, textContentItemsStr: words } as any
+    return { holder, spans, textLayer }
+  }
+  const LINE_LEN = "antidisestablishmentarianism is a gap".length
+
+  const realGCR = Range.prototype.getClientRects
+  beforeEach(() => {
+    // char-proportional rect within the covering span (walks up past <mark>)
+    const stub = function (this: Range) {
+      const tn = this.startContainer as Text
+      const span = tn.parentElement?.closest("span") ?? tn.parentElement
+      const r = (span?.getBoundingClientRect?.() as any) as
+        | { left: number; top: number; width: number; height: number }
+        | undefined
+      if (!r || !r.width) return []
+      const data = tn.data
+      const from = this.startOffset
+      const to = this.endOffset
+      const w0 = r.width * (data.length ? from / data.length : 0)
+      const w1 = r.width * (data.length ? to / data.length : 0)
+      return [
+        {
+          left: r.left + w0,
+          top: r.top,
+          right: r.left + w1,
+          bottom: r.top + r.height,
+          width: w1 - w0,
+          height: r.height
+        }
+      ]
+    }
+    Range.prototype.getClientRects = stub as unknown as typeof Range.prototype.getClientRects
+  })
+  afterEach(() => {
+    Range.prototype.getClientRects = realGCR
+  })
+
+  it("merges every covered word on a line into ONE continuous box (justify gaps bridged)", () => {
+    const { holder, textLayer } = makeLine()
+    const rects = highlightRectsForOffsets(textLayer, holder, 0, LINE_LEN)
+    expect(rects).toHaveLength(1)
+    expect(rects[0].x).toBeCloseTo(0)
+    expect(rects[0].w).toBeCloseTo(560)
+    expect(rects[0].y).toBeCloseTo(100)
+    expect(rects[0].h).toBeCloseTo(20)
+  })
+
+  it("covers only the selected chars when the range starts/ends mid-span", () => {
+    const { holder, textLayer } = makeLine()
+    // "antidisestablishmentarianism " (28+1) = 29 chars; "is" = offsets [29, 31)
+    const rects = highlightRectsForOffsets(textLayer, holder, 29, 31)
+    expect(rects).toHaveLength(1)
+    expect(rects[0].x).toBeCloseTo(305)
+    expect(rects[0].w).toBeCloseTo(15)
+  })
+
+  it("keeps separate lines as separate boxes", () => {
+    const { holder, spans, textLayer } = makeLine()
+    const extra = document.createElement("span")
+    extra.textContent = "secondline"
+    holder.appendChild(extra)
+    extra.getBoundingClientRect = () =>
+      ({ left: 0, top: 160, right: 80, bottom: 180, width: 80, height: 20 }) as DOMRect
+    const tl2 = {
+      textDivs: [...spans, extra],
+      textContentItemsStr: [...spans.map((s) => s.textContent!), "secondline"]
+    } as any
+    const rects = highlightRectsForOffsets(tl2, holder, 0, LINE_LEN + 11)
+    expect(rects).toHaveLength(2)
+  })
+
+  it("survives a web-highlighter <mark> wrap (span text split into nested nodes)", () => {
+    const { holder, spans, textLayer } = makeLine()
+    const isSpan = spans[2]
+    const mark = document.createElement("mark")
+    mark.textContent = isSpan.textContent!
+    isSpan.textContent = ""
+    isSpan.appendChild(mark)
+    const rects = highlightRectsForOffsets(textLayer, holder, 29, 31)
+    expect(rects).toHaveLength(1)
+    expect(rects[0].x).toBeCloseTo(305)
+    expect(rects[0].w).toBeCloseTo(15)
   })
 })

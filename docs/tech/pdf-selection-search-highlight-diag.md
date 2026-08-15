@@ -64,3 +64,16 @@
 - 引擎与搜索**同一 PDF 被解析两次**（`usePdfDocument` + inklayer `usePdfViewer`），参数还不一致 → R2 顺带收敛为单实例。
 - `assets/pdfjs/pdf_viewer.mjs`（带 2 处本地补丁）是**死代码**：运行时 import 的是 npm `pdfjs-dist/legacy/web/pdf_viewer.mjs`，alias 目标无人引用 → R5 清理。
 - `pdfText.ts` 的 `mergeRects`/`snappedRectsForRange`/`renderSearchOverlay` 在 R3 后可整体删除（不再有自绘 overlay）。
+
+## 五、R2/R3/R3-REV 结果（2026-08-15 追加）
+
+### R2 — 数据层根修（已上线）
+- 引擎 loading task（data/range/url 三分支）补 `cMapUrl/cMapPacked/standardFontDataUrl`，与搜索侧对齐。legacy build 实测：CID/GBK fixture 提取从空文本 → 完整中文。F4 消除。
+- `scanText`/`searchPdfText` 用 `caseFoldPreserving`（长度保持折叠），消 F2 的 `İ` 类偏移。
+
+### R3 → R3-REV — 渲染层路线修正
+- **R3（CSS Custom Highlight API）被否决**：真实 Chromium 实证，pdf.js 文本层把每个 item 放进独立绝对定位 span，原生绘制（::selection / Highlight API）**按 span 逐块绘制、词间空隙不桥接** —— justify 大间距必「断裂」。原生绘制无法修复此问题。
+- **R3-REV（最终形态）**：自绘 overlay + `highlightRectsForOffsets`（`pdfText.ts`）：char offset → 覆盖 span 子 range（`rangeForLocal` 穿透 `<mark>`）→ **按 em 盒分线 → 每线合并 [minX,maxX] 一个连续块**。选区/搜索同一管线、各自独立 overlay div（修 F1 互抹）。headless Chromium 实测：gap 行选区 → 单连续块（w:374 桥接 100px 空隙）；fi 搜索 → 紧贴 em 盒。断裂/偏移类修复落地。
+
+### 「fi 偏移」为 fixture 伪影（非几何错误）
+`fixture-justify-latin.pdf` 第 2 页控制行用**非嵌入 Helvetica**（pdf-lib 度量 ≠ 浏览器度量）→ pdf.js 对整行 span 施加 `scaleX(0.867)` 压缩，残余误差沿行向右累积（控制行 63 字符，最右端偏移 2-5px）。高亮精确贴合文本层字形；错位在**文本层↔canvas 字形**之间，属 pdf.js 对非嵌入标准字体的已知极限。真实 PDF（嵌入字体，scaleX≈1.0）无此现象。**结论：接受为 fixture 伪影，不做补偿。**

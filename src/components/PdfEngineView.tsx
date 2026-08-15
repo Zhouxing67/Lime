@@ -33,7 +33,7 @@ import { deepMerge } from "~/src/pdf/inklayer/utils"
 import { usePainter } from "~/src/pdf/inklayer/extensions/annotator/context/use_painter"
 import { useAnnotationStore } from "~/src/pdf/inklayer/extensions/annotator/store"
 import { usePdfViewerContext } from "~/src/pdf/inklayer/context/pdf_viewer_context"
-import { mergeRects, offsetsToRange } from "./pdfText"
+import { highlightRectsForOffsets, textLayerOffsets } from "./pdfText"
 import type { PdfRect } from "./pdfText"
 import {
   annotationDefinitions,
@@ -662,32 +662,39 @@ function EngineBridge({
     if (painter) painter.clearSelection()
   }, [clearRingToken, painter])
 
-  // ── Selection highlight ──────────────────────────────────────────────────
-  // The browser's native selection box carries the line's leading (the diag:
-  // selection rect h=13 vs the text span's tight em box h=9, 3px high + tall).
-  // We suppress the native ::selection + redraw the char-exact getClientRects
-  // boxes, SNAPPING each rect's vertical to the covering line span's tight
-  // em box — the true rendered glyph position. No overlap, no offset.
-  const selOverlayRef = useRef<HTMLDivElement | null>(null)
-  const selOverlayPageRef = useRef(-1)
+  // ── Selection / search highlight — self-drawn line-bridging overlay ──────
+  // The browser's native range painting (::selection, CSS Highlight API) draws
+  // per text-layer SPAN — and pdf.js puts every text item in its own
+  // absolutely-positioned span, so word gaps (justified text) read as broken
+  // fragments. Instead we compute rects via highlightRectsForOffsets: char-
+  // precise per covered span, then merged into ONE box per visual LINE
+  // (bridging gaps), vertically snapped to the line's tight em box. Rendered
+  // as a plain overlay div (z:5, below the text layer). No elementFromPoint,
+  // no merge-tolerance guessing. Selection and search get SEPARATE overlay divs
+  // so a live selection never wipes the search highlights (the old F1).
+  const overlayDivsRef = useRef<{ selection?: HTMLDivElement; search?: HTMLDivElement }>({})
+  const overlayPagesRef = useRef<{ selection?: number; search?: number }>({})
 
   const drawOverlay = useCallback(
-    (page: number, rects: PdfRect[], current: Set<number>) => {
+    (kind: "selection" | "search", page: number, rects: PdfRect[], current: Set<number>) => {
       if (!pdfViewer) return
       const pageEl = pdfViewer.getPageView(page - 1)?.div as
         | HTMLElement
         | undefined
       if (!pageEl) return
-      if (selOverlayPageRef.current !== page) {
-        selOverlayRef.current?.remove()
+      const overlays = overlayDivsRef.current
+      const pages = overlayPagesRef.current
+      if (pages[kind] !== page || !overlays[kind]) {
+        overlays[kind]?.remove()
+        delete overlays[kind]
         const div = document.createElement("div")
         div.style.cssText =
           "position:absolute;inset:0;pointer-events:none;z-index:5;overflow:hidden"
         pageEl.appendChild(div)
-        selOverlayRef.current = div
-        selOverlayPageRef.current = page
+        overlays[kind] = div
+        pages[kind] = page
       }
-      const div = selOverlayRef.current!
+      const div = overlays[kind]!
       div.replaceChildren()
       rects.forEach((r, i) => {
         const isCurrent = current.has(i)
@@ -703,57 +710,11 @@ function EngineBridge({
     [pdfViewer]
   )
 
-  const clearSelectionOverlay = useCallback(() => {
-    selOverlayRef.current?.remove()
-    selOverlayRef.current = null
-    selOverlayPageRef.current = -1
+  const clearOverlay = useCallback((kind: "selection" | "search") => {
+    overlayDivsRef.current[kind]?.remove()
+    delete overlayDivsRef.current[kind]
+    delete overlayPagesRef.current[kind]
   }, [])
-
-  // Char-exact selection/search rects: the browser's getClientRects (exact
-  // horizontal) with each box's vertical SNAPPED to the covering text-layer
-  // span's tight em box — the browser's selection box carries the line's
-  // leading (the persistent offset/overlap source).
-  const snappedRectsForRange = useCallback(
-    (page: number, range: Range): PdfRect[] => {
-      if (!pdfViewer) return []
-      const pageEl = pdfViewer.getPageView(page - 1)?.div as
-        | HTMLElement
-        | undefined
-      if (!pageEl) return []
-      const holder = pageEl.getBoundingClientRect()
-      const baseX = holder.left + pageEl.clientLeft
-      const baseY = holder.top + pageEl.clientTop
-      const raw = Array.from(range.getClientRects()).map((r) => ({
-        x: r.left - baseX,
-        y: r.top - baseY,
-        w: r.width,
-        h: r.height
-      }))
-      const out: PdfRect[] = []
-      for (const r of raw) {
-        const el = document.elementFromPoint(
-          baseX + r.x + r.w / 2,
-          baseY + r.y + r.h / 2
-        ) as HTMLElement | null
-        const span = el?.closest(
-          ".textLayer span, .textLayer .markedContent span"
-        ) as HTMLElement | null
-        if (span) {
-          const sr = span.getBoundingClientRect()
-          out.push({
-            x: r.x,
-            y: sr.top - baseY,
-            w: r.w,
-            h: sr.height
-          })
-        } else {
-          out.push(r)
-        }
-      }
-      return mergeRects(out, undefined, 6)
-    },
-    [pdfViewer]
-  )
 
   useEffect(() => {
     if (!eventBus || !pdfViewer) return
@@ -761,7 +722,7 @@ function EngineBridge({
     const onSelChange = () => {
       const sel = window.getSelection()
       if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
-        clearSelectionOverlay()
+        clearOverlay("selection")
         return
       }
       const range = sel.getRangeAt(0)
@@ -773,38 +734,43 @@ function EngineBridge({
           : null
       ) as HTMLElement | null
       if (!pageEl) {
-        clearSelectionOverlay()
+        clearOverlay("selection")
         return
-      }
-      const page = Number(pageEl.dataset.pageNumber)
-      // A live text selection supersedes the search highlight — clear the
-      // find controller's `.highlight` spans so two visuals don't stack.
-      if (eventBus) {
-        eventBus.dispatch("find", {
-          type: "",
-          query: "",
-          highlightAll: false
-        })
       }
       if (raf) return
       raf = requestAnimationFrame(() => {
         raf = 0
-        const rects = snappedRectsForRange(page, range)
-        drawOverlay(page, rects, new Set())
+        const page = Number(pageEl.dataset.pageNumber)
+        const textLayer = pdfViewer.getPageView(page - 1)?.textLayer
+        if (!textLayer) {
+          clearOverlay("selection")
+          return
+        }
+        const offsets = textLayerOffsets(textLayer, sel)
+        if (!offsets) {
+          clearOverlay("selection")
+          return
+        }
+        const rects = highlightRectsForOffsets(
+          textLayer,
+          pageEl,
+          offsets.start,
+          offsets.end
+        )
+        drawOverlay("selection", page, rects, new Set())
       })
     }
     document.addEventListener("selectionchange", onSelChange)
     return () => {
       document.removeEventListener("selectionchange", onSelChange)
       if (raf) cancelAnimationFrame(raf)
+      clearOverlay("selection")
     }
-  }, [eventBus, pdfViewer, drawOverlay, clearSelectionOverlay, snappedRectsForRange])
+  }, [eventBus, pdfViewer, drawOverlay, clearOverlay])
 
   // ── Search highlight ─────────────────────────────────────────────────────
-  // The searchFlash's char-offset matches → the text-layer DOM range → the
-  // SAME snapped getClientRects path as the selection. No find controller —
-  // its normalized-text mapping (ligatures/diacritics) shifted some matches by
-  // a char, which is why "some results were offset + some weren't".
+  // The searchFlash's char-offset matches go through the SAME offset pipeline
+  // as the selection (highlightRectsForOffsets) — one geometry, one overlay.
   const lastSearchRef = useRef<{
     page: number
     matches: { start: number; end: number }[]
@@ -813,28 +779,40 @@ function EngineBridge({
 
   const renderSearchOverlay = useCallback(() => {
     const data = lastSearchRef.current
-    if (!data) return
+    if (!data) {
+      clearOverlay("search")
+      return
+    }
     const { page, matches, current } = data
+    const pageEl = pdfViewer?.getPageView(page - 1)?.div as
+      | HTMLElement
+      | undefined
     const textLayer = pdfViewer?.getPageView(page - 1)?.textLayer
-    if (!textLayer) return
+    if (!pageEl || !textLayer) {
+      clearOverlay("search")
+      return
+    }
     const all: { r: PdfRect; isCurrent: boolean }[] = []
     for (let i = 0; i < matches.length; i++) {
-      const range = offsetsToRange(textLayer, matches[i].start, matches[i].end)
-      if (!range) continue
-      const rects = snappedRectsForRange(page, range)
+      const rects = highlightRectsForOffsets(
+        textLayer,
+        pageEl,
+        matches[i].start,
+        matches[i].end
+      )
       rects.forEach((r) => all.push({ r, isCurrent: i === current }))
     }
     const flat = all.map((a) => a.r)
     const cur = new Set(
       all.map((a, i) => (a.isCurrent ? i : -1)).filter((i) => i >= 0)
     )
-    drawOverlay(page, flat, cur)
-  }, [pdfViewer, snappedRectsForRange, drawOverlay])
+    drawOverlay("search", page, flat, cur)
+  }, [pdfViewer, drawOverlay, clearOverlay])
 
   useEffect(() => {
     if (!searchFlash) {
       lastSearchRef.current = null
-      clearSelectionOverlay()
+      clearOverlay("search")
       return
     }
     lastSearchRef.current = {
@@ -843,15 +821,38 @@ function EngineBridge({
       current: searchFlash.current
     }
     renderSearchOverlay()
-  }, [searchFlash, renderSearchOverlay, clearSelectionOverlay])
+  }, [searchFlash, renderSearchOverlay, clearOverlay])
 
-  // Re-render the search overlay when the zoom changes / the text layer
-  // settles — the rects must follow the CURRENT layout (a stale viewport used
-  // to draw the rects "way off" after zoom).
+  // Re-draw after zoom / text-layer rebuilds — the rects must follow the
+  // CURRENT layout (a stale viewport used to draw the rects "way off" after
+  // zoom), and the selection must be re-derived from the live selection.
   useEffect(() => {
     if (!eventBus) return
     const onRezoom = () => {
       if (lastSearchRef.current) renderSearchOverlay()
+      const sel = window.getSelection()
+      if (!sel || sel.isCollapsed || sel.rangeCount === 0) return
+      const range = sel.getRangeAt(0)
+      const pageEl = (
+        range.startContainer instanceof Node
+          ? range.startContainer.parentElement?.closest(
+              "[data-page-number]"
+            )
+          : null
+      ) as HTMLElement | null
+      if (!pageEl) return
+      const page = Number(pageEl.dataset.pageNumber)
+      const textLayer = pdfViewer?.getPageView(page - 1)?.textLayer
+      if (!textLayer) return
+      const offsets = textLayerOffsets(textLayer, sel)
+      if (!offsets) return
+      const rects = highlightRectsForOffsets(
+        textLayer,
+        pageEl,
+        offsets.start,
+        offsets.end
+      )
+      drawOverlay("selection", page, rects, new Set())
     }
     eventBus.on("scalechanging", onRezoom)
     eventBus.on("textlayerrendered", onRezoom)
@@ -859,7 +860,7 @@ function EngineBridge({
       eventBus.off("scalechanging", onRezoom)
       eventBus.off("textlayerrendered", onRezoom)
     }
-  }, [eventBus, renderSearchOverlay])
+  }, [eventBus, pdfViewer, renderSearchOverlay, drawOverlay])
 
   // Start at 0, NOT the mount-time flashTarget token: the flash often fires
   // while the engine is still loading (the PdfEngineView mounts AFTER the
@@ -977,8 +978,9 @@ export default function PdfEngineView({
     cssLink.rel = "stylesheet"
     cssLink.href = chrome.runtime.getURL("assets/pdfjs/pdf_viewer.css")
     document.head.append(cssLink)
-    // Match the find highlights to Lime's indigo (the official pdf.js default
-    // is a green/purple wash); the selected match gets a border.
+    // The selection highlight is drawn by our own overlay (see drawOverlay);
+    // the native ::selection must stay invisible so the browser's selection
+    // boxes never stack with it.
     const styleEl = document.createElement("style")
     styleEl.textContent = `
 .textLayer::selection,.textLayer ::selection,.textLayer :is(span,br)::selection{background:transparent !important;color:transparent !important}`
