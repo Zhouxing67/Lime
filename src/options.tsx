@@ -2387,7 +2387,6 @@ export default function OptionsPage() {
                 toggleReader,
                 swapLeft,
                 pdfFlashTarget,
-                pdfSelectedAnnId,
                 pdfClearRingToken,
                 handlePdfAnnotationSelected,
                 pdfTypeChangeTarget,

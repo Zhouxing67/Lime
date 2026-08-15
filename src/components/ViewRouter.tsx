@@ -57,7 +57,6 @@ interface PdfViewRouterProps {
   toggleReader: () => void
   swapLeft: () => void
   pdfFlashTarget: { page: number; annId: string; token: number } | null
-  pdfSelectedAnnId: string | null
   pdfClearRingToken: number
   handlePdfAnnotationSelected: (annId: string | null) => void
   pdfTypeChangeTarget: { id: string; type: number; seq: number } | null

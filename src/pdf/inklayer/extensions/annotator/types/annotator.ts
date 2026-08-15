@@ -263,10 +263,10 @@ export interface PdfAnnotatorProps extends PdfBaseProps {
     /**
      * 初始批注列表（Core 格式 Annotation[]），组件内部自动转换。
      * 从后端/api 拿到数据后直接传入即可，无需额外处理。
-     * 
+     *
      * @example
      * const annotations = await api.getAnnotations(docId)
-     * <PdfAnnotator initialAnnotations={annotations} />
+     * <AnnotatorExtension initialAnnotations={annotations} />
      */
     initialAnnotations?: Annotation[]
 

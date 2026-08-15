@@ -44,7 +44,7 @@ SemVer `X.Y.Z`。`package.json` version 是唯一来源（Plasmo 写入 manifest
 | `src/contents/formula.ts` | 内容脚本（公式识别） | `<all_urls>` |
 | `src/contents/mathFormats.ts` | 内容脚本（MathJax 解析） | `<all_urls>` |
 
-`src/tabs/` 当前为空（pdf-poc 已删）。无 popup 页。
+`src/tabs/` 已随 pdf-poc 删除（不存在）。无 popup 页。
 
 ## Project Structure
 
@@ -70,7 +70,7 @@ src/
 - **DB_VERSION = 12**。Stores：`projectCards`, `pdfCards`, `todos`, `projects`, `reviews`, `pdfs`, `pdfAnnotations`
 - 卡片类型：`ProjectCard`（projectId/sectionId/order/content）、`PdfCard`（pdfId/page/annotationId/pdfOrder/content/idea）、`TodoCard`（dueDate/content，全局跨项目，identity-unique）
 - **placed PDF 卡 = 两条记录**：`pdfCard` 源 + `projectCard` 置入（互指 `pdfCardId` ↔ `projectCardId`，1:1）；置入记录 **不含 content**（渲染/搜索时经 pdfCard 解析）；`stripPlacementContent()` 守卫所有写入
-- 广播键：`projectCards`/`todos` → `_dbi`，`pdfCards`/`pdfs`/`pdfAnnotations` → `_dbpdf`，`projects` → `_dbp`，`reviews` → `_dbr`；`pdfs` 元数据写（rename/topic）→ `_dbpdfTouch`
+- 广播键：`projectCards` → `_dbi`，`todos` → `_dbt`，`pdfCards`/`pdfs`/`pdfAnnotations` → `_dbpdf`，`projects` → `_dbp`，`reviews` → `_dbr`；`pdfs` 元数据写（rename/topic）→ `_dbpdfTouch`
 - ProjectCard 去重：同 `hash` + `source.url` 同 projectId 跳过（`addProjectCard` 返回 false）；placements/todos identity-unique
 - `searchProjectCards(q)` — keyword/type/site/projectId/date 过滤；placed 卡命中解析关联 pdfCard 内容
 - `bulkReplace(...)` — 同步用 diff 原子替换
