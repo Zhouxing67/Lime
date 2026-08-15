@@ -3,7 +3,7 @@ import { Box, Link, Paper, Stack, Typography, alpha } from "@mui/material"
 import { useState } from "react"
 
 import type { DisplayCard } from "../types"
-import { RATING_META, hostnameOf } from "../utils"
+import { hostnameOf } from "../utils"
 import CardRenderer, { typeIcon } from "./CardRenderer"
 import ItemCardOperations from "./ItemCardOperations"
 
@@ -110,14 +110,14 @@ export default function ItemCard({
             </Box>
           )}
           {firstRating && (
-            <Box
-              sx={{
+             <Box
+              sx={(t) => ({
                 width: 8,
                 height: 8,
                 borderRadius: "50%",
                 flexShrink: 0,
-                bgcolor: RATING_META[firstRating - 1].color
-              }}
+                bgcolor: t.custom.ratingColors[firstRating - 1]
+              })}
             />
           )}
           <Box

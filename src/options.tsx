@@ -2221,6 +2221,7 @@ export default function OptionsPage() {
                   {RATING_META.map((meta, i) => {
                     const value = (i + 1) as 1 | 2 | 3
                     const active = reviewView.ratingFilter === value
+                    const rc = theme.custom.ratingColors[i]
                     return (
                       <Box
                         key={meta.label}
@@ -2235,8 +2236,8 @@ export default function OptionsPage() {
                           cursor: "pointer",
                           fontSize: "0.72rem",
                           lineHeight: 1.5,
-                          color: active ? meta.color : "text.secondary",
-                          bgcolor: active ? alpha(meta.color, 0.08) : "transparent",
+                          color: active ? rc : "text.secondary",
+                          bgcolor: active ? alpha(rc, 0.08) : "transparent",
                           transition: "all 0.15s",
                           "&:hover": { bgcolor: "action.hover" }
                         }}>
@@ -2245,7 +2246,7 @@ export default function OptionsPage() {
                             width: 6,
                             height: 6,
                             borderRadius: "50%",
-                            bgcolor: active ? meta.color : "text.disabled",
+                            bgcolor: active ? rc : "text.disabled",
                             flexShrink: 0
                           }}
                         />

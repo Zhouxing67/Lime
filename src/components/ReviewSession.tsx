@@ -306,22 +306,22 @@ export default function ReviewSession({
                   e.stopPropagation()
                   onRate(rating)
                 }}
-                sx={{
+                sx={(t) => ({
                   position: "relative",
                   py: 0.9,
                   borderRadius: 1,
                   border: "1px solid",
                   borderColor: "divider",
                   bgcolor: "background.paper",
-                  color: meta.color,
+                  color: t.custom.ratingColors[i],
                   fontSize: "0.82rem",
                   fontWeight: 600,
                   minWidth: 0,
                   "&:hover": {
-                    bgcolor: alpha(meta.color, 0.06),
-                    borderColor: meta.color
+                    bgcolor: alpha(t.custom.ratingColors[i], 0.06),
+                    borderColor: t.custom.ratingColors[i]
                   }
-                }}>
+                })}>
                 <Box
                   sx={{
                     position: "absolute",
@@ -331,7 +331,7 @@ export default function ReviewSession({
                     width: 3,
                     borderTopLeftRadius: 1,
                     borderBottomLeftRadius: 1,
-                    bgcolor: meta.color
+                    bgcolor: (t) => t.custom.ratingColors[i]
                   }}
                 />
                 {meta.label}

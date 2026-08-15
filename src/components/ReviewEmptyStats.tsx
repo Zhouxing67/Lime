@@ -138,7 +138,7 @@ export default function ReviewEmptyStats({
                 return (
                   <Box
                     key={meta.label}
-                    sx={{ width: `${width}%`, bgcolor: meta.color }}
+                    sx={{ width: `${width}%`, bgcolor: theme.custom.ratingColors[i] }}
                   />
                 )
               })}
@@ -163,7 +163,7 @@ export default function ReviewEmptyStats({
                     width: 6,
                     height: 6,
                     borderRadius: "50%",
-                    bgcolor: meta.color,
+                    bgcolor: theme.custom.ratingColors[i],
                     flexShrink: 0
                   }}
                 />

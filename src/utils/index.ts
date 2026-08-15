@@ -257,11 +257,9 @@ export type DueStatus = "none" | "overdue" | "today" | "tomorrow" | "future"
 export const DAY_MS = 86400000
 
 /** Three review levels: label + subdued semantic color (不认识/模糊/认识). */
-export const RATING_META = [
-  { label: "不认识", color: "#b2705a" },
-  { label: "模糊", color: "#b5945b" },
-  { label: "认识", color: "#6f9476" }
-] as const
+/** Rating labels only — the COLORS live in the theme (`t.custom.ratingColors`,
+ *  light/dark variants) so the review UI adapts to the mode. Index = rating-1. */
+export const RATING_META = [{ label: "不认识" }, { label: "模糊" }, { label: "认识" }] as const
 
 /** Due semantics: a day-based task expires at 00:00 of the NEXT day. */
 export function dueStatus(dueDate: string | undefined, today: string): DueStatus {

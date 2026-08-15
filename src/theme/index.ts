@@ -23,6 +23,7 @@ declare module "@mui/material/styles" {
       searchHit: string
       searchHitStrong: string
       searchHitText: string
+      ratingColors: string[]
     }
   }
   interface ThemeOptions {
@@ -38,6 +39,7 @@ declare module "@mui/material/styles" {
       searchHit?: string
       searchHitStrong?: string
       searchHitText?: string
+      ratingColors?: string[]
     }
   }
 }
@@ -75,7 +77,12 @@ export const createAppTheme = (
       searchHitStrong: isLight
         ? "rgba(99,102,241,0.55)"
         : "rgba(129,140,248,0.5)",
-      searchHitText: isLight ? "#4f46e5" : "#a5b4fc"
+      searchHitText: isLight ? "#4f46e5" : "#a5b4fc",
+      // Review rating colors (1 不认识 / 2 模糊 / 3 认识) — low-saturation,
+      // brighter in dark so they read on the dark surfaces.
+      ratingColors: isLight
+        ? ["#b2705a", "#b5945b", "#6f9476"]
+        : ["#c98a72", "#c9ad74", "#8bb28c"]
     },
     palette: {
       mode,
