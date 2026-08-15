@@ -1,245 +1,171 @@
 # lime — Agent Guide
 
+> 当前版本 **8.0.0**（2026-08）。本文件随 v8 实际架构对齐；与代码冲突时以代码为准。
+
 ## Stack
 
-- Chrome MV3 extension via **Plasmo v0.90.5** (TypeScript, React 18, MUI v7)
-- State: React hooks + IndexedDB (`fake-indexeddb` in tests)
-- No state manager, no router, no CSS modules (MUI Emotion)
-- Path alias `~` → repo root (tsconfig)
+- Chrome MV3 扩展，**Plasmo v0.90.5**（TypeScript、React 18、MUI v7）
+- PDF 引擎：**pdfjs-dist 4.3.136**（vendored，`assets/pdfjs/`，package.json `alias` 把 `pdfjs-dist` 指向 `./assets/pdfjs/pdf.mjs`；运行时 viewer 用 npm `pdfjs-dist/legacy/web/pdf_viewer.mjs`）+ **inklayer 引擎**（vendored，`src/pdf/inklayer/`，Konva 批注层）
+- 状态：React hooks + IndexedDB（测试用 fake-indexeddb）；无状态管理器/无路由/CSS Modules（MUI Emotion）
+- 路径别名：`~` → 仓库根，`@/*` → `src/pdf/inklayer/*`
 
 ## Commands
 
-| Command                  | Purpose                                                |
-| ------------------------ | ------------------------------------------------------ |
-| `pnpm run dev`           | Start Plasmo dev server with HMR                       |
-| `pnpm run build`         | Production build                                       |
-| `pnpm run package`       | Package for Chrome Web Store                           |
-| `pnpm test`              | Jest (ts-jest, jsdom)                                  |
-| `pnpm run test:coverage` | Jest with coverage                                     |
-| `pnpm run format`        | Prettier (no-semi, double-quotes, trailing-comma none) |
-| `pnpm run format:check`  | Prettier check (CI-friendly)                           |
-| `pnpm run test:watch`    | Jest watch mode                                        |
+| Command | Purpose |
+| --- | --- |
+| `pnpm run dev` | Plasmo dev 服务（HMR） |
+| `pnpm run build` | 生产构建（prebuild 跑 `scripts/copy-pdfjs-assets.mjs` 生成 `assets/pdfjs/`） |
+| `pnpm run package` | 打包 Chrome Web Store（`python3 scripts/package.py`；**先 build**，见版本流） |
+| `pnpm test` | Jest（ts-jest，jsdom） |
+| `pnpm run test:watch` / `test:coverage` | Jest watch / 覆盖率 |
+| `pnpm run lint` | ESLint（`--max-warnings 0`） |
+| `pnpm run format` / `format:check` | Prettier（no-semi, double-quotes, trailing-comma none） |
+
+构建后 `scripts/fix-empty-chunks.mjs` 自动把 `_empty.*.js` 改名（Chrome 拒绝 `_` 前缀文件）。
 
 ## Versioning
 
-SemVer `X.Y.Z`. `package.json` `version` is the single source — Plasmo writes it into `manifest.version`; never edit the manifest version anywhere else.
+SemVer `X.Y.Z`。`package.json` version 是唯一来源（Plasmo 写入 manifest）。当前 **8.0.0**。
+- MAJOR：用户数据或核心信息架构破坏（DB_VERSION / SyncPayload schema 迁移、导航模型替换、移除已有能力依赖的数据）
+- MINOR：向后兼容的新能力
+- PATCH：修复 / 打磨 / 文档
 
-- **MAJOR (X)** — user data or the core info architecture breaks: a `DB_VERSION` / SyncPayload schema change (migration required), replacing the navigation/organization model, or removing a capability existing data depends on. Current major is **2.0.0** (workspace rework).
-- **MINOR (Y)** — new backward-compatible capability (a feature milestone).
-- **PATCH (Z)** — bug fixes / polish / docs only.
-
-Chrome Web Store restriction: the manifest version must be dot-separated integers — **no `-beta` / `-rc` suffixes in the store version**. Pre-release info lives only in git tags / CHANGELOG.
-
-Release flow (always, in order): bump `package.json` → move the CHANGELOG "Unreleased" section into a versioned heading → git tag `vX.Y.Z` → push → **`pnpm run build` BEFORE `pnpm run package`** (the package script reuses the existing `build/` output — without a fresh build the zip ships the previous version's manifest) → create the GitHub release and attach `build/chrome-mv3-prod.zip`. Keep an "Unreleased" heading at the top of CHANGELOG during development.
+发布流（顺序固定）：bump version → CHANGELOG「Unreleased」→ 版本化标题 → git tag `vX.Y.Z` → push → **先 `pnpm run build` 再 `pnpm run package`**（package 复用 build/ 产物，不新构建会带上旧 manifest）→ GitHub release 附 `build/chrome-mv3-prod.zip`。开发期 CHANGELOG 顶部保留「Unreleased」。
 
 ## Entrypoints
 
-| File                              | Bundle                 | URL                     |
-| --------------------------------- | ---------------------- | ----------------------- |
-| `src/options.tsx`                 | Options page (main UI) | `options.html`          |
-| `src/background.ts`               | Service Worker         | background              |
-| `src/contents/capture.ts`         | Content script         | all `https?://*/*`      |
-| `src/contents/floating-panel.tsx` | Content script UI      | all `https?://*/*`      |
-| `src/tabs/new-project.tsx`        | Popup page             | `tabs/new-project.html` |
+| File | Bundle | URL |
+| --- | --- | --- |
+| `src/options.tsx` | Options 页（主 UI） | `options.html` |
+| `src/background.ts` | Service Worker | background |
+| `src/contents/capture.ts` | 内容脚本（网页捕获） | `https?://*/*` |
+| `src/contents/floating-panel.tsx` | 内容脚本 UI（悬浮球） | `https?://*/*` |
+| `src/contents/pdf-saver.tsx` | 内容脚本 UI（PDF 保存悬浮球） | `https?://*/*` |
+| `src/contents/formula.ts` | 内容脚本（公式识别） | `<all_urls>` |
+| `src/contents/mathFormats.ts` | 内容脚本（MathJax 解析） | `<all_urls>` |
 
-Plasmo v0.90+: custom popup pages go in `src/tabs/`, not `src/`.
+`src/tabs/` 当前为空（pdf-poc 已删）。无 popup 页。
 
 ## Project Structure
 
 ```
 src/
-  components/       # MUI components
-  hooks/            # useProjects, useReview, useSrs, useBackupSync, useNewCard, useCardDragReorder
-  database/         # IndexedDB via withStore() + tx() wrappers
+  components/       # MUI 组件（含 PdfEngineView = PDF 阅读区）
+  hooks/            # useAppData/useWorkspaceView/useProjectsView/useReviewView/useBackupView/useTodoView/usePdfSearch/usePdfDocument/useSrs/useCardDragReorder/usePanelDragResize ...
+  database/         # IndexedDB via withStore()/tx()
   types/            # ProjectCard/PdfCard/TodoCard, Project, ReviewEntry, SearchQuery, ExtensionMessage
-  contents/         # content script entry (not src/content-scripts/)
-  background/       # SW-only: context menus (menus.ts)
-  import/           # ZIP/JSON import
-  utils/            # sync, zip, crypto
+  contents/         # 内容脚本（capture/floating-panel/pdf-saver/formula/mathFormats）
+  background.ts     # SW 单文件（捕获落库、WebDAV 代理、PDF 保存、badge 更新）
+  import/           # ZIP/JSON 导入
+  utils/            # sync/zip/crypto/cards/export
   theme/            # MUI createAppTheme(light|dark, preset)
-  test/             # setup.ts (polyfills + chrome.* mocks)
+  pdf/inklayer/     # vendored 标注引擎（pdfjs viewer + Konva），已裁剪掉未使用的 features/components
+  test/             # setup.ts + mocks
 ```
 
 ## Database (IndexedDB)
 
-- `withStore(name, mode, fn)` — opens/closes DB, auto-broadcasts changes
-- `tx(storeMap, fn)` — multi-store atomic transaction across the card/project stores
-- Active stores (v12): `projectCards`, `pdfCards`, `todos`, `projects`, `reviews`, `pdfs`, `pdfAnnotations` (the old monolithic `items` was split into the three typed card stores)
-- Card types: `ProjectCard` (projectId/sectionId/order/content), `PdfCard` (pdfId/page/annotationId/pdfOrder/content/idea), `TodoCard` (dueDate/content); a placed PDF card is TWO records — a `pdfCard` source + a `projectCard` placement with mutual references (`pdfCardId` ↔ `projectCardId`, 1:1). The placement carries NO content (resolved via the pdfCard at render/search); `stripPlacementContent()` guards every write.
-- Any `readwrite` transaction auto-broadcasts: `projectCards`/`todos` → `_dbi`, `pdfCards`/`pdfs`/`pdfAnnotations` → `_dbpdf`, `projects` → `_dbp`, `reviews` → `_dbr`
-- All contexts listen to `chrome.storage.onChanged` for these keys — no manual notify
-- ProjectCard dedup: same `hash` + `source.url` within same `projectId` skips insert (`addProjectCard` returns false); placements + todos are identity-unique (`skipDedup`)
-- `searchProjectCards(q)` — filters by keyword/type/site/projectId/date; placed cards' keyword matches resolve the linked pdfCard's content/idea
-- `bulkReplace(remoteProjectCards, remotePdfCards, remoteTodos, remoteProjects, remoteReviews, localProjectCards, localPdfCards, localTodos, localProjects, localReviews)` — diff-based sync in single atomic tx: upsert remote, delete local-not-in-remote
+- `withStore(name, mode, fn)` — 打开/关闭 DB，readwrite 事务完成自动广播
+- `tx(storeMap, fn)` — 跨 store 原子事务
+- **DB_VERSION = 12**。Stores：`projectCards`, `pdfCards`, `todos`, `projects`, `reviews`, `pdfs`, `pdfAnnotations`
+- 卡片类型：`ProjectCard`（projectId/sectionId/order/content）、`PdfCard`（pdfId/page/annotationId/pdfOrder/content/idea）、`TodoCard`（dueDate/content，全局跨项目，identity-unique）
+- **placed PDF 卡 = 两条记录**：`pdfCard` 源 + `projectCard` 置入（互指 `pdfCardId` ↔ `projectCardId`，1:1）；置入记录 **不含 content**（渲染/搜索时经 pdfCard 解析）；`stripPlacementContent()` 守卫所有写入
+- 广播键：`projectCards`/`todos` → `_dbi`，`pdfCards`/`pdfs`/`pdfAnnotations` → `_dbpdf`，`projects` → `_dbp`，`reviews` → `_dbr`；`pdfs` 元数据写（rename/topic）→ `_dbpdfTouch`
+- ProjectCard 去重：同 `hash` + `source.url` 同 projectId 跳过（`addProjectCard` 返回 false）；placements/todos identity-unique
+- `searchProjectCards(q)` — keyword/type/site/projectId/date 过滤；placed 卡命中解析关联 pdfCard 内容
+- `bulkReplace(...)` — 同步用 diff 原子替换
+- **迁移必须用已打开的 db 连接**（`db.transaction`），禁用 `withStore`/`tx`（会重开 DB 重触发迁移 → 无限递归）
 
 ## Messaging
 
-Typed discriminated union `ExtensionMessage` (`src/types/messages.ts`):
+类型化判别联合 `ExtensionMessage`（`src/types/messages.ts`），一律 `sendMessage()`：
 
-```ts
-sendMessage({ kind: "capture", payload: {...} })  // → background SW
-sendMessage({ kind: "webdav", ... })               // proxied through SW (avoids Chrome auth dialog)
-sendMessage({ kind: "list-projects" })             // → SW reads projects store
-sendMessage({ kind: "add-project", name })         // → SW creates project
-sendMessage({ kind: "capture-visible-tab" })       // → SW returns tab screenshot dataURL
-sendMessage({ kind: "set-recent-project", ... })   // update lastOpened
-```
+Kinds：`capture`（→SW 落库）、`toast`（SW→tab）、`webdav`（SW 代理，避免 Chrome 原生 auth 弹窗）、`set-recent-project`、`list-projects`、`add-project`、`capture-visible-tab`（SW 返回 tab 截图 dataURL）、`fetch-pdf`（SW 拉远程 PDF）、`save-web-pdf`（pdf-saver → SW 存 PDF）。
 
-Kinds: `capture`, `toast` (SW→tab), `webdav`, `save-feedback` (SW→tab), `set-recent-project`, `list-projects`, `add-project`, `capture-visible-tab`. Always use `sendMessage()` — never raw `chrome.runtime.sendMessage`.
+## Workspace & Navigation
 
-## Workspace & Navigation (v1.11)
+三栏布局：**NavRail | Sidebar | Main**。
+- **NavRail**：~52px 左栏，三视图按钮（项目/间隔复习/备份与同步，复习带到期数 badge）+ 底部设置齿轮。点视图即开侧栏；AppHeader 是唯一开/关侧栏控制。
+- **Sidebar**：可拖宽（宽度存 `_uiNav`）。项目 tab 注入 `ProjectTree` + 新建项目/稍后阅读行；PDF tab = PDF 库 + 打开本地 PDF/URL；复习/备份 tab 各自内容。
+- **Main**：单项目视图（面包屑 项目/L1/L2，L1 聚合其 L2）；搜索覆盖全项目卡（有项目时）或项目名（hub 模式）。
 
-Layout is three columns: **NavRail | Sidebar | Main**.
+**ProjectTree**：项目 recent-first（活跃置顶），默认 ~7 个 +「全部项目 (N)」展开；L1/L2 分区树节点带计数 + 未分类；行操作：项目 `＋`/`⋯`（重命名/备注/删除）、L1 `＋`/`⋯`、L2 `⋯`；L1/L2 增删改走 `useProjects`。分区拖拽仅限同父兄弟。
 
-- **NavRail** (`src/components/NavRail.tsx`) — leftmost ~52px rail, always visible. Vertical stack of the three view buttons (项目/复习/备份; review carries a due-count badge); the settings gear is pinned at the bottom. Clicking a view also opens the sidebar. The old in-sidebar nav icons and the sidebar's own close button are gone — the AppHeader toggle is the single open/close control.
-- **Sidebar** (`SidebarFilters.tsx`) — resizable drawer (width persisted in `_uiNav`). Top row = current view title. The projects-tab body is injected as `children` (the `ProjectTree`), followed by 新建项目 and 稍后阅读 rows. Review/backup tabs unchanged.
-- **Main** — content only.
+**ProjectHub**：无打开项目时，Main 显示项目瓦片网格（新建项目虚线瓦片），按 lastOpened 排序；hub 模式顶部搜索过滤项目名/备注。
 
-**ProjectTree** (`src/components/ProjectTree.tsx`):
+**ItemDialog**：◀▶ 视图感知 prev/next（`scopeItems`/`allItems`/`filteredDateItems`）+ 类型图标 + serif 标题 + 编辑/复制/关闭；`←`/`→` 导航，输入/textarea/select 目标跳过。
 
-- Projects are recent-first (active pinned); the top ~7 show by default with a "全部项目 (N)" toggle; each project renders as a subtle card well.
-- Sections (level 1/2) are tree nodes with per-section card counts and an 未分类 node.
-- Row actions: project `＋` (add L1) + `⋯` menu (重命名/编辑备注/删除); L1 `＋` (add L2) + `⋯` menu (重命名/删除); L2 has `⋯` only. Adding/renaming use inline inputs.
-- Section drag reorders among **same-parent siblings only** (before/after lines); reparent is intentionally disabled.
-- Section CRUD goes through `useProjects` handlers. Tree state (expanded set, per-project active section, sidebar width) persists in `chrome.storage.local` under `_uiNav`.
+**卡片拖拽**（`useCardDragReorder`）：pointer 事件自定义拖拽（非 HTML5），`⋮⋮` 把手为唯一拖源，6px 阈值启动，ghost 跟随，`elementFromPoint` 命中 `[data-card-id]`，同 section 内；「放到末尾」虚线区；CardGrid FLIP 动画。`computeDropIndex`（utils）为纯函数。
 
-**ProjectHub** (`src/components/ProjectHub.tsx`):
+## PDF 阅读模块
 
-- With no project open, the main area shows a responsive grid of project tiles (initial avatar, serif title, note, card count, relative last-opened) plus a dashed 新建项目 tile, sorted by lastOpened.
-- In hub mode the top search filters **projects** by name/note. Projects are strictly isolated (the process/address-space model) — there is no cross-project card search, and the card search is gated off while no project is open.
+- **视图**：`PdfEngineView`（inklayer PdfViewerProvider + EngineBridge + 我们自己的 MUI 工具栏/选区工具条/搜索侧栏）+ `usePdfDocument`（加载/outline/搜索用 doc）。PDF 存储在 `pdfs` store（bytes），placeholder（未同步 bytes）需打开本地文件匹配批注。
+- **cMap 对齐（R2）**：引擎与搜索两侧 `getDocument` 必须传 `cMapUrl/cMapPacked/standardFontDataUrl`（`usePdfViewer` 的 `createLoadingTask` + `usePdfDocument`）——CID 字体（非嵌入 GBK 中文）缺 cMap 时文本层为空。改参数必须两侧同步。
+- **选区/搜索高亮（R3-REV）**：自绘 line-bridging overlay。原生绘制（::selection / CSS Highlight API）按绝对定位逐词 span 逐块绘制、不桥接词间距 → justify 大间距必断。`pdfText.highlightRectsForOffsets`：char offset → 覆盖 leaf span 子 range（`rangeForLocal` 穿透 `<mark>`）→ 按 em 盒分线 → 每线合并 [minX,maxX] 一个连续块；选区（`textLayerOffsets`）与搜索（`searchFlash` offsets）同一管线、各自独立 overlay div。
+- **批注几何（R4）**：`mergeRectsByLine`（`painter/editor/merge_rects.ts`）行级桥接合并；只影响新建批注。批注裁剪图三字段不变量（rects/path/paths/konvaString，见 `pdfRegionImage.ts`）。
+- **pdf.js 依赖**：worker 用 Blob URL（`utils/pdfWorker.ts` ensurePdfWorker）——chrome-extension:// worker URL 会触发 fake-worker 的 require 崩溃。所有 `getDocument` 前必须 await。
+- **fixture 验证**：`test/fixtures/pdf/`（CID-GBK/justify-连字/markedContent）+ `diag.mjs`；真实浏览器验证用 playwright（devDep）+ `/tmp/opencode/pdf-harness`。
 
-**Main area**:
+## Removed / Not-Present
 
-- Single-section view: clickable breadcrumb `项目 / L1 / L2` (clicking a parent segment navigates up; project root = all cards). L1 selection aggregates its L2 descendant cards. Cards cannot change project or section after creation — they stay where they were created.
-- New cards default into the active section (`useNewCard`); a dashed 新建卡片 tile sits at the masonry's next slot (about 2× card height).
-- Search/date override to flat results; the reading list is a separate cross-project queue.
-
-**ItemDialog**:
-
-- Header: `◀▶` view-aware prev/next (`scopeItems` in the section view, `allItems` for search hits, `filteredDateItems` in the review-date view) + type icon + serif title + edit/copy/close.
-- `←`/`→` arrow keys navigate cards; input/textarea/select targets are skipped so edit-mode cursor movement is safe, and navigation is gated on hasPrev/hasNext.
-
-**Card drag** (`src/hooks/useCardDragReorder.ts`): pointer-event custom drag — **not** HTML5 DnD. The `⋮⋮` grip is the only drag source; a 6px movement threshold arms the drag; a ghost clone follows the cursor; drop targets are hit-tested via `elementFromPoint` on `[data-card-id]`. Same-section only; a "放到末尾" dashed zone appends to the section's end; CardGrid FLIP-animates the reorder. `computeDropIndex` (in `utils`) is the pure insertion-index function with unit tests.
-
-**Removed features (v1.11)**: move-to-section and move-to-project were removed. Copy-to-project remains (`CopyCardsDialog`, renamed from `MoveCopyCards`). The `updateItemSection` DB function was deleted.
+- 网页标注/回跳、复习热力图、PDF 删除传播（下载不删本地）、Anki/Notion 导出、wikilink、跨项目搜索 —— 设计上拒绝/推迟
+- inklayer 自带 Toolbar/Sidebar/features 页面 —— 未使用已裁剪；`src/pdf/inklayer/index.ts` barrel 已删
+- EmbedPDF/PDFium PoC（`pdf-poc`）—— 已废弃删除
 
 ## CRITICAL Constraints
 
-1. **Background SW has NO DOM APIs** — no `window`, `document`, `alert`, `prompt`, `confirm`. They throw `ReferenceError`.
-2. **Right-click saves** (contextMenus.onClicked) cannot compute CSS selectors — `Item.source.selector` is absent. Highlight-based features cannot work for right-click saves.
-3. **Project names must be unique** — enforced by `projects` store unique index.
-4. **No `window.confirm`** — use MUI `DeleteConfirmDialog` instead.
-5. **WebDAV Basic auth** must proxy through background SW (`kind: "webdav"`) to avoid Chrome's native auth dialog.
-6. **MV3 extension_pages CSP defaults to `'self'`** — external resources (images, fonts, styles) need explicit `*-src` declarations in `package.json` `manifest.csp` (already configured: `img-src` https/data/blob, fonts+styles via cdn.jsdelivr). New external assets won't load until CSP is extended.
+1. **Background SW 无 DOM API**（无 window/document/alert/prompt/confirm）—— ReferenceError。
+2. **右键保存无法算 CSS selector**——`Item.source.selector` 缺失，高亮类功能对右键保存无效。
+3. **项目名唯一**——`projects` store 唯一索引。
+4. **无 `window.confirm`**——用 MUI `DeleteConfirmDialog`。
+5. **WebDAV Basic auth 必须经 SW 代理**（`kind: "webdav"`）。
+6. **MV3 extension_pages CSP 默认 `'self'`**——外部资源需 `*-src`（已配 jsdelivr；新外部资源要扩展 CSP）。
+7. **DB 迁移用已开连接**（见 Database 节）。
 
 ## Key Conventions
 
-- New UI regions → new file in `src/components/`, not inline in `options.tsx`
-- State mgmt stays in `options.tsx` (composition root); child components get data + callbacks via props
-- New MUI Dialogs → extend `DialogShell` template (consistent borderRadius, title fontSize, cancel/confirm layout)
-- Empty states → `EmptyState` component (not inline Box/Typography)
-- Card content rendering → `CardRenderer` with `mode` prop (`preview`|`front`|`back`|`full`)
-- Backup export → `useBackupSync.handleExportBackup` (ZIP via `utils/zip.ts`, `export.json` inside), triggered from SidebarFilters
-- Card creation → `createProjectCard`/`createPdfCard`/`createTodoCard` factories in `utils` (single id/field source; DB auto-assigns order)
-- Mixed cards (text+images) → `ProjectCard.images: string[]`; `computeItemHash` takes images as optional 3rd param; UI entry is `NewCardDialog` (URL paste) + `ItemDialog`→`DialogEditMode`; shared `ImageUrlInput` component
-- `refreshAllData()` wraps `loadProjects()` + `onSearch()` — call for import/sync-download operations
-- `~` path alias maps to root (used in imports as `~/src/...`)
-- Card drag-reorder → `useCardDragReorder` (pointer events, same-section only); never use HTML5 `draggable` for cards
-- Projects are strictly isolated: no cross-project card search (hub search filters projects by name/note); new cards default into the active section via `useNewCard`
+- 新 UI 区域 → `src/components/` 新文件；状态留在 `options.tsx`（组合根），子组件经 props 拿数据+回调
+- Dialog → `DialogShell` 模板；空态 → `EmptyState`；操作栏 → `BatchToolbar`；虚线瓦片 → `DashedTile`
+- 卡片渲染 → `CardRenderer`（mode: preview/front/back/full）
+- 备份导出 → `useBackupSync.handleExportBackup`（ZIP，`export.json` 内置）
+- 卡片创建 → `createProjectCard`/`createPdfCard`/`createTodoCard` 工厂（utils；DB 自分配 order）
+- 混合卡片（文本+图）→ `ProjectCard.images: string[]`；`computeItemHash` 第三参
+- `refreshAllData()` = `loadProjects()` + `onSearch()`；导入/同步下载后调用
+- 批注↔卡片 1:1 联动（创建原子、删除级联）；`stripPlacementContent` 守卫
+- `sendMessage` 替代裸 `chrome.runtime.sendMessage`
+- UI 一致性 / token 档位 / 代码审查清单 → `docs/design-standard.md` + AGENTS 底部基线
 
 ## UI 一致性（防风格割裂）
 
-> 数值基准（icon/按钮尺寸、token 档位、状态反馈、文案规范）与完整组件复用清单见 **`docs/design-standard.md`**——新功能先查组件清单，非必要不自定义。
+> 数值基准与组件复用清单见 **`docs/design-standard.md`**。
 
-**复用优先**（新 UI 必须复用，禁止手写 inline）：
-- 空态 → `EmptyState`；弹窗 → `DialogShell`；操作栏 → `BatchToolbar`（可配置 actions + countLabel）
-- 侧栏列表行 → 轻量行模式（active = `action.selected` + `primary.main` 文字，hover = `action.hover`）——**禁止用 MUI `Button outlined/contained` 做筛选行**
-- 瓦片/虚线瓦片 → 复用 `ProjectHub`/`PdfHub` 的 Paper 卡片 + `1.5px dashed borderStrong` 虚线
-- 卡片 hover → `cardShadowHover` + `translateY(-1px)` + `borderStrong`；hover 操作渐显 `opacity 0.15s`，破坏性操作常显
-- 类型/状态指示 → 色点 + 标签（复用 `RATING_META`/`MARK_DOT`），不另造样式
-
-**Token 档位**：
-- 圆角：卡片/按钮/瓦片/chip 一律 `1`（不自定义 0.5/0.75）
-- 过渡：hover `0.2s ease`；入场/页面切换 `0.25s ease-out`；micro 动效 `0.15s`
-- 硬编码 hex 仅限例外：PDF 纸张 `#fff`/`#f0efec`、浮动面板主题、批注色（`pdfTheme`）——其余一律用 `t.custom.*`/palette
-
-**UI Review 准则**（每次 UI review 按六条基准线执行，P1 割裂 → P2 不一致 → P3 可选）：
-
-1. **Token 档位**：`borderRadius` 一律 `1`；过渡只用三档（hover `0.2s ease` / 入场 `0.25s ease-out` / micro `0.15s`）；阴影只用 `cardShadow`/`cardShadowHover`——`0.5/1.5/2/4` 圆角、`0.3s/0.35s/cubic-bezier` 过渡、原始 `boxShadow: N` elevation 都是违规
-2. **颜色语义**：只用 `t.custom.*`/palette；primary 只在 active/hover/link（不用作静态数字/默认强调色）；hover 操作渐显 + 破坏性常显
-3. **间距节奏**：同层级表面 `px/py` 一致；分割线缩进/Y 轴统一；卡片 hover = `cardShadowHover` + `translateY(-1px)` + `borderStrong`
-4. **文字排版**：serif（阅读体）/ sans（UI chrome）栈；同角色字号一致（次要文字统一 `0.75rem`，标题 600/700 不混）
-5. **状态反馈**：激活行 = `action.selected` 底 + `primary.main` 文字；hover = `action.hover`；选中 = primary 边框 + tint
-6. **复用遵守**：空态 → `EmptyState`；弹窗 → `DialogShell`；操作栏 → `BatchToolbar`；虚线瓦片 → `DashedTile`；Well/OriginalBlock 抽共享组件；菜单纸面统一 `slotProps { py: 0.5, borderRadius: 1 }`；筛选行禁止 `Button outlined/contained`；UI 控件用 MUI 图标（禁 `✎`/`◀▶` 字形）
-
-**例外清单**（刻意保留，不视为违规）：PDF 纸张/浮动面板/批注色；窄侧栏空态（260px 内用内联 caption 而非 EmptyState）；复习统计卡（`ReviewEmptyStats` 自定义卡面）；TodoCard 任务添加行的 `1px dashed`。
-
-## Code Review Checklist
-
-每次 code review 按以下维度执行（P1 阻断 → P2 → P3），**追踪完整数据流而非孤立看文件**。
-
-### P1 · 正确性与数据安全
-- [ ] 逻辑错误 / 边界：off-by-one、空值、并发/竞态、状态陈旧
-- [ ] 数据丢失风险：迁移/导入/同步路径是否会丢数据；事务是否原子
-- [ ] 异常处理：失败是否捕获 + console 有具体原因（不裸报错）
-- [ ] 安全：用户 markdown 无 dangerouslySetInnerHTML（除 KaTeX 转义输出）；凭据只在 chrome.storage.sync；CSP 覆盖外部资源
-
-### P2 · 分层职责 + 数据流 + 边界
-- [ ] 职责归属：逻辑是否在正确层（DB 负责 order 等持久化规则；utils 纯函数；组件渲染；业务在 hooks）
-- [ ] 广播链路：热写路径是否触发 `refreshAllData`（应定向广播 `_dbi`/`_dbp`/`_dbr`/`_dbpdf` + 轻量重载）
-- [ ] 状态一致性：无陈旧/重复状态；关闭/清理是否清干净（如 pdfOutline）
-- [ ] 卸载/取消竞态：document 监听器泄漏、setState-on-unmounted、异步取消（AbortController、pdf.js 取消异常）
-
-### P3 · 重复 / 可维护 / UX
-- [ ] 重复维护：同逻辑多处（抽 utils/组件）；死代码、console.debug、未用导出
-- [ ] 组件内聚：组件职责单一，过大组件考虑拆分（如 FloatingPanel）
-- [ ] UI 一致性：复用清单（EmptyState/DialogShell/BatchToolbar/Well/轻量行/瓦片）+ token 档位；无硬编码样式
-
-### 跨 bundle / 数据兼容（本项目的特殊维度）
-- [ ] 数据兼容：DB_VERSION 迁移、SyncPayload 版本门控、导入导出往返（spread 校验，新字段存活）
-- [ ] 跨 bundle：background 无 DOM；content script 注入时机（MV3 更新不重注入）；options 组合根
-- [ ] 批注↔卡片 1:1：改一边必须联动另一边（创建原子、删除级联、类型改只影响 overlay）
-
-### 导入 / 导出 / 同步 正确性（数据往返三链路）
-任何数据模型 / 字段语义改动，必须三链路全查：
-- [ ] 导出 `toJsonZip`：新字段 / 改字段是否序列化存活（type-agnostic，无白名单遗漏）
-- [ ] 导入 `jsonImport`：`validateItem`/`validateReview`/`validatePdfAnnotation` 的 spread + key 校验是否放行新字段；id 语义变更（如 contentHash）是否需重映射（导出 id → 实际 id）
-- [ ] 同步：SyncPayload 序列化 + 哈希覆盖新字段；`bulkReplace`/`applyPdfSync` 的 upsert/删除是否跟随；跨设备 id 稳定性
-- [ ] 往返测试：导出 → 清空 → 导入，新字段存活；字段值语义变化（如 annotation.type）不破坏往返
-- [ ] 三链路共享不变式：注解 ↔ 卡片 1:1、pdfId 一致性、删除级联在导入/同步后仍成立
-
-### 方法论
-- 功能失效时从用户动作 → 持久化 → 反馈全链路追踪（框架边界常是根因）
-- 验证真实构建行为（dev 构建 vs 打包可能分叉）
-- 按 P1/P2/P3 排序，一次修复一个批次；共享组件改动检查所有调用点（可选 prop 默认不变）
+- 圆角一律 `1`；过渡三档（hover `0.2s ease` / 入场 `0.25s ease-out` / micro `0.15s`）；阴影仅 `cardShadow`/`cardShadowHover`
+- 颜色只用 `t.custom.*`/palette；primary 只在 active/hover/link；hover 操作渐显 + 破坏性常显
+- 激活行 = `action.selected` 底 + `primary.main` 文字；hover = `action.hover`；选中 = primary 边框 + tint
+- 复用：EmptyState/DialogShell/BatchToolbar/DashedTile/轻量筛选行；菜单纸面 `slotProps { py: 0.5, borderRadius: 1 }`
+- 例外（刻意保留）：PDF 纸张/浮动面板/批注色；窄侧栏内联 caption；复习统计卡；TodoCard 任务添加行虚线
 
 ## Review (SRS)
 
-- SM-2-style algorithm: starting ease 2.5, min 1.3, max interval 365 days
-- **Three levels** (v2.3): `1=不认识` (fail, relearn immediately), `2=模糊` (slow ×1.3), `3=认识` (×1.6); legacy `4` reads as 认识. First-review baselines: 模糊 1d / 认识 2d
-- **Strict first-rating-of-the-day**: only the day's FIRST rating writes the schedule; same-day re-ratings are practice — a re-pass moves the failure's dueDate to tomorrow, a re-fail keeps the session loop. Detection via `reviewHistory` dayKey + session `firstSrsRef`
-- Review data stored in separate `reviews` store (ReviewEntry with itemId unique index)
-- Card must have `ProjectCard.title` before it can be added to review
-- `rateSrs(srs, 1|2|3|4)` — pure function applying the algorithm to SrsData; `defaultSrs()` exports a fresh entry
-- `updateReviewSrs(itemId, srs)` — persists rating; auto-promotes to `mastered` at interval ≥ 365 (never demotes — known gap)
-- Get due cards via `getDueReviews()` (dueDate index query, active status only)
-- **Session queue is local & O(1)**: each rating updates the in-memory queue (pass → drop, fail → requeue to end); progress is absolute (剩余/已评/通过/重试); `getDueReviews` runs only at session start / queue-empty / re-entry. No prev/next
-- Reviews writes broadcast `_dbr` (not `_dbi`) — options/background do targeted review reloads, never `refreshAllData`
-- `getRecentItems` groups by `reviewHistory` per day (a multi-day card appears each day), not by `lastReviewDate`
-- Entering review tab auto-loads due cards; leaving discards session state
+- SM-2 变体：起始 ease 2.5，min 1.3，max 365 天
+- **三级评分（v2.3）**：`1=不认识`（立即重学）、`2=模糊`（×1.3）、`3=认识`（×1.6）；旧 `4` 按认识读。首评基线：模糊 1d / 认识 2d
+- **每日首次评分锁定计划**：只有当天第一次评分写计划；同日重评为练习（重过 → 失败项到期日移明天；重败 → 保持会话循环）。检测经 `reviewHistory` dayKey + 会话 `firstSrsRef`
+- `reviews` store（ReviewEntry，itemId 唯一索引）；卡须有 `ProjectCard.title` 才能进复习
+- `rateSrs(srs, 1|2|3|4)` 纯函数；`defaultSrs()` 新条目；`updateReviewSrs` 持久化，interval≥365 自动 promoted
+- `getDueReviews()`（dueDate 索引，active 仅）；**会话队列本地 O(1)**：评级只改内存队列（过→出队、败→队尾），进度显示剩余/已评/通过/重试；`getDueReviews` 仅会话开始/队空/重入时跑
+- reviews 写广播 `_dbr`（非 `_dbi`）；options/background 定向复习重载，不 `refreshAllData`
 
 ## Sync
 
-- WebDAV provider: `https://dav.jianguoyun.com/dav/Apps/lime/lime-sync.json`
-- Credentials in `chrome.storage.sync` (`syncUsername`, `syncPassword`)
-- Conflict: SHA-256 hash comparison → user chooses upload/download (no auto-tiebreaker)
-- SyncPayload v3 includes items, projects, and reviews (with stable id-sort for hash)
-- `buildPayload(items, projects, reviews)` sorts all arrays by id before hashing
-- Context menu project/recent lists rebuild automatically when background SW sees `chrome.storage.onChanged` on `_dbp` (no message kind for this)
+- WebDAV provider：`https://dav.jianguoyun.com/dav/Apps/lime/lime-sync.json`；凭据在 `chrome.storage.sync`（`syncUsername`/`syncPassword`）
+- 冲突：SHA-256 内容哈希对比 → 用户选上传/下载（无自动仲裁）
+- **SyncPayload v6**（2026-08）：单 JSON（projectCards/pdfCards/todos/projects/reviews/pdfs 元数据/pdfAnnotations）+ **多文件图片层**（`/Apps/lime/images/<contentHash>.png`，payload `images` 映射）+ **PDF 文件层**（`/pdfs/<id>.pdf`）。上传 uploadImageFiles/uploadPdfFiles + prune 孤儿；下载 downloadImageFiles/downloadPdfFiles + hydratePayloadImages。版本门控 v3-v6（v5 内联图片透传读兼容）。哈希覆盖全部数组（稳定 id 排序）
+- `hasChangesSince`（广播戳 vs lastSyncTime）跳「无变化」；force 同步清零 lastSyncTime
+- `toJsonZip`/`jsonImport` 数据往返：spread + key 校验放行新字段；id 语义变更需重映射
 
 ## Testing
 
-- `fake-indexeddb` auto-polyfilled in test setup
-- Chrome API mocked (`chrome.runtime`, `chrome.storage.local`)
-- Tests in `src/database/index.test.ts`, `src/utils/index.test.ts`, and `src/import/jsonImport.test.ts`
-- Run: `pnpm test` (or focused: `pnpm exec jest --no-coverage src/path/to/test`)
+- `fake-indexeddb` 自动 polyfill；Chrome API mock（`src/test/setup.ts` + mocks）
+- 测试文件：`src/database/index.test.ts`、`src/components/pdfText.test.ts`、`src/components/MarkdownEditor.test.ts`、`src/utils/*.test.ts`、`src/import/jsonImport.test.ts`、`src/contents/formula.test.ts`、`src/pdf/inklayer/.../merge_rects.test.ts`
+- 测试 fixtures（PDF 选区/搜索诊断）：`test/fixtures/pdf/`；`pnpm exec jest --no-coverage <path>`
+- 真实浏览器渲染验证（pdf.js 文本层/高亮）：playwright + `/tmp/opencode/pdf-harness`
