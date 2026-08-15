@@ -1,4 +1,4 @@
-import { Annotation, QuadPoint } from 'pdfjs'
+import type { Annotation, QuadPoint } from 'pdfjs'
 import type { PDFViewer } from 'pdfjs-dist/types/web/pdf_viewer'
 import { IAnnotationComment, IAnnotationStore, PdfjsAnnotationType } from '../../const/definitions'
 

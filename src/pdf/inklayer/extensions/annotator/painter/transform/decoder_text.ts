@@ -1,4 +1,4 @@
-import { Annotation, TextAnnotation } from 'pdfjs'
+import type { Annotation, TextAnnotation } from 'pdfjs'
 import { Decoder, IDecoderOptions } from './decoder'
 import Konva from 'konva'
 import { SHAPE_GROUP_NAME } from '../const'

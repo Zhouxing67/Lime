@@ -10,7 +10,7 @@ import { PolylineDecoder } from './decoder_polyline'
 import { TextDecoder } from './decoder_text'
 import { InkLayerFreeTextDecoder } from './decoder_inklayer_freetext'
 import { PDFViewer } from 'pdfjs-dist/types/web/pdf_viewer'
-import { Annotation } from 'pdfjs'
+import type { Annotation } from 'pdfjs'
 import {
     PDFArray,
     PDFDict,

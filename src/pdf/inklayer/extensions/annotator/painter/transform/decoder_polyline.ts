@@ -1,4 +1,4 @@
-import { Annotation, PolyLineAnnotation, Vertices } from 'pdfjs'
+import type { Annotation, PolyLineAnnotation, Vertices } from 'pdfjs'
 import { Decoder, IDecoderOptions } from './decoder'
 import Konva from 'konva'
 import { SHAPE_GROUP_NAME } from '../const'

@@ -1,4 +1,4 @@
-import { Annotation, HighlightAnnotation, QuadPoint, StrikeOutAnnotation, UnderlineAnnotation } from 'pdfjs'
+import type { Annotation, HighlightAnnotation, QuadPoint, StrikeOutAnnotation, UnderlineAnnotation } from 'pdfjs'
 import { Decoder, IDecoderOptions } from './decoder'
 import Konva from 'konva'
 import { SHAPE_GROUP_NAME } from '../const'
