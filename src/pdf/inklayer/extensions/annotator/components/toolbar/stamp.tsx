@@ -569,6 +569,7 @@ const StampTool: React.FC<SignatureToolProps> = ({ annotation, disabled = false,
                                     <Text size="2">{t('annotator:editor.stamp.fontStyle')}</Text>
                                     <div className={styles.formItem}>
                                         
+                                        {/* @ts-expect-error radix v3.2.1 type nuance (stamp stripped in Phase 3) */}
                                         <CheckboxGroup.Root
                                             value={formValues.fontStyle}
                                             onValueChange={(values: string[]) => handleFieldChange('fontStyle', values)}
@@ -629,6 +630,7 @@ const StampTool: React.FC<SignatureToolProps> = ({ annotation, disabled = false,
                                     <Text size="2">{t('annotator:editor.stamp.timestampText')}</Text>
                                     <div className={styles.formItem}>
                                         
+                                        {/* @ts-expect-error radix v3.2.1 type nuance (stamp stripped in Phase 3) */}
                                         <CheckboxGroup.Root
                                             value={formValues.timestamp}
                                             onValueChange={(values: string[]) => handleFieldChange('timestamp', values)}

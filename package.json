@@ -21,21 +21,9 @@
   "alias": {
     "pdfjs-dist/web/pdf_viewer.mjs": "./assets/pdfjs/pdf_viewer.mjs",
     "pdfjs-dist": "./assets/pdfjs/pdf.mjs",
-    "@/*": "./src/pdf/inklayer/*",
-    "@embedpdf/pdfium": "./assets/pdfium/pdfium.js"
+    "@/*": "./src/pdf/inklayer/*"
   },
   "dependencies": {
-    "@embedpdf/core": "^2.15.0",
-    "@embedpdf/pdfium": "^2.15.0",
-    "@embedpdf/plugin-annotation": "^2.15.0",
-    "@embedpdf/plugin-document-manager": "^2.15.0",
-    "@embedpdf/plugin-interaction-manager": "^2.15.0",
-    "@embedpdf/plugin-render": "^2.15.0",
-    "@embedpdf/plugin-scroll": "^2.15.0",
-    "@embedpdf/plugin-search": "^2.15.0",
-    "@embedpdf/plugin-selection": "^2.15.0",
-    "@embedpdf/plugin-viewport": "^2.15.0",
-    "@embedpdf/plugin-zoom": "^2.15.0",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
     "@floating-ui/dom": "^1.8.0",
@@ -108,13 +96,12 @@
       "default_title": "lime"
     },
     "content_security_policy": {
-      "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; img-src 'self' https: data: blob:; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://cdn.jsdelivr.net"
+      "extension_pages": "script-src 'self'; object-src 'self'; img-src 'self' https: data: blob:; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://cdn.jsdelivr.net"
     },
     "web_accessible_resources": [
       {
         "resources": [
-          "assets/pdfjs/**",
-          "assets/pdfium/**"
+          "assets/pdfjs/**"
         ],
         "matches": [
           "<all_urls>"
