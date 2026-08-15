@@ -821,47 +821,6 @@ function EngineBridge({
     for (let i = 0; i < matches.length; i++) {
       const range = offsetsToRange(textLayer, matches[i].start, matches[i].end)
       if (!range) continue
-      if (!(window as any).__limeSearchDiag && i === 0) {
-        ;(window as any).__limeSearchDiag = true
-        const raw = Array.from(range.getClientRects()).map((r) => ({
-          x: Math.round(r.left),
-          y: Math.round(r.top),
-          w: Math.round(r.width),
-          h: Math.round(r.height)
-        }))
-        const snapped = snappedRectsForRange(page, range)
-        console.log(
-          "[pdf] search diag:",
-          JSON.stringify({
-            match: matches[i],
-            rangeText: range.toString().slice(0, 60),
-            raw,
-            snapped: snapped.map((r) => ({
-              x: Math.round(r.x),
-              y: Math.round(r.y),
-              w: Math.round(r.w),
-              h: Math.round(r.h)
-            })),
-            spanBox: (() => {
-              const el = document.elementFromPoint(
-                (raw[0]?.x ?? 0) + (raw[0]?.w ?? 0) / 2,
-                (raw[0]?.y ?? 0) + (raw[0]?.h ?? 0) / 2
-              )
-              const sp = el?.closest(
-                ".textLayer span, .textLayer .markedContent span"
-              ) as HTMLElement | null
-              if (!sp) return null
-              const sr = sp.getBoundingClientRect()
-              return {
-                x: Math.round(sr.left),
-                y: Math.round(sr.top),
-                w: Math.round(sr.width),
-                h: Math.round(sr.height)
-              }
-            })()
-          })
-        )
-      }
       const rects = snappedRectsForRange(page, range)
       rects.forEach((r) => all.push({ r, isCurrent: i === current }))
     }
@@ -1045,71 +1004,6 @@ export default function PdfEngineView({
 
   const handleTextSelected = useCallback((range: Range | null) => {
     setTextRange(range)
-    if (range && !(window as any).__limeAlignDiag) {
-      ;(window as any).__limeAlignDiag = true
-      try {
-        const pageEl = range.startContainer?.parentElement?.closest(
-          "[data-page-number]"
-        ) as HTMLElement | null
-        if (pageEl) {
-          const page = pageEl.getBoundingClientRect()
-          const canvas = pageEl.querySelector("canvas")?.getBoundingClientRect()
-          const tl = pageEl.querySelector(".textLayer")?.getBoundingClientRect()
-          const span = (range.startContainer as Node)?.parentElement?.getBoundingClientRect()
-          const tlEl = pageEl.querySelector(".textLayer") as HTMLElement | null
-          const scaleVar = tlEl
-            ? getComputedStyle(tlEl).getPropertyValue("--scale-factor")
-            : null
-          const rects = Array.from(range.getClientRects()).map((r) => ({
-            x: Math.round(r.left),
-            y: Math.round(r.top),
-            w: Math.round(r.width),
-            h: Math.round(r.height)
-          }))
-          console.log(
-            "[pdf] align diag:",
-            JSON.stringify({
-              pageNo: pageEl.dataset.pageNumber,
-              page: {
-                x: Math.round(page.left),
-                y: Math.round(page.top),
-                w: Math.round(page.width),
-                h: Math.round(page.height)
-              },
-              canvas: canvas
-                ? {
-                    x: Math.round(canvas.left),
-                    y: Math.round(canvas.top),
-                    w: Math.round(canvas.width),
-                    h: Math.round(canvas.height)
-                  }
-                : null,
-              textLayer: tl
-                ? {
-                    x: Math.round(tl.left),
-                    y: Math.round(tl.top),
-                    w: Math.round(tl.width),
-                    h: Math.round(tl.height)
-                  }
-                : null,
-              span: span
-                ? {
-                    x: Math.round(span.left),
-                    y: Math.round(span.top),
-                    w: Math.round(span.width),
-                    h: Math.round(span.height)
-                  }
-                : null,
-              scaleVar,
-              selText: range.toString().slice(0, 40),
-              rects
-            })
-          )
-        }
-      } catch (e) {
-        console.warn("[pdf] align diag failed:", e)
-      }
-    }
   }, [])
 
   return (
