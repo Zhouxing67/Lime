@@ -245,6 +245,7 @@ async function startRegionSelectCapture(
     const h = Math.abs(e.clientY - sy)
     cleanup()
     if (w < 16 || h < 16) {
+      pageToast("框选区域过小")
       onCancel()
       return
     }
@@ -320,6 +321,29 @@ function cropRegion(
   })
 }
 
+/** Transient in-page toast (top-center, auto-dismiss) — the content script has
+ *  no MUI Toast, so silent capture drops get a visible reason. */
+let toastTimer: number | null = null
+function pageToast(msg: string) {
+  let el = document.getElementById("lime-toast")
+  if (!el) {
+    el = document.createElement("div")
+    el.id = "lime-toast"
+    el.style.cssText =
+      "position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:2147483647;" +
+      "background:#111827;color:#f9fafb;font:12px/1.6 system-ui,sans-serif;" +
+      "padding:8px 14px;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.25);" +
+      "opacity:0;transition:opacity 0.2s ease;pointer-events:none;max-width:70vw"
+    document.body.append(el)
+  }
+  el.textContent = msg
+  el.style.opacity = "1"
+  if (toastTimer) window.clearTimeout(toastTimer)
+  toastTimer = window.setTimeout(() => {
+    el.style.opacity = "0"
+  }, 2200)
+}
+
 export default function LimePanel() {
   const [open, setOpen] = useState(false)
   const [data, setData] = useState<PanelData | null>(null)
@@ -328,6 +352,7 @@ export default function LimePanel() {
   const [sidebarWidth, setSidebarWidth] = useState(360)
   const [ballEnabled, setBallEnabled] = useState(true)
   const [ballHiddenHere, setBallHiddenHere] = useState(false)
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
   // Lifted draft shared by the capture surface.
   const [title, setTitle] = useState("")
   const [content, setContent] = useState("")
@@ -415,27 +440,44 @@ export default function LimePanel() {
     setTitle("")
     setContent("")
     setImageDraft("")
+    setConfirmDiscard(false)
     setOpen(false)
   }, [])
 
-  // Capture the current text selection (Alt+S Mode A). Returns true when a
-  // selection was captured — false when nothing selected / too short / too long.
-  const captureSelection = useCallback((): boolean => {
-    const sel = window.getSelection()
-    if (!sel || sel.isCollapsed || sel.toString().trim().length === 0) return false
-    const text = selectionWithMath(sel)
-    if (text.length < 5 || text.length > 2000) return false
-    const rect = sel.getRangeAt(0).getBoundingClientRect()
-    if (rect.width === 0 || rect.height === 0) return false
-    show(text, rect)
-    return true
-  }, [show])
+  // Closing the sidebar with an unsaved draft asks first — the old behavior
+  // dropped the draft silently on Escape / 取消.
+  const requestClose = useCallback(() => {
+    if (dirtyRef.current && !confirmDiscard) {
+      setConfirmDiscard(true)
+      return
+    }
+    hide()
+  }, [confirmDiscard, hide])
+
+  // Capture the current text selection (Alt+S Mode A). Returns a status so the
+  // caller can explain silent drops (too short / too long) instead of doing
+  // nothing — the old behavior swallowed every failure.
+  const captureSelection = useCallback(
+    (): "ok" | "none" | "short" | "long" | "no-rect" => {
+      const sel = window.getSelection()
+      if (!sel || sel.isCollapsed || sel.toString().trim().length === 0)
+        return "none"
+      const text = selectionWithMath(sel)
+      if (text.length < 5) return "short"
+      if (text.length > 2000) return "long"
+      const rect = sel.getRangeAt(0).getBoundingClientRect()
+      if (rect.width === 0 || rect.height === 0) return "no-rect"
+      show(text, rect)
+      return "ok"
+    },
+    [show]
+  )
 
   // Alt+L: open the capture sidebar. When text is selected, CARRY it into the
   // panel — the old path opened an empty sidebar, leaving mouse-only capture a
   // dead end. No selection → empty sidebar (guidance state).
   const openPanel = useCallback(() => {
-    if (captureSelection()) return
+    if (captureSelection() === "ok") return
     if (!data) {
       setData({ text: "", rect: new DOMRect(0, 0, 0, 0) })
     }
@@ -466,7 +508,7 @@ export default function LimePanel() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        hide()
+        requestClose()
         return
       }
       // Alt+S: CAPTURE — the perception modes (selection/formula/image).
@@ -476,7 +518,16 @@ export default function LimePanel() {
         e.preventDefault()
         // Mode A: a real selection — rebuild it with any formulas as $…$.
         // (shared with the ball's 捕获选中内容 / the panel-open path)
-        if (captureSelection()) return
+        const modeA = captureSelection()
+        if (modeA === "ok") return
+        if (modeA === "short") {
+          pageToast("选中内容过短（至少 5 个字符）")
+          return
+        }
+        if (modeA === "long") {
+          pageToast("选中内容过长（最多 2000 字符）")
+          return
+        }
         // Mode B: no selection — capture the paragraph containing the formula
         // under the cursor (text + all its formulas). No length floor: even a
         // short standalone formula ($x$ = 3 chars) must be capturable.
@@ -489,6 +540,8 @@ export default function LimePanel() {
               show(content, rect)
               flashMath(el)
             }
+          } else {
+            pageToast("段落过长，无法捕获")
           }
           return
         }
@@ -501,6 +554,8 @@ export default function LimePanel() {
             if (rect.width > 0 && rect.height > 0) {
               show(src, rect, "image")
             }
+          } else {
+            pageToast("图片地址过长，无法捕获")
           }
         }
       }
@@ -510,7 +565,7 @@ export default function LimePanel() {
     return () => {
       document.removeEventListener("keydown", handleKeyDown)
     }
-  }, [show, hide, openPanel, captureSelection])
+  }, [show, requestClose, openPanel, captureSelection])
 
   // Reload content script on extension update
   useEffect(() => {
@@ -563,7 +618,7 @@ export default function LimePanel() {
     imageDraft,
     setImageDraft,
     captureType,
-    onClose: hide,
+    onClose: requestClose,
     onProjectsChange: setProjects,
     onSelectedProjectChange: setSelectedProjectId,
     onDirtyChange,
@@ -576,7 +631,18 @@ export default function LimePanel() {
         <LimeFloatBall
           onOpen={openPanel}
           onCaptureSelection={() => {
-            if (!captureSelection()) openPanel()
+            const r = captureSelection()
+            if (r === "ok") return
+            if (r !== "none") {
+              pageToast(
+                r === "short"
+                  ? "选中内容过短（至少 5 个字符）"
+                  : r === "long"
+                    ? "选中内容过长（最多 2000 字符）"
+                    : "无法定位选中内容"
+              )
+            }
+            openPanel()
           }}
         />
       )}
@@ -586,6 +652,59 @@ export default function LimePanel() {
           width={sidebarWidth}
           onWidthChange={setSidebarWidth}
         />
+      )}
+      {confirmDiscard && (
+        <div
+          style={{
+            position: "fixed",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            zIndex: 2147483647,
+            background: "#ffffff",
+            color: "#1f2937",
+            font: "13px/1.6 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+            padding: "16px 18px",
+            borderRadius: 10,
+            boxShadow: "0 8px 32px rgba(0,0,0,0.25)",
+            maxWidth: 300,
+            textAlign: "center"
+          }}>
+          <div style={{ fontWeight: 600, marginBottom: 6 }}>丢弃未保存的摘录？</div>
+          <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 12 }}>
+            面板里的内容尚未保存，关闭后将丢失。
+          </div>
+          <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+            <button
+              onClick={requestClose}
+              style={{
+                border: "none",
+                borderRadius: 8,
+                padding: "6px 16px",
+                fontSize: 12,
+                fontWeight: 600,
+                background: "#ef4444",
+                color: "#fff",
+                cursor: "pointer"
+              }}>
+              丢弃
+            </button>
+            <button
+              onClick={() => setConfirmDiscard(false)}
+              style={{
+                border: "1px solid #d1d5db",
+                borderRadius: 8,
+                padding: "6px 16px",
+                fontSize: 12,
+                fontWeight: 600,
+                background: "#fff",
+                color: "#374151",
+                cursor: "pointer"
+              }}>
+              继续编辑
+            </button>
+          </div>
+        </div>
       )}
     </>
   )
