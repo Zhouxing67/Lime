@@ -336,6 +336,22 @@ export default function PanelForm({
           />
         ) : (
           <>
+            {!content.trim() && (
+              <div
+                style={{
+                  fontSize: 12,
+                  lineHeight: 1.6,
+                  color: colors.textSecondary,
+                  background: colors.bgHover,
+                  border: `1px dashed ${colors.borderStrong}`,
+                  borderRadius: 8,
+                  padding: "8px 10px",
+                  marginBottom: 8
+                }}>
+                在页面上选中文字，再点悬浮球「捕获选中内容」（或按 Alt+S）；
+                也可点下方「框选网页区域」图标截取页面区域。
+              </div>
+            )}
             <textarea
               className="lime-input"
               placeholder="输入内容…"

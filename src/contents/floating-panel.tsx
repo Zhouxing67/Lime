@@ -23,9 +23,21 @@ export const config: PlasmoCSConfig = {
   all_frames: false
 }
 
-/** 常驻 Lime 悬浮球 — 点开菜单，「打开面板」唤起捕获侧栏。 */
-function LimeFloatBall({ onOpen }: { onOpen: () => void }) {
+/** 常驻 Lime 悬浮球 — 点开菜单，「捕获选中内容」或「打开面板」唤起捕获侧栏。
+ *  On PDF pages the pdf-saver pill occupies the same corner (bottom:20) — when
+ *  it is present the ball lifts above it instead of being covered (B3). */
+function LimeFloatBall({
+  onOpen,
+  onCaptureSelection
+}: {
+  onOpen: () => void
+  onCaptureSelection: () => void
+}) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
+  const [lifted, setLifted] = useState(false)
+  useEffect(() => {
+    setLifted(Boolean(document.querySelector('[data-lime-pdf-saver="1"]')))
+  }, [])
   return (
     <>
       <button
@@ -35,7 +47,7 @@ function LimeFloatBall({ onOpen }: { onOpen: () => void }) {
         style={{
           position: "fixed",
           right: 20,
-          bottom: 20,
+          bottom: lifted ? 76 : 20,
           zIndex: 2147483646,
           width: 44,
           height: 44,
@@ -57,7 +69,16 @@ function LimeFloatBall({ onOpen }: { onOpen: () => void }) {
         anchorEl={anchor}
         open={Boolean(anchor)}
         onClose={() => setAnchor(null)}
-        slotProps={{ paper: { sx: { py: 0.5, borderRadius: 1, minWidth: 140 } } }}>
+        slotProps={{ paper: { sx: { py: 0.5, borderRadius: 1, minWidth: 150 } } }}>
+        <MenuItem
+          sx={{ fontSize: "0.85rem", gap: 1 }}
+          onClick={() => {
+            setAnchor(null)
+            onCaptureSelection()
+          }}>
+          <TextFieldsRoundedIcon sx={{ fontSize: 16 }} />
+          捕获选中内容
+        </MenuItem>
         <MenuItem
           sx={{ fontSize: "0.85rem", gap: 1 }}
           onClick={() => {
@@ -281,13 +302,29 @@ export default function LimePanel() {
     setOpen(false)
   }, [])
 
-  // Alt+L: open the capture sidebar (no capture, no perception).
+  // Capture the current text selection (Alt+S Mode A). Returns true when a
+  // selection was captured — false when nothing selected / too short / too long.
+  const captureSelection = useCallback((): boolean => {
+    const sel = window.getSelection()
+    if (!sel || sel.isCollapsed || sel.toString().trim().length === 0) return false
+    const text = selectionWithMath(sel)
+    if (text.length < 5 || text.length > 2000) return false
+    const rect = sel.getRangeAt(0).getBoundingClientRect()
+    if (rect.width === 0 || rect.height === 0) return false
+    show(text, rect)
+    return true
+  }, [show])
+
+  // Alt+L: open the capture sidebar. When text is selected, CARRY it into the
+  // panel — the old path opened an empty sidebar, leaving mouse-only capture a
+  // dead end. No selection → empty sidebar (guidance state).
   const openPanel = useCallback(() => {
+    if (captureSelection()) return
     if (!data) {
       setData({ text: "", rect: new DOMRect(0, 0, 0, 0) })
     }
     setOpen(true)
-  }, [data])
+  }, [captureSelection, data])
 
   // 框选 capture: hide the sidebar, drag a rectangle over the page, screenshot +
   // crop it, then reopen the sidebar with the image draft filled.
@@ -321,16 +358,9 @@ export default function LimePanel() {
       // is open with a draft.
       if (e.altKey && e.key.toLowerCase() === "s") {
         e.preventDefault()
-        const sel = window.getSelection()
         // Mode A: a real selection — rebuild it with any formulas as $…$.
-        if (sel && !sel.isCollapsed && sel.toString().trim().length > 0) {
-          const text = selectionWithMath(sel)
-          if (text.length < 5 || text.length > 2000) return
-          const rect = sel.getRangeAt(0).getBoundingClientRect()
-          if (rect.width === 0 || rect.height === 0) return
-          show(text, rect)
-          return
-        }
+        // (shared with the ball's 捕获选中内容 / the panel-open path)
+        if (captureSelection()) return
         // Mode B: no selection — capture the paragraph containing the formula
         // under the cursor (text + all its formulas). No length floor: even a
         // short standalone formula ($x$ = 3 chars) must be capturable.
@@ -364,7 +394,7 @@ export default function LimePanel() {
     return () => {
       document.removeEventListener("keydown", handleKeyDown)
     }
-  }, [show, hide, openPanel])
+  }, [show, hide, openPanel, captureSelection])
 
   // Reload content script on extension update
   useEffect(() => {
@@ -426,7 +456,14 @@ export default function LimePanel() {
 
   return (
     <>
-      {!open && <LimeFloatBall onOpen={openPanel} />}
+      {!open && (
+        <LimeFloatBall
+          onOpen={openPanel}
+          onCaptureSelection={() => {
+            if (!captureSelection()) openPanel()
+          }}
+        />
+      )}
       {open && data && (
         <CaptureSidebar
           {...sharedProps}

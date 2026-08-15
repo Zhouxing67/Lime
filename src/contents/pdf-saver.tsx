@@ -70,6 +70,7 @@ export default function PdfSaver() {
       <button
         onClick={handleSave}
         disabled={state === "saving"}
+        data-lime-pdf-saver="1"
         title={state === "error" ? error : "将当前 PDF 保存到 Lime"}
         style={{
           position: "fixed",
