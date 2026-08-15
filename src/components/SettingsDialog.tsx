@@ -4,6 +4,7 @@ import CloudSyncRoundedIcon from "@mui/icons-material/CloudSyncRounded"
 import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded"
 import FunctionsRoundedIcon from "@mui/icons-material/FunctionsRounded"
 import PaletteRoundedIcon from "@mui/icons-material/PaletteRounded"
+import TextFieldsRoundedIcon from "@mui/icons-material/TextFieldsRounded"
 import {
   Box,
   Button,
@@ -44,6 +45,8 @@ export default function SettingsDialog({
   }>({ type: "idle", text: "" })
   const [testing, setTesting] = useState(false)
   const [mathHoverEnabled, setMathHover] = useState(true)
+  const [ballEnabled, setBallEnabled] = useState(true)
+  const [hiddenHostCount, setHiddenHostCount] = useState(0)
 
   useEffect(() => {
     if (!open) return
@@ -61,6 +64,13 @@ export default function SettingsDialog({
     chrome.storage.local.get("mathHoverEnabled", (data) => {
       setMathHover(data.mathHoverEnabled !== false)
     })
+    chrome.storage.local.get(
+      ["floatBallEnabled", "floatBallHiddenHosts"],
+      (data) => {
+        setBallEnabled(data.floatBallEnabled !== false)
+        setHiddenHostCount((data.floatBallHiddenHosts ?? []).length)
+      }
+    )
   }, [open])
 
   const saveCredentials = (u: string, p: string) => {
@@ -284,6 +294,56 @@ export default function SettingsDialog({
             }}
           />
         </Box>
+
+        <Box
+          sx={{
+            mt: 2,
+            pt: 2,
+            borderTop: "1px solid",
+            borderColor: "divider",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between"
+          }}>
+          <Box>
+            <Typography
+              variant="subtitle2"
+              sx={{ color: "text.secondary", fontSize: "0.85rem" }}>
+              <TextFieldsRoundedIcon
+                sx={{ fontSize: 16, mr: 0.5, verticalAlign: "text-bottom" }}
+              />
+              页面悬浮球
+            </Typography>
+            <Typography
+              variant="caption"
+              sx={{ color: "text.disabled", display: "block", mt: 0.5 }}>
+              网页右下角的 Lime 捕获入口（可拖动记忆位置；Alt+S 不受此开关影响）
+            </Typography>
+          </Box>
+          <Switch
+            checked={ballEnabled}
+            onChange={(e) => {
+              setBallEnabled(e.target.checked)
+              chrome.storage.local.set({
+                floatBallEnabled: e.target.checked
+              })
+            }}
+          />
+        </Box>
+        {hiddenHostCount > 0 && (
+          <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => {
+                chrome.storage.local.set({ floatBallHiddenHosts: [] })
+                setHiddenHostCount(0)
+              }}
+              sx={{ borderRadius: 1, fontSize: "0.8rem" }}>
+              恢复已隐藏悬浮球的站点（{hiddenHostCount}）
+            </Button>
+          </Box>
+        )}
       </Stack>
     </DialogShell>
   )

@@ -24,8 +24,12 @@ export const config: PlasmoCSConfig = {
 }
 
 /** 常驻 Lime 悬浮球 — 点开菜单，「捕获选中内容」或「打开面板」唤起捕获侧栏。
- *  On PDF pages the pdf-saver pill occupies the same corner (bottom:20) — when
- *  it is present the ball lifts above it instead of being covered (B3). */
+ *  - Draggable (bottom-right anchored); the position is persisted per-host
+ *    (`floatBallPos[hostname]`), so it stays where the user put it.
+ *  - On PDF pages the pdf-saver pill occupies the same corner (bottom:20) —
+ *    when it is present the ball lifts above it instead of being covered (B3).
+ *  - Can be hidden per site (`floatBallHiddenHosts`); recovery lives in the
+ *    options settings dialog. Alt+S / Alt+L keep working while hidden. */
 function LimeFloatBall({
   onOpen,
   onCaptureSelection
@@ -33,21 +37,91 @@ function LimeFloatBall({
   onOpen: () => void
   onCaptureSelection: () => void
 }) {
+  const host = location.hostname
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
   const [lifted, setLifted] = useState(false)
+  const [pos, setPos] = useState<{ right: number; bottom: number } | null>(null)
+  const dragRef = useRef<{
+    startX: number
+    startY: number
+    startRight: number
+    startBottom: number
+    moved: boolean
+  } | null>(null)
+  const justMovedRef = useRef(false)
+
   useEffect(() => {
     setLifted(Boolean(document.querySelector('[data-lime-pdf-saver="1"]')))
-  }, [])
+    chrome.storage.local.get("floatBallPos", (data) => {
+      const p = data.floatBallPos?.[host]
+      if (p && typeof p.right === "number") setPos(p)
+    })
+  }, [host])
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (e.button !== 0) return
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      startRight: pos?.right ?? 20,
+      startBottom: pos?.bottom ?? 20,
+      moved: false
+    }
+    ;(e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId)
+  }
+  const onPointerMove = (e: React.PointerEvent) => {
+    const d = dragRef.current
+    if (!d) return
+    const dx = e.clientX - d.startX
+    const dy = e.clientY - d.startY
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) d.moved = true
+    if (!d.moved) return
+    const right = Math.max(4, Math.min(window.innerWidth - 52, d.startRight - dx))
+    const bottom = Math.max(4, Math.min(window.innerHeight - 52, d.startBottom - dy))
+    setPos({ right, bottom })
+  }
+  const onPointerUp = (e: React.PointerEvent) => {
+    const d = dragRef.current
+    dragRef.current = null
+    if (!d) return
+    if (d.moved) {
+      justMovedRef.current = true
+      const next = {
+        right: Math.max(4, Math.min(window.innerWidth - 52, d.startRight - (e.clientX - d.startX))),
+        bottom: Math.max(4, Math.min(window.innerHeight - 52, d.startBottom - (e.clientY - d.startY)))
+      }
+      setPos(next)
+      chrome.storage.local.get("floatBallPos", (data) => {
+        chrome.storage.local.set({
+          floatBallPos: { ...(data.floatBallPos ?? {}), [host]: next }
+        })
+      })
+    }
+  }
+
+  const right = pos?.right ?? 20
+  const bottom = pos?.bottom ?? (lifted ? 76 : 20)
+
   return (
     <>
       <button
-        onClick={(e) => setAnchor(e.currentTarget)}
+        onClick={(e) => {
+          if (justMovedRef.current) {
+            justMovedRef.current = false
+            e.preventDefault()
+            return
+          }
+          setAnchor(e.currentTarget)
+        }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
         title="Lime"
         aria-label="Lime"
         style={{
           position: "fixed",
-          right: 20,
-          bottom: lifted ? 76 : 20,
+          right,
+          bottom,
           zIndex: 2147483646,
           width: 44,
           height: 44,
@@ -61,7 +135,8 @@ function LimeFloatBall({
           boxShadow: "0 2px 12px rgba(0,0,0,0.25)",
           display: "flex",
           alignItems: "center",
-          justifyContent: "center"
+          justifyContent: "center",
+          touchAction: "none"
         }}>
         L
       </button>
@@ -87,6 +162,22 @@ function LimeFloatBall({
           }}>
           <TextFieldsRoundedIcon sx={{ fontSize: 16 }} />
           打开面板
+        </MenuItem>
+        <MenuItem
+          sx={{ fontSize: "0.85rem", gap: 1 }}
+          onClick={() => {
+            setAnchor(null)
+            chrome.storage.local.get("floatBallHiddenHosts", (data) => {
+              const list: string[] = data.floatBallHiddenHosts ?? []
+              if (!list.includes(host)) {
+                chrome.storage.local.set({
+                  floatBallHiddenHosts: [...list, host]
+                })
+              }
+            })
+          }}>
+          <TextFieldsRoundedIcon sx={{ fontSize: 16 }} />
+          隐藏此页面悬浮球
         </MenuItem>
       </Menu>
     </>
@@ -235,6 +326,8 @@ export default function LimePanel() {
   const [projects, setProjects] = useState<Project[]>([])
   const [selectedProjectId, setSelectedProjectId] = useState("")
   const [sidebarWidth, setSidebarWidth] = useState(360)
+  const [ballEnabled, setBallEnabled] = useState(true)
+  const [ballHiddenHere, setBallHiddenHere] = useState(false)
   // Lifted draft shared by the capture surface.
   const [title, setTitle] = useState("")
   const [content, setContent] = useState("")
@@ -242,6 +335,29 @@ export default function LimePanel() {
   const [captureType, setCaptureType] = useState<"text" | "image">("text")
   const prevSelectionRef = useRef("")
   const dirtyRef = useRef(false)
+
+  // Floating-ball visibility: a global switch + a per-host hidden list. When
+  // hidden the ball isn't rendered, but Alt+S / Alt+L still open the capture
+  // (capture is never unreachable).
+  useEffect(() => {
+    const read = () => {
+      chrome.storage.local.get(
+        ["floatBallEnabled", "floatBallHiddenHosts"],
+        (data) => {
+          setBallEnabled(data.floatBallEnabled !== false)
+          setBallHiddenHere(
+            (data.floatBallHiddenHosts ?? []).includes(location.hostname)
+          )
+        }
+      )
+    }
+    read()
+    chrome.storage.onChanged.addListener((changes) => {
+      if ("floatBallEnabled" in changes || "floatBallHiddenHosts" in changes)
+        read()
+    })
+    return () => chrome.storage.onChanged.removeListener(read)
+  }, [])
 
   // The form reports whether it holds a draft; while it does, new Alt+S
   // selections are appended so they can't overwrite the in-progress capture.
@@ -456,7 +572,7 @@ export default function LimePanel() {
 
   return (
     <>
-      {!open && (
+      {!open && ballEnabled && !ballHiddenHere && (
         <LimeFloatBall
           onOpen={openPanel}
           onCaptureSelection={() => {
