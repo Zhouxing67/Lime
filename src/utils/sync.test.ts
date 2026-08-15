@@ -1,4 +1,11 @@
-import { downloadPdfFiles, listRemotePdfs, uploadPdfFiles } from "./sync"
+import {
+  downloadImageFiles,
+  downloadPdfFiles,
+  hydratePayloadImages,
+  listRemotePdfs,
+  pruneRemoteImages,
+  uploadPdfFiles
+} from "./sync"
 
 // jest's jsdom doesn't expose DOMParser globally — take it from jsdom.
 const { JSDOM } = require("jsdom")
@@ -116,5 +123,105 @@ describe("PDF file sync (multi-file layer)", () => {
     const { blobToUint8 } = require("./index")
     const bytes = await blobToUint8(fetched[0].bytes)
     expect(String.fromCharCode(...bytes)).toBe("pdf-bytes")
+  })
+})
+
+// ---- Image file layer (A1 / A9) ----
+
+const IMAGES_XML = (names: string[]) => `<?xml version="1.0"?>
+<D:multistatus xmlns:D="DAV:">
+  <D:response>
+    <D:href>/Apps/lime/images/</D:href>
+  </D:response>
+  ${names.map((n) => `<D:response><D:href>/Apps/lime/images/${n}.png</D:href></D:response>`).join("")}
+</D:multistatus>`
+
+const IMG = "/dav/Apps/lime/images/"
+
+describe("Image file sync (multi-file layer)", () => {
+  it("downloadImageFiles returns the data-URLs for the referenced files", async () => {
+    mockWebDav({
+      [`PROPFIND https://dav.jianguoyun.com${IMG}`]: {
+        body: IMAGES_XML(["aaa111"])
+      },
+      [`GET https://dav.jianguoyun.com${IMG}aaa111.png`]: {
+        body: b64("img-bytes")
+      }
+    })
+    const payload = {
+      images: { card1: "aaa111" },
+      projectCards: []
+    } as any
+    const { files, unresolved } = await downloadImageFiles(cred, payload)
+    expect(files.get("aaa111")).toBe("data:image/png;base64," + b64("img-bytes"))
+    expect(unresolved.size).toBe(0)
+  })
+
+  it("downloadImageFiles THROWS on a non-404 failure (abort, no partial apply)", async () => {
+    mockWebDav({
+      [`PROPFIND https://dav.jianguoyun.com${IMG}`]: {
+        body: IMAGES_XML(["aaa111"])
+      },
+      [`GET https://dav.jianguoyun.com${IMG}aaa111.png`]: {
+        status: 500
+      }
+    })
+    const payload = { images: { card1: "aaa111" }, projectCards: [] } as any
+    await expect(downloadImageFiles(cred, payload)).rejects.toThrow(/下载失败/)
+  })
+
+  it("downloadImageFiles records a 404 (dangling ref) as unresolved, not a throw", async () => {
+    mockWebDav({
+      [`PROPFIND https://dav.jianguoyun.com${IMG}`]: {
+        body: IMAGES_XML([])
+      }
+    })
+    const payload = { images: { card1: "aaa111" }, projectCards: [] } as any
+    const { files, unresolved } = await downloadImageFiles(cred, payload)
+    expect(files.size).toBe(0)
+    expect(unresolved.has("aaa111")).toBe(true)
+  })
+
+  it("hydratePayloadImages restores images for resolved refs, leaves others blank", async () => {
+    const payload = {
+      images: { a: "h1", b: "h2" },
+      projectCards: [
+        { id: "a", image: undefined },
+        { id: "b", image: undefined }
+      ],
+      pdfCards: [],
+      pdfAnnotations: []
+    } as any
+    const hydrated = hydratePayloadImages(payload, new Map([["h1", "data:image/png;base64,x"]]))
+    expect(hydrated.projectCards[0].image).toBe("data:image/png;base64,x")
+    expect(hydrated.projectCards[1].image).toBeUndefined()
+  })
+
+  it("pruneRemoteImages keeps files the REMOTE payload still references (union)", async () => {
+    const deletes: string[] = []
+    mockWebDav({
+      [`PROPFIND https://dav.jianguoyun.com${IMG}`]: {
+        body: IMAGES_XML(["aaa111", "bbb222", "ccc333"])
+      }
+    })
+    ;(chrome.runtime.sendMessage as jest.Mock).mockImplementation(
+      (msg: any, cb: any) => {
+        if (msg.method === "DELETE") {
+          deletes.push(msg.url)
+          cb({ ok: true, status: 204, body: "" })
+          return
+        }
+        cb({ ok: true, status: 207, body: IMAGES_XML(["aaa111", "bbb222", "ccc333"]) })
+      }
+    )
+    // local references aaa111; the REMOTE payload still references bbb222.
+    await pruneRemoteImages(
+      cred,
+      new Map([["aaa111", "data:image/png;base64,x"]]),
+      new Set(["bbb222"])
+    )
+    // Only the genuinely-orphaned ccc333 is deleted.
+    expect(deletes).toHaveLength(1)
+    expect(deletes[0]).toContain("ccc333.png")
   })
 })

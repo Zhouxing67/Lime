@@ -178,7 +178,12 @@ export function useBackupSync(options: {
           pdfCards
         )
         await uploadImageFiles(cred, images, setSyncStatus)
-        await pruneRemoteImages(cred, images, setSyncStatus)
+        await pruneRemoteImages(
+          cred,
+          images,
+          result.remoteImageRefs ?? new Set<string>(),
+          setSyncStatus
+        )
         chrome.storage.local.set({ lastSyncTime: Date.now() })
       }
       setSyncStatus(result.message)
@@ -226,12 +231,22 @@ export function useBackupSync(options: {
       if (remote.payload) {
         // Image file layer: pull the referenced /images/ files + hydrate the
         // stripped image fields (v6 references) back into local-form data-URLs.
-        const imageFiles = await downloadImageFiles(
+        const { files: imageFiles, unresolved } = await downloadImageFiles(
           cred,
           remote.payload,
           setSyncStatus
         )
         const hydrated = hydratePayloadImages(remote.payload, imageFiles)
+        // Records whose image ref couldn't resolve (dangling remote file) KEEP
+        // their local version — never overwrite a local image with an
+        // imageless remote record (A1).
+        if (unresolved.size > 0) {
+          const refs = remote.payload.images ?? {}
+          const drop = (id: string) => unresolved.has(refs[id] ?? "")
+          hydrated.projectCards = hydrated.projectCards.filter((c) => !drop(c.id))
+          hydrated.pdfCards = hydrated.pdfCards.filter((c) => !drop(c.id))
+          hydrated.pdfAnnotations = hydrated.pdfAnnotations.filter((a) => !drop(a.id))
+        }
         if (remote.direction === "download") {
           setSyncStatus("正在应用数据…")
           await bulkReplace(

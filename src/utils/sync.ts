@@ -52,6 +52,10 @@ export interface SyncResult {
   success: boolean
   direction: "upload" | "download" | "noop" | "error"
   message: string
+  /** The remote payload's image refs (hashes) observed during this run — lets
+   *  the caller prune the /images/ layer on a "remote refs ∪ local" basis so a
+   *  file another device's payload still references is never deleted (A1). */
+  remoteImageRefs?: Set<string>
   payload?: SyncPayload
 }
 
@@ -211,19 +215,22 @@ export async function uploadImageFiles(
   }
 }
 
-/** DELETE the remote /images/ files no longer referenced by ANY current image
- *  — propagates image deletions (a card/annotation removed or its image
- *  replaced) and is safe with the hash dedup (a hash still referenced by
- *  another record survives). */
+/** DELETE the remote /images/ files referenced by NEITHER the current local
+ *  images NOR the remote sync payload's refs — the union (A1). A local-only
+ *  basis would delete files another device's payload still references the
+ *  moment one device loses an image; with the union, propagation still works
+ *  (a genuinely deleted/replaced image is gone from both) but a remote-referenced
+ *  file survives a partial local state. */
 export async function pruneRemoteImages(
   cred: SyncCredentials,
   images: Map<string, string>,
+  remoteRefs: Set<string>,
   onStatus?: (status: string) => void
 ): Promise<void> {
   const remote = await listRemoteImages(cred)
   for (const name of remote) {
     const hash = name.slice(0, -".png".length)
-    if (images.has(hash)) continue
+    if (images.has(hash) || remoteRefs.has(hash)) continue
     onStatus?.("正在清理云端图片…")
     const res = await bgFetchBinary(cred, `/Apps/lime/images/${name}`, {
       method: "DELETE"
@@ -235,29 +242,44 @@ export async function pruneRemoteImages(
 }
 
 /** Download the referenced image files the remote /images/ folder has that the
- *  local lacks — returns { content-hash → data-URL } for the hydration step. */
+ *  local lacks — returns the content-hash → data-URL map for the hydration
+ *  step, plus the hashes that couldn't be resolved (remote file 404 — a
+ *  dangling ref). ANY other failure (5xx / network) THROWS so the caller aborts
+ *  the download atomically instead of silently applying an imageless version
+ *  of the records and letting the next prune delete the remote files too
+ *  (A1 — the three-layer image-loss chain). */
 export async function downloadImageFiles(
   cred: SyncCredentials,
   payload: SyncPayload,
   onStatus?: (status: string) => void
-): Promise<Map<string, string>> {
+): Promise<{ files: Map<string, string>; unresolved: Set<string> }> {
   const refs = payload.images ?? {}
   const hashes = new Set(Object.values(refs))
-  if (hashes.size === 0) return new Map()
+  if (hashes.size === 0) return { files: new Map(), unresolved: new Set() }
   const remote = new Set(await listRemoteImages(cred))
-  const out = new Map<string, string>()
+  const files = new Map<string, string>()
+  const unresolved = new Set<string>()
   let done = 0
   for (const hash of hashes) {
-    if (!remote.has(`${hash}.png`)) continue
+    if (!remote.has(`${hash}.png`)) {
+      unresolved.add(hash)
+      continue
+    }
     done++
     onStatus?.(`正在下载图片 (${done}/${hashes.size})…`)
     const res = await bgFetchBinary(cred, `/Apps/lime/images/${hash}.png`, {
       method: "GET"
     })
-    if (!res.ok) continue
-    out.set(hash, `data:image/png;base64,${res.body}`)
+    if (!res.ok) {
+      if (res.status === 404) {
+        unresolved.add(hash)
+        continue
+      }
+      throw new Error(`图片下载失败：HTTP ${res.status}`)
+    }
+    files.set(hash, `data:image/png;base64,${res.body}`)
   }
-  return out
+  return { files, unresolved }
 }
 
 /** Restore the payload's stripped image fields from the downloaded files —
@@ -648,7 +670,10 @@ export async function runSync(
     return {
       success: true,
       direction: "upload",
-      message: "同步到云端"
+      message: "同步到云端",
+      remoteImageRefs: remote.images
+        ? new Set(Object.values(remote.images))
+        : undefined
     }
   } catch (e: any) {
     return {
