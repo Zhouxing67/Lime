@@ -2,7 +2,6 @@ import type {
   PdfCard,
   PdfMark,
   ProjectCard,
-  ProjectCardType,
   SourceMeta,
   TodoCard
 } from "../types"

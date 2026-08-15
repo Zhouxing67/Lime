@@ -2,16 +2,11 @@ import AddRoundedIcon from "@mui/icons-material/AddRounded"
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded"
 import ViewColumnRoundedIcon from "@mui/icons-material/ViewColumnRounded"
 import DoneAllRoundedIcon from "@mui/icons-material/DoneAllRounded"
-import NoteAddRoundedIcon from "@mui/icons-material/NoteAddRounded"
-import SearchOffRoundedIcon from "@mui/icons-material/SearchOffRounded"
 import {
   alpha,
   Box,
   Button,
-  CircularProgress,
-  Container,
   CssBaseline,
-  Fade,
   IconButton,
   Stack,
   TextField,
@@ -21,7 +16,6 @@ import {
 } from "@mui/material"
 import { ThemeProvider } from "@mui/material/styles"
 import {
-  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -36,11 +30,9 @@ import FileCopyOutlinedIcon from "@mui/icons-material/FileCopyOutlined"
 import FileDownloadRoundedIcon from "@mui/icons-material/FileDownloadRounded"
 import DriveFileMoveOutlinedIcon from "@mui/icons-material/DriveFileMoveOutlined"
 import MergeTypeRoundedIcon from "@mui/icons-material/MergeTypeRounded"
-import CardGrid from "./components/CardGrid"
 import DateRangeFilter from "./components/DateRangeFilter"
 import DeleteConfirmDialog from "./components/DeleteConfirmDialog"
 import DialogShell from "./components/DialogShell"
-import EmptyState from "./components/EmptyState"
 import FilterChips from "./components/FilterChips"
 import FooterBar from "./components/FooterBar"
 import ViewRouter from "./components/ViewRouter"
@@ -50,11 +42,7 @@ import CopyCardsMenu from "./components/CopyCardsMenu"
 import MergeConfirmDialog from "./components/MergeConfirmDialog"
 import MoveToSectionMenu from "./components/MoveToSectionMenu"
 import NavRail from "./components/NavRail"
-import type { SidebarTab } from "./components/NavRail"
 import NewProjectDialog from "./components/NewProjectDialog"
-import ProjectHub from "./components/ProjectHub"
-import BackupView from "./components/BackupView"
-import PdfHub from "./components/PdfHub"
 import OpenPdfUrlDialog from "./components/OpenPdfUrlDialog"
 import PdfCardsPanel from "./components/PdfCardsPanel"
 import PdfSearchPanel from "./components/PdfSearchPanel"
@@ -65,21 +53,17 @@ import { useTodoView } from "./hooks/useTodoView"
 import { useProjectsView } from "./hooks/useProjectsView"
 import { useWorkspaceView } from "./hooks/useWorkspaceView"
 import { usePdfSearchPanel } from "./hooks/usePdfSearchPanel"
-import PdfView from "./components/PdfView"
 import type { PdfOutlineItem } from "./types"
 import ProjectTree from "./components/ProjectTree"
-import ReviewSession from "./components/ReviewSession"
 import SettingsDialog from "./components/SettingsDialog"
 import SidebarFilters from "./components/SidebarFilters"
 import Toast from "./components/Toast"
-import TodoView from "./components/TodoView"
 import {
   addPdf,
   addProject,
   addProjectCard,
   buildProjectCard,
   addReview,
-  addTodo,
   batchUpdateProjectCards,
   clearPdfTopic,
   deleteProject,
@@ -87,7 +71,6 @@ import {
   deleteProjectCards,
   deletePdf,
   deletePdfCards,
-  deleteTodo,
   renamePdfName,
   discardDraft,
   ensureOrder,
@@ -95,31 +78,19 @@ import {
   createTextCard,
   promoteDraft,
   saveDraftCard,
-  getAllAnnotations,
-  getAllPdfCards,
-  getAllProjectCards,
-  getAllReviews,
-  getAllTodos,
   getAnnotationsByPdf,
-  getDueCount,
   getDueReviews,
-  getIncompleteTodoCount,
   getMaxOrderInSection,
-  getPdfCards,
   getProjectByName,
-  listPdfs,
   placePdfCards,
   removeReview,
   renamePdfTopic,
-  searchProjectCards,
   tx,
   unplacePdfCards,
-  ensureRegionImage,
   updatePdfCard,
   updatePdfTopic,
   updateProjectCard,
-  updateReviewSrs,
-  updateTodo
+  updateReviewSrs
 } from "./database"
 import { useBackupSync } from "./hooks/useBackupSync"
 import { useCardDragReorder } from "./hooks/useCardDragReorder"
@@ -132,22 +103,16 @@ import { buildProjectMarkdown, buildScopeData } from "./utils/export"
 import type {
   DisplayCard,
   MergeSeparator,
-  PdfAnnotation,
   PdfCard,
   PdfFile,
   PresetName,
-  Project,
   ProjectCard,
   ProjectCardType,
-  ReviewEntry,
-  SearchQuery,
-  SrsData,
-  TodoCard,
-  TodoFilter
+  SrsData
 } from "./types"
 import { base64ToBytes } from "./utils"
 import { sendMessage } from "./types/messages"
-import { DAY_MS, RATING_META, applyBadge, buildMergedContent, cloneProjectCard, compareCards, computeItemHash, createTodoCard, dueStatus, isTodoComplete, sortAllCards, toggleMarkdownTask, todayLocalDate } from "./utils"
+import { DAY_MS, RATING_META, buildMergedContent, cloneProjectCard, compareCards, computeItemHash, dueStatus, isTodoComplete, sortAllCards, todayLocalDate } from "./utils"
 import { resolveCardContent, stripPlacementContent } from "./utils/cards"
 
 const ITEMS_PER_PAGE = 20
@@ -167,7 +132,6 @@ export default function OptionsPage() {
     activePdfId,
     handleSetSidebarTab,
     navigate,
-    openDrawer,
     toggleDrawer,
     swapLeft,
     toggleReader,
@@ -248,22 +212,15 @@ export default function OptionsPage() {
   const onSearchRef = useRef<() => Promise<void>>(async () => {})
   const {
     pdfs,
-    setPdfs,
     allProjectCardsUnfiltered,
-    setAllProjectCardsUnfiltered,
     allPdfCards,
-    setAllPdfCards,
     annotationById,
-    setAnnotationById,
     allTodos,
-    setAllTodos,
     allReviews,
-    reviewsVersion,
     setReviewsVersion,
     reviewItemIds,
     setReviewItemIds,
     reviewSrsMap,
-    setReviewSrsMap,
     masteredItemIds,
     pdfPanelAnnotations,
     pdfPanelCards,
@@ -276,11 +233,6 @@ export default function OptionsPage() {
     draftByOriginal,
     loadTodos,
     loadPdfs,
-    loadPdfPanelData,
-    refreshLiteCounts,
-    schedulePdfPanelReload,
-    schedulePdfDataReload,
-    scheduleFullReload,
     refreshAllData
   } = useAppData({
     loadProjectsRef,
@@ -464,7 +416,6 @@ export default function OptionsPage() {
     setCreateDialogOpen,
     projectDeleteTarget,
     setProjectDeleteTarget,
-    visibleCount,
     setVisibleCount,
     activeSectionId,
     visibleProjectCards,

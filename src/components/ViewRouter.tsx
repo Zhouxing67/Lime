@@ -209,7 +209,6 @@ function PdfViewRouter(props: PdfViewRouterProps) {
     toggleReader,
     swapLeft,
     pdfFlashTarget,
-    pdfSelectedAnnId,
     pdfClearRingToken,
     handlePdfAnnotationSelected,
     pdfTypeChangeTarget,

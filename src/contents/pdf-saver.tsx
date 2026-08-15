@@ -19,12 +19,11 @@ function isPdfTab(): boolean {
 
 const PRIMARY = "#4f46e5"
 const FG = "#ffffff"
-const MUTED = "#6b7280"
 const HOVER = "#4338ca"
 
 /** 常驻悬浮球: 保存网页 PDF 到 Lime. */
 export default function PdfSaver() {
-  const [visible, setVisible] = useState(isPdfTab())
+  const [visible] = useState(isPdfTab())
   const [state, setState] = useState<"idle" | "saving" | "saved" | "error">(
     "idle"
   )

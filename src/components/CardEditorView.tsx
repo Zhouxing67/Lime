@@ -12,7 +12,6 @@ import {
 } from "react"
 
 import MarkdownEditor, { type EditorView } from "./MarkdownEditor"
-import Well from "./Well"
 import {
   insertMarkdownSyntax,
   type MarkdownTool
@@ -67,7 +66,7 @@ const CardEditorView = forwardRef<CardEditorHandle, {
   const [activeField, setActiveField] = useState<"content" | "comment">(
     type === "text" ? "content" : "comment"
   )
-  const [focused, setFocused] = useState(false)
+  const [, setFocused] = useState(false)
   // The image pages (readonly/upload + edit) exist when the image is
   // changeable: the create-image, and the draft of an image card.
   const showImagePages =

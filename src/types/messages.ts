@@ -28,14 +28,6 @@ export interface WebDavMessage {
   binary?: boolean
 }
 
-export interface SaveFeedbackMessage {
-  kind: "save-feedback"
-  tabId: number
-  saved: boolean
-  type: string
-  projectName?: string
-}
-
 export interface SetRecentProjectMessage {
   kind: "set-recent-project"
   projectId: string
@@ -74,7 +66,6 @@ export type ExtensionMessage =
   | CaptureMessage
   | ToastMessage
   | WebDavMessage
-  | SaveFeedbackMessage
   | SetRecentProjectMessage
   | ListProjectsMessage
   | AddProjectMessage

@@ -240,7 +240,7 @@ describe("highlightRectsForOffsets (line-bridging overlay)", () => {
   })
 
   it("keeps separate lines as separate boxes", () => {
-    const { holder, spans, textLayer } = makeLine()
+    const { holder, spans } = makeLine()
     const extra = document.createElement("span")
     extra.textContent = "secondline"
     holder.appendChild(extra)

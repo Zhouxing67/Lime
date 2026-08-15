@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Box, IconButton, Stack, Tooltip, Typography, Popper, Paper, Divider, TextField } from "@mui/material"
-import { useTheme } from "@mui/material/styles"
+import { Box, IconButton, Tooltip, Typography, Popper, Paper, Divider, TextField } from "@mui/material"
 import {
   CropFreeRounded,
   GestureRounded,
@@ -355,7 +354,6 @@ function EngineToolbar({
 /** Our MUI text-selection bar — highlight/underline/strikeout on the range. */
 function EngineSelectionBar({ range }: { range: Range | null }) {
   const { painter } = usePainter()
-  const theme = useTheme()
   const anchorRef = useRef<HTMLDivElement>(null)
   const [anchorPos, setAnchorPos] = useState<{ x: number; y: number } | null>(null)
 

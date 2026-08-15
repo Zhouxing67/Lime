@@ -5,8 +5,7 @@ import type {
   PdfAnnotation,
   PdfCard,
   PdfFile,
-  PdfMark,
-  ProjectCard
+  PdfMark
 } from "../types"
 import { createPdfCard, sha256Bytes } from "../utils"
 import { renderRegionImage } from "../utils/pdfRegionImage"
@@ -855,51 +854,6 @@ export async function applyPdfSync(
     for (const local of localAnnotations) {
       if (!remoteIds.has(local.id)) stores.pdfAnnotations.delete(local.id)
     }
-  })
-}
-
-/** Change an annotation's mark type (e.g. underline → highlight). The 1:1 card
- *  is untouched — only the overlay style re-renders via the _dbpdf broadcast. */
-export async function updateAnnotationType(
-  id: string,
-  type: PdfMark
-): Promise<boolean | void> {
-  return withStore("pdfAnnotations", "readwrite", async (store) => {
-    const ann = await new Promise<PdfAnnotation | undefined>((resolve, reject) => {
-      const r = store.get(id)
-      r.onsuccess = () => resolve(r.result as PdfAnnotation | undefined)
-      r.onerror = () => reject(r.error)
-    })
-    if (!ann) return false
-    ann.type = type
-    ann.updatedAt = Date.now()
-    await new Promise<void>((resolve, reject) => {
-      const r = store.put(ann)
-      r.onsuccess = () => resolve()
-      r.onerror = () => reject(r.error)
-    })
-  })
-}
-
-/** Edit a freetext annotation's content. */
-export async function updateAnnotationText(
-  id: string,
-  text: string
-): Promise<boolean | void> {
-  return withStore("pdfAnnotations", "readwrite", async (store) => {
-    const ann = await new Promise<PdfAnnotation | undefined>((resolve, reject) => {
-      const r = store.get(id)
-      r.onsuccess = () => resolve(r.result as PdfAnnotation | undefined)
-      r.onerror = () => reject(r.error)
-    })
-    if (!ann) return false
-    ann.text = text
-    ann.updatedAt = Date.now()
-    await new Promise<void>((resolve, reject) => {
-      const r = store.put(ann)
-      r.onsuccess = () => resolve()
-      r.onerror = () => reject(r.error)
-    })
   })
 }
 

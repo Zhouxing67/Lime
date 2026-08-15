@@ -10,7 +10,7 @@ import type {
 } from "../types"
 import {
   addAnnotation,
-  updateAnnotationType,
+  updateAnnotationImage,
   addPdf,
   updatePdfTopic,
   applyPdfSync,
@@ -49,7 +49,6 @@ import {
   searchProjectCards,
   saveDraftCard,
   promoteDraft,
-  discardDraft,
   touchPdf,
   updateProjectCard,
   updateReviewSrs,
@@ -957,18 +956,6 @@ describe("pdf content-hash id + notes-only sync", () => {
   })
 })
 
-describe("updateAnnotationType", () => {
-  it("changes the mark type and persists it", async () => {
-    const ann: PdfAnnotation = {
-      id: "t-ann", pdfId: "pdf-t", page: 1, kind: "text", type: "underline",
-      startOffset: 0, endOffset: 1, text: "x", createdAt: 1
-    }
-    await addAnnotation(ann)
-    await updateAnnotationType("t-ann", "highlight")
-    expect((await getAnnotation("t-ann"))?.type).toBe("highlight")
-  })
-})
-
 describe("updatePdfTopic", () => {
   it("sets / clears a PDF's topic", async () => {
     const pdf = { id: "t-pdf", name: "a.pdf", bytes: new Blob(["x"]), pageCount: 1, addedAt: 1 }
@@ -1320,7 +1307,7 @@ describe("broadcast write detection", () => {
 
   it("skips the broadcast when a guarded write no-ops (missing annotation)", async () => {
     storageSet.mockClear()
-    await updateAnnotationType("missing-ann", "highlight")
+    await updateAnnotationImage("missing-ann", "data:image/png;base64,AAAA")
     expect(storageSet.mock.calls.some((c) => "_dbpdf" in c[0])).toBe(false)
   })
 
@@ -1334,7 +1321,7 @@ describe("broadcast write detection", () => {
       endOffset: 1
     })
     storageSet.mockClear()
-    await updateAnnotationType(annotation.id, "underline")
+    await updateAnnotationImage(annotation.id, "data:image/png;base64,AAAA")
     expect(storageSet).toHaveBeenCalledWith({ _dbpdf: expect.any(Number) })
   })
 })

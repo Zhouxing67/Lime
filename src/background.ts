@@ -1,6 +1,5 @@
 import {
   addProject,
-  addProjectCard,
   createImageCard,
   createTextCard,
   getDueCount,
@@ -138,10 +137,6 @@ chrome.runtime.onMessage.addListener((raw: any, _sender, sendResponse) => {
           })
         })
       return true
-    }
-    case "save-feedback": {
-      notifyTab(msg.tabId, msg.saved, msg.type, msg.projectName)
-      return
     }
     case "set-recent-project": {
       touchProject(msg.projectId).catch(() => {})

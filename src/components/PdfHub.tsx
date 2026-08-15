@@ -24,7 +24,7 @@ import { useState } from "react"
 import RenameDialog from "./RenameDialog"
 import type { PdfFile } from "../types"
 import EmptyState from "./EmptyState"
-import { byRecency, relativeTime } from "../utils"
+import { byRecency } from "../utils"
 import DashedTile from "./DashedTile"
 
 
