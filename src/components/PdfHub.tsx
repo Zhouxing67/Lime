@@ -445,11 +445,12 @@ export default function PdfHub({
                 borderRadius: 1,
                 // Same shape as the DashedTile/topic tiles so a mixed first row
                 // (打开 PDF / 从 URL 打开 + PDFs) doesn't render taller than the
-                // pure-PDF rows, and the content centers instead of top-aligning.
+                // pure-PDF rows, and the content centers vertically. NO
+                // alignItems center — that shrunk the inner row to its content
+                // width and the noWrap name overflowed the tile edge.
                 minHeight: 104,
                 display: "flex",
                 flexDirection: "column",
-                alignItems: "center",
                 justifyContent: "center",
                 gap: 0.75,
                 border: isPlaceholder ? "1.5px dashed" : "1px solid",
