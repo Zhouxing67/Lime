@@ -1146,6 +1146,13 @@ export default function OptionsPage() {
   const handlePdfAnnotationSelected = useCallback(
     (annId: string | null) => {
       setPdfSelected(annId)
+      // Clicking an annotation should surface its card in the right panel —
+      // open the cards sidebar (the selected card auto-scrolls + highlights).
+      // Never close the panel on the 2s auto-clear (null).
+      if (annId) {
+        setPdfSidebarView("cards")
+        setPdfCardsOpen(true)
+      }
     },
     [setPdfSelected]
   )

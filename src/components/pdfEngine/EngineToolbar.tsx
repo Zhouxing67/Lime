@@ -154,8 +154,6 @@ export default function EngineToolbar({
         gap: 0.5,
         px: 1,
         minHeight: 40,
-        borderBottom: "1px solid",
-        borderColor: "divider",
         bgcolor: "background.paper",
         position: "absolute",
         top: 0,
