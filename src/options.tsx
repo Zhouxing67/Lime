@@ -1923,6 +1923,11 @@ export default function OptionsPage() {
           onOpenUrl={() => setPdfUrlOpen(true)}
           onRenamePdf={handleRenamePdf}
           onDeletePdf={handleDeletePdf}
+          topics={topics}
+          onNewTopic={handleNewTopic}
+          onRenameTopic={handleRenameTopic}
+          onDeleteTopic={handleDeleteTopic}
+          onMovePdf={handleMovePdf}
           onWidthChange={(w) => setDrawerWidth(w)}
           onNewProjectClick={() => setCreateDialogOpen(true)}
           backupScope={backupScope}

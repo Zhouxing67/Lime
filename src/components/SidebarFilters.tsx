@@ -7,6 +7,9 @@ import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded"
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
 import EditRoundedIcon from "@mui/icons-material/EditRounded"
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
+import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded"
+import DriveFileMoveRoundedIcon from "@mui/icons-material/DriveFileMoveRounded"
+import FolderRoundedIcon from "@mui/icons-material/FolderRounded"
 import {
   Box,
   Button,
@@ -14,10 +17,12 @@ import {
   DialogContentText,
   Divider,
   Drawer,
+  Menu,
+  MenuItem,
   Stack,
   Typography
 } from "@mui/material"
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { ReactNode } from "react"
 
 import RenameDialog from "./RenameDialog"
@@ -46,6 +51,11 @@ interface SidebarFiltersProps {
   onOpenUrl?: () => void
   onRenamePdf?: (id: string, name: string) => void
   onDeletePdf?: (pdf: PdfFile) => void
+  topics?: string[]
+  onNewTopic?: (name: string) => void
+  onRenameTopic?: (oldName: string, name: string) => void
+  onDeleteTopic?: (topic: string) => void
+  onMovePdf?: (pdfId: string, topic: string | undefined) => void
   children?: ReactNode
   onReviewDateClick: (dateKey: string | null) => void
   onWidthChange: (w: number) => void
@@ -95,7 +105,12 @@ function PdfTab({
   onOpenPdf,
   onOpenUrl,
   onRenamePdf,
-  onDeletePdf
+  onDeletePdf,
+  topics = [],
+  onNewTopic,
+  onRenameTopic,
+  onDeleteTopic,
+  onMovePdf
 }: {
   activePdfId: string | null
   pdfs: PdfFile[]
@@ -105,206 +120,459 @@ function PdfTab({
   onOpenUrl?: () => void
   onRenamePdf?: (id: string, name: string) => void
   onDeletePdf?: (pdf: PdfFile) => void
+  topics?: string[]
+  onNewTopic?: (name: string) => void
+  onRenameTopic?: (oldName: string, name: string) => void
+  onDeleteTopic?: (topic: string) => void
+  onMovePdf?: (pdfId: string, topic: string | undefined) => void
 }) {
   const [showAll, setShowAll] = useState(false)
   const [pdfRename, setPdfRename] = useState<{
     id: string
     name: string
   } | null>(null)
+  // 最近 / 主题 free toggle (persisted like the other _ui prefs).
+  const [view, setView] = useState<"recent" | "topics">("recent")
+  const [topicOpen, setTopicOpen] = useState<Record<string, boolean>>({})
+  const [topicRename, setTopicRename] = useState<string | null>(null)
+  const [topicCreate, setTopicCreate] = useState(false)
+  const [moveMenu, setMoveMenu] = useState<{
+    pdfId: string
+    anchor: HTMLElement | null
+  } | null>(null)
   const RECENT_TOTAL = RECENT_TOTAL_SHARED
+
+  useEffect(() => {
+    chrome.storage.local.get("_uiPdfSidebarView", (data) => {
+      const v = data._uiPdfSidebarView
+      if (v === "recent" || v === "topics") setView(v)
+    })
+  }, [])
+  const switchView = useCallback((v: "recent" | "topics") => {
+    setView(v)
+    chrome.storage.local.set({ _uiPdfSidebarView: v })
+  }, [])
+
   // Active PDF pins to the top (like the project tree's active project).
   const byLastOpened = byRecency<PdfFile>(
     (p) => p.lastOpened,
     (a, b) => b.addedAt - a.addedAt
   )
-  const ordered = [...pdfs].sort((a, b) => {
-    if (a.id === activePdfId) return -1
-    if (b.id === activePdfId) return 1
-    return byLastOpened(a, b)
-  })
+  const ordered = useMemo(
+    () =>
+      [...pdfs].sort((a, b) => {
+        if (a.id === activePdfId) return -1
+        if (b.id === activePdfId) return 1
+        return byLastOpened(a, b)
+      }),
+    [pdfs, activePdfId, byLastOpened]
+  )
+  // Topic view grouping: pdfs by topic + the 未分类 bucket.
+  const { groups, unclassified } = useMemo(() => {
+    const g = new Map<string, PdfFile[]>()
+    const u: PdfFile[] = []
+    for (const p of ordered) {
+      if (p.topic) {
+        const arr = g.get(p.topic) ?? []
+        arr.push(p)
+        g.set(p.topic, arr)
+      } else {
+        u.push(p)
+      }
+    }
+    return { groups: g, unclassified: u }
+  }, [ordered])
+
+  const toggleTopic = useCallback((t: string) => {
+    setTopicOpen((o) => ({ ...o, [t]: !o[t] }))
+  }, [])
+
+  // Shared PDF row (recent + topic views).
+  const renderPdfRow = (p: PdfFile, allowMove?: boolean) => {
+    const isPlaceholder = !p.bytes
+    const isActive = p.id === activePdfId
+    return (
+      <Box
+        key={p.id}
+        onClick={() => (isPlaceholder ? onOpenPdfClick() : onOpenPdf(p.id))}
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+          px: 1,
+          py: 0.5,
+          borderRadius: 1,
+          cursor: "pointer",
+          bgcolor: isActive ? "action.selected" : "transparent",
+          color: isActive ? "text.primary" : "text.secondary",
+          "&:hover": { bgcolor: "action.hover", color: "text.primary" },
+          "&:hover .pdf-rename": { opacity: 1 }
+        }}>
+        <PictureAsPdfRoundedIcon
+          sx={{
+            fontSize: 15,
+            color: isActive
+              ? "primary.main"
+              : isPlaceholder
+                ? "primary.main"
+                : "text.disabled",
+            flexShrink: 0
+          }}
+        />
+        <Typography
+          variant="body2"
+          sx={{
+            fontSize: "0.8rem",
+            fontWeight: isActive ? 600 : 400,
+            color: isActive ? "primary.main" : "inherit",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            flex: 1
+          }}>
+          {p.name}
+        </Typography>
+        {allowMove && onMovePdf && (
+          <IconButton
+            size="small"
+            title="移动到主题"
+            onClick={(e) => {
+              e.stopPropagation()
+              setMoveMenu({ pdfId: p.id, anchor: e.currentTarget })
+            }}
+            className="pdf-rename"
+            sx={{
+              p: 0.25,
+              color: "text.disabled",
+              opacity: 0,
+              flexShrink: 0,
+              transition: "opacity 0.15s",
+              "&:hover": { color: "primary.main", bgcolor: "transparent" }
+            }}>
+            <DriveFileMoveRoundedIcon sx={{ fontSize: 14 }} />
+          </IconButton>
+        )}
+        {onRenamePdf && (
+          <IconButton
+            size="small"
+            title="重命名"
+            onClick={(e) => {
+              e.stopPropagation()
+              setPdfRename({ id: p.id, name: p.name })
+            }}
+            className="pdf-rename"
+            sx={{
+              p: 0.25,
+              color: "text.disabled",
+              opacity: 0,
+              flexShrink: 0,
+              transition: "opacity 0.15s",
+              "&:hover": { color: "primary.main", bgcolor: "transparent" }
+            }}>
+            <EditRoundedIcon sx={{ fontSize: 14 }} />
+          </IconButton>
+        )}
+        {isPlaceholder && (
+          <Typography
+            variant="caption"
+            sx={{ fontSize: "0.62rem", color: "primary.main", flexShrink: 0 }}>
+            未同步
+          </Typography>
+        )}
+        {onDeletePdf && (
+          <IconButton
+            size="small"
+            title="删除 PDF"
+            onClick={(e) => {
+              e.stopPropagation()
+              onDeletePdf(p)
+            }}
+            className="pdf-rename"
+            sx={{
+              p: 0.25,
+              color: "text.disabled",
+              opacity: 0,
+              flexShrink: 0,
+              transition: "opacity 0.15s",
+              "&:hover": { color: "error.main", bgcolor: "transparent" }
+            }}>
+            <DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />
+          </IconButton>
+        )}
+      </Box>
+    )
+  }
+
+  const renderTopicHeader = (t: string, count: number) => {
+    const open = topicOpen[t]
+    return (
+      <Box
+        key={t}
+        onClick={() => toggleTopic(t)}
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 0.5,
+          px: 1,
+          py: 0.5,
+          borderRadius: 1,
+          cursor: "pointer",
+          color: "text.secondary",
+          "&:hover": { bgcolor: "action.hover", "& .topic-ops": { opacity: 1 } }
+        }}>
+        <ChevronRightRoundedIcon
+          sx={{
+            fontSize: 15,
+            transform: open ? "rotate(90deg)" : "none",
+            transition: "transform 0.15s",
+            flexShrink: 0
+          }}
+        />
+        <Typography
+          sx={{
+            fontSize: "0.75rem",
+            fontWeight: 600,
+            color: "text.primary",
+            flex: 1,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap"
+          }}>
+          {t}
+        </Typography>
+        <Typography sx={{ fontSize: "0.65rem", color: "text.disabled", flexShrink: 0 }}>
+          {count}
+        </Typography>
+        <Box
+          className="topic-ops"
+          sx={{ display: "flex", opacity: 0, transition: "opacity 0.15s", flexShrink: 0 }}>
+          {onRenameTopic && (
+            <IconButton
+              size="small"
+              title="重命名主题"
+              onClick={(e) => {
+                e.stopPropagation()
+                setTopicRename(t)
+              }}
+              sx={{ p: 0.25, color: "text.disabled", "&:hover": { color: "primary.main", bgcolor: "transparent" } }}>
+              <EditRoundedIcon sx={{ fontSize: 14 }} />
+            </IconButton>
+          )}
+          {onDeleteTopic && (
+            <IconButton
+              size="small"
+              title="删除主题"
+              onClick={(e) => {
+                e.stopPropagation()
+                onDeleteTopic(t)
+              }}
+              sx={{ p: 0.25, color: "text.disabled", "&:hover": { color: "error.main", bgcolor: "transparent" } }}>
+              <DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />
+            </IconButton>
+          )}
+        </Box>
+      </Box>
+    )
+  }
+
   const visible = showAll ? ordered : ordered.slice(0, RECENT_TOTAL)
   const hiddenCount = ordered.length - visible.length
 
   return (
     <>
     <Box sx={{ py: 1 }}>
-<Well>
-            <Box sx={{ display: "flex", alignItems: "center", mb: 0.5 }}>
-              <SectionLabel>最近</SectionLabel>
-              <Box sx={{ flex: 1 }} />
-              {hiddenCount > 0 && (
-                <Box
-                  onClick={() => setShowAll((s) => !s)}
-                  sx={{
-                    fontSize: "0.68rem",
-                    color: "text.disabled",
-                    cursor: "pointer",
-                    px: 0.5,
-                    "&:hover": { color: "text.primary" }
-                  }}>
-                  {showAll ? "收起" : `全部 PDF (${ordered.length})`}
-                </Box>
+      {/* 最近 / 主题 toggle */}
+      <Box
+        sx={{
+          display: "flex",
+          gap: 0.5,
+          mb: 1,
+          p: 0.25,
+          bgcolor: "action.hover",
+          borderRadius: 1
+        }}>
+        {(["recent", "topics"] as const).map((v) => (
+          <Box
+            key={v}
+            onClick={() => switchView(v)}
+            sx={{
+              flex: 1,
+              textAlign: "center",
+              py: 0.5,
+              borderRadius: 1,
+              fontSize: "0.75rem",
+              cursor: "pointer",
+              bgcolor: view === v ? "background.paper" : "transparent",
+              color: view === v ? "primary.main" : "text.secondary",
+              fontWeight: view === v ? 600 : 400
+            }}>
+            {v === "recent" ? "最近" : "主题"}
+          </Box>
+        ))}
+      </Box>
+      {view === "recent" ? (
+        <Well>
+          <Box sx={{ display: "flex", alignItems: "center", mb: 0.5 }}>
+            <SectionLabel>最近</SectionLabel>
+            <Box sx={{ flex: 1 }} />
+            {hiddenCount > 0 && (
+              <Box
+                onClick={() => setShowAll((s) => !s)}
+                sx={{
+                  fontSize: "0.68rem",
+                  color: "text.disabled",
+                  cursor: "pointer",
+                  px: 0.5,
+                  "&:hover": { color: "text.primary" }
+                }}>
+                {showAll ? "收起" : `全部 PDF (${ordered.length})`}
+              </Box>
+            )}
+          </Box>
+          {visible.map((p) => renderPdfRow(p))}
+        </Well>
+      ) : (
+        <Well>
+          <Box sx={{ display: "flex", alignItems: "center", mb: 0.5 }}>
+            <SectionLabel>主题</SectionLabel>
+            <Box sx={{ flex: 1 }} />
+            {onNewTopic && (
+              <IconButton
+                size="small"
+                title="新建主题"
+                onClick={() => setTopicCreate(true)}
+                sx={{ p: 0.25, color: "text.disabled", "&:hover": { color: "primary.main", bgcolor: "transparent" } }}>
+                <AddRoundedIcon sx={{ fontSize: 15 }} />
+              </IconButton>
+            )}
+          </Box>
+          {[...groups.entries()].map(([t, ps]) => (
+            <Box key={t}>
+              {renderTopicHeader(t, ps.length)}
+              {topicOpen[t] && <Box sx={{ pl: 0.5 }}>{ps.map((p) => renderPdfRow(p, true))}</Box>}
+            </Box>
+          ))}
+          {unclassified.length > 0 && (
+            <Box>
+              {renderTopicHeader("未分类", unclassified.length)}
+              {topicOpen["未分类"] && (
+                <Box sx={{ pl: 0.5 }}>{unclassified.map((p) => renderPdfRow(p, true))}</Box>
               )}
             </Box>
-            {visible.map((p) => {
-              const isPlaceholder = !p.bytes
-              const isActive = p.id === activePdfId
-              return (
-              <Box
-                key={p.id}
-                onClick={() => (isPlaceholder ? onOpenPdfClick() : onOpenPdf(p.id))}
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 1,
-                  px: 1,
-                  py: 0.5,
-                  borderRadius: 1,
-                  cursor: "pointer",
-                  bgcolor: isActive ? "action.selected" : "transparent",
-                  color: isActive ? "text.primary" : "text.secondary",
-                  "&:hover": { bgcolor: "action.hover", color: "text.primary" },
-                  "&:hover .pdf-rename": { opacity: 1 }
-                }}>
-                <PictureAsPdfRoundedIcon
-                  sx={{
-                    fontSize: 15,
-                    color: isActive
-                      ? "primary.main"
-                      : isPlaceholder
-                        ? "primary.main"
-                        : "text.disabled",
-                    flexShrink: 0
-                  }}
-                />
-                <Typography
-                  variant="body2"
-                  sx={{
-                    fontSize: "0.8rem",
-                    fontWeight: isActive ? 600 : 400,
-                    color: isActive ? "primary.main" : "inherit",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    flex: 1
-                  }}>
-                  {p.name}
-                </Typography>
-                {onRenamePdf && (
-                  <IconButton
-                    size="small"
-                    title="重命名"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setPdfRename({ id: p.id, name: p.name })
-                    }}
-                    className="pdf-rename"
-                    sx={{
-                      p: 0.25,
-                      color: "text.disabled",
-                      opacity: 0,
-                      flexShrink: 0,
-                      transition: "opacity 0.15s",
-                      "&:hover": { color: "primary.main", bgcolor: "transparent" }
-                    }}>
-                    <EditRoundedIcon sx={{ fontSize: 14 }} />
-                  </IconButton>
-                )}
-                {isPlaceholder && (
-                  <Typography
-                    variant="caption"
-                    sx={{ fontSize: "0.62rem", color: "primary.main", flexShrink: 0 }}>
-                    未同步
-                  </Typography>
-                )}
-                {onDeletePdf && (
-                  <IconButton
-                    size="small"
-                    title="删除 PDF"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onDeletePdf(p)
-                    }}
-                    className="pdf-rename"
-                    sx={{
-                      p: 0.25,
-                      color: "text.disabled",
-                      opacity: 0,
-                      flexShrink: 0,
-                      transition: "opacity 0.15s",
-                      "&:hover": { color: "error.main", bgcolor: "transparent" }
-                    }}>
-                    <DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />
-                  </IconButton>
-                )}
-              </Box>
-              )
-            })}
-          </Well>
-          {/* bottom: 打开 PDF (same row style as 新建项目) */}
-          <Well sx={{ p: 0, mt: 0.5, overflow: "hidden" }}>
-            <Stack
-              direction="row"
-              alignItems="center"
-              spacing={1}
-              onClick={onOpenPdfClick}
+          )}
+          {ordered.length === 0 && (
+            <Typography
+              variant="caption"
+              sx={{ color: "text.disabled", display: "block", px: 1, py: 0.5 }}>
+              还没有 PDF
+            </Typography>
+          )}
+        </Well>
+      )}
+      {/* bottom: 打开 PDF (same row style as 新建项目) */}
+      <Well sx={{ p: 0, mt: 0.5, overflow: "hidden" }}>
+        <Stack
+          direction="row"
+          alignItems="center"
+          spacing={1}
+          onClick={onOpenPdfClick}
+          sx={{
+            px: 1.5,
+            py: 0.75,
+            cursor: "pointer",
+            "&:hover": {
+              bgcolor: "action.hover",
+              "& .pdf-open-icon": { color: "primary.main" }
+            }
+          }}>
+          <AddRoundedIcon
+            className="pdf-open-icon"
+            sx={{
+              fontSize: 16,
+              color: "text.secondary",
+              transition: "color 0.15s"
+            }}
+          />
+          <Typography
+            variant="body2"
+            sx={{ fontSize: "0.8rem", color: "text.secondary", flex: 1 }}>
+            打开 PDF
+          </Typography>
+        </Stack>
+        {onOpenUrl && (
+          <Stack
+            direction="row"
+            alignItems="center"
+            spacing={1}
+            onClick={onOpenUrl}
+            sx={{
+              px: 1.5,
+              py: 0.75,
+              borderTop: "1px solid",
+              borderColor: "divider",
+              cursor: "pointer",
+              "&:hover": {
+                bgcolor: "action.hover",
+                "& .pdf-open-icon": { color: "primary.main" }
+              }
+            }}>
+            <LinkRoundedIcon
+              className="pdf-open-icon"
               sx={{
-                px: 1.5,
-                py: 0.75,
-                cursor: "pointer",
-                "&:hover": {
-                  bgcolor: "action.hover",
-                  "& .pdf-open-icon": { color: "primary.main" }
-                }
-              }}>
-              <AddRoundedIcon
-                className="pdf-open-icon"
-                sx={{
-                  fontSize: 16,
-                  color: "text.secondary",
-                  transition: "color 0.15s"
-                }}
-              />
-              <Typography
-                variant="body2"
-                sx={{ fontSize: "0.8rem", color: "text.secondary", flex: 1 }}>
-                打开 PDF
-              </Typography>
-            </Stack>
-            {onOpenUrl && (
-              <Stack
-                direction="row"
-                alignItems="center"
-                spacing={1}
-                onClick={onOpenUrl}
-                sx={{
-                  px: 1.5,
-                  py: 0.75,
-                  borderTop: "1px solid",
-                  borderColor: "divider",
-                  cursor: "pointer",
-                  "&:hover": {
-                    bgcolor: "action.hover",
-                    "& .pdf-open-icon": { color: "primary.main" }
-                  }
-                }}>
-                <LinkRoundedIcon
-                  className="pdf-open-icon"
-                  sx={{
-                    fontSize: 16,
-                    color: "text.secondary",
-                    transition: "color 0.15s"
-                  }}
-                />
-                <Typography
-                  variant="body2"
-                  sx={{ fontSize: "0.8rem", color: "text.secondary", flex: 1 }}>
-                  从 URL 打开
-                </Typography>
-              </Stack>
-            )}
-          </Well>
-        </Box>
+                fontSize: 16,
+                color: "text.secondary",
+                transition: "color 0.15s"
+              }}
+            />
+            <Typography
+              variant="body2"
+              sx={{ fontSize: "0.8rem", color: "text.secondary", flex: 1 }}>
+              从 URL 打开
+            </Typography>
+          </Stack>
+        )}
+      </Well>
+      {/* 移动到主题 menu */}
+      {onMovePdf && (
+        <Menu
+          anchorEl={moveMenu?.anchor}
+          open={Boolean(moveMenu)}
+          onClose={() => setMoveMenu(null)}
+          slotProps={{ paper: { sx: { py: 0.5, borderRadius: 1, minWidth: 160 } } }}>
+          <Typography
+            sx={{
+              fontSize: "0.68rem",
+              color: "text.disabled",
+              px: 1.5,
+              pt: 0.5,
+              pb: 0.25
+            }}>
+            移动到主题
+          </Typography>
+          <MenuItem
+            onClick={() => {
+              if (moveMenu) onMovePdf(moveMenu.pdfId, undefined)
+              setMoveMenu(null)
+            }}
+            sx={{ fontSize: "0.8rem", gap: 1 }}>
+            <FolderRoundedIcon sx={{ fontSize: 15 }} />
+            未分类
+          </MenuItem>
+          {topics.map((t) => (
+            <MenuItem
+              key={t}
+              onClick={() => {
+                if (moveMenu) onMovePdf(moveMenu.pdfId, t)
+                setMoveMenu(null)
+              }}
+              sx={{ fontSize: "0.8rem", gap: 1 }}>
+              <FolderRoundedIcon sx={{ fontSize: 15 }} />
+              {t}
+            </MenuItem>
+          ))}
+        </Menu>
+      )}
+    </Box>
       {pdfRename && (
         <RenameDialog
           open
@@ -315,6 +583,30 @@ function PdfTab({
           onConfirm={(name) => {
             if (name && name !== pdfRename.name)
               onRenamePdf?.(pdfRename.id, name)
+          }}
+        />
+      )}
+      {topicRename && (
+        <RenameDialog
+          open
+          title="重命名主题"
+          label="主题名称"
+          value={topicRename}
+          onClose={() => setTopicRename(null)}
+          onConfirm={(name) => {
+            if (name && name !== topicRename) onRenameTopic?.(topicRename, name)
+          }}
+        />
+      )}
+      {topicCreate && (
+        <RenameDialog
+          open
+          title="新建主题"
+          label="主题名称"
+          value=""
+          onClose={() => setTopicCreate(false)}
+          onConfirm={(name) => {
+            if (name) onNewTopic?.(name)
           }}
         />
       )}
@@ -340,6 +632,11 @@ export default function SidebarFilters({
   onOpenUrl,
   onRenamePdf,
   onDeletePdf,
+  topics,
+  onNewTopic,
+  onRenameTopic,
+  onDeleteTopic,
+  onMovePdf,
   children,
   onReviewDateClick,
   onWidthChange,
@@ -649,6 +946,11 @@ export default function SidebarFilters({
               onOpenUrl={onOpenUrl}
               onRenamePdf={onRenamePdf}
               onDeletePdf={onDeletePdf}
+              topics={topics}
+              onNewTopic={onNewTopic}
+              onRenameTopic={onRenameTopic}
+              onDeleteTopic={onDeleteTopic}
+              onMovePdf={onMovePdf}
             />
           ) : (
             /* Project tab content: tree + actions */
