@@ -85,46 +85,19 @@ export function usePinchZoom({
     const isCtrlKeyDownRef = useRef(false) // 物理 Ctrl/Meta 键是否按下
     const touchInfoRef = useRef<TouchInfo | null>(null)
 
+    // rAF-gated zoom (like the official pdf.js app): a trackpad pinch fires a
+    // wheel event per pixel, and applying currentScale on EVERY event re-renders
+    // all pages per event — a render burst that stresses the worker + text layer
+    // (rapid zoom could garble). Accumulate the frame's factors and apply once
+    // per animation frame instead.
+    const pendingFactorRef = useRef(1)
+    const pendingAnchorRef = useRef<{ x: number; y: number } | null>(null)
+    const zoomRafRef = useRef(0)
+
     // ═══════════════════════════════════════════════════════════
     //  核心算法 2: _centerAtPos
-    //  来源: pdf.js-4.2.67/web/app.js L2103-2111
-    // ═══════════════════════════════════════════════════════════
-    /**
-     * 锚点滚动补偿：缩放后调整 scrollLeft/scrollTop，
-     * 使指定屏幕坐标下的文档内容在缩放后仍位于相同屏幕位置。
-     *
-     * 数学推导：
-     *  设 scaleDiff = newScale / oldScale - 1
-     *  缩放前，鼠标所在文档位置到容器左上角偏移 = (clientX - containerLeft) / oldScale
-     *  缩放后，同样的文档位置到容器左上角偏移 = (clientX - containerLeft) / newScale
-     *  偏移差 = (clientX - containerLeft) * (1/oldScale - 1/newScale)
-     *        = (clientX - containerLeft) * (newScale - oldScale) / (oldScale * newScale)
-     *
-     *  但由于 scrollLeft 是在 oldScale 下的像素坐标系中，
-     *  最简单公式: scrollLeft' += (clientX - containerLeft) * scaleDiff
-     *
-     * @param previousScale  缩放前的 currentScale
-     * @param clientX        锚点的 viewport x 坐标
-     * @param clientY        锚点的 viewport y 坐标
-     */
-    const centerAtPos = useCallback((
-        previousScale: number,
-        clientX: number,
-        clientY: number,
-    ) => {
-        const container = containerRef.current
-        if (!container || !pdfViewer) return
-
-        const currentScale = pdfViewer.currentScale
-        const scaleDiff = currentScale / previousScale - 1
-        if (scaleDiff === 0) return
-
-        const { left, top } = container.getBoundingClientRect()
-        container.scrollLeft += (clientX - left) * scaleDiff
-        container.scrollTop += (clientY - top) * scaleDiff
-    }, [containerRef, pdfViewer])
-
     // ── 辅助：缩放并补偿 ──
+    // 累积本帧的全部缩放因子，在下一个动画帧一次性应用（锚点补偿同步做）。
     const applyZoom = useCallback((
         previousScale: number,
         newFactor: number,
@@ -135,13 +108,35 @@ export function usePinchZoom({
         const factor = accumulateFactor(previousScale, newFactor, accumulationRef)
         if (factor === 1) return
 
-        let newScale = Math.round(previousScale * factor * 100) / 100
-        newScale = Math.min(maxScale, Math.max(minScale, newScale))
+        pendingFactorRef.current *= factor
+        pendingAnchorRef.current = { x: clientX, y: clientY }
+        if (zoomRafRef.current) return
 
-        if (!pdfViewer || !pdfViewer.pdfDocument) return
-        pdfViewer.currentScale = newScale
-        centerAtPos(previousScale, clientX, clientY)
-    }, [centerAtPos, maxScale, minScale, pdfViewer])
+        zoomRafRef.current = requestAnimationFrame(() => {
+            zoomRafRef.current = 0
+            const factorAccum = pendingFactorRef.current
+            pendingFactorRef.current = 1
+            const anchor = pendingAnchorRef.current
+            pendingAnchorRef.current = null
+            if (!pdfViewer || !pdfViewer.pdfDocument || factorAccum === 1) return
+
+            const prevScale = pdfViewer.currentScale
+            let newScale = Math.round(prevScale * factorAccum * 100) / 100
+            newScale = Math.min(maxScale, Math.max(minScale, newScale))
+            if (newScale === prevScale) return
+
+            pdfViewer.currentScale = newScale
+
+            // 锚点滚动补偿：相对本帧起始的 scale 计算位移
+            const scaleDiff = newScale / prevScale - 1
+            const container = containerRef.current
+            if (container && anchor) {
+                const { left, top } = container.getBoundingClientRect()
+                container.scrollLeft += (anchor.x - left) * scaleDiff
+                container.scrollTop += (anchor.y - top) * scaleDiff
+            }
+        })
+    }, [pdfViewer, maxScale, minScale, containerRef])
 
     // ═══════════════════════════════════════════════════════════
     //  Wheel / Trackpad Pinch Zoom
@@ -187,6 +182,7 @@ export function usePinchZoom({
         window.addEventListener('keyup', handleKeyUp)
 
         return () => {
+            if (zoomRafRef.current) cancelAnimationFrame(zoomRafRef.current)
             container.removeEventListener('wheel', handleWheel)
             window.removeEventListener('keydown', handleKeyDown)
             window.removeEventListener('keyup', handleKeyUp)
