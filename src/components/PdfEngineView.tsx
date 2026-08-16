@@ -298,16 +298,27 @@ function EngineBridge({
   // token-guard skip the flash entirely.
   const flashTokenRef = useRef(0)
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const flashRetryRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
     const token = flashTarget?.token
     if (token == null || token === flashTokenRef.current) return
+    // Accept the new flash IMMEDIATELY: every older retry loop (the debounce +
+    // the external tryHighlight) checks flashTokenRef against its own token and
+    // aborts, so a superseded jump can never redraw the ring on the wrong
+    // annotation/page (the double-jump highlight flake).
+    flashTokenRef.current = token
     const { page, annId } = flashTarget
     // Debounce rapid card→annotation jumps so the engine's flash animation
     // isn't interrupted mid-fade (a cancelled flash used to leave the mark at
     // opacity 0).
     if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
+    if (flashRetryRef.current) {
+      clearTimeout(flashRetryRef.current)
+      flashRetryRef.current = null
+    }
     const tryFlash = () => {
       flashTimerRef.current = null
+      if (flashTokenRef.current !== token) return
       // The engine (pdfViewer/painter) or the annotations may not be ready yet
       // (the PDF just opened) — retry until the mark exists, then flash.
       if (!pdfViewer || !painter) {
@@ -319,19 +330,21 @@ function EngineBridge({
         flashTimerRef.current = setTimeout(tryFlash, 200)
         return
       }
-      flashTokenRef.current = token
       if (annId && mark) {
         // The engine's highlight scrolls + draws the selection ring; its
         // internal editor-retry (3s) may exhaust before the freshly-opened
         // page's marks render — retry externally until it returns true.
         let attempts = 0
         const tryHighlight = () => {
+          if (flashTokenRef.current !== token) return
           attempts++
           void painter.highlight(mark).then((ok) => {
+            // A newer jump superseded this one — stop (its own flash draws the
+            // ring); retrying here would cancel it and redraw on the old page.
+            if (flashTokenRef.current !== token) return
             if (ok || attempts >= 10) return
-            if (flashTimerRef.current) return
-            flashTimerRef.current = setTimeout(() => {
-              flashTimerRef.current = null
+            flashRetryRef.current = setTimeout(() => {
+              flashRetryRef.current = null
               tryHighlight()
             }, 300)
           })
@@ -346,6 +359,10 @@ function EngineBridge({
       if (flashTimerRef.current) {
         clearTimeout(flashTimerRef.current)
         flashTimerRef.current = null
+      }
+      if (flashRetryRef.current) {
+        clearTimeout(flashRetryRef.current)
+        flashRetryRef.current = null
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
