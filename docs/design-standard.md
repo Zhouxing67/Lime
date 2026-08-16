@@ -186,3 +186,4 @@
 - 窄侧栏空态（<260px 内联 caption 而非 EmptyState）
 - 复习统计卡（ReviewEmptyStats 自定义卡面）
 - TodoCard 任务添加行的 `1px dashed`
+- **导航箭头/返回/展开折叠类 icon 14-15px**（PdfSearchPanel 返回、PdfReaderPanel 折叠箭头、ProjectTree chevron、PdfHub 主题头箭头）——不属于「操作档 16px」

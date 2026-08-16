@@ -36,7 +36,7 @@ export function useBackupSync(options: {
   pdfs: PdfFile[]
   syncStatus: string
   setSyncStatus: (status: string) => void
-  setSnackbarMsg: (msg: string) => void
+  setSnackbarMsg: (msg: string, severity?: "success" | "error") => void
 }) {
   const {
     projects,
@@ -203,7 +203,7 @@ export function useBackupSync(options: {
       }
       setSyncStatus(result.message)
     } catch (e) {
-      setSnackbarMsg(`同步失败：${e}`)
+      setSnackbarMsg(`同步失败：${e}`, "error")
       setSyncStatus("同步失败")
     }
   }
@@ -312,7 +312,7 @@ export function useBackupSync(options: {
         // listeners reload each source; no explicit full refresh (R5).
       }
     } catch (e) {
-      setSnackbarMsg(`下载失败：${e}`)
+      setSnackbarMsg(`下载失败：${e}`, "error")
       setSyncStatus("下载失败")
     }
   }

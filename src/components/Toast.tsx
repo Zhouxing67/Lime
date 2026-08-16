@@ -5,12 +5,20 @@ import { Box, Snackbar, Typography } from "@mui/material"
 interface ToastProps {
   open: boolean
   message: string
+  /** Explicit severity — errors announce via role="alert"; the message-text
+   *  heuristic is gone. */
+  severity?: "success" | "error"
   onClose: () => void
 }
 
 /** Bottom-center paper toast: neutral card + colored icon (no filled band). */
-export default function Toast({ open, message, onClose }: ToastProps) {
-  const isError = message.includes("失败")
+export default function Toast({
+  open,
+  message,
+  severity = "success",
+  onClose
+}: ToastProps) {
+  const isError = severity === "error"
   const Icon = isError ? ErrorOutlineRoundedIcon : CheckRoundedIcon
 
   return (
@@ -21,7 +29,7 @@ export default function Toast({ open, message, onClose }: ToastProps) {
       anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
       sx={{ bottom: { xs: 16, sm: 24 } }}>
       <Box
-        role="status"
+        role={isError ? "alert" : "status"}
         sx={(t) => ({
           display: "flex",
           alignItems: "center",

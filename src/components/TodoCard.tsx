@@ -262,7 +262,7 @@ export default function TodoCard({
             gap: 0.5,
             "&:hover": { color: "primary.main", borderColor: "primary.main" }
           }}>
-          <AddRoundedIcon sx={{ fontSize: 14 }} />
+          <AddRoundedIcon sx={{ fontSize: 16 }} />
           添加任务
         </Box>
       </Box>

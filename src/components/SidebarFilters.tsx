@@ -210,7 +210,7 @@ function PdfTab({
         }}>
         <PictureAsPdfRoundedIcon
           sx={{
-            fontSize: 15,
+            fontSize: 16,
             color: isActive
               ? "primary.main"
               : isPlaceholder

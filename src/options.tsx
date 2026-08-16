@@ -279,7 +279,18 @@ export default function OptionsPage() {
     anchor: HTMLElement
     mode: "single" | "batch"
   } | null>(null)
-  const [snackbarMsg, setSnackbarMsg] = useState("")
+  const [snackbar, setSnackbar] = useState<{
+    message: string
+    severity: "success" | "error"
+  } | null>(null)
+  /** Explicit severity — errors pass "error" (announced via role="alert"),
+   *  success is the default. No message-text heuristics. */
+  const setSnackbarMsg = useCallback(
+    (message: string, severity: "success" | "error" = "success") => {
+      setSnackbar({ message, severity })
+    },
+    []
+  )
   const [syncStatus, setSyncStatus] = useState("")
   const [pendingSectionDelete, setPendingSectionDelete] = useState<{
     sectionId: string
@@ -628,7 +639,7 @@ export default function OptionsPage() {
       onSearch()
     } catch (e) {
       console.warn("[lime] delete failed:", e)
-      setSnackbarMsg("删除失败")
+      setSnackbarMsg("删除失败", "error")
     }
   }
 
@@ -778,7 +789,7 @@ export default function OptionsPage() {
     )
     } catch (e) {
       console.warn("[lime] merge failed:", e)
-      setSnackbarMsg("合并失败")
+      setSnackbarMsg("合并失败", "error")
       return
     }
 
@@ -809,7 +820,7 @@ export default function OptionsPage() {
       onSearch()
     } catch (e) {
       console.warn("[lime] batch delete failed:", e)
-      setSnackbarMsg("批量删除失败")
+      setSnackbarMsg("批量删除失败", "error")
     }
   }
 
@@ -819,7 +830,7 @@ export default function OptionsPage() {
       if (!card) return
       // Drafts are intermediate states — never reviewable.
       if (card.isDraft) {
-        setSnackbarMsg("草稿不可加入复习")
+        setSnackbarMsg("草稿不可加入复习", "error")
         return
       }
 
@@ -846,7 +857,7 @@ export default function OptionsPage() {
       setReviewItemIds((prev) => new Set(prev).add(itemId))
       setSnackbarMsg("已加入复习")
     },
-    [allProjectCardsUnfiltered, reviewItemIds, setReviewItemIds, reviewSetTitlePending]
+    [setSnackbarMsg, allProjectCardsUnfiltered, reviewItemIds, setReviewItemIds, reviewSetTitlePending]
   )
 
   const handleReReview = useCallback(
@@ -862,7 +873,7 @@ export default function OptionsPage() {
       })
       setSnackbarMsg("已重新加入复习")
     },
-    [reviewSrsMap, masteredItemIds]
+    [setSnackbarMsg, reviewSrsMap, masteredItemIds]
   )
 
 
@@ -904,7 +915,7 @@ export default function OptionsPage() {
       // reload each source; no explicit full refresh (R5).
     } catch (err) {
       console.error("[lime] 导入失败：", err)
-      setSnackbarMsg(`导入失败：${err}`)
+      setSnackbarMsg(`导入失败：${err}`, "error")
     } finally {
       if (backupFileInputRef.current) {
         backupFileInputRef.current.value = ""
@@ -1024,7 +1035,7 @@ export default function OptionsPage() {
         )
       }
     },
-    [activeProjectId, allProjectCards, projects]
+    [setSnackbarMsg, activeProjectId, allProjectCards, projects]
   )
 
   // Load LXGW WenKai font from CDN
@@ -1201,7 +1212,7 @@ export default function OptionsPage() {
             // An image card is invalid without the uploaded image — stay in
             // the editor instead of silently "succeeding" with no card.
             if (!values.image) {
-              setSnackbarMsg("请先上传图片")
+              setSnackbarMsg("请先上传图片", "error")
               return
             }
             await createImageCard({
@@ -1265,7 +1276,7 @@ export default function OptionsPage() {
       closeCardWorkspace()
       onSearch()
     },
-    [cardWorkspace, activeProjectId, activeSectionId, pdfById, onSearch, closeCardWorkspace]
+    [setSnackbarMsg, cardWorkspace, activeProjectId, activeSectionId, pdfById, onSearch, closeCardWorkspace]
   )
 
   const handleCardWorkspaceSaveDraft = useCallback(
@@ -1335,10 +1346,10 @@ export default function OptionsPage() {
         if (projectId === activeProjectId) onSearch()
       } catch (e) {
         console.warn("[lime] place failed:", e)
-        setSnackbarMsg("置入失败，请重试")
+        setSnackbarMsg("置入失败，请重试", "error")
       }
     },
-    [projects, activeProjectId, onSearch]
+    [setSnackbarMsg, projects, activeProjectId, onSearch]
   )
 
   const handleCreateProjectAndPlace = useCallback(
@@ -1361,11 +1372,11 @@ export default function OptionsPage() {
         try {
           await deleteProject(projectId)
         } catch {}
-        setSnackbarMsg("新建项目失败，请重试")
+        setSnackbarMsg("新建项目失败，请重试", "error")
         return false
       }
     },
-    [loadProjects]
+    [setSnackbarMsg, loadProjects]
   )
   const handleUnplaceCards = useCallback(async (cardIds: string[]) => {
     try {
@@ -1373,9 +1384,9 @@ export default function OptionsPage() {
       setSnackbarMsg(`已移出 ${cardIds.length} 张卡片（PDF 批注保留）`)
     } catch (e) {
       console.warn("[lime] unplace failed:", e)
-      setSnackbarMsg("移出失败，请重试")
+      setSnackbarMsg("移出失败，请重试", "error")
     }
-  }, [])
+  }, [setSnackbarMsg])
 
   // A pdfCard's project chip → jump to its placement's project + highlight it.
   // The placement lookup goes through the loaded placements (1:1 reverse ref).
@@ -1438,7 +1449,7 @@ export default function OptionsPage() {
           error?: string
         }>({ kind: "fetch-pdf", url })
         if (!res?.ok) {
-          setSnackbarMsg(res?.error ?? "获取 PDF 失败")
+          setSnackbarMsg(res?.error ?? "获取 PDF 失败", "error")
           return
         }
         const bytes = new Blob([base64ToBytes(res.body ?? "")], {
@@ -1456,12 +1467,12 @@ export default function OptionsPage() {
         openPdf(id)
         setSnackbarMsg("已从 URL 打开 PDF")
       } catch (e) {
-        setSnackbarMsg(`获取 PDF 失败：${e}`)
+        setSnackbarMsg(`获取 PDF 失败：${e}`, "error")
       } finally {
         setPdfUrlLoading(false)
       }
     },
-    [openPdf]
+    [setSnackbarMsg, openPdf]
   )
 
   const handleOpenPdfFile = useCallback(
@@ -1488,7 +1499,7 @@ export default function OptionsPage() {
         console.warn("[lime] open pdf failed:", e)
       }
     },
-    [openPdf]
+    [setSnackbarMsg, openPdf]
   )
 
   const handleRenamePdf = useCallback(
@@ -1496,7 +1507,7 @@ export default function OptionsPage() {
       await renamePdfName(id, name)
       setSnackbarMsg("已重命名 PDF")
     },
-    []
+    [setSnackbarMsg]
   )
 
   const handleDeletePdf = useCallback(
@@ -1539,7 +1550,7 @@ export default function OptionsPage() {
       setPdfBatchMoveAnchor(null)
       setSnackbarMsg(`已移动 ${ids.length} 个 PDF`)
     },
-    [pdfBatchSelectedIds]
+    [setSnackbarMsg, pdfBatchSelectedIds]
   )
 
   const handleConfirmPdfBatchDelete = useCallback(async () => {
@@ -1552,7 +1563,7 @@ export default function OptionsPage() {
     setPdfBatchSelectedIds([])
     setPdfBatchMode(false)
     setSnackbarMsg(`已删除 ${ids.length} 个 PDF`)
-  }, [pdfBatchSelectedIds, closePdf])
+  }, [setSnackbarMsg, pdfBatchSelectedIds, closePdf])
 
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null
 
@@ -1749,7 +1760,7 @@ export default function OptionsPage() {
           : "已导出 Markdown"
       )
     },
-    [projects, allProjectCardsUnfiltered, allPdfCards]
+    [setSnackbarMsg, projects, allProjectCardsUnfiltered, allPdfCards]
   )
 
   /** Clone + insert one card into a project (dedup-aware). A placed card's
@@ -1843,10 +1854,10 @@ export default function OptionsPage() {
       return id
     } catch (e) {
       console.warn("[lime] create project failed:", e)
-      setSnackbarMsg("新建项目失败，请重试")
+      setSnackbarMsg("新建项目失败，请重试", "error")
       return null
     }
-  }, [])
+  }, [setSnackbarMsg])
 
   const handleBatchCopyCards = async (targetProjectId: string) => {
     const proj = projects.find((p) => p.id === targetProjectId)
@@ -2818,9 +2829,10 @@ export default function OptionsPage() {
               />
 
               <Toast
-                open={Boolean(snackbarMsg)}
-                message={snackbarMsg}
-                onClose={() => setSnackbarMsg("")}
+                open={Boolean(snackbar)}
+                message={snackbar?.message ?? ""}
+                severity={snackbar?.severity}
+                onClose={() => setSnackbar(null)}
               />
 
               <CopyCardsMenu
