@@ -1,6 +1,6 @@
 # lime — Agent Guide
 
-> 当前版本 **8.0.0**（2026-08）。本文件随 v8 实际架构对齐；与代码冲突时以代码为准。
+> 当前版本 **0.1.0**（2026-08，版本机制重置：从 8.x 切到 `0.Y.Z` 开发期版本）。本文件随 v0 实际架构对齐；与代码冲突时以代码为准。
 
 ## Stack
 
@@ -25,12 +25,18 @@
 
 ## Versioning
 
-SemVer `X.Y.Z`。`package.json` version 是唯一来源（Plasmo 写入 manifest）。当前 **8.0.0**。
-- MAJOR：用户数据或核心信息架构破坏（DB_VERSION / SyncPayload schema 迁移、导航模型替换、移除已有能力依赖的数据）
-- MINOR：向后兼容的新能力
-- PATCH：修复 / 打磨 / 文档
+开发期版本 `0.Y.Z`（SemVer，**MAJOR 恒 0 —— 不发布正式版**）。`package.json` version 是唯一来源（Plasmo 写入 manifest）。当前 **0.1.0**。
 
-发布流（顺序固定）：bump version → CHANGELOG「Unreleased」→ 版本化标题 → git tag `vX.Y.Z` → push → **先 `pnpm run build` 再 `pnpm run package`**（package 复用 build/ 产物，不新构建会带上旧 manifest）→ GitHub release 附 `build/chrome-mv3-prod.zip`。开发期 CHANGELOG 顶部保留「Unreleased」。
+- **0（恒 0）**：永不发正式版；1.x 需用户显式决定正式发布才启用
+- **Y（MINOR）**：功能里程碑 / 破坏性变更（DB_VERSION / SyncPayload schema 迁移、导航模型替换、移除已有能力依赖的数据）
+- **Z（PATCH）**：修复 / 打磨 / 小增强
+
+节奏（不每轮 bump，治「版本升太快」）：
+- 日常交付轮（每 commit）**不升版本**；只在**阶段性交付点**升。
+- PATCH **批量累积**：多个修复轮合并一次 `0.Y.Z+1`。
+- MINOR **稀疏**：仅在功能里程碑或 schema/架构变更时 `0.Y+1.0`。
+
+发布流（**不发布正式版，仅打 tag**）：bump version → CHANGELOG「Unreleased」→ 版本化标题 → `git tag v0.Y.Z` → push → **先 `pnpm run build` 再 `pnpm run package`**（package 复用 build/ 产物，不新构建会带上旧 manifest）。开发期 CHANGELOG 顶部保留「Unreleased」。
 
 ## Entrypoints
 

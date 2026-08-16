@@ -611,7 +611,7 @@ async function buildPayload(
     version: 6,
     syncedAt: Date.now(),
     contentHash,
-    deviceInfo: { version: "0.5.0" },
+    deviceInfo: { version: "0.1.0" },
     projectCards: byId(stripProjectCards),
     pdfCards: byId(stripPdfCards),
     todos: byId(todos),
