@@ -12,7 +12,7 @@ module.exports = {
   ],
   setupFilesAfterEnv: ["<rootDir>/src/test/setup.ts"],
   moduleNameMapper: {
-    "\\.(css|less|scss|sass)$": "identity-obj-proxy",
+    "\\.(css|less|scss|sass)$": "<rootDir>/src/test/__mocks__/styleMock.js",
     "\\.(jpg|jpeg|png|gif|svg)$": "<rootDir>/src/test/__mocks__/fileMock.js",
     "^konva$": "konva/lib/index.js",
     "^canvas$": "<rootDir>/src/test/__mocks__/canvas.js",
@@ -23,7 +23,7 @@ module.exports = {
       "ts-jest",
       {
         tsconfig: {
-          jsx: "react",
+          jsx: "react-jsx",
           esModuleInterop: true,
           allowSyntheticDefaultImports: true,
           verbatimModuleSyntax: false,

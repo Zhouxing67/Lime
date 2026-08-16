@@ -171,17 +171,15 @@ function createRenderer(
       )
     },
     heading(children: ReactNode, level: number) {
-    const variant =
-      level === 1
-        ? ("h5" as const)
-        : level === 2
-          ? ("h6" as const)
-          : ("subtitle1" as const)
+    // Compact heading scale (all serif via the wrapper) — the MUI h5/h6
+    // variants (24/20px) are oversized for card content and subtitle1 is sans,
+    // so the old mapping mixed serif + sans mid-hierarchy.
+    const fontSize = level === 1 ? "1.05rem" : level === 2 ? "0.95rem" : "0.875rem"
     return (
       <Typography
         key={this.elementId}
-        variant={variant}
-        sx={{ my: 1.5, fontWeight: 600 }}>
+        component={level === 1 ? "h3" : level === 2 ? "h4" : "h5"}
+        sx={{ my: 1.125, fontWeight: 600, fontSize, lineHeight: 1.5, "&:first-child": { mt: 0 } }}>
         {children}
       </Typography>
     )
@@ -192,8 +190,8 @@ function createRenderer(
         key={this.elementId}
         component="p"
         sx={{
-          mb: 1,
-          lineHeight: 1.9,
+          mb: 0.875,
+          lineHeight: 1.7,
           "&:last-child": { mb: 0 }
         }}>
         {children}
@@ -220,10 +218,11 @@ function createRenderer(
         component="code"
         sx={{
           bgcolor: "action.hover",
-          px: 0.8,
-          py: 0.2,
+          px: 0.6,
+          py: 0.35,
           borderRadius: 1,
           fontSize: "0.875em",
+          lineHeight: 1.4,
           fontFamily: '"JetBrains Mono", "Fira Code", "Consolas", monospace'
         }}>
         {code}
@@ -237,6 +236,8 @@ function createRenderer(
         component="pre"
         sx={{
           bgcolor: "action.hover",
+          border: "1px solid",
+          borderColor: "divider",
           px: 2,
           py: 1.5,
           borderRadius: 1,
@@ -261,11 +262,14 @@ function createRenderer(
         key={this.elementId}
         sx={{
           pl: 2,
+          pr: 1,
+          py: 0.75,
           borderLeft: "3px solid",
-          borderColor: "primary.main",
+          borderColor: "divider",
+          bgcolor: "action.hover",
+          borderRadius: 1,
           my: 1,
-          color: "text.secondary",
-          fontStyle: "italic"
+          color: "text.secondary"
         }}>
         {children}
       </Box>
@@ -279,7 +283,7 @@ function createRenderer(
         component={ordered ? "ol" : "ul"}
         sx={{
           pl: isTaskList ? 0 : 2.5,
-          my: 1,
+          my: 0.875,
           ...(isTaskList ? { listStyle: "none" } : {})
         }}>
         {children}
@@ -292,7 +296,7 @@ function createRenderer(
         key={this.elementId}
         component="li"
         sx={{
-          lineHeight: 1.9,
+          lineHeight: 1.7,
           "&::marker": { color: "text.secondary" }
         }}>
         {children}
@@ -322,6 +326,71 @@ function createRenderer(
   },
   hr() {
     return <Divider key={this.elementId} sx={{ my: 2 }} />
+  },
+  table(children: ReactNode) {
+    return (
+      <Box
+        key={this.elementId}
+        component="table"
+        sx={{
+          width: "100%",
+          borderCollapse: "collapse",
+          my: 1,
+          fontSize: "0.85em",
+          lineHeight: 1.6,
+          "& th, & td": {
+            border: "1px solid",
+            borderColor: "divider",
+            px: 1,
+            py: 0.5,
+            textAlign: "left"
+          },
+          "& th": { bgcolor: "action.hover", fontWeight: 600 }
+        }}>
+        {children}
+      </Box>
+    )
+  },
+  tableHeader(children: ReactNode) {
+    return (
+      <Box key={this.elementId} component="thead">
+        {children}
+      </Box>
+    )
+  },
+  tableBody(children: ReactNode) {
+    return (
+      <Box key={this.elementId} component="tbody">
+        {children}
+      </Box>
+    )
+  },
+  tableRow(children: ReactNode) {
+    return (
+      <Box key={this.elementId} component="tr">
+        {children}
+      </Box>
+    )
+  },
+  tableCell(
+    children: ReactNode,
+    flags?: { header?: boolean; align?: string | null }
+  ) {
+    return (
+      <Box
+        key={this.elementId}
+        component={flags?.header ? "th" : "td"}
+        sx={{
+          textAlign:
+            flags?.align === "left" ||
+            flags?.align === "right" ||
+            flags?.align === "center"
+              ? flags.align
+              : undefined
+        }}>
+        {children}
+      </Box>
+    )
   },
   html(html: ReactNode) {
     const raw = String(html ?? "")
