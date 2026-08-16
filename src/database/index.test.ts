@@ -1327,6 +1327,31 @@ describe("searchProjectCards resolves placed cards' PDF quotes", () => {
     })
     expect(hits.map((c) => c.id)).toContain(placed.projectCardId)
   })
+
+  it("updateProjectCard strips content from a placement even when the caller passes it (A7)", async () => {
+    const { card: pdfCard } = await createTextAnnotationCard({
+      pdfId: "p-strip",
+      page: 1,
+      type: "highlight",
+      text: "strip me",
+      startOffset: 0,
+      endOffset: 4
+    })
+    await addProject({ id: "proj-strip", name: "S2", createdAt: 1 })
+    await placePdfCards([pdfCard.id], "proj-strip")
+    const placed = (await getPdfCards("p-strip"))[0]
+    const placement = await getProjectCardById(placed.projectCardId!)
+    expect(placement?.content).toBe("")
+
+    // A stray caller writing content onto the placement must not persist it.
+    await updateProjectCard({
+      ...placement!,
+      content: "should not persist",
+      title: placement!.title
+    })
+    const after = await getProjectCardById(placed.projectCardId!)
+    expect(after?.content).toBe("")
+  })
 })
 
 describe("broadcast write detection", () => {

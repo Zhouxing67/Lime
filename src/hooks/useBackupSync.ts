@@ -74,6 +74,19 @@ export function useBackupSync(options: {
       const referencedPdfCards = allPdfCards.filter((c) =>
         referencedPdfIds.has(c.id)
       )
+      // A placed card's quote/crop lives in the linked ANNOTATION — include the
+      // referenced annotations so a restore is fully self-contained (a
+      // placement without its annotation renders an empty card, A8).
+      const referencedAnnIds = new Set(
+        referencedPdfCards
+          .map((c) => c.annotationId)
+          .filter((id): id is string => Boolean(id))
+      )
+      const referencedAnnotations = referencedAnnIds.size
+        ? (await getAllAnnotations()).filter((a) =>
+            referencedAnnIds.has(a.id)
+          )
+        : []
       // Todos are global — the projects-scope export carries them all.
       const todos = await getAllTodos()
       const selectedProjects = projects.filter((p) =>
@@ -88,7 +101,9 @@ export function useBackupSync(options: {
         referencedPdfCards,
         todos,
         selectedProjects,
-        scopedReviews
+        scopedReviews,
+        undefined,
+        referencedAnnotations
       )
       const url = URL.createObjectURL(blob)
       await chrome.downloads.download({ url, filename: "lime-backup.zip" })

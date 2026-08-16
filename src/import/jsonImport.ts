@@ -694,7 +694,9 @@ export async function importFromZip(
     }
   }
 
-  // ---- decide which placements survive (their project must exist) ----
+  // ---- decide which placements survive (their project + content source must exist) ----
+  const pdfCardById = new Map(validPdfCards.map((c) => [c.id, c]))
+  const payloadAnnIds = new Set(importedAnnotations.map((a) => a.id))
   const insertablePlacementIds = new Set<string>()
   const cardsToInsert: ProjectCard[] = []
   for (const card of validProjectCards) {
@@ -708,6 +710,19 @@ export async function importFromZip(
       // pdfCard, which imports as a PDF-only card.
       result.skipped++
       continue
+    }
+    if (card.pdfCardId) {
+      // A placement is only restorable when its linked pdfCard is in this
+      // payload AND that pdfCard's annotation (the actual quote/crop) resolves
+      // — otherwise the restored card would render empty forever (A8, e.g.
+      // projects-scope backups exported before the annotations were carried).
+      const linked = pdfCardById.get(card.pdfCardId)
+      const annotationResolves =
+        linked?.annotationId && payloadAnnIds.has(linked.annotationId)
+      if (!linked || !annotationResolves) {
+        result.skipped++
+        continue
+      }
     }
     cardsToInsert.push(card)
     if (card.pdfCardId) insertablePlacementIds.add(card.id)

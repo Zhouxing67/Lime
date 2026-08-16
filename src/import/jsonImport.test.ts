@@ -3,6 +3,7 @@ import JSZip from "jszip"
 import {
   addPdf,
   createTextAnnotationCard,
+  getAllProjectCards,
   getAllReviews,
   getAllTodos,
   getAnnotation,
@@ -578,5 +579,116 @@ describe("draft three-link round-trip", () => {
     expect(importedDraft.isDraft).toBe(true)
     expect(importedDraft.draftOf).toBe("orig-1")
     expect(importedDraft.title).toBe("草稿标题")
+  })
+
+  it("drops placements whose annotation isn't in the payload (A8 — no dead placed cards)", async () => {
+    // A projects-scope backup exported BEFORE the annotations were carried:
+    // placement + pdfCard present, annotation absent.
+    const payload = {
+      version: 5,
+      projectCards: [
+        {
+          id: "plc-1",
+          type: "text" as const,
+          title: "放置卡",
+          content: "",
+          order: 1,
+          projectId: "proj-a",
+          pdfCardId: "pcard-1",
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ],
+      pdfCards: [
+        {
+          id: "pcard-1",
+          pdfId: "pdf-a",
+          page: 1,
+          kind: "text",
+          type: "highlight",
+          annotationId: "ann-1",
+          content: "",
+          pdfOrder: 1000001,
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ],
+      projects: [{ id: "proj-a", name: "项目A", createdAt: 1 }],
+      todos: [],
+      reviews: []
+    }
+    const file = await packZip(payload)
+    const result = await importFromZip(file)
+    // The placement is skipped (its annotation can't be restored) — only the
+    // project + pdfCard import (PDF-only).
+    const cards = await getAllProjectCards()
+    expect(cards.find((c: { id: string }) => c.id === "plc-1")).toBeUndefined()
+    const pdfCards = await getPdfCards("pdf-a")
+    expect(pdfCards.find((c) => c.id === "pcard-1")?.projectCardId).toBeUndefined()
+    expect(result.skipped).toBeGreaterThanOrEqual(1)
+  })
+
+  it("restores placements whose annotation IS in the payload", async () => {
+    const payload = {
+      version: 5,
+      projectCards: [
+        {
+          id: "plc-2",
+          type: "text" as const,
+          title: "放置卡2",
+          content: "",
+          order: 1,
+          projectId: "proj-b",
+          pdfCardId: "pcard-2",
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ],
+      pdfCards: [
+        {
+          id: "pcard-2",
+          pdfId: "pdf-b",
+          page: 1,
+          kind: "text",
+          type: "highlight",
+          annotationId: "ann-2",
+          content: "",
+          projectCardId: "plc-2",
+          pdfOrder: 1000002,
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ],
+      pdfAnnotations: [
+        {
+          id: "ann-2",
+          pdfId: "pdf-b",
+          page: 1,
+          kind: "text",
+          type: "highlight",
+          text: "引文",
+          rects: [],
+          store: {
+            id: "ann-2",
+            pageNumber: 1,
+            type: 1,
+            konvaClientRect: { x: 0, y: 0, width: 10, height: 10 }
+          },
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ],
+      projects: [{ id: "proj-b", name: "项目B", createdAt: 1 }],
+      todos: [],
+      reviews: []
+    }
+    const file = await packZip(payload)
+    await importFromZip(file)
+    const cards = await getAllProjectCards()
+    const placement = cards.find((c: { id: string }) => c.id === "plc-2")
+    expect(placement).toBeDefined()
+    expect(placement.pdfCardId).toBe("pcard-2")
+    const pdfCards = await getPdfCards("pdf-b")
+    expect(pdfCards.find((c) => c.id === "pcard-2")?.projectCardId).toBe("plc-2")
   })
 })

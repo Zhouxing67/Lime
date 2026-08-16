@@ -314,6 +314,10 @@ export async function addProjectCard(
 ): Promise<boolean> {
   const normalized: ProjectCard = {
     ...card,
+    // Placed cards NEVER carry content (the placement model — the pdfCard owns
+    // the text) — enforce the invariant at the DB write layer, not only at the
+    // UI call sites (A7).
+    ...(card.pdfCardId ? { content: "" } : {}),
     updatedAt: card.updatedAt ?? Date.now(),
     sourceSite:
       card.source?.site ??
@@ -553,7 +557,11 @@ export async function getProjectCardById(
 
 export async function updateProjectCard(card: ProjectCard): Promise<void> {
   await withStore("projectCards", "readwrite", (store) => {
-    store.put({ ...card, updatedAt: Date.now() })
+    // Enforce the placement invariant at the write layer (A7).
+    store.put({
+      ...(card.pdfCardId ? { ...card, content: "" } : card),
+      updatedAt: Date.now()
+    })
   })
 }
 

@@ -50,7 +50,13 @@ export async function bulkReplace(
       reviews: "readwrite"
     },
     async (stores) => {
-      for (const card of remoteProjectCards) stores.projectCards.put(card)
+      for (const card of remoteProjectCards) {
+        // Enforce the placement invariant at the write layer (A7) — the sync
+        // payload's placements carry content in some edge states.
+        stores.projectCards.put(
+          card.pdfCardId ? { ...card, content: "" } : card
+        )
+      }
       for (const card of localProjectCards) {
         if (!remoteCardIds.has(card.id)) stores.projectCards.delete(card.id)
       }
