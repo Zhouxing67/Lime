@@ -1008,6 +1008,24 @@ describe("pdf content-hash id + notes-only sync", () => {
     expect(await getAnnotation("la1")).toBeUndefined()
     expect((await getPdf("pdf-s"))?.bytes).toBeNull()
   })
+
+  it("applyPdfSync creates the missing pdfCard for a remote annotation (1:1 guard)", async () => {
+    const remoteAnn: PdfAnnotation = {
+      id: "ra-no-card", pdfId: "pdf-1to1", page: 2, kind: "text", type: "highlight",
+      pos: { x: 0.3, y: 0.4 }, text: "x", createdAt: 1, updatedAt: 1
+    }
+    await applyPdfSync(
+      [{ id: "pdf-1to1", name: "a.pdf", pageCount: 3, addedAt: 1 }],
+      [remoteAnn],
+      [],
+      []
+    )
+    const cards = await getPdfCards("pdf-1to1")
+    const card = cards.find((c) => c.annotationId === "ra-no-card")
+    expect(card).toBeDefined()
+    expect(card?.type).toBe("highlight")
+    expect(card?.page).toBe(2)
+  })
 })
 
 describe("updatePdfTopic", () => {

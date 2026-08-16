@@ -41,7 +41,26 @@ export async function getReviewByItemId(
 /** Shared light-weight due count — the SAME index query the toolbar badge uses,
  *  so the NavRail review icon + the badge always agree. */
 export async function getDueCount(): Promise<number> {
-  return (await getDueReviews()).length
+  // Count active due entries with a cursor (status isn't in the dueDate index,
+  // so count() would overcount mastered items) without allocating the array.
+  return withStore("reviews", "readonly", (store) => {
+    const idx = store.index("dueDate")
+    const range = IDBKeyRange.upperBound(Date.now())
+    return new Promise<number>((resolve, reject) => {
+      let count = 0
+      const req = idx.openCursor(range)
+      req.onsuccess = () => {
+        const cursor = req.result
+        if (cursor) {
+          if ((cursor.value as ReviewEntry).status === "active") count++
+          cursor.continue()
+        } else {
+          resolve(count)
+        }
+      }
+      req.onerror = () => reject(req.error)
+    })
+  })
 }
 
 export async function getDueReviews(): Promise<ReviewEntry[]> {

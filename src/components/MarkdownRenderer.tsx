@@ -5,17 +5,15 @@ import "katex/dist/katex.min.css"
 import Markdown from "marked-react"
 import type { ReactRenderer } from "marked-react"
 import type { ReactNode } from "react"
+import { useEffect } from "react"
 
 // marked 16 emits a `checkbox` token for GFM task lists; marked-react 4's
 // parser has no case for it and logs `Token with "checkbox" type was not found`
 // (then renders nothing). The checkbox itself is rendered correctly via the
-// renderer below, so this known-harmless warning is filtered at module load.
-const ORIGINAL_WARN = console.warn.bind(console)
+// renderer below, so this known-harmless warning is filtered while the
+// component is mounted — the override is localized to its lifetime and restored
+// on unmount (no module-load global mutation).
 const IGNORED_MARKED_WARN = /Token with "checkbox" type was not found/
-console.warn = (...args: unknown[]) => {
-  if (typeof args[0] === "string" && IGNORED_MARKED_WARN.test(args[0])) return
-  ORIGINAL_WARN(...args)
-}
 
 type CustomRenderer = Partial<ReactRenderer>
 
@@ -350,6 +348,18 @@ export default function MarkdownRenderer({
   hideImages,
   onToggleTask
 }: MarkdownRendererProps) {
+  // Localize the checkbox-warning filter to this component's lifetime instead
+  // of mutating console.warn at module load.
+  useEffect(() => {
+    const original = console.warn.bind(console)
+    console.warn = (...args: unknown[]) => {
+      if (typeof args[0] === "string" && IGNORED_MARKED_WARN.test(args[0])) return
+      original(...args)
+    }
+    return () => {
+      console.warn = original
+    }
+  }, [])
   // Build the renderer per render: preview (clamped) or hideImages mode hides
   // inline images; otherwise they render constrained to the container width.
   const renderer = createRenderer(

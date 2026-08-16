@@ -873,6 +873,33 @@ export async function applyPdfSync(
       if (!remoteIds.has(local.id)) stores.pdfAnnotations.delete(local.id)
     }
   })
+  // Enforce the annotation↔card 1:1: a remote annotation whose linked pdfCard
+  // is absent (a filtered/legacy payload) would leave any placement unresolvable
+  // — create the missing card so the invariant holds (R7).
+  const existingCards = await getAllPdfCards()
+  const cardByAnn = new Map(existingCards.map((c) => [c.annotationId, c.id]))
+  const missing = remoteAnnotations.filter((a) => !cardByAnn.has(a.id))
+  if (missing.length > 0) {
+    await tx({ pdfCards: "readwrite" }, async (stores) => {
+      for (const ann of missing) {
+        const card = createPdfCard({
+          pdfId: ann.pdfId,
+          page: ann.page,
+          kind: ann.kind,
+          type: ann.type,
+          annotationId: ann.id,
+          pdfOrder:
+            ann.page * PDF_ORDER_BASE +
+            Math.round((ann.pos?.y ?? 0) * 1e6)
+        })
+        await new Promise<void>((resolve, reject) => {
+          const r = stores.pdfCards.put(card)
+          r.onsuccess = () => resolve()
+          r.onerror = () => reject(r.error)
+        })
+      }
+    })
+  }
 }
 
 /** Rename a topic across all PDFs carrying it. */

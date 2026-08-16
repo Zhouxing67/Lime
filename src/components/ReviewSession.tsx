@@ -87,7 +87,10 @@ export default function ReviewSession({
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (completed) return
-      if (e.key === "Enter" || e.key === " ") {
+      // Enter/Space flips the FRONT only — once flipped, the rating buttons are
+      // focused and their native activation would double-fire with this handler
+      // (Enter would flip BACK and rate at once), so it must do nothing.
+      if ((e.key === "Enter" || e.key === " ") && !flipped) {
         e.preventDefault()
         onFlip()
       }
