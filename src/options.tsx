@@ -1525,12 +1525,6 @@ export default function OptionsPage() {
     )
   }, [])
 
-  const pdfBatchAllSelected = useMemo(
-    () =>
-      pdfBatchSelectedIds.length > 0 && pdfBatchSelectedIds.length === pdfs.length,
-    [pdfBatchSelectedIds, pdfs]
-  )
-
   const togglePdfBatchSelectAll = useCallback(() => {
     setPdfBatchSelectedIds((ids) =>
       ids.length === pdfs.length ? [] : pdfs.map((p) => p.id)
@@ -2104,6 +2098,19 @@ export default function OptionsPage() {
                     </IconButton>
                   </Tooltip>
                 </>
+              ) : sidebarTab === "pdf" ? (
+                <Tooltip title={pdfBatchMode ? "取消选择" : "批量选择"}>
+                  <IconButton
+                    size="small"
+                    onClick={togglePdfBatch}
+                    sx={{
+                      color: pdfBatchMode ? "error.main" : "text.secondary",
+                      "&:hover": { color: "error.main" },
+                      "&.Mui-focusVisible": { outline: "none" }
+                    }}>
+                    <DoneAllRoundedIcon sx={{ fontSize: 20 }} />
+                  </IconButton>
+                </Tooltip>
               ) : (
                 activeProject && (
                   <>
@@ -2260,9 +2267,56 @@ export default function OptionsPage() {
                     ]}
                   />
                 ) : null}
-              </FilterChips>
+               </FilterChips>
             )}
           </Box>
+
+          {sidebarTab === "pdf" && pdfBatchMode && (
+            <Box
+              sx={{
+                bgcolor: "background.paper",
+                py: 1,
+                px: 2,
+                borderBottom: "1px solid",
+                borderColor: "divider"
+              }}>
+              <BatchToolbar
+                selectedCount={pdfBatchSelectedIds.length}
+                allSelected={
+                  pdfBatchSelectedIds.length > 0 &&
+                  pdfBatchSelectedIds.length === pdfs.length
+                }
+                onSelectAll={togglePdfBatchSelectAll}
+                countLabel="个 PDF"
+                actions={[
+                  {
+                    label: "移动到主题",
+                    icon: (
+                      <DriveFileMoveOutlinedIcon
+                        sx={{ fontSize: 16, mr: 0.5 }}
+                      />
+                    ),
+                    onClick: (e) => setPdfBatchMoveAnchor(e.currentTarget),
+                    dividerBefore: true,
+                    disabled: pdfBatchSelectedIds.length === 0
+                  },
+                  {
+                    label: "删除选中",
+                    icon: (
+                      <DeleteSweepRoundedIcon
+                        sx={{ fontSize: 16, mr: 0.5 }}
+                      />
+                    ),
+                    onClick: () => setConfirmPdfBatchDelete(true),
+                    dividerBefore: true,
+                    disabled: pdfBatchSelectedIds.length === 0,
+                    variant: "contained",
+                    color: "error"
+                  }
+                ]}
+              />
+            </Box>
+          )}
 
           {sidebarTab === "review" && reviewView.reviewDateFilter && (
             <Box
@@ -2402,12 +2456,7 @@ export default function OptionsPage() {
                 handleMovePdf,
                 pdfBatchMode,
                 pdfBatchSelectedIds,
-                pdfBatchAllSelected,
-                onTogglePdfBatch: togglePdfBatch,
-                onTogglePdfBatchSelect: togglePdfBatchSelect,
-                onTogglePdfBatchSelectAll: togglePdfBatchSelectAll,
-                onPdfBatchMoveClick: (e) => setPdfBatchMoveAnchor(e.currentTarget),
-                onPdfBatchDelete: () => setConfirmPdfBatchDelete(true)
+                onTogglePdfBatchSelect: togglePdfBatchSelect
               }}
               backupProps={{
                 scope: backupScope,

@@ -1,19 +1,13 @@
 import { Fragment, useCallback } from "react"
 import {
   Box,
-  Button,
   CircularProgress,
   Container,
   Fade,
-  Stack,
   Typography
 } from "@mui/material"
 import SearchOffRoundedIcon from "@mui/icons-material/SearchOffRounded"
 import NoteAddRoundedIcon from "@mui/icons-material/NoteAddRounded"
-import DoneAllRoundedIcon from "@mui/icons-material/DoneAllRounded"
-import DeleteSweepRoundedIcon from "@mui/icons-material/DeleteSweepRounded"
-import DriveFileMoveOutlinedIcon from "@mui/icons-material/DriveFileMoveOutlined"
-import BatchToolbar from "./BatchToolbar"
 
 import CardWorkspace from "./CardWorkspace"
 import type { CardEditorValues } from "./CardEditorView"
@@ -96,12 +90,7 @@ interface PdfViewRouterProps {
   handleMovePdf: (id: string, topic: string) => void
   pdfBatchMode: boolean
   pdfBatchSelectedIds: string[]
-  pdfBatchAllSelected: boolean
-  onTogglePdfBatch: () => void
   onTogglePdfBatchSelect: (id: string) => void
-  onTogglePdfBatchSelectAll: () => void
-  onPdfBatchMoveClick: (e: React.MouseEvent<HTMLButtonElement>) => void
-  onPdfBatchDelete: () => void
 }
 
 type GridProps = React.ComponentProps<typeof CardGrid>
@@ -248,12 +237,7 @@ function PdfViewRouter(props: PdfViewRouterProps) {
     handleMovePdf,
     pdfBatchMode,
     pdfBatchSelectedIds,
-    pdfBatchAllSelected,
-    onTogglePdfBatch,
-    onTogglePdfBatchSelect,
-    onTogglePdfBatchSelectAll,
-    onPdfBatchMoveClick,
-    onPdfBatchDelete
+    onTogglePdfBatchSelect
   } = props
   if (openPdfIds.length === 0) {
     return (
@@ -264,74 +248,6 @@ function PdfViewRouter(props: PdfViewRouterProps) {
           bgcolor: (t) => t.custom.surface2
         }}>
         <Container sx={{ py: 4 }} maxWidth="xl">
-          <Stack
-            direction="row"
-            alignItems="center"
-            spacing={1}
-            sx={{ mb: 2 }}>
-            <Box sx={{ flex: 1 }} />
-            {pdfBatchMode ? (
-              <>
-                <BatchToolbar
-                  selectedCount={pdfBatchSelectedIds.length}
-                  allSelected={pdfBatchAllSelected}
-                  onSelectAll={onTogglePdfBatchSelectAll}
-                  countLabel="个 PDF"
-                  actions={[
-                    {
-                      label: "移动到主题",
-                      icon: (
-                        <DriveFileMoveOutlinedIcon
-                          sx={{ fontSize: 16, mr: 0.5 }}
-                        />
-                      ),
-                      onClick: onPdfBatchMoveClick,
-                      dividerBefore: true,
-                      disabled: pdfBatchSelectedIds.length === 0
-                    },
-                    {
-                      label: "删除选中",
-                      icon: (
-                        <DeleteSweepRoundedIcon
-                          sx={{ fontSize: 16, mr: 0.5 }}
-                        />
-                      ),
-                      onClick: onPdfBatchDelete,
-                      dividerBefore: true,
-                      disabled: pdfBatchSelectedIds.length === 0,
-                      variant: "contained",
-                      color: "error"
-                    }
-                  ]}
-                />
-                <Button
-                  size="small"
-                  onClick={onTogglePdfBatch}
-                  sx={{
-                    borderRadius: 1,
-                    fontSize: "0.75rem",
-                    color: "text.secondary",
-                    textTransform: "none"
-                  }}>
-                  完成
-                </Button>
-              </>
-            ) : (
-              <Button
-                size="small"
-                startIcon={<DoneAllRoundedIcon sx={{ fontSize: 16 }} />}
-                onClick={onTogglePdfBatch}
-                sx={{
-                  borderRadius: 1,
-                  fontSize: "0.75rem",
-                  color: "text.secondary",
-                  textTransform: "none",
-                  "&:hover": { color: "primary.main" }
-                }}>
-                批量选择
-              </Button>
-            )}
-          </Stack>
           <PdfHub
             key={topics.join("|")}
             pdfs={pdfs}

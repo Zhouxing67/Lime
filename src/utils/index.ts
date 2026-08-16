@@ -119,6 +119,14 @@ export function truncateText(text: string, max: number): string {
   return text.slice(0, max) + "..."
 }
 
+/** Deterministic soft hue per name — the palette comes from the theme's
+ *  custom.avatarPalette token (light/dark aware), not hardcoded hex. */
+export function avatarColor(palette: string[], name: string): string {
+  let h = 0
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0
+  return palette[h % palette.length]
+}
+
 /**
  * Extracts image URLs from Markdown content (`![alt](url)`), deduplicated,
  * preserving order. Used to derive cover thumbnails and inline-image inputs

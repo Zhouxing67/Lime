@@ -24,9 +24,67 @@ import { useState } from "react"
 import RenameDialog from "./RenameDialog"
 import type { PdfFile } from "../types"
 import EmptyState from "./EmptyState"
-import { byRecency } from "../utils"
+import { avatarColor, byRecency } from "../utils"
 import DashedTile from "./DashedTile"
 
+/** Colored circular avatar (avatarPalette, deterministic per name) — the same
+ *  visual anchor the project tiles use; icon renders in the contrast color. */
+function TileAvatar({ name, icon }: { name: string; icon: React.ReactNode }) {
+  return (
+    <Box
+      sx={(t) => ({
+        width: 36,
+        height: 36,
+        borderRadius: "50%",
+        bgcolor: avatarColor(t.custom.avatarPalette, name),
+        color: t.palette.getContrastText(
+          avatarColor(t.custom.avatarPalette, name)
+        ),
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0
+      })}>
+      {icon}
+    </Box>
+  )
+}
+
+/** Two-section tile footer: divider + left meta (count) + optional right meta. */
+function TileFooter({
+  left,
+  right
+}: {
+  left: React.ReactNode
+  right?: React.ReactNode
+}) {
+  return (
+    <Box
+      sx={{
+        mt: "auto",
+        pt: 1.25,
+        borderTop: "1px solid",
+        borderColor: "divider",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 1
+      }}>
+      <Typography
+        variant="caption"
+        sx={{ color: "text.disabled", fontSize: "0.75rem" }}>
+        {left}
+      </Typography>
+      {right && (
+        <Typography
+          variant="caption"
+          sx={{ color: "text.disabled", fontSize: "0.7rem" }}>
+          {right}
+        </Typography>
+      )}
+    </Box>
+  )
+}
 
 const UNCLASSIFIED = "__unclassified__"
 
@@ -161,11 +219,10 @@ export default function PdfHub({
       bgcolor: "background.paper",
       cursor: "pointer",
       minHeight: 104,
+      // Two-section tile (avatar row + footer) like the project tiles — the
+      // footer pins to the bottom via mt:auto.
       display: "flex",
       flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 0.75,
       position: "relative",
       transition: "all 0.2s",
       boxShadow: theme.custom.cardShadow,
@@ -185,21 +242,22 @@ export default function PdfHub({
           gap: 1.5
         }}>
         <Paper elevation={0} onClick={() => setTopicView("all")} sx={tileSx}>
-          <Box sx={{ color: "text.secondary" }}>
-            <PictureAsPdfRoundedIcon sx={{ fontSize: 26 }} />
-          </Box>
-          <Typography
-            variant="body2"
-            sx={{
-              fontWeight: 600,
-              fontSize: "0.95rem",
-              fontFamily: (t: Theme) => t.custom.serif
-            }}>
-            全部 PDF
-          </Typography>
-          <Typography variant="caption" sx={{ color: "text.secondary" }}>
-            {pdfs.length} 篇
-          </Typography>
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            <TileAvatar
+              name="全部 PDF"
+              icon={<PictureAsPdfRoundedIcon sx={{ fontSize: 18 }} />}
+            />
+            <Typography
+              variant="body2"
+              sx={{
+                fontWeight: 600,
+                fontSize: "0.95rem",
+                fontFamily: (t: Theme) => t.custom.serif
+              }}>
+              全部 PDF
+            </Typography>
+          </Stack>
+          <TileFooter left={`${pdfs.length} 篇`} />
         </Paper>
 
         {topics.map((t) => (
@@ -215,21 +273,27 @@ export default function PdfHub({
             }}
             sx={tileSx}>
               <>
-                <Box sx={{ color: "text.secondary" }}>
-                  <FolderRoundedIcon sx={{ fontSize: 26 }} />
-                </Box>
-                <Typography
-                  variant="body2"
-                  sx={{
-                    fontWeight: 600,
-                    fontSize: "0.95rem",
-                    fontFamily: (t: Theme) => t.custom.serif
-                  }}>
-                  {t}
-                </Typography>
-                <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                  {topicCounts.get(t) ?? 0} 篇
-                </Typography>
+                <Stack direction="row" spacing={1.5} alignItems="center">
+                  <TileAvatar
+                    name={t}
+                    icon={<FolderRoundedIcon sx={{ fontSize: 18 }} />}
+                  />
+                  <Typography
+                    variant="body2"
+                    noWrap
+                    sx={{
+                      fontWeight: 600,
+                      fontSize: "0.95rem",
+                      fontFamily: (t: Theme) => t.custom.serif,
+                      minWidth: 0,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      flex: 1
+                    }}>
+                    {t}
+                  </Typography>
+                </Stack>
+                <TileFooter left={`${topicCounts.get(t) ?? 0} 篇`} />
                 <Box
                   className="topic-ops"
                   sx={{
@@ -269,21 +333,22 @@ export default function PdfHub({
           elevation={0}
           onClick={() => setTopicView(UNCLASSIFIED)}
           sx={tileSx}>
-          <Box sx={{ color: "text.secondary" }}>
-            <FolderRoundedIcon sx={{ fontSize: 26 }} />
-          </Box>
-          <Typography
-            variant="body2"
-            sx={{
-              fontWeight: 600,
-              fontSize: "0.95rem",
-              fontFamily: (t: Theme) => t.custom.serif
-            }}>
-            未分类
-          </Typography>
-          <Typography variant="caption" sx={{ color: "text.secondary" }}>
-            {unclassified} 篇
-          </Typography>
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            <TileAvatar
+              name="未分类"
+              icon={<FolderRoundedIcon sx={{ fontSize: 18 }} />}
+            />
+            <Typography
+              variant="body2"
+              sx={{
+                fontWeight: 600,
+                fontSize: "0.95rem",
+                fontFamily: (t: Theme) => t.custom.serif
+              }}>
+              未分类
+            </Typography>
+          </Stack>
+          <TileFooter left={`${unclassified} 篇`} />
         </Paper>
 
         {newTopicOpen ? (
@@ -443,16 +508,12 @@ export default function PdfHub({
               sx={(theme) => ({
                 p: 2,
                 borderRadius: 1,
-                // Same shape as the DashedTile/topic tiles so a mixed first row
-                // (打开 PDF / 从 URL 打开 + PDFs) doesn't render taller than the
-                // pure-PDF rows, and the content centers vertically. NO
-                // alignItems center — that shrunk the inner row to its content
-                // width and the noWrap name overflowed the tile edge.
+                // Uniform height across the mixed first row (打开 PDF / URL +
+                // PDFs); two-section layout (avatar row + footer) like the
+                // project tiles.
                 minHeight: 104,
                 display: "flex",
                 flexDirection: "column",
-                justifyContent: "center",
-                gap: 0.75,
                 border: isPlaceholder ? "1.5px dashed" : "1px solid",
                 borderColor: selectable
                   ? "primary.main"
@@ -554,22 +615,12 @@ export default function PdfHub({
                   </IconButton>
                 </>
               )}
-              <Stack direction="row" spacing={1.5} alignItems="center">
-                <Box
-                  sx={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 1,
-                    bgcolor: (t) => t.custom.surface2,
-                    color: "text.secondary",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0
-                  }}>
-                  <PictureAsPdfRoundedIcon sx={{ fontSize: 20 }} />
-                </Box>
-                <Box sx={{ minWidth: 0 }}>
+              <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: 0 }}>
+                <TileAvatar
+                  name={p.name}
+                  icon={<PictureAsPdfRoundedIcon sx={{ fontSize: 18 }} />}
+                />
+                <Box sx={{ minWidth: 0, flex: 1 }}>
                   <Typography
                     variant="body2"
                     noWrap
@@ -581,7 +632,11 @@ export default function PdfHub({
                     {p.name}
                   </Typography>
                 </Box>
-               </Stack>
+              </Stack>
+              <TileFooter
+                left={p.topic ?? "未分类"}
+                right={`${countByPdf[p.id] ?? 0} 张摘录`}
+              />
              </Paper>
            )
          })}
