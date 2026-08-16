@@ -853,6 +853,33 @@ describe("pdf annotations ↔ cards", () => {
     expect(anns.filter((x) => x.id === "ann-race")).toHaveLength(1)
   })
 
+  it("type switch on saveAnnotationFromStore propagates to the pdfCard (B5)", async () => {
+    const { card } = await createTextAnnotationCard({
+      pdfId: "pdf-type",
+      page: 1,
+      type: "highlight",
+      text: "类型切换",
+      startOffset: 0,
+      endOffset: 4
+    })
+    expect(card.type).toBe("highlight")
+    // Re-save the same annotation as an underline (engine type 3 → mark).
+    await saveAnnotationFromStore({
+      pdfId: "pdf-type",
+      store: {
+        id: card.annotationId,
+        pageNumber: 1,
+        type: 3,
+        konvaClientRect: { x: 0, y: 0, width: 10, height: 10 },
+        contentsObj: { selectedText: "类型切换" }
+      },
+      pos: { x: 0, y: 0 }
+    })
+    const pdfCards = await getPdfCards("pdf-type")
+    expect(pdfCards[0].id).toBe(card.id)
+    expect(pdfCards[0].type).toBe("underline")
+  })
+
   it("deletes annotation + card together (both directions)", async () => {
     const { annotation } = await createTextAnnotationCard({
       pdfId: "pdf-b",

@@ -486,6 +486,22 @@ export async function saveAnnotationFromStore(input: {
         r.onsuccess = () => resolve()
         r.onerror = () => reject(r.error)
       })
+      // A type switch must propagate to the linked pdfCard — the project view's
+      // type chip reads pdfCard.type (B5). Keep it in the same tx.
+      if (existing && existing.type !== annotation.type) {
+        const linked = (await getByKeys<PdfCard>(stores.pdfCards, [existing.cardId ?? ""]))[0]
+        if (linked && linked.type !== annotation.type) {
+          await new Promise<void>((resolve, reject) => {
+            const r = stores.pdfCards.put({
+              ...linked,
+              type: annotation.type,
+              updatedAt: now
+            })
+            r.onsuccess = () => resolve()
+            r.onerror = () => reject(r.error)
+          })
+        }
+      }
       result = annotation
     }
   )
