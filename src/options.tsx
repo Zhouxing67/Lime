@@ -8,6 +8,8 @@ import {
   Button,
   CssBaseline,
   IconButton,
+  Menu,
+  MenuItem,
   Stack,
   TextField,
   Tooltip,
@@ -29,6 +31,7 @@ import DeleteSweepRoundedIcon from "@mui/icons-material/DeleteSweepRounded"
 import FileCopyOutlinedIcon from "@mui/icons-material/FileCopyOutlined"
 import FileDownloadRoundedIcon from "@mui/icons-material/FileDownloadRounded"
 import DriveFileMoveOutlinedIcon from "@mui/icons-material/DriveFileMoveOutlined"
+import FolderRoundedIcon from "@mui/icons-material/FolderRounded"
 import MergeTypeRoundedIcon from "@mui/icons-material/MergeTypeRounded"
 import DateRangeFilter from "./components/DateRangeFilter"
 import DeleteConfirmDialog from "./components/DeleteConfirmDialog"
@@ -202,6 +205,13 @@ export default function OptionsPage() {
   const [pdfCurrentPage, setPdfCurrentPage] = useState(1)
   const [pdfPageCount, setPdfPageCount] = useState(0)
   const [pdfSidebarView, setPdfSidebarView] = useState<"cards" | "search">("cards")
+
+  // PDF library batch operations (batch delete / move-to-topic).
+  const [pdfBatchMode, setPdfBatchMode] = useState(false)
+  const [pdfBatchSelectedIds, setPdfBatchSelectedIds] = useState<string[]>([])
+  const [confirmPdfBatchDelete, setConfirmPdfBatchDelete] = useState(false)
+  const [pdfBatchMoveAnchor, setPdfBatchMoveAnchor] =
+    useState<HTMLElement | null>(null)
 
   const activePdfIdRef = useRef<string | null>(null)
   activePdfIdRef.current = activePdfId
@@ -1503,6 +1513,53 @@ export default function OptionsPage() {
     setPdfDeleteTarget(null)
   }, [pdfDeleteTarget, closePdf])
 
+  // ---- PDF library batch operations ----
+  const togglePdfBatch = useCallback(() => {
+    setPdfBatchSelectedIds([])
+    setPdfBatchMode((prev) => !prev)
+  }, [])
+
+  const togglePdfBatchSelect = useCallback((id: string) => {
+    setPdfBatchSelectedIds((ids) =>
+      ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]
+    )
+  }, [])
+
+  const pdfBatchAllSelected = useMemo(
+    () =>
+      pdfBatchSelectedIds.length > 0 && pdfBatchSelectedIds.length === pdfs.length,
+    [pdfBatchSelectedIds, pdfs]
+  )
+
+  const togglePdfBatchSelectAll = useCallback(() => {
+    setPdfBatchSelectedIds((ids) =>
+      ids.length === pdfs.length ? [] : pdfs.map((p) => p.id)
+    )
+  }, [pdfs])
+
+  const handlePdfBatchMove = useCallback(
+    async (topic?: string) => {
+      const ids = pdfBatchSelectedIds
+      for (const id of ids) await updatePdfTopic(id, topic).catch(() => {})
+      setPdfBatchSelectedIds([])
+      setPdfBatchMoveAnchor(null)
+      setSnackbarMsg(`已移动 ${ids.length} 个 PDF`)
+    },
+    [pdfBatchSelectedIds]
+  )
+
+  const handleConfirmPdfBatchDelete = useCallback(async () => {
+    const ids = pdfBatchSelectedIds
+    for (const id of ids) {
+      await deletePdf(id).catch(() => {})
+      closePdf(id)
+    }
+    setConfirmPdfBatchDelete(false)
+    setPdfBatchSelectedIds([])
+    setPdfBatchMode(false)
+    setSnackbarMsg(`已删除 ${ids.length} 个 PDF`)
+  }, [pdfBatchSelectedIds, closePdf])
+
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null
 
   const otherProjects = useMemo(
@@ -2342,7 +2399,15 @@ export default function OptionsPage() {
                 handleNewTopic,
                 handleRenameTopic,
                 handleDeleteTopic,
-                handleMovePdf
+                handleMovePdf,
+                pdfBatchMode,
+                pdfBatchSelectedIds,
+                pdfBatchAllSelected,
+                onTogglePdfBatch: togglePdfBatch,
+                onTogglePdfBatchSelect: togglePdfBatchSelect,
+                onTogglePdfBatchSelectAll: togglePdfBatchSelectAll,
+                onPdfBatchMoveClick: (e) => setPdfBatchMoveAnchor(e.currentTarget),
+                onPdfBatchDelete: () => setConfirmPdfBatchDelete(true)
               }}
               backupProps={{
                 scope: backupScope,
@@ -2557,6 +2622,50 @@ export default function OptionsPage() {
                 onCancel={() => setPdfDeleteTarget(null)}
                 onConfirm={confirmDeletePdf}
               />
+
+              <DeleteConfirmDialog
+                open={confirmPdfBatchDelete}
+                batch
+                count={pdfBatchSelectedIds.length}
+                itemLabel="个 PDF"
+                message={`将删除选中的 ${pdfBatchSelectedIds.length} 个 PDF 及其全部批注与摘录卡片。`}
+                onCancel={() => setConfirmPdfBatchDelete(false)}
+                onConfirm={handleConfirmPdfBatchDelete}
+              />
+
+              <Menu
+                anchorEl={pdfBatchMoveAnchor}
+                open={Boolean(pdfBatchMoveAnchor)}
+                onClose={() => setPdfBatchMoveAnchor(null)}
+                slotProps={{
+                  paper: { sx: { py: 0.5, borderRadius: 1, minWidth: 160 } }
+                }}>
+                <Typography
+                  sx={{
+                    fontSize: "0.68rem",
+                    color: "text.disabled",
+                    px: 1.5,
+                    pt: 0.5,
+                    pb: 0.25
+                  }}>
+                  移动到主题
+                </Typography>
+                <MenuItem
+                  onClick={() => handlePdfBatchMove(undefined)}
+                  sx={{ fontSize: "0.8rem", gap: 1 }}>
+                  <FolderRoundedIcon sx={{ fontSize: 15 }} />
+                  未分类
+                </MenuItem>
+                {topics.map((t) => (
+                  <MenuItem
+                    key={t}
+                    onClick={() => handlePdfBatchMove(t)}
+                    sx={{ fontSize: "0.8rem", gap: 1 }}>
+                    <FolderRoundedIcon sx={{ fontSize: 15 }} />
+                    {t}
+                  </MenuItem>
+                ))}
+              </Menu>
 
               <DeleteConfirmDialog
                 open={Boolean(topicDeleteTarget)}
