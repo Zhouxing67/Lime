@@ -602,19 +602,24 @@ export default function OptionsPage() {
 
   const handleConfirmDelete = async () => {
     if (!confirmDeleteId) return
-    // A placed PDF-sourced card is ALSO the PDF annotation card — deleting it
-    // from the project must only remove the placement (the annotation stays).
-    const card = allProjectCardsUnfiltered.find(
-      (c) => c.id === confirmDeleteId
-    )
-    if (card?.pdfCardId) {
-      await unplacePdfCards([card.pdfCardId])
-      setSnackbarMsg("已从项目移出（PDF 批注保留）")
-    } else {
-      await deleteProjectCard(confirmDeleteId)
+    try {
+      // A placed PDF-sourced card is ALSO the PDF annotation card — deleting it
+      // from the project must only remove the placement (the annotation stays).
+      const card = allProjectCardsUnfiltered.find(
+        (c) => c.id === confirmDeleteId
+      )
+      if (card?.pdfCardId) {
+        await unplacePdfCards([card.pdfCardId])
+        setSnackbarMsg("已从项目移出（PDF 批注保留）")
+      } else {
+        await deleteProjectCard(confirmDeleteId)
+      }
+      setConfirmDeleteId(null)
+      onSearch()
+    } catch (e) {
+      console.warn("[lime] delete failed:", e)
+      setSnackbarMsg("删除失败")
     }
-    setConfirmDeleteId(null)
-    onSearch()
   }
 
   const loadMore = useCallback(() => {
@@ -707,18 +712,19 @@ export default function OptionsPage() {
       images: allImages,
       ...(mergedSectionId ? { sectionId: mergedSectionId } : {})
     })
-    // Place the merged card last in its scope (auto-order) + give it a dedup
-    // hash so future captures of the same text collapse (addProjectCard-level).
-    const readyCard = await ensureOrder(newCard)
-    const readyWithHash = {
-      ...readyCard,
-      hash: await computeItemHash(readyCard.content, "", allImages)
-    }
+    try {
+      // Place the merged card last in its scope (auto-order) + give it a dedup
+      // hash so future captures of the same text collapse (addProjectCard-level).
+      const readyCard = await ensureOrder(newCard)
+      const readyWithHash = {
+        ...readyCard,
+        hash: await computeItemHash(readyCard.content, "", allImages)
+      }
 
-    // Atomic transaction: insert new + delete originals + cleanup reviews.
-    // A placed original ALSO loses its placement — its pdfCard's reverse
-    // reference is cleared so the 1:1 placement invariant holds.
-    await tx(
+      // Atomic transaction: insert new + delete originals + cleanup reviews.
+      // A placed original ALSO loses its placement — its pdfCard's reverse
+      // reference is cleared so the 1:1 placement invariant holds.
+      await tx(
       {
         projectCards: "readwrite",
         pdfCards: "readwrite",
@@ -760,6 +766,11 @@ export default function OptionsPage() {
         }
       }
     )
+    } catch (e) {
+      console.warn("[lime] merge failed:", e)
+      setSnackbarMsg("合并失败")
+      return
+    }
 
     setMergeState(null)
     setSelectedIds([])
@@ -770,21 +781,26 @@ export default function OptionsPage() {
   }
 
   const handleConfirmBatchDelete = async () => {
-    // Route placed cards through unplace (their pdfCard + annotation survive);
-    // plain cards are deleted outright. Both delete the placement's review.
-    const placedPdfCardIds: string[] = []
-    const plainIds: string[] = []
-    for (const id of selectedIds) {
-      const card = allProjectCardsUnfiltered.find((c) => c.id === id)
-      if (card?.pdfCardId) placedPdfCardIds.push(card.pdfCardId)
-      else plainIds.push(id)
+    try {
+      // Route placed cards through unplace (their pdfCard + annotation survive);
+      // plain cards are deleted outright. Both delete the placement's review.
+      const placedPdfCardIds: string[] = []
+      const plainIds: string[] = []
+      for (const id of selectedIds) {
+        const card = allProjectCardsUnfiltered.find((c) => c.id === id)
+        if (card?.pdfCardId) placedPdfCardIds.push(card.pdfCardId)
+        else plainIds.push(id)
+      }
+      if (placedPdfCardIds.length > 0) await unplacePdfCards(placedPdfCardIds)
+      if (plainIds.length > 0) await deleteProjectCards(plainIds)
+      setSelectMode(false)
+      setSelectedIds([])
+      setConfirmBatchDelete(false)
+      onSearch()
+    } catch (e) {
+      console.warn("[lime] batch delete failed:", e)
+      setSnackbarMsg("批量删除失败")
     }
-    if (placedPdfCardIds.length > 0) await unplacePdfCards(placedPdfCardIds)
-    if (plainIds.length > 0) await deleteProjectCards(plainIds)
-    setSelectMode(false)
-    setSelectedIds([])
-    setConfirmBatchDelete(false)
-    onSearch()
   }
 
   const handleToggleReview = useCallback(

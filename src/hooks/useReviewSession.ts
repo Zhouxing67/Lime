@@ -86,7 +86,13 @@ export function useReviewSession({
           // FIRST rating of the day → the only one that locks the schedule.
           const newSrs = rateSrs(currentSrs, rating)
           firstSrsRef.current.set(current.id, newSrs)
-          await updateReviewSrs(current.id, newSrs)
+          try {
+            await updateReviewSrs(current.id, newSrs)
+          } catch (e) {
+            // The schedule write failing shouldn't hang the session — the
+            // queue advances anyway; the DB reconciles on the next run.
+            console.warn("[lime] review srs write failed:", e)
+          }
           setSessionRatedCount((c) => c + 1)
           if (rating >= 2) {
             setReviewItems((q) => q.slice(1))
@@ -101,10 +107,14 @@ export function useReviewSession({
           setSessionRatedCount((c) => c + 1)
           if (rating >= 2) {
             const base = firstSrsRef.current.get(current.id) ?? currentSrs
-            await updateReviewSrs(current.id, {
-              ...base,
-              dueDate: Date.now() + DAY_MS
-            })
+            try {
+              await updateReviewSrs(current.id, {
+                ...base,
+                dueDate: Date.now() + DAY_MS
+              })
+            } catch (e) {
+              console.warn("[lime] review srs write failed:", e)
+            }
             setReviewItems((q) => q.slice(1))
             setSessionPassedIds((prev) => new Set(prev).add(current.id))
           } else {
@@ -121,7 +131,15 @@ export function useReviewSession({
         setReviewFlipped(false)
         setAnimating(false)
         if (willEmpty) {
-          const due = await getDueReviews()
+          let due: Awaited<ReturnType<typeof getDueReviews>> = []
+          try {
+            due = await getDueReviews()
+          } catch (e) {
+            console.warn("[lime] due reviews reload failed:", e)
+            setReviewCompleted(true)
+            setReviewItems([])
+            return
+          }
           // Display-resolved pairing: a placed card's review entry points at its
           // placement, and the session renders the resolved body/comment.
           const itemMap = new Map(displayCardsUnfiltered.map((i) => [i.id, i]))
