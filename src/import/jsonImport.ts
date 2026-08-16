@@ -827,10 +827,17 @@ export async function importFromZip(
   const existingAnnotationIds = new Set(
     (await getAllAnnotations()).map((a) => a.id)
   )
+  // The note-layer: annotations referenced by the restored pdfCards must import
+  // even when their pdf isn't in the payload (projects-scope backup restores
+  // placed cards + their quote without the PDF file — F1).
+  const pdfCardAnnIds = new Set(
+    validPdfCards.map((c) => c.annotationId).filter(Boolean)
+  )
   for (const ann of importedAnnotations) {
     const mappedId = pdfIdMap.get(ann.pdfId) ?? ann.pdfId
-    // Drop orphans (pdf not imported) and duplicates (id unique index).
-    if (!pdfIdSet.has(mappedId)) continue
+    // Drop orphans (pdf not imported AND no pdfCard references it) and
+    // duplicates (id unique index).
+    if (!pdfIdSet.has(mappedId) && !pdfCardAnnIds.has(ann.id)) continue
     if (existingAnnotationIds.has(ann.id)) continue
     ann.pdfId = mappedId
     // Legacy annotations carried itemId instead of cardId — the linked pdfCard

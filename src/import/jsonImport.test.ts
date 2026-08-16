@@ -667,6 +667,7 @@ describe("draft three-link round-trip", () => {
           kind: "text",
           type: "highlight",
           text: "引文",
+          cardId: "pcard-2",
           rects: [],
           store: {
             id: "ann-2",
@@ -690,5 +691,12 @@ describe("draft three-link round-trip", () => {
     expect(placement.pdfCardId).toBe("pcard-2")
     const pdfCards = await getPdfCards("pdf-b")
     expect(pdfCards.find((c) => c.id === "pcard-2")?.projectCardId).toBe("plc-2")
+    // F1: the placed card's QUOTE (the linked annotation) must import even
+    // though its pdf isn't in the payload — a projects-scope restore without
+    // this renders the placement empty.
+    const restoredAnn = await getAnnotation("ann-2")
+    expect(restoredAnn).toBeDefined()
+    expect(restoredAnn?.text).toBe("引文")
+    expect(restoredAnn?.cardId).toBe("pcard-2")
   })
 })

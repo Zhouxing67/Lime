@@ -200,6 +200,8 @@ export function useBackupSync(options: {
           setSyncStatus
         )
         chrome.storage.local.set({ lastSyncTime: Date.now() })
+      } else {
+        setSnackbarMsg(result.message, "error")
       }
       setSyncStatus(result.message)
     } catch (e) {
