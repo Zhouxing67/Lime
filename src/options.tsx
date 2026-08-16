@@ -2098,20 +2098,7 @@ export default function OptionsPage() {
                     </IconButton>
                   </Tooltip>
                 </>
-              ) : sidebarTab === "pdf" ? (
-                <Tooltip title={pdfBatchMode ? "取消选择" : "批量选择"}>
-                  <IconButton
-                    size="small"
-                    onClick={togglePdfBatch}
-                    sx={{
-                      color: pdfBatchMode ? "error.main" : "text.secondary",
-                      "&:hover": { color: "error.main" },
-                      "&.Mui-focusVisible": { outline: "none" }
-                    }}>
-                    <DoneAllRoundedIcon sx={{ fontSize: 20 }} />
-                  </IconButton>
-                </Tooltip>
-              ) : (
+              ) : sidebarTab === "pdf" ? null : (
                 activeProject && (
                   <>
                     <Tooltip title="新建卡片">
@@ -2271,7 +2258,7 @@ export default function OptionsPage() {
             )}
           </Box>
 
-          {sidebarTab === "pdf" && pdfBatchMode && (
+          {sidebarTab === "pdf" && !activePdfId && (
             <Box
               sx={{
                 bgcolor: "background.paper",
@@ -2280,41 +2267,82 @@ export default function OptionsPage() {
                 borderBottom: "1px solid",
                 borderColor: "divider"
               }}>
-              <BatchToolbar
-                selectedCount={pdfBatchSelectedIds.length}
-                allSelected={
-                  pdfBatchSelectedIds.length > 0 &&
-                  pdfBatchSelectedIds.length === pdfs.length
-                }
-                onSelectAll={togglePdfBatchSelectAll}
-                countLabel="个 PDF"
-                actions={[
-                  {
-                    label: "移动到主题",
-                    icon: (
-                      <DriveFileMoveOutlinedIcon
-                        sx={{ fontSize: 16, mr: 0.5 }}
-                      />
-                    ),
-                    onClick: (e) => setPdfBatchMoveAnchor(e.currentTarget),
-                    dividerBefore: true,
-                    disabled: pdfBatchSelectedIds.length === 0
-                  },
-                  {
-                    label: "删除选中",
-                    icon: (
-                      <DeleteSweepRoundedIcon
-                        sx={{ fontSize: 16, mr: 0.5 }}
-                      />
-                    ),
-                    onClick: () => setConfirmPdfBatchDelete(true),
-                    dividerBefore: true,
-                    disabled: pdfBatchSelectedIds.length === 0,
-                    variant: "contained",
-                    color: "error"
-                  }
-                ]}
-              />
+              {/* FilterChips-style toolbar: a flexGrow spacer pushes the batch
+               *  controls to the RIGHT side of the row. */}
+              <Stack
+                direction="row"
+                spacing={1}
+                alignItems="center"
+                flexWrap="wrap"
+                useFlexGap>
+                <Box sx={{ flexGrow: 1 }} />
+                {pdfBatchMode ? (
+                  <>
+                    <BatchToolbar
+                      selectedCount={pdfBatchSelectedIds.length}
+                      allSelected={
+                        pdfBatchSelectedIds.length > 0 &&
+                        pdfBatchSelectedIds.length === pdfs.length
+                      }
+                      onSelectAll={togglePdfBatchSelectAll}
+                      countLabel="个 PDF"
+                      actions={[
+                        {
+                          label: "移动到主题",
+                          icon: (
+                            <DriveFileMoveOutlinedIcon
+                              sx={{ fontSize: 16, mr: 0.5 }}
+                            />
+                          ),
+                          onClick: (e) =>
+                            setPdfBatchMoveAnchor(e.currentTarget),
+                          dividerBefore: true,
+                          disabled: pdfBatchSelectedIds.length === 0
+                        },
+                        {
+                          label: "删除选中",
+                          icon: (
+                            <DeleteSweepRoundedIcon
+                              sx={{ fontSize: 16, mr: 0.5 }}
+                            />
+                          ),
+                          onClick: () => setConfirmPdfBatchDelete(true),
+                          dividerBefore: true,
+                          disabled: pdfBatchSelectedIds.length === 0,
+                          variant: "contained",
+                          color: "error"
+                        }
+                      ]}
+                    />
+                    <Button
+                      size="small"
+                      onClick={togglePdfBatch}
+                      sx={{
+                        borderRadius: 1,
+                        fontSize: "0.75rem",
+                        color: "text.secondary",
+                        textTransform: "none",
+                        "&:hover": { color: "error.main" }
+                      }}>
+                      完成
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    size="small"
+                    startIcon={<DoneAllRoundedIcon sx={{ fontSize: 16 }} />}
+                    onClick={togglePdfBatch}
+                    sx={{
+                      borderRadius: 1,
+                      fontSize: "0.75rem",
+                      color: "text.secondary",
+                      textTransform: "none",
+                      "&:hover": { color: "primary.main" }
+                    }}>
+                    批量选择
+                  </Button>
+                )}
+              </Stack>
             </Box>
           )}
 
