@@ -2286,6 +2286,7 @@ export default function OptionsPage() {
               pdfProps={{
                 openPdfIds,
                 activePdfId,
+                annotationById,
                 pdfOutlineDest,
                 setPdfOutlineDest,
                 pdfReaderOpen,

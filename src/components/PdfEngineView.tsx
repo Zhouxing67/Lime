@@ -10,6 +10,7 @@ import { deepMerge } from "~/src/pdf/inklayer/utils"
 import { usePainter } from "~/src/pdf/inklayer/extensions/annotator/context/use_painter"
 import { usePdfViewerContext } from "~/src/pdf/inklayer/context/pdf_viewer_context"
 import type { IAnnotationStore } from "~/src/pdf/inklayer/extensions/annotator/const/definitions"
+import type { PdfAnnotation } from "../types"
 import { TooltipProvider } from "@radix-ui/react-tooltip"
 import { Theme } from "@radix-ui/themes"
 import "@radix-ui/themes/styles.css"
@@ -59,6 +60,9 @@ export interface PdfEngineViewProps {
   typeChangeRequest?: { id: string; type: number; seq: number } | null
   /** Bump → auto-clear the shared selection ring (the 2s card↔mark cue). */
   clearRingToken?: number
+  /** Current annotations for this PDF — distinguishes geometry edits from
+   *  style-only edits so the placed-card crop survives a recolor (A6). */
+  annotationById?: Map<string, PdfAnnotation>
 }
 
 /** Bridge rendered INSIDE PdfViewerProvider — needs the pdfViewer/eventBus. */
@@ -78,6 +82,7 @@ function EngineBridge({
   searchFlash,
   typeChangeRequest,
   clearRingToken,
+  annotationById,
   textRange,
   onTextSelected
 }: {
@@ -112,6 +117,9 @@ function EngineBridge({
   } | null
   typeChangeRequest?: { id: string; type: number; seq: number } | null
   clearRingToken?: number
+  /** Current annotations for this PDF — used to distinguish geometry edits
+   *  from style-only edits so the placed-card crop survives a recolor (A6). */
+  annotationById?: Map<string, PdfAnnotation>
   textRange: Range | null
   onTextSelected: (range: Range | null) => void
 }) {
@@ -201,12 +209,48 @@ function EngineBridge({
     [computeGeometry, onAnnotationAdd]
   )
 
+  // Same normalized point arrays (a style-only edit leaves them identical).
+  const geometrySame = useCallback(
+    (
+      prev: PdfAnnotation | undefined,
+      rects?: { x: number; y: number; w: number; h: number }[],
+      path?: { x: number; y: number }[],
+      paths?: { x: number; y: number }[][]
+    ) => {
+      const ptsSame = (a: { x: number; y: number }[] | undefined, b: { x: number; y: number }[] | undefined) => {
+        if ((a?.length ?? 0) !== (b?.length ?? 0)) return false
+        if (!a || !b) return true
+        for (let i = 0; i < a.length; i++) {
+          if (a[i].x !== b[i].x || a[i].y !== b[i].y) return false
+        }
+        return true
+      }
+      return (
+        ptsSame(prev?.rects, rects) &&
+        ptsSame(prev?.path, path) &&
+        ptsSame(prev?.paths?.flat() as { x: number; y: number }[] | undefined, paths?.flat())
+      )
+    },
+    []
+  )
+
   const handleChange = useCallback(
     (store: IAnnotationStore) => {
       const { pos, rects, path, allPaths } = computeGeometry(store)
-      onAnnotationChanged?.(store, pos, rects, path, allPaths)
+      // A style-only edit (color/opacity/type) keeps the same normalized
+      // geometry — pass NO geometry so saveAnnotationFromStore keeps the crop
+      // image instead of treating it as a shape edit and clearing the placed
+      // card's crop (A6).
+      const geometryChanged = !geometrySame(annotationById?.get(store.id), rects, path, allPaths)
+      onAnnotationChanged?.(
+        store,
+        pos,
+        geometryChanged ? rects : undefined,
+        geometryChanged ? path : undefined,
+        geometryChanged ? allPaths : undefined
+      )
     },
-    [computeGeometry, onAnnotationChanged]
+    [computeGeometry, onAnnotationChanged, annotationById, geometrySame]
   )
 
   const pageJumpSeqRef = useRef(pageJump?.seq ?? 0)
@@ -348,7 +392,8 @@ export default function PdfEngineView({
   pageJump,
   searchFlash,
   typeChangeRequest,
-  clearRingToken
+  clearRingToken,
+  annotationById
 }: PdfEngineViewProps) {
   const [textRange, setTextRange] = useState<Range | null>(null)
   const optionsValue = useMemo(
@@ -427,7 +472,7 @@ export default function PdfEngineView({
                 pageJump={pageJump}
                 searchFlash={searchFlash}
                 typeChangeRequest={typeChangeRequest}
-                clearRingToken={clearRingToken}
+                annotationById={annotationById}
                 textRange={textRange}
                 onTextSelected={handleTextSelected}
               />

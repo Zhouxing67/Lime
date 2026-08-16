@@ -20,7 +20,7 @@ import ProjectHub from "./ProjectHub"
 import CardGrid from "./CardGrid"
 import EmptyState from "./EmptyState"
 import type { SidebarTab } from "./NavRail"
-import type { DisplayCard, PdfFile, PdfOutlineItem, Project, ProjectCard } from "../types"
+import type { DisplayCard, PdfAnnotation, PdfFile, PdfOutlineItem, Project, ProjectCard } from "../types"
 import type { PdfSearchEntry, PdfSearchMatch } from "./pdfText"
 import type { CardWorkspaceState } from "../hooks/useWorkspaceView"
 import type { CardDropState } from "../hooks/useCardDragReorder"
@@ -58,6 +58,7 @@ interface PdfViewRouterProps {
   swapLeft: () => void
   pdfFlashTarget: { page: number; annId: string; token: number } | null
   pdfClearRingToken: number
+  annotationById: Map<string, PdfAnnotation>
   handlePdfAnnotationSelected: (annId: string | null) => void
   pdfTypeChangeTarget: { id: string; type: number; seq: number } | null
   handleJumpInPanel: (cardId: string) => void
@@ -209,6 +210,7 @@ function PdfViewRouter(props: PdfViewRouterProps) {
     swapLeft,
     pdfFlashTarget,
     pdfClearRingToken,
+    annotationById,
     handlePdfAnnotationSelected,
     pdfTypeChangeTarget,
     handleJumpInPanel,
@@ -281,6 +283,7 @@ function PdfViewRouter(props: PdfViewRouterProps) {
             typeChangeRequest={pdfTypeChangeTarget}
             onAnnotationSelected={handlePdfAnnotationSelected}
             clearRingToken={pdfClearRingToken}
+            annotationById={annotationById}
           />
         </Box>
       ) : (

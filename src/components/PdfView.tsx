@@ -7,7 +7,7 @@ import { usePdfDocument } from "../hooks/usePdfDocument"
 import { usePdfSearch } from "../hooks/usePdfSearch"
 import { getAnnotationsByPdf, deleteAnnotationWithCard, saveAnnotationFromStore } from "../database"
 import { outlinePageNumber } from "./pdfText"
-import type { PdfOutlineItem } from "../types"
+import type { PdfAnnotation, PdfOutlineItem } from "../types"
 import type { PdfSearchEntry, PdfSearchMatch } from "./pdfText"
 import type { IAnnotationStore } from "../pdf/inklayer/extensions/annotator/const/definitions"
 
@@ -28,7 +28,8 @@ export default function PdfView({
   onOutlineClick,
   typeChangeRequest,
   onAnnotationSelected,
-  clearRingToken
+  clearRingToken,
+  annotationById
 }: {
   pdfId: string | null
   outlineDest?: PdfOutlineItem | null
@@ -47,6 +48,7 @@ export default function PdfView({
   typeChangeRequest?: { id: string; type: number; seq: number } | null
   onAnnotationSelected?: (annId: string | null) => void
   clearRingToken?: number
+  annotationById?: Map<string, PdfAnnotation>
 }) {
   const { loaded, error } = usePdfDocument(pdfId)
   const [stores, setStores] = useState<IAnnotationStore[]>([])
@@ -268,6 +270,7 @@ export default function PdfView({
           pageJump={pageJump}
           searchFlash={searchFlash}
           typeChangeRequest={typeChangeRequest}
+          annotationById={annotationById}
         />
       </Box>
     </Box>

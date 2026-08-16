@@ -18,6 +18,7 @@ import {
   createTextAnnotationCard,
   deleteAnnotationWithCard,
   deletePdfCards,
+  getAllAnnotations,
   getProjectCardById,
   getPdfCards,
   addProjectCard,
@@ -44,6 +45,7 @@ import {
   listProjects,
   placePdfCard,
   placePdfCards,
+  saveAnnotationFromStore,
   unplacePdfCard,
   unplacePdfCards,
   searchProjectCards,
@@ -824,6 +826,31 @@ describe("pdf annotations ↔ cards", () => {
     expect(cards).toHaveLength(1)
     expect(cards[0].id).toBe(card.id)
     expect(await getPdfCards("pdf-other")).toHaveLength(0)
+  })
+
+  it("concurrent saveAnnotationFromStore on the same annotation creates ONE card (A5)", async () => {
+    const input = {
+      pdfId: "pdf-race",
+      store: {
+        id: "ann-race",
+        pageNumber: 1,
+        type: 1,
+        konvaClientRect: { x: 10, y: 20, width: 30, height: 40 },
+        contentsObj: { selectedText: "并发竞态" }
+      },
+      pos: { x: 10, y: 20 }
+    }
+    const [a, b] = await Promise.all([
+      saveAnnotationFromStore(input),
+      saveAnnotationFromStore(input)
+    ])
+    expect(a.id).toBe("ann-race")
+    expect(a.cardId).toBe(b.cardId)
+    const cards = await getPdfCards("pdf-race")
+    expect(cards).toHaveLength(1)
+    expect(cards[0].annotationId).toBe("ann-race")
+    const anns = await getAllAnnotations()
+    expect(anns.filter((x) => x.id === "ann-race")).toHaveLength(1)
   })
 
   it("deletes annotation + card together (both directions)", async () => {

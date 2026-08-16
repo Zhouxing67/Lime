@@ -428,66 +428,68 @@ export async function saveAnnotationFromStore(input: {
   const kind = inkTypeToKind(s.type)
   const text =
     s.contentsObj?.selectedText || s.contentsObj?.text || s.title || undefined
-  const existing = (await getAnnotation(s.id)) as PdfAnnotation | undefined
-  const annotation: PdfAnnotation = {
-    id: s.id,
-    pdfId: input.pdfId,
-    page: s.pageNumber,
-    kind,
-    type,
-    text,
-    color: s.color ?? undefined,
-    pos: input.pos,
-    rects: input.rects,
-    path: input.path,
-    paths: input.paths,
-    store: s,
-    // A geometry edit (rects/path/paths present) invalidates the crop image —
-    // keep it only when no geometry changed, so the placed crop re-renders
-    // from the new shape on the next placement.
-    ...(input.rects || input.path || input.paths
-      ? { image: undefined }
-      : { ...(existing?.image ? { image: existing.image } : {}) }),
-    ...(existing?.cardId ? { cardId: existing.cardId } : {}),
-    updatedAt: Date.now(),
-    createdAt: existing?.createdAt ?? Date.now()
-  }
-  if (!annotation.cardId) {
-    const card = createPdfCard({
-      pdfId: input.pdfId,
-      page: s.pageNumber,
-      kind,
-      type,
-      annotationId: s.id,
-      pdfOrder:
-        s.pageNumber * PDF_ORDER_BASE +
-        Math.round((input.pos?.y ?? 0) * 1e6)
-    })
-    annotation.cardId = card.id
-    await tx(
-      { pdfCards: "readwrite", pdfAnnotations: "readwrite" },
-      async (stores) => {
+  const now = Date.now()
+  let result: PdfAnnotation | undefined
+
+  await tx(
+    { pdfAnnotations: "readwrite", pdfCards: "readwrite" },
+    async (stores) => {
+      // Read INSIDE the same transaction so concurrent saves serialize on the
+      // store: a read-then-create split across two transactions would let both
+      // observe no card and each create one, breaking the annotation↔card 1:1
+      // (A5).
+      const existing = (await getByKeys<PdfAnnotation>(stores.pdfAnnotations, [s.id]))[0]
+      let cardId = existing?.cardId
+      if (!cardId) {
+        const card = createPdfCard({
+          pdfId: input.pdfId,
+          page: s.pageNumber,
+          kind,
+          type,
+          annotationId: s.id,
+          pdfOrder:
+            s.pageNumber * PDF_ORDER_BASE +
+            Math.round((input.pos?.y ?? 0) * 1e6)
+        })
+        cardId = card.id
         await new Promise<void>((resolve, reject) => {
-          const r1 = stores.pdfCards.put(card)
-          r1.onsuccess = () => {
-            const r2 = stores.pdfAnnotations.put(annotation)
-            r2.onsuccess = () => resolve()
-            r2.onerror = () => reject(r2.error)
-          }
-          r1.onerror = () => reject(r1.error)
+          const r = stores.pdfCards.put(card)
+          r.onsuccess = () => resolve()
+          r.onerror = () => reject(r.error)
         })
       }
-    )
-  } else {
-    await withStore("pdfAnnotations", "readwrite", async (store) => {
+      const annotation: PdfAnnotation = {
+        id: s.id,
+        pdfId: input.pdfId,
+        page: s.pageNumber,
+        kind,
+        type,
+        text,
+        color: s.color ?? undefined,
+        pos: input.pos,
+        rects: input.rects,
+        path: input.path,
+        paths: input.paths,
+        store: s,
+        // A geometry edit (rects/path/paths present) invalidates the crop image —
+        // keep it only when no geometry changed, so the placed crop re-renders
+        // from the new shape on the next placement.
+        ...(input.rects || input.path || input.paths
+          ? { image: undefined }
+          : { ...(existing?.image ? { image: existing.image } : {}) }),
+        cardId,
+        updatedAt: now,
+        createdAt: existing?.createdAt ?? now
+      }
       await new Promise<void>((resolve, reject) => {
-        const r = store.put(annotation)
+        const r = stores.pdfAnnotations.put(annotation)
         r.onsuccess = () => resolve()
         r.onerror = () => reject(r.error)
       })
-    })
-  }
-  return annotation
+      result = annotation
+    }
+  )
+  return result!
 }
 
 /** Delete legacy offset-based PdfAnnotations (no `store` Konva geometry) that
