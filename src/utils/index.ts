@@ -3,6 +3,7 @@ import type {
   PdfCard,
   PdfMark,
   ProjectCard,
+  ReadLater,
   SourceMeta,
   TodoCard
 } from "../types"
@@ -370,6 +371,27 @@ export function createTodoCard(data: {
     content: data.content,
     ...(data.dueDate ? { dueDate: data.dueDate } : {}),
     createdAt: Date.now()
+  }
+}
+
+/** Fresh read-later factory — starts unread. A PDF (pdfId) or web (url) item;
+ *  the PDF one-card rule is enforced at the DB write layer (addReadLater). */
+export function createReadLater(data: {
+  title: string
+  url?: string
+  pdfId?: string
+  excerpt?: string
+  notes?: string
+}): ReadLater {
+  return {
+    id: crypto.randomUUID(),
+    title: data.title,
+    ...(data.url ? { url: data.url } : {}),
+    ...(data.pdfId ? { pdfId: data.pdfId } : {}),
+    ...(data.excerpt ? { excerpt: data.excerpt } : {}),
+    ...(data.notes ? { notes: data.notes } : {}),
+    status: "unread",
+    addedAt: Date.now()
   }
 }
 

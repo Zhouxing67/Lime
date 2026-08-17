@@ -1,10 +1,11 @@
 import { dayKey, getRecentItems, rateSrs } from "../hooks/useSrs"
-import { sha256Bytes } from "../utils"
+import { sha256Bytes, createReadLater } from "../utils"
 import type {
   PdfAnnotation,
   PdfFile,
   Project,
   ProjectCard,
+  ReadLater,
   ReviewEntry,
   TodoCard
 } from "../types"
@@ -55,6 +56,11 @@ import {
   updateProjectCard,
   updateReviewSrs,
   getReviewByItemId,
+  addReadLater,
+  updateReadLater,
+  deleteReadLater,
+  getAllReadLater,
+  getReadLaterByPdfId,
   DB_VERSION
 } from "./index"
 
@@ -716,6 +722,62 @@ describe("database", () => {
       expect(reviews).toHaveLength(1)
       expect(reviews[0].id).toBe("remote-rv")
       expect(reviews[0].itemId).toBe("i1")
+    })
+
+    it("readLater: dedups two remote records sharing a pdfId (keeps the first)", async () => {
+      const rl1 = createReadLater({ title: "A", pdfId: "pdf-X" })
+      const rl2 = createReadLater({ title: "B", pdfId: "pdf-X" })
+      await bulkReplace([], [], [], [], [], [], [], [], [], [], [rl1, rl2], [])
+
+      const all = await getAllReadLater()
+      expect(all).toHaveLength(1)
+      expect(all[0].id).toBe(rl1.id)
+      expect(all[0].title).toBe("A")
+    })
+
+    it("readLater: deletes local-not-remote", async () => {
+      const local = createReadLater({ title: "local", pdfId: "pdf-L" })
+      await addReadLater(local)
+      const remote = createReadLater({ title: "remote", pdfId: "pdf-R" })
+      await bulkReplace([], [], [], [], [], [], [], [], [], [], [remote], [local])
+
+      const all = await getAllReadLater()
+      expect(all).toHaveLength(1)
+      expect(all[0].id).toBe(remote.id)
+    })
+
+    it("readLater: cross-device conflict (same pdfId, different ids) keeps remote without ConstraintError", async () => {
+      // Device A read-later'd pdf-X as a1; device B has its own b1 for the
+      // same pdf. B downloads A's payload → put(a1) must clear local b1 first
+      // (unique byPdfId index) or the whole tx aborts.
+      const localB = createReadLater({ title: "B", pdfId: "pdf-X" })
+      await addReadLater(localB)
+      const remoteA = createReadLater({ title: "A", pdfId: "pdf-X" })
+
+      await expect(
+        bulkReplace([], [], [], [], [], [], [], [], [], [], [remoteA], [localB])
+      ).resolves.not.toThrow()
+
+      const all = await getAllReadLater()
+      expect(all).toHaveLength(1)
+      expect(all[0].id).toBe(remoteA.id)
+      expect(all[0].title).toBe("A")
+    })
+
+    it("readLater: skipped-duplicate edge — kept remote clears the local record holding its pdfId", async () => {
+      // Remote carries two records for pdf-X (rl1 kept, rl2 skipped). Local b1
+      // holds pdf-X. The kept rl1's pre-delete must clear b1 even though b1
+      // "matches" the skipped duplicate.
+      const localB = createReadLater({ title: "B", pdfId: "pdf-X" })
+      await addReadLater(localB)
+      const rl1 = createReadLater({ title: "A", pdfId: "pdf-X" })
+      const rl2 = createReadLater({ title: "C", pdfId: "pdf-X" })
+
+      await bulkReplace([], [], [], [], [], [], [], [], [], [], [rl1, rl2], [localB])
+
+      const all = await getAllReadLater()
+      expect(all).toHaveLength(1)
+      expect(all[0].id).toBe(rl1.id)
     })
   })
 
@@ -1802,5 +1864,180 @@ describe("draft create-promote dedup", () => {
     const cards = after.filter((c) => c.content === "相同内容" && !c.isDraft)
     expect(cards).toHaveLength(1) // dedup — no duplicate card
     expect(after.some((c) => c.isDraft)).toBe(false)
+  })
+})
+
+describe("readLater CRUD", () => {
+  const make = (overrides: Partial<ReadLater> = {}): ReadLater =>
+    createReadLater({
+      title: "稍后阅读",
+      url: "https://example.com/article",
+      ...overrides
+    })
+
+  it("adds, reads, updates, and deletes a read-later record", async () => {
+    const item = make()
+    expect(await addReadLater(item)).toBe(true)
+    expect(await getAllReadLater()).toHaveLength(1)
+    expect((await getAllReadLater())[0].status).toBe("unread")
+
+    const updated = { ...item, status: "done" as const, notes: "读完了" }
+    expect(await updateReadLater(updated)).toBe(true)
+    expect((await getAllReadLater())[0].status).toBe("done")
+    expect((await getAllReadLater())[0].notes).toBe("读完了")
+
+    await deleteReadLater(item.id)
+    expect(await getAllReadLater()).toHaveLength(0)
+  })
+
+  it("enforces the PDF one-card rule: a second record with the same pdfId is rejected", async () => {
+    const a = make({ pdfId: "pdf-1" })
+    const b = make({ pdfId: "pdf-1" })
+    expect(await addReadLater(a)).toBe(true)
+    expect(await addReadLater(b)).toBe(false)
+    expect(await getAllReadLater()).toHaveLength(1)
+    expect(await getReadLaterByPdfId("pdf-1")).toBeDefined()
+  })
+
+  it("allows web items (no pdfId) to coexist freely", async () => {
+    expect(await addReadLater(make({ url: "https://a.com" }))).toBe(true)
+    expect(await addReadLater(make({ url: "https://b.com" }))).toBe(true)
+    expect(await getAllReadLater()).toHaveLength(2)
+  })
+
+  it("updateReadLater rejects a pdfId collision with another record", async () => {
+    const a = make({ pdfId: "pdf-a" })
+    const b = make({ pdfId: "pdf-b" })
+    await addReadLater(a)
+    await addReadLater(b)
+    // b tries to take over a's pdfId → rejected.
+    expect(await updateReadLater({ ...b, pdfId: "pdf-a" })).toBe(false)
+    // a can keep its own pdfId.
+    expect(await updateReadLater({ ...a, status: "reading" })).toBe(true)
+  })
+})
+
+describe("v14 migration: readLater store", () => {
+  const openRaw = (version: number) =>
+    new Promise<IDBDatabase>((resolve) => {
+      const req = indexedDB.open("pickquote-db", version)
+      req.onsuccess = () => resolve(req.result)
+      req.onerror = () => resolve(req.result)
+    })
+
+  it("v13 → v14 creates the readLater store and preserves all existing data", async () => {
+    // Build a REAL v13 DB (the current schema minus the readLater store) and
+    // seed one record of every kind — the v13→v14 migration must keep them.
+    const legacy = await new Promise<IDBDatabase>((resolve) => {
+      const req = indexedDB.open("pickquote-db", 13)
+      req.onupgradeneeded = () => {
+        const d = req.result
+        const pc = d.createObjectStore("projectCards", { keyPath: "id" })
+        pc.createIndex("projectId", "projectId")
+        pc.createIndex("hash", "hash")
+        pc.createIndex("type", "type")
+        pc.createIndex("createdAt", "createdAt")
+        pc.createIndex("sourceSite", "sourceSite")
+        d.createObjectStore("todos", { keyPath: "id" }).createIndex(
+          "dueDate",
+          "dueDate"
+        )
+        const pd = d.createObjectStore("pdfCards", { keyPath: "id" })
+        pd.createIndex("pdfId", "pdfId")
+        d.createObjectStore("projects", { keyPath: "id" }).createIndex(
+          "name",
+          "name",
+          { unique: true }
+        )
+        const rs = d.createObjectStore("reviews", { keyPath: "id" })
+        rs.createIndex("itemId", "itemId", { unique: true })
+        rs.createIndex("dueDate", "dueDate")
+        d.createObjectStore("pdfs", { keyPath: "id" })
+        d.createObjectStore("pdfAnnotations", { keyPath: "id" }).createIndex(
+          "pdfId",
+          "pdfId"
+        )
+        const tx = req.transaction as IDBTransaction
+        tx.objectStore("projects").put({
+          id: "p1",
+          name: "项目A",
+          createdAt: 1
+        })
+        tx.objectStore("projectCards").put({
+          id: "card-1",
+          projectId: "p1",
+          content: "文本卡内容",
+          type: "text",
+          createdAt: 1
+        })
+        tx.objectStore("todos").put({
+          id: "todo-1",
+          content: "- [ ] 待办",
+          createdAt: 1
+        })
+        tx.objectStore("reviews").put({
+          id: "rev-1",
+          itemId: "card-1",
+          projectId: "p1",
+          srs: {
+            dueDate: 1,
+            interval: 1,
+            easeFactor: 2.5,
+            reviewCount: 1,
+            lastReviewDate: 1
+          },
+          status: "active",
+          dueDate: 1,
+          addedAt: 1
+        })
+        tx.objectStore("pdfs").put({
+          id: "pdf-1",
+          name: "doc.pdf",
+          bytes: new Blob(["%PDF-fake"], { type: "application/pdf" }),
+          pageCount: 1,
+          addedAt: 1
+        })
+        tx.objectStore("pdfAnnotations").put({
+          id: "ann-1",
+          pdfId: "pdf-1",
+          page: 1,
+          kind: "region",
+          type: "frame",
+          rects: [{ x: 0.1, y: 0.1, w: 0.2, h: 0.2 }],
+          createdAt: 1
+        })
+        tx.objectStore("pdfCards").put({
+          id: "pdfcard-1",
+          pdfId: "pdf-1",
+          page: 1,
+          kind: "region",
+          type: "frame",
+          annotationId: "ann-1",
+          pdfOrder: 1000000,
+          createdAt: 1
+        })
+      }
+      req.onsuccess = () => resolve(req.result)
+    })
+    legacy.close()
+
+    // A real DB call opens at DB_VERSION (14) — the migration runs.
+    expect((await getPdf("pdf-1"))?.name).toBe("doc.pdf")
+    expect((await getAllTodos()).map((t) => t.id)).toContain("todo-1")
+    expect((await listProjects()).map((p) => p.id)).toContain("p1")
+    expect((await getAllReviews()).length).toBeGreaterThan(0)
+    expect((await getPdfCards("pdf-1")).map((c) => c.id)).toContain("pdfcard-1")
+
+    // The readLater store now exists and is usable.
+    const upgraded = await openRaw(DB_VERSION)
+    expect(Array.from(upgraded.objectStoreNames)).toContain("readLater")
+    const rlStore = upgraded.transaction("readLater").objectStore("readLater")
+    expect(Array.from(rlStore.indexNames)).toContain("byPdfId")
+    upgraded.close()
+
+    // A read-later record written after the upgrade persists.
+    const item = createReadLater({ title: "x", pdfId: "pdf-1" })
+    expect(await addReadLater(item)).toBe(true)
+    expect(await getReadLaterByPdfId("pdf-1")).toBeDefined()
   })
 })

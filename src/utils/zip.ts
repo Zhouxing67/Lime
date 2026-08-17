@@ -6,6 +6,7 @@ import type {
   PdfFile,
   Project,
   ProjectCard,
+  ReadLater,
   ReviewEntry,
   TodoCard
 } from "../types"
@@ -26,7 +27,8 @@ export async function toJsonZip(
   projects?: Project[],
   reviews?: ReviewEntry[],
   pdfs?: PdfFile[],
-  pdfAnnotations?: PdfAnnotation[]
+  pdfAnnotations?: PdfAnnotation[],
+  readLater?: ReadLater[]
 ): Promise<Blob> {
   const zip = new JSZip()
 
@@ -55,6 +57,7 @@ export async function toJsonZip(
     reviews?: ReviewEntry[]
     pdfAnnotations?: PdfAnnotation[]
     pdfs?: PdfExportMeta[]
+    readLater?: ReadLater[]
   } = {
     version: 5,
     projectCards,
@@ -74,6 +77,9 @@ export async function toJsonZip(
   }
   if (pdfMeta.length > 0) {
     payload.pdfs = pdfMeta
+  }
+  if (readLater && readLater.length > 0) {
+    payload.readLater = readLater
   }
   const json = JSON.stringify(payload, null, 2)
   zip.file("export.json", json)

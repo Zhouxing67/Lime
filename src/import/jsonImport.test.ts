@@ -4,6 +4,7 @@ import {
   addPdf,
   createTextAnnotationCard,
   getAllProjectCards,
+  getAllReadLater,
   getAllReviews,
   getAllTodos,
   getAnnotation,
@@ -16,10 +17,11 @@ import type {
   PdfAnnotation,
   PdfFile,
   ProjectCard,
+  ReadLater,
   ReviewEntry,
   TodoCard
 } from "../types"
-import { sha256Bytes } from "../utils"
+import { createReadLater, sha256Bytes } from "../utils"
 import { toJsonZip } from "../utils/zip"
 import { importFromZip, parseExport } from "./jsonImport"
 
@@ -552,6 +554,24 @@ describe("pdf backup round-trip", () => {
     expect(restored?.topic).toBe("深度学习")
     expect(restored?.pageCount).toBe(5)
     expect(restored?.lastOpened).toBe(456)
+  })
+
+  it("round-trips read-later through export → import (toJsonZip 9th arg)", async () => {
+    const web: ReadLater = createReadLater({
+      title: "稍后阅读文章",
+      url: "https://example.com/article"
+    })
+    const pdfItem: ReadLater = createReadLater({
+      title: "稍后阅读PDF",
+      pdfId: "pdf-rl"
+    })
+    const blob = await toJsonZip([], [], [], [], [], [], [], [web, pdfItem])
+    await importFromZip(blob as File)
+
+    const restored = await getAllReadLater()
+    expect(restored).toHaveLength(2)
+    expect(restored.find((r) => r.id === web.id)?.title).toBe("稍后阅读文章")
+    expect(restored.find((r) => r.id === pdfItem.id)?.pdfId).toBe("pdf-rl")
   })
 })
 

@@ -4,6 +4,7 @@ import type {
   PdfFile,
   Project,
   ProjectCard,
+  ReadLater,
   ReviewEntry,
   TodoCard
 } from "../types"
@@ -13,6 +14,7 @@ import {
   pdfMetaSchema,
   projectCardSchema,
   projectSchema,
+  readLaterSchema,
   reviewEntrySchema,
   todoCardSchema
 } from "../types/schemas"
@@ -51,6 +53,7 @@ export interface SyncPayload {
   reviews: ReviewEntry[]
   pdfAnnotations: PdfAnnotation[]
   pdfs: PdfSyncMeta[]
+  readLater: ReadLater[]
   /** Image references (recordId → content-hash of the data-URL). The image
    *  BYTES live in the remote /images/ folder (multi-file layer, like the
    *  PDFs) — the sync copies carry the image field stripped. */
@@ -68,7 +71,7 @@ export interface SyncResult {
   payload?: SyncPayload
 }
 
-/** Total record count across all 7 payload arrays (tolerant of older versions
+/** Total record count across all 8 payload arrays (tolerant of older versions
  *  that may omit an array). */
 export function countPayloadRecords(payload: SyncPayload | null): number {
   if (!payload) return 0
@@ -79,7 +82,8 @@ export function countPayloadRecords(payload: SyncPayload | null): number {
     (payload.todos?.length ?? 0) +
     (payload.reviews?.length ?? 0) +
     (payload.pdfAnnotations?.length ?? 0) +
-    (payload.pdfs?.length ?? 0)
+    (payload.pdfs?.length ?? 0) +
+    (payload.readLater?.length ?? 0)
   )
 }
 
@@ -136,6 +140,7 @@ export function sanitizeSyncPayload(
       reviews: keep(payload.reviews, reviewEntrySchema),
       pdfAnnotations: keep(payload.pdfAnnotations, pdfAnnotationSchema),
       pdfs: keep(payload.pdfs, pdfMetaSchema),
+      readLater: keep(payload.readLater, readLaterSchema),
       images: imagesOk ? payload.images : undefined
     },
     skipped
@@ -437,6 +442,7 @@ async function hasChangesSince(lastSync: number): Promise<boolean> {
     "_dbi",
     "_dbp",
     "_dbr",
+    "_dbrl",
     "_dbt",
     "_dbpdf",
     "_dbpdfTouch"
@@ -445,6 +451,7 @@ async function hasChangesSince(lastSync: number): Promise<boolean> {
     (data._dbi ?? 0) > lastSync ||
     (data._dbp ?? 0) > lastSync ||
     (data._dbr ?? 0) > lastSync ||
+    (data._dbrl ?? 0) > lastSync ||
     (data._dbt ?? 0) > lastSync ||
     (data._dbpdf ?? 0) > lastSync ||
     // Metadata-only PDF writes (rename / topic) — without this the hashes
@@ -546,7 +553,8 @@ function convertLegacyPayload(p: {
     projects: p.projects ?? [],
     reviews,
     pdfs: p.pdfs ?? [],
-    pdfAnnotations
+    pdfAnnotations,
+    readLater: []
   }
 }
 
@@ -560,9 +568,9 @@ async function downloadSyncFile(
     const payload = JSON.parse(res.body) as SyncPayload & {
       items?: LegacyItem[]
     }
-    // Read v3/v4 (legacy cloud data) and v5/v6; older/newer → prompt to
-    // upgrade. The next upload writes v6, upgrading the cloud file.
-    if (payload.version < 3 || payload.version > 6)
+    // Read v3/v4 (legacy cloud data) and v5/v6/v7; older/newer → prompt to
+    // upgrade. The next upload writes v7, upgrading the cloud file.
+    if (payload.version < 3 || payload.version > 7)
       throw new Error("云端数据版本不兼容，请升级扩展后重试")
     if (payload.version >= 5) {
       if (!Array.isArray(payload.projectCards))
@@ -640,7 +648,8 @@ async function buildPayload(
   projects: Project[],
   reviews: ReviewEntry[],
   pdfAnnotations: PdfAnnotation[],
-  pdfs: PdfSyncMeta[]
+  pdfs: PdfSyncMeta[],
+  readLater: ReadLater[]
 ): Promise<SyncPayload> {
   const byId = <T extends { id: string }>(arr: T[]) =>
     [...arr].sort((a, b) => a.id.localeCompare(b.id))
@@ -703,11 +712,12 @@ async function buildPayload(
     reviews: byId(reviews),
     pdfAnnotations: byId(stripAnnotations),
     pdfs: byId(pdfs),
+    readLater: byId(readLater),
     images: sortedImageRefs
   })
   const contentHash = await computeItemHash(raw, "")
   return {
-    version: 6,
+    version: 7,
     syncedAt: Date.now(),
     contentHash,
     deviceInfo: { version: "0.1.0" },
@@ -718,6 +728,7 @@ async function buildPayload(
     reviews: byId(reviews),
     pdfAnnotations: byId(stripAnnotations),
     pdfs: byId(pdfs),
+    readLater: byId(readLater),
     images: sortedImageRefs
   }
 }
@@ -731,6 +742,7 @@ export async function runSync(
   reviews: ReviewEntry[],
   pdfAnnotations: PdfAnnotation[],
   pdfs: PdfSyncMeta[],
+  readLater: ReadLater[],
   onStatus?: (status: string) => void
 ): Promise<SyncResult> {
   try {
@@ -748,7 +760,8 @@ export async function runSync(
       projects,
       reviews,
       pdfAnnotations,
-      pdfs
+      pdfs,
+      readLater
     )
 
     onStatus?.("正在检查云端…")
@@ -805,6 +818,7 @@ export async function downloadRemote(
   reviews: ReviewEntry[],
   pdfAnnotations: PdfAnnotation[],
   pdfs: PdfSyncMeta[],
+  readLater: ReadLater[],
   onStatus?: (status: string) => void
 ): Promise<SyncResult> {
   try {
@@ -822,7 +836,8 @@ export async function downloadRemote(
       projects,
       reviews,
       pdfAnnotations,
-      pdfs
+      pdfs,
+      readLater
     )
     if (localPayload.contentHash === remote.contentHash) {
       // Include the payload even on noop: the caller still needs the remote

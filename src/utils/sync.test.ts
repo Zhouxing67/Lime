@@ -2,6 +2,7 @@ import {
   countPayloadRecords,
   downloadImageFiles,
   downloadPdfFiles,
+  downloadRemote,
   hydratePayloadImages,
   listRemotePdfs,
   pruneRemoteImages,
@@ -336,5 +337,84 @@ describe("Image file sync (multi-file layer)", () => {
     }
     expect(wouldWipeRemote(null, one, null)).toBe(false)
     expect(wouldWipeRemote(null, one, empty)).toBe(false)
+  })
+})
+
+// ---- SyncPayload v7: readLater ----
+
+describe("SyncPayload v7 (readLater)", () => {
+  it("sanitizeSyncPayload keeps valid readLater and skips invalid ones", () => {
+    const payload = {
+      version: 7,
+      syncedAt: 123,
+      contentHash: "abc",
+      deviceInfo: { version: "0.1.0" },
+      projects: [],
+      projectCards: [],
+      pdfCards: [],
+      todos: [],
+      reviews: [],
+      pdfAnnotations: [],
+      pdfs: [],
+      readLater: [
+        { id: "rl1", title: "ok", status: "unread", addedAt: 1 },
+        { id: "rl2", title: "bad", status: "bogus", addedAt: 1 }
+      ]
+    } as any
+
+    const { payload: clean, skipped } = sanitizeSyncPayload(payload)
+    expect(skipped).toBe(1)
+    expect(clean.readLater).toHaveLength(1)
+    expect(clean.readLater[0].id).toBe("rl1")
+  })
+
+  it("countPayloadRecords counts readLater records", () => {
+    const payload: any = {
+      projects: [],
+      projectCards: [],
+      pdfCards: [],
+      todos: [{ id: "t1", content: "x", createdAt: 1 }],
+      reviews: [],
+      pdfAnnotations: [],
+      pdfs: [],
+      readLater: [{ id: "rl1", title: "a", status: "unread", addedAt: 1 }]
+    }
+    expect(countPayloadRecords(payload)).toBe(2)
+  })
+
+  it("downloadRemote accepts a v7 payload (version gate <=7)", async () => {
+    const remotePayload = {
+      version: 7,
+      syncedAt: 1,
+      contentHash: "remote-hash",
+      deviceInfo: { version: "0.1.0" },
+      projects: [],
+      projectCards: [],
+      pdfCards: [],
+      todos: [],
+      reviews: [],
+      pdfAnnotations: [],
+      pdfs: [],
+      readLater: [{ id: "rl1", title: "a", status: "unread", addedAt: 1 }]
+    }
+    mockWebDav({
+      "GET https://dav.jianguoyun.com/dav/Apps/lime/lime-sync.json": {
+        body: JSON.stringify(remotePayload)
+      }
+    })
+    const result = await downloadRemote(
+      cred,
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      []
+    )
+    expect(result.success).toBe(true)
+    expect(result.direction).toBe("download")
+    expect(result.payload?.readLater).toHaveLength(1)
   })
 })

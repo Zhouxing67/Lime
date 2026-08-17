@@ -8,11 +8,13 @@ export * from "./todos"
 export * from "./projects"
 export * from "./reviews"
 export * from "./pdfs"
+export * from "./readLater"
 
 import type {
   PdfCard,
   Project,
   ProjectCard,
+  ReadLater,
   ReviewEntry,
   TodoCard
 } from "../types"
@@ -33,13 +35,16 @@ export async function bulkReplace(
   localPdfCards: PdfCard[],
   localTodos: TodoCard[],
   localProjects: Project[],
-  localReviews: ReviewEntry[]
+  localReviews: ReviewEntry[],
+  remoteReadLater?: ReadLater[],
+  localReadLater?: ReadLater[]
 ): Promise<void> {
   const remoteCardIds = new Set(remoteProjectCards.map((c) => c.id))
   const remotePdfIds = new Set(remotePdfCards.map((c) => c.id))
   const remoteTodoIds = new Set(remoteTodos.map((c) => c.id))
   const remoteProjectIds = new Set(remoteProjects.map((p) => p.id))
   const remoteReviewItemIds = new Set(remoteReviews.map((r) => r.itemId))
+  const remoteReadLaterIds = new Set((remoteReadLater ?? []).map((r) => r.id))
 
   await tx(
     {
@@ -47,7 +52,8 @@ export async function bulkReplace(
       pdfCards: "readwrite",
       todos: "readwrite",
       projects: "readwrite",
-      reviews: "readwrite"
+      reviews: "readwrite",
+      readLater: "readwrite"
     },
     async (stores) => {
       for (const card of remoteProjectCards) {
@@ -94,6 +100,35 @@ export async function bulkReplace(
             req.onerror = () => resolve()
           })
         }
+      }
+      // readLater: upsert remote (deduping the PDF one-card rule — a payload
+      // with two records sharing a pdfId keeps the first, skips the rest) and
+      // delete local-not-remote. Before each put, clear any local record that
+      // already holds the pdfId in the UNIQUE byPdfId index — otherwise a
+      // cross-device conflict (two devices read-later'd the same PDF) throws
+      // ConstraintError and aborts the whole tx (mirrors the reviews loop).
+      // The pre-delete also covers the dedup-skipped edge: the kept remote
+      // record's put clears whatever local record holds its pdfId, even when
+      // that local record matches a skipped remote duplicate.
+      const rlIdx = stores.readLater.index("byPdfId")
+      const seenPdfIds = new Set<string>()
+      for (const rl of remoteReadLater ?? []) {
+        // Treat "" as a real key too (the unique index keys on it) so two
+        // records with an empty-string pdfId are deduped, not a ConstraintError.
+        if (rl.pdfId != null && seenPdfIds.has(rl.pdfId)) continue
+        if (rl.pdfId != null) seenPdfIds.add(rl.pdfId)
+        if (rl.pdfId != null) {
+          const req = rlIdx.getKey(rl.pdfId)
+          const existing = await new Promise<string | null>((resolve) => {
+            req.onsuccess = () => resolve((req.result as string) ?? null)
+            req.onerror = () => resolve(null)
+          })
+          if (existing) stores.readLater.delete(existing)
+        }
+        stores.readLater.put(rl)
+      }
+      for (const rl of localReadLater ?? []) {
+        if (!remoteReadLaterIds.has(rl.id)) stores.readLater.delete(rl.id)
       }
     }
   )

@@ -104,9 +104,30 @@ export const todoCardSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/, "dueDate 必须是 YYYY-MM-DD")
     .optional(),
   createdAt: z.number(),
-  updatedAt: z.number().optional()
+  updatedAt: z.number().optional(),
+  // todo-links: a todo may reference a PDF (pdfId) or a project card (cardId)
+  // or a web URL — the linked source the todo is about.
+  pdfId: z.string().optional(),
+  cardId: z.string().optional(),
+  url: z.string().optional()
 })
 export type TodoCard = z.infer<typeof todoCardSchema>
+
+export const readLaterStatusSchema = z.enum(["unread", "reading", "done"])
+export type ReadLaterStatus = z.infer<typeof readLaterStatusSchema>
+
+export const readLaterSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  url: z.string().optional(),
+  pdfId: z.string().optional(),
+  excerpt: z.string().optional(),
+  notes: z.string().optional(),
+  status: readLaterStatusSchema,
+  addedAt: z.number(),
+  updatedAt: z.number().optional()
+})
+export type ReadLater = z.infer<typeof readLaterSchema>
 
 export const reviewStatusSchema = z.enum(["active", "mastered"])
 export type ReviewStatus = z.infer<typeof reviewStatusSchema>

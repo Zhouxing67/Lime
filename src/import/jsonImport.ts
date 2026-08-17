@@ -7,6 +7,7 @@ import {
   addPdfCard,
   addProject,
   addProjectCard,
+  addReadLater,
   addReview,
   addTodo,
   getAllAnnotations,
@@ -20,6 +21,7 @@ import {
   pdfCardSchema,
   projectCardSchema,
   projectSchema,
+  readLaterSchema,
   reviewEntrySchema,
   todoCardSchema
 } from "../types/schemas"
@@ -29,6 +31,7 @@ import type {
   PdfMark,
   Project,
   ProjectCard,
+  ReadLater,
   ReviewEntry,
   Section,
   TodoCard
@@ -336,6 +339,27 @@ function validateTodoCard(
   }
 }
 
+function validateReadLater(raw: unknown): ReadLater | null {
+  if (!raw || typeof raw !== "object") return null
+  const obj = raw as Record<string, unknown>
+  if (typeof obj.title !== "string" || obj.title.length === 0) return null
+
+  const parsed = readLaterSchema.safeParse(
+    dropNulls(
+      {
+        ...obj,
+        id: defaultStr(obj.id) ?? crypto.randomUUID(),
+        title: obj.title,
+        status: obj.status === "reading" || obj.status === "done" ? obj.status : "unread",
+        addedAt: defaultNum(obj.addedAt) ?? Date.now()
+      },
+      ["url", "pdfId", "excerpt", "notes", "updatedAt", "status"]
+    )
+  )
+  if (!parsed.success) return null
+  return restoreUnknown(raw, parsed.data, Object.keys(readLaterSchema.shape))
+}
+
 function validateReview(raw: unknown): ReviewEntry | null {
   if (!raw || typeof raw !== "object") return null
   const obj = raw as Record<string, unknown>
@@ -451,6 +475,7 @@ interface ParsedExport {
   importedProjects: Project[]
   importedReviews: ReviewEntry[]
   importedAnnotations: PdfAnnotation[]
+  importedReadLater: ReadLater[]
   importedPdfMeta: {
     id: string
     name: string
@@ -473,6 +498,7 @@ export function parseExport(rawJson: string): ParsedExport | { error: string } {
       importedProjects: [],
       importedReviews: [],
       importedAnnotations: [],
+      importedReadLater: [],
       importedPdfMeta: []
     }
   }
@@ -512,6 +538,13 @@ export function parseExport(rawJson: string): ParsedExport | { error: string } {
       if (ann) importedAnnotations.push(ann)
     }
   }
+  const importedReadLater: ReadLater[] = []
+  if (Array.isArray(obj.readLater)) {
+    for (const rl of obj.readLater) {
+      const item = validateReadLater(rl)
+      if (item) importedReadLater.push(item)
+    }
+  }
   const importedPdfMeta =
     (obj.pdfs as {
       id: string
@@ -531,6 +564,7 @@ export function parseExport(rawJson: string): ParsedExport | { error: string } {
     importedProjects,
     importedReviews,
     importedAnnotations,
+    importedReadLater,
     importedPdfMeta
   }
 }
@@ -591,6 +625,7 @@ export async function importFromZip(
     importedProjects,
     importedReviews,
     importedAnnotations,
+    importedReadLater,
     importedPdfMeta
   } = parsed
 
@@ -886,6 +921,23 @@ export async function importFromZip(
       result.imported++
     } catch {
       result.errors.push({ index: -1, reason: "批注导入失败" })
+    }
+  }
+
+  // ---- read-later import (global, not project-scoped) ----
+  for (const rl of importedReadLater) {
+    try {
+      // addReadLater enforces the PDF one-card rule (a duplicate pdfId is
+      // skipped, not written).
+      const ok = await addReadLater(rl)
+      if (ok) result.imported++
+      else result.skipped++
+    } catch (e) {
+      result.errors.push({
+        index: -1,
+        reason: `稍后阅读导入异常: ${(e as Error)?.message ?? e}`
+      })
+      result.skipped++
     }
   }
 

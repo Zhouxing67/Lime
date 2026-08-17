@@ -7,6 +7,7 @@ import {
   getAllAnnotations,
   getAllPdfCards,
   getAllProjectCards,
+  getAllReadLater,
   getAllReviews,
   getAllTodos,
   listPdfs,
@@ -103,7 +104,10 @@ export function useBackupSync(options: {
         selectedProjects,
         scopedReviews,
         undefined,
-        referencedAnnotations
+        referencedAnnotations,
+        // readLater is global like todos — the projects-scope export carries
+        // them all so a restore doesn't lose them.
+        await getAllReadLater()
       )
       const url = URL.createObjectURL(blob)
       await chrome.downloads.download({ url, filename: "lime-backup.zip" })
@@ -135,7 +139,9 @@ export function useBackupSync(options: {
         [],
         [],
         selectedPdfs,
-        annotations
+        annotations,
+        // readLater is global — carry it in the PDF-scope export too.
+        await getAllReadLater()
       )
       const url = URL.createObjectURL(blob)
       const name = selectedPdfs.length === 1 ? selectedPdfs[0].name : "pdfs"
@@ -163,6 +169,7 @@ export function useBackupSync(options: {
       const todos = await getAllTodos()
       const reviews = await getAllReviews()
       const annotations = await getAllAnnotations()
+      const readLater = await getAllReadLater()
       const localPdfs = await listPdfs()
       const pdfMeta = localPdfs.map((p) => ({
         id: p.id,
@@ -181,6 +188,7 @@ export function useBackupSync(options: {
         reviews,
         annotations,
         pdfMeta,
+        readLater,
         setSyncStatus
       )
       if (result.success) {
@@ -225,6 +233,7 @@ export function useBackupSync(options: {
       const todos = await getAllTodos()
       const reviews = await getAllReviews()
       const annotations = await getAllAnnotations()
+      const readLater = await getAllReadLater()
       const pdfMeta = (await listPdfMeta()).map((p) => ({
         id: p.id,
         name: p.name,
@@ -242,6 +251,7 @@ export function useBackupSync(options: {
         reviews,
         annotations,
         pdfMeta,
+        readLater,
         setSyncStatus
       )
       if (!remote.success) {
@@ -287,7 +297,9 @@ export function useBackupSync(options: {
             await getAllPdfCards(),
             await getAllTodos(),
             projects,
-            reviews
+            reviews,
+            hydrated.readLater ?? [],
+            readLater
           )
           // PDF domain (notes only — local file bytes are preserved).
           await applyPdfSync(

@@ -10,7 +10,7 @@ import type {
 import { sha256Bytes } from "../utils"
 
 const DB_NAME = "pickquote-db"
-export const DB_VERSION = 13
+export const DB_VERSION = 14
 
 type TableNames =
   | "projectCards"
@@ -20,6 +20,7 @@ type TableNames =
   | "reviews"
   | "pdfs"
   | "pdfAnnotations"
+  | "readLater"
 
 // ---- Cross-context change notification ----
 // Any successful write transaction automatically broadcasts a version stamp
@@ -40,11 +41,13 @@ export async function broadcastDbChange(name: TableNames): Promise<void> {
         ? "_dbr"
         : name === "todos"
           ? "_dbt"
-          : name === "pdfs" ||
-              name === "pdfAnnotations" ||
-              name === "pdfCards"
-            ? "_dbpdf"
-            : "_dbi"
+          : name === "readLater"
+            ? "_dbrl"
+            : name === "pdfs" ||
+                name === "pdfAnnotations" ||
+                name === "pdfCards"
+              ? "_dbpdf"
+              : "_dbi"
   await broadcastStamp(key)
 }
 // ---- End change notification ----
@@ -344,6 +347,16 @@ function openDb(version?: number): Promise<IDBDatabase> {
         dropIndex("pdfCards", "annotationId")
         dropIndex("pdfCards", "projectCardId")
         dropIndex("projectCards", "pdfCardId")
+      }
+      // ---- v14 migration: readLater store (todo-links + read-later feature).
+      // MUST run AFTER the v13 block: a direct old-version → v14 upgrade runs
+      // v12/v13 first, then creates readLater here. Idempotent via the
+      // contains-check so it re-runs safely on any upgrade path. The byPdfId
+      // index is UNIQUE — IndexedDB unique indexes skip records lacking the
+      // key, so web items (no pdfId) are fine.
+      if (!db.objectStoreNames.contains("readLater")) {
+        const rl = db.createObjectStore("readLater", { keyPath: "id" })
+        rl.createIndex("byPdfId", "pdfId", { unique: true })
       }
       } catch (e) {
         console.error(

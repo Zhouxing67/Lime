@@ -7,6 +7,7 @@ import type {
   PdfMark,
   ProjectCard,
   ProjectCardType,
+  ReadLater,
   Section,
   SrsData,
   TodoCard
@@ -21,6 +22,8 @@ export type {
   PdfMark,
   PdfCard,
   TodoCard,
+  ReadLater,
+  ReadLaterStatus,
   ReviewStatus,
   ReviewEntry,
   PdfAnnotation,
