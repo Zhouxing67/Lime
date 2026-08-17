@@ -222,6 +222,15 @@ function getTextDivs(textLayer: any): HTMLElement[] {
   return []
 }
 
+/** The concatenated text of the rendered text layer's leaf spans — the char
+ *  coordinate space `textLayerOffsets`/`highlightRectsForOffsets` map into.
+ *  Diagnostic only: compare this to `getTextContent` to spot offset drift. */
+export function textLayerText(textLayer: any): string {
+  return getTextDivs(textLayer)
+    .map((d) => d.textContent ?? "")
+    .join("")
+}
+
 /** Cached per-render index (WeakMap → auto-invalidated when the text layer is
  *  re-rendered/unmounted, covering zoom/rotate + lifecycle). */
 const indexCache = new WeakMap<object, TextLayerIndex>()

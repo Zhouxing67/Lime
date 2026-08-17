@@ -8,6 +8,9 @@ export interface PdfSearchFlash {
   page: number
   matches: { start: number; end: number }[]
   current: number
+  /** The active query — lets the highlight verify its offsets against the
+   *  rendered text layer (diagnostic). */
+  query?: string
 }
 
 /** PDF full-text search coordination (hosted by PdfView, driven by the options
@@ -80,7 +83,8 @@ export function usePdfSearch(
     setSearchFlash({
       page: entry.page,
       matches: pageMatches.map((m) => ({ start: m.start, end: m.end })),
-      current: current >= 0 ? current : 0
+      current: current >= 0 ? current : 0,
+      query: searchRequest?.query
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jumpRequest?.seq])

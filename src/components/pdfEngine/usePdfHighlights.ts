@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useRef } from "react"
 
 import { usePdfViewerContext } from "~/src/pdf/inklayer/context/pdf_viewer_context"
-import { highlightRectsForOffsets, textLayerOffsets } from "../pdfText"
+import { highlightRectsForOffsets, textLayerOffsets, textLayerText } from "../pdfText"
 import type { PdfRect } from "../pdfText"
 
 export interface PdfSearchFlashData {
   page: number
   matches: { start: number; end: number }[]
   current: number
+  query?: string
 }
 
 /** The line-bridging selection/search highlight overlay (see PdfEngineView).
@@ -38,7 +39,14 @@ export function usePdfHighlights(searchFlash: PdfSearchFlashData | null) {
       if (!pageEl) return
       const overlays = overlayDivsRef.current
       const pages = overlayPagesRef.current
-      if (pages[kind] !== page || !overlays[kind]) {
+      // pdf.js rebuilds the page's DOM on zoom/re-render, REMOVING our overlay
+      // div — the ref then points at a detached element. Re-create the div when
+      // it's gone from the document (isConnected) so highlights survive zoom.
+      if (
+        pages[kind] !== page ||
+        !overlays[kind] ||
+        !overlays[kind].isConnected
+      ) {
         overlays[kind]?.remove()
         delete overlays[kind]
         const div = document.createElement("div")
@@ -129,6 +137,7 @@ export function usePdfHighlights(searchFlash: PdfSearchFlashData | null) {
     page: number
     matches: { start: number; end: number }[]
     current: number
+    query?: string
   } | null>(null)
 
   const renderSearchOverlay = useCallback(() => {
@@ -145,6 +154,31 @@ export function usePdfHighlights(searchFlash: PdfSearchFlashData | null) {
     if (!pageEl || !textLayer) {
       clearOverlay("search")
       return
+    }
+    // Diagnostic: verify the getTextContent char offsets actually land on the
+    // query in the RENDERED text layer — this pinpoints the long-standing
+    // "highlight lands on the wrong word" drift. Opt-in via
+    // `window.__limePdfSearchDebug = true` (F12 console), logs the first few
+    // mismatches per page.
+    if (data.query && (window as any).__limePdfSearchDebug) {
+      const domText = textLayerText(textLayer)
+      const fold = (s: string) => s.toLowerCase()
+      const q = fold(data.query)
+      for (const m of matches) {
+        const actual = domText.slice(m.start, m.end)
+        if (fold(actual) !== q) {
+          console.warn(
+            "[lime-pdf] search offset MISALIGNED on page",
+            page,
+            "match",
+            m,
+            "query",
+            JSON.stringify(data.query),
+            "actual@offset",
+            JSON.stringify(domText.slice(m.start - 6, m.end + 6))
+          )
+        }
+      }
     }
     const all: { r: PdfRect; isCurrent: boolean }[] = []
     for (let i = 0; i < matches.length; i++) {
