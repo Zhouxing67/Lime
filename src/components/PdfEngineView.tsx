@@ -9,6 +9,7 @@ import { defaultOptions as defaultAnnotatorOptions } from "~/src/pdf/inklayer/ex
 import { deepMerge } from "~/src/pdf/inklayer/utils"
 import { usePainter } from "~/src/pdf/inklayer/extensions/annotator/context/use_painter"
 import { usePdfViewerContext } from "~/src/pdf/inklayer/context/pdf_viewer_context"
+import { AnnotationMode } from "pdfjs-dist/legacy/build/pdf.mjs"
 import type { IAnnotationStore } from "~/src/pdf/inklayer/extensions/annotator/const/definitions"
 import type { PdfAnnotation } from "../types"
 import { annotationGeometry } from "../utils/geometry"
@@ -139,6 +140,34 @@ function EngineBridge({
       eventBus.off("pagechanging", onPageChanging)
     }
   }, [eventBus])
+
+  // Full-page overlay link annotations (CC-license strips, "click to read"
+  // covers) must not capture the whole page — disable their anchors so text
+  // selection + mark clicks keep working. Runs per annotation-layer render
+  // (pdf.js replaces the layer's DOM on zoom/rotation, so re-apply there).
+  useEffect(() => {
+    if (!eventBus || !pdfViewer) return
+    const onAnnLayerRendered = (evt: { pageNumber: number }) => {
+      const pageEl = pdfViewer.getPageView(evt.pageNumber - 1)?.div as
+        | HTMLElement
+        | undefined
+      const layer = pageEl?.querySelector<HTMLElement>(".annotationLayer")
+      if (!layer || !pageEl) return
+      const pageW = pageEl.clientWidth
+      const pageH = pageEl.clientHeight
+      if (pageW <= 0 || pageH <= 0) return
+      for (const a of Array.from(
+        layer.querySelectorAll<HTMLAnchorElement>(".linkAnnotation > a")
+      )) {
+        const r = a.getBoundingClientRect()
+        if (r.width > pageW * 0.9 && r.height > pageH * 0.9) {
+          a.style.pointerEvents = "none"
+        }
+      }
+    }
+    eventBus.on("annotationlayerrendered", onAnnLayerRendered)
+    return () => eventBus.off("annotationlayerrendered", onAnnLayerRendered)
+  }, [eventBus, pdfViewer])
 
   const computeGeometry = useCallback(
     (store: IAnnotationStore) => {
@@ -381,10 +410,15 @@ export default function PdfEngineView({
     document.head.append(cssLink)
     // The selection highlight is drawn by our own overlay (see drawOverlay);
     // the native ::selection must stay invisible so the browser's selection
-    // boxes never stack with it.
+    // boxes never stack with it. PDF links: the annotation layer (kept above
+    // the text layer) renders ONLY link annotations — everything else stays
+    // hidden so the PDF's own native marks don't pollute the reading surface.
     const styleEl = document.createElement("style")
     styleEl.textContent = `
-.textLayer::selection,.textLayer ::selection,.textLayer :is(span,br)::selection{background:transparent !important;color:transparent !important}`
+.textLayer::selection,.textLayer ::selection,.textLayer :is(span,br)::selection{background:transparent !important;color:transparent !important}
+.annotationLayer{z-index:2}
+.annotationLayer section:not(.linkAnnotation){display:none}
+.annotationLayer .linkAnnotation > a{cursor:pointer;pointer-events:auto}`
     document.head.append(styleEl)
     return () => {
       cssLink.remove()
@@ -422,6 +456,7 @@ export default function PdfEngineView({
               url={undefined}
               user={userValue}
               title={title}
+              annotationMode={AnnotationMode.ENABLE}
               toolbar={null}
               style={{
                 width: rootSize ? rootSize.w : "100%",
