@@ -21,7 +21,7 @@ import type {
 } from "../types"
 import { sha256Bytes } from "../utils"
 import { toJsonZip } from "../utils/zip"
-import { importFromZip } from "./jsonImport"
+import { importFromZip, parseExport } from "./jsonImport"
 
 async function packZip(payload: unknown): Promise<File> {
   const zip = new JSZip()
@@ -46,6 +46,26 @@ async function packZipWithPdfs(
 describe("jsonImport (v5 format)", () => {
   beforeEach(() => {
     indexedDB = new IDBFactory()
+  })
+
+  it("rejects a v6 sync payload with a 'use sync' message instead of importing it (R2)", async () => {
+    const res = parseExport(
+      JSON.stringify({
+        version: 6,
+        deviceInfo: { name: "x" },
+        contentHash: "abc",
+        projectCards: [],
+        pdfCards: [],
+        todos: [],
+        projects: [],
+        reviews: [],
+        pdfs: [],
+        pdfAnnotations: [],
+        images: { "card-1": "sha123" }
+      })
+    )
+    expect("error" in res).toBe(true)
+    expect("error" in res && res.error).toContain("同步")
   })
 
   it("preserves title, order, updatedAt, and images on import", async () => {

@@ -686,6 +686,15 @@ async function buildPayload(
       return { ...a, image: undefined }
     })
   )
+  // R4: sort the image-ref keys so the content-hash doesn't depend on the
+  // input array order (insertion order would drift across devices holding the
+  // same data → false "conflict").
+  const sortedImageRefs = Object.keys(imageRefs)
+    .sort()
+    .reduce<Record<string, string>>((acc, k) => {
+      acc[k] = imageRefs[k]
+      return acc
+    }, {})
   const raw = JSON.stringify({
     projectCards: byId(stripProjectCards),
     pdfCards: byId(stripPdfCards),
@@ -694,7 +703,7 @@ async function buildPayload(
     reviews: byId(reviews),
     pdfAnnotations: byId(stripAnnotations),
     pdfs: byId(pdfs),
-    images: imageRefs
+    images: sortedImageRefs
   })
   const contentHash = await computeItemHash(raw, "")
   return {
@@ -709,7 +718,7 @@ async function buildPayload(
     reviews: byId(reviews),
     pdfAnnotations: byId(stripAnnotations),
     pdfs: byId(pdfs),
-    images: imageRefs
+    images: sortedImageRefs
   }
 }
 

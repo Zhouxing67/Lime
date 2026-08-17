@@ -461,7 +461,7 @@ interface ParsedExport {
   }[]
 }
 
-function parseExport(rawJson: string): ParsedExport | { error: string } {
+export function parseExport(rawJson: string): ParsedExport | { error: string } {
   const parsed = JSON.parse(rawJson)
   if (Array.isArray(parsed)) {
     // very old legacy format: plain items array
@@ -480,6 +480,14 @@ function parseExport(rawJson: string): ParsedExport | { error: string } {
     return { error: "export.json 格式无效" }
   }
   const obj = parsed as Record<string, unknown>
+  // R2: a v6 sync payload carries image/PDF *references* that need the sync
+  // flow's online hydration — importing it as a v5 ZIP silently drops them.
+  if (obj.version === 6 || typeof obj.contentHash === "string") {
+    return {
+      error:
+        "这是同步格式的备份（图片与 PDF 需在线下载）。请用「备份与同步」的下载功能恢复，而不是导入此文件。"
+    }
+  }
   const isV5 =
     Array.isArray(obj.projectCards) ||
     Array.isArray(obj.pdfCards) ||
