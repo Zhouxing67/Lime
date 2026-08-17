@@ -157,13 +157,14 @@ export async function searchPdfText(
   opts: PdfSearchOptions = {},
   maxMatches = 500,
   signal?: AbortSignal
-): Promise<PdfSearchResult> {
+): Promise<PdfSearchResult & { pageTexts?: Record<number, string> }> {
   const q = opts.caseSensitive ? query.trim() : caseFoldPreserving(query.trim())
   if (!q) return { matches: [], entries: [] }
   const matches: PdfSearchMatch[] = []
   const entries: PdfSearchEntry[] = []
+  const pageTexts: Record<number, string> = {}
   for (let p = 1; p <= doc.numPages; p++) {
-    if (signal?.aborted) return { matches, entries }
+    if (signal?.aborted) return { matches, entries, pageTexts }
     const page = await doc.getPage(p)
     // disableNormalization MUST match the TextLayer's streamTextContent —
     // otherwise ligatures/CJK substitution drift the offsets and the flash
@@ -171,6 +172,7 @@ export async function searchPdfText(
     const tc = await page.getTextContent({ disableNormalization: true })
     const items = tc.items as { str?: string; hasEOL?: boolean }[]
     const { full, lines } = extractLines(items)
+    pageTexts[p] = full
     const res = scanText(full, lines, q, opts)
     for (const m of res.matches) {
       if (matches.length >= maxMatches) break
@@ -181,7 +183,7 @@ export async function searchPdfText(
     }
     if (matches.length >= maxMatches) break
   }
-  return { matches, entries }
+  return { matches, entries, pageTexts }
 }
 
 export interface PdfRect {

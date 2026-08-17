@@ -11,6 +11,9 @@ export interface PdfSearchFlash {
   /** The active query — lets the highlight verify its offsets against the
    *  rendered text layer (diagnostic). */
   query?: string
+  /** The page's getTextContent concatenation — lets the diagnostic diff it
+   *  against the rendered text layer's text (drift root cause). */
+  full?: string
 }
 
 /** PDF full-text search coordination (hosted by PdfView, driven by the options
@@ -36,7 +39,11 @@ export function usePdfSearch(
 ): PdfSearchFlash | null {
   const [searchFlash, setSearchFlash] = useState<PdfSearchFlash | null>(null)
   const searchAbortRef = useRef<AbortController | null>(null)
-  const lastSearchRef = useRef<{ entries: PdfSearchEntry[]; matches: PdfSearchMatch[] }>({
+  const lastSearchRef = useRef<{
+    entries: PdfSearchEntry[]
+    matches: PdfSearchMatch[]
+    pageTexts?: Record<number, string>
+  }>({
     entries: [],
     matches: []
   })
@@ -84,7 +91,8 @@ export function usePdfSearch(
       page: entry.page,
       matches: pageMatches.map((m) => ({ start: m.start, end: m.end })),
       current: current >= 0 ? current : 0,
-      query: searchRequest?.query
+      query: searchRequest?.query,
+      full: lastSearchRef.current.pageTexts?.[entry.page]
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jumpRequest?.seq])

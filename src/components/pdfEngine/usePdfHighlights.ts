@@ -9,6 +9,7 @@ export interface PdfSearchFlashData {
   matches: { start: number; end: number }[]
   current: number
   query?: string
+  full?: string
 }
 
 /** The line-bridging selection/search highlight overlay (see PdfEngineView).
@@ -138,6 +139,7 @@ export function usePdfHighlights(searchFlash: PdfSearchFlashData | null) {
     matches: { start: number; end: number }[]
     current: number
     query?: string
+    full?: string
   } | null>(null)
 
   const renderSearchOverlay = useCallback(() => {
@@ -159,7 +161,7 @@ export function usePdfHighlights(searchFlash: PdfSearchFlashData | null) {
     // query in the RENDERED text layer — this pinpoints the long-standing
     // "highlight lands on the wrong word" drift. Opt-in via
     // `window.__limePdfSearchDebug = true` (F12 console). Always logs a
-    // confirmation line so we know it ran.
+    // confirmation line so we know it ran, plus the getTextContent-vs-DOM diff.
     if (data.query && (window as any).__limePdfSearchDebug) {
       const domText = textLayerText(textLayer)
       const fold = (s: string) => s.toLowerCase()
@@ -179,6 +181,19 @@ export function usePdfHighlights(searchFlash: PdfSearchFlashData | null) {
             "actual@offset",
             JSON.stringify(domText.slice(m.start - 6, m.end + 6))
           )
+        }
+      }
+      let divergence = "n/a"
+      if (typeof data.full === "string") {
+        if (data.full === domText) {
+          divergence = "SAME"
+        } else {
+          const n = Math.min(data.full.length, domText.length)
+          let i = 0
+          while (i < n && data.full[i] === domText[i]) i++
+          divergence = `DIFFER fullLen=${data.full.length} domLen=${domText.length} firstDiff@${i} full=${JSON.stringify(
+            data.full.slice(Math.max(0, i - 8), i + 8)
+          )} dom=${JSON.stringify(domText.slice(Math.max(0, i - 8), i + 8))}`
         }
       }
       const spans = Array.from(
@@ -202,7 +217,9 @@ export function usePdfHighlights(searchFlash: PdfSearchFlashData | null) {
         "domLeafSpans",
         spans,
         "internalTextDivs",
-        (textLayer as any)?.textDivs?.length ?? "n/a"
+        (textLayer as any)?.textDivs?.length ?? "n/a",
+        "| full-vs-dom:",
+        divergence
       )
     }
     const all: { r: PdfRect; isCurrent: boolean }[] = []
@@ -232,7 +249,8 @@ export function usePdfHighlights(searchFlash: PdfSearchFlashData | null) {
       page: searchFlash.page,
       matches: searchFlash.matches,
       current: searchFlash.current,
-      query: searchFlash.query
+      query: searchFlash.query,
+      full: searchFlash.full
     }
     renderSearchOverlay()
   }, [searchFlash, renderSearchOverlay, clearOverlay])
