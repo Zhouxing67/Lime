@@ -166,10 +166,14 @@ export async function searchPdfText(
   for (let p = 1; p <= doc.numPages; p++) {
     if (signal?.aborted) return { matches, entries, pageTexts }
     const page = await doc.getPage(p)
-    // disableNormalization MUST match the TextLayer's streamTextContent —
-    // otherwise ligatures/CJK substitution drift the offsets and the flash
-    // highlights the wrong text.
-    const tc = await page.getTextContent({ disableNormalization: true })
+    // disableNormalization + includeMarkedContent MUST match the TextLayer's
+    // streamTextContent — otherwise the marked-content text (TOC / links /
+    // artifacts) and ligatures/CJK substitution drift the offsets and the flash
+    // highlights the wrong word (the long-standing misalignment).
+    const tc = await page.getTextContent({
+      disableNormalization: true,
+      includeMarkedContent: true
+    })
     const items = tc.items as { str?: string; hasEOL?: boolean }[]
     const { full, lines } = extractLines(items)
     pageTexts[p] = full
