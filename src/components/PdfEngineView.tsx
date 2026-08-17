@@ -143,9 +143,10 @@ function EngineBridge({
 
   // Full-page overlay link annotations (CC-license strips, "click to read"
   // covers) must not capture the whole page — disable them so text selection +
-  // mark clicks keep working. The pdf.js CSS gives EVERY `.annotationLayer
-  // section` pointer-events:auto, so disabling only the anchor is not enough:
-  // the section itself is the hit target — kill the whole section. Runs per
+  // mark clicks keep working. BOTH the section (pdf.js gives every
+  // `.annotationLayer section` pointer-events:auto) AND the anchor (its own
+  // pointer-events:auto) are hit targets — disabling only one leaves the other
+  // capturing the page (the hand-cursor-no-selection regression). Runs per
   // annotation-layer render (pdf.js replaces the layer's DOM on zoom/rotation,
   // so re-apply there).
   useEffect(() => {
@@ -164,6 +165,7 @@ function EngineBridge({
       )) {
         const r = a.getBoundingClientRect()
         if (r.width > pageW * 0.9 && r.height > pageH * 0.9) {
+          a.style.pointerEvents = "none"
           const section = a.closest<HTMLElement>(".linkAnnotation")
           if (section) section.style.pointerEvents = "none"
         }
