@@ -203,21 +203,27 @@ interface TextLayerIndex {
  *  `textDivs`; the official TextLayerBuilder only exposes its `.div`, so the
  *  spans are derived from the DOM (the builder's div holds the rendered spans). */
 function getTextDivs(textLayer: any): HTMLElement[] {
-  if (textLayer?.textDivs && textLayer.textDivs.length > 0) {
-    return textLayer.textDivs
-  }
+  // Prefer the RENDERED DOM — it is the ground truth of what is actually on
+  // screen (native find searches it). The internal `textDivs` array can be a
+  // STALE snapshot from an earlier render (same TextLayer object, replaced
+  // divs), which would make both the search highlight and the offset
+  // diagnostic self-consistently wrong.
   const div = textLayer?.div as HTMLElement | undefined
   if (div) {
     // LEAF text containers only — a `span.markedContent` wrapper contains child
     // spans, so including both the wrapper AND its children double-counts the
     // char offsets and drifts the search/selection mapping on markedContent
     // PDFs (the "highlights unrelated words" bug).
-    return Array.from(div.querySelectorAll("span")).filter(
+    const spans = Array.from(div.querySelectorAll("span")).filter(
       (d) =>
         !d.querySelector(":scope > span") &&
         d.textContent &&
         d.textContent.length > 0
     ) as HTMLElement[]
+    if (spans.length > 0) return spans
+  }
+  if (textLayer?.textDivs && textLayer.textDivs.length > 0) {
+    return textLayer.textDivs
   }
   return []
 }

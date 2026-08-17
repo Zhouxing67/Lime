@@ -158,15 +158,17 @@ export function usePdfHighlights(searchFlash: PdfSearchFlashData | null) {
     // Diagnostic: verify the getTextContent char offsets actually land on the
     // query in the RENDERED text layer — this pinpoints the long-standing
     // "highlight lands on the wrong word" drift. Opt-in via
-    // `window.__limePdfSearchDebug = true` (F12 console), logs the first few
-    // mismatches per page.
+    // `window.__limePdfSearchDebug = true` (F12 console). Always logs a
+    // confirmation line so we know it ran.
     if (data.query && (window as any).__limePdfSearchDebug) {
       const domText = textLayerText(textLayer)
       const fold = (s: string) => s.toLowerCase()
       const q = fold(data.query)
+      let bad = 0
       for (const m of matches) {
         const actual = domText.slice(m.start, m.end)
         if (fold(actual) !== q) {
+          bad++
           console.warn(
             "[lime-pdf] search offset MISALIGNED on page",
             page,
@@ -179,6 +181,29 @@ export function usePdfHighlights(searchFlash: PdfSearchFlashData | null) {
           )
         }
       }
+      const spans = Array.from(
+        (textLayer?.div as HTMLElement | undefined)?.querySelectorAll("span") ??
+          []
+      ).filter(
+        (d) =>
+          !d.querySelector(":scope > span") &&
+          d.textContent &&
+          d.textContent.length > 0
+      ).length
+      console.log(
+        "[lime-pdf] search debug: page",
+        page,
+        "matches",
+        matches.length,
+        "misaligned",
+        bad,
+        "domTextLen",
+        domText.length,
+        "domLeafSpans",
+        spans,
+        "internalTextDivs",
+        (textLayer as any)?.textDivs?.length ?? "n/a"
+      )
     }
     const all: { r: PdfRect; isCurrent: boolean }[] = []
     for (let i = 0; i < matches.length; i++) {
