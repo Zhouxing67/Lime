@@ -246,10 +246,17 @@ export function useTodoView({
     setReadLaterEditingId(null)
   }, [])
 
-  const handleStartRead = useCallback(async (item: ReadLater) => {
-    if (item.status === "reading") return
-    await updateReadLater({ ...item, status: "reading" })
-  }, [])
+  const handleStartRead = useCallback(
+    async (item: ReadLater) => {
+      if (item.status !== "reading") {
+        await updateReadLater({ ...item, status: "reading" })
+      }
+      // 开始阅读 = 打开条目：PDF → 阅读视图（选中该 PDF），网页 → 新标签页。
+      if (item.pdfId) onOpenPdf(item.pdfId)
+      else if (item.url) window.open(item.url, "_blank", "noopener")
+    },
+    [onOpenPdf]
+  )
 
   const handleMarkDone = useCallback(async (item: ReadLater) => {
     if (item.status === "done") return

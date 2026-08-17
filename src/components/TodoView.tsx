@@ -282,7 +282,28 @@ export default function TodoView({
               />
             )}
 
-            {readLaterItems.length === 0 && (
+            {readLaterItems.map((r) => (
+              <ReadingCard
+                key={r.id}
+                item={r}
+                pdfName={r.pdfId ? pdfNameById.get(r.pdfId) : undefined}
+                onStartEdit={() => onStartEditReadLater(r.id)}
+                onDelete={() => onDeleteReadLater(r)}
+                onStartRead={() => onStartRead(r)}
+                onMarkDone={() => onMarkDone(r)}
+                onOpen={() => onOpenReadLater(r)}
+              />
+            ))}
+          </Box>
+
+          {readLaterItems.length === 0 && (
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "center",
+                width: "100%",
+                pt: 5
+              }}>
               <EmptyState
                 icon={<BookmarkAddRoundedIcon />}
                 iconSize={48}
@@ -297,21 +318,8 @@ export default function TodoView({
                     : "标记已读的条目会归档到这里"
                 }
               />
-            )}
-
-            {readLaterItems.map((r) => (
-              <ReadingCard
-                key={r.id}
-                item={r}
-                pdfName={r.pdfId ? pdfNameById.get(r.pdfId) : undefined}
-                onStartEdit={() => onStartEditReadLater(r.id)}
-                onDelete={() => onDeleteReadLater(r)}
-                onStartRead={() => onStartRead(r)}
-                onMarkDone={() => onMarkDone(r)}
-                onOpen={() => onOpenReadLater(r)}
-              />
-            ))}
-          </Box>
+            </Box>
+          )}
         </>
       )}
 

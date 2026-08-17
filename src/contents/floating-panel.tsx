@@ -657,12 +657,9 @@ export default function LimePanel() {
             openPanel()
           }}
           onReadLater={() => {
+            // 稍后读 = 把当前网页直接加入，无需选中内容；若恰好有选中文本则一并带上。
             const sel = window.getSelection()
             const text = sel?.toString().trim() ?? ""
-            if (text.length === 0) {
-              pageToast("请先选中要稍后读的内容")
-              return
-            }
             // The SW handler toasts the result back to the page (kind:"toast"),
             // so we don't show a second panel toast here.
             void sendMessage({
@@ -670,7 +667,7 @@ export default function LimePanel() {
               payload: {
                 title: document.title,
                 url: location.href,
-                excerpt: text.slice(0, 2000)
+                ...(text.length > 0 ? { excerpt: text.slice(0, 2000) } : {})
               }
             })
           }}

@@ -26,6 +26,15 @@ const STATUS_META = {
   done: { label: "已读", color: "success.main" }
 } as const
 
+/** Resolve a palette path ("text.secondary") to an actual color string —
+ *  `alpha()` cannot parse theme path strings (MUI error #9). */
+function resolvePalette(
+  t: Record<string, any>,
+  path: string
+): string {
+  return path.split(".").reduce<any>((acc, k) => acc?.[k], t.palette)
+}
+
 export default function ReadingCard({
   item,
   pdfName,
@@ -80,10 +89,7 @@ export default function ReadingCard({
             borderRadius: 1,
             flexShrink: 0,
             color: status.color,
-            bgcolor:
-              item.status === "unread"
-                ? alpha(t.palette.text.secondary, 0.08)
-                : alpha(status.color, 0.08)
+            bgcolor: alpha(resolvePalette(t, status.color), 0.08)
           })}>
           {status.label}
         </Typography>

@@ -586,9 +586,9 @@ export default function PdfHub({
                         }
                       }}>
                       {readLaterPdfIds?.has(p.id) ? (
-                        <BookmarkAddedRoundedIcon sx={{ fontSize: 20 }} />
+                        <BookmarkAddedRoundedIcon sx={{ fontSize: 16 }} />
                       ) : (
-                        <BookmarkAddRoundedIcon sx={{ fontSize: 20 }} />
+                        <BookmarkAddRoundedIcon sx={{ fontSize: 16 }} />
                       )}
                     </IconButton>
                   </Tooltip>
