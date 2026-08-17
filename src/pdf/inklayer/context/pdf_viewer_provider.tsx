@@ -49,7 +49,7 @@ export const PdfViewerProvider: React.FC<PdfViewerProviderProps> = ({
     const isReady = !!(pdfViewer && eventBus && viewerContainerRef.current && !loading)
 
     // Pinch zoom: Ctrl+wheel and trackpad pinch zoom with anchor point
-    usePinchZoom({
+    const { cancelPendingZoom } = usePinchZoom({
         pdfViewer: pdfViewer ?? null,
         containerRef: viewerContainerRef as React.RefObject<HTMLElement>,
         minScale: 0.1,
@@ -62,9 +62,10 @@ export const PdfViewerProvider: React.FC<PdfViewerProviderProps> = ({
             pdfViewer,
             eventBus,
             viewerContainerRef,
-            isReady
+            isReady,
+            cancelPendingZoom
         }),
-        [pdfDocument, pdfViewer, eventBus, isReady]
+        [pdfDocument, pdfViewer, eventBus, isReady, cancelPendingZoom]
     )
 
     const userContextValue = useMemo<UserContextValue>(

@@ -151,9 +151,16 @@ function EngineBridge({
   const handleAdd = useCallback(
     (store: IAnnotationStore) => {
       const { pos, rects, path, paths } = computeGeometry(store)
-      onAnnotationAdd?.(store, pos, rects, path, paths)
+      // Persistence is async in the host — if it rejects, drop the mark from
+      // the canvas. The engine has no "update from external" channel (its sync
+      // effect only removes), and `stores` only ever holds PERSISTED marks, so
+      // a failed id is never in it and a filter there is a no-op — the painter
+      // removal is the only channel that actually clears the lingering mark.
+      Promise.resolve(onAnnotationAdd?.(store, pos, rects, path, paths)).catch(
+        () => painter?.removeAnnotationFromPanel(store.id)
+      )
     },
-    [computeGeometry, onAnnotationAdd]
+    [computeGeometry, onAnnotationAdd, painter]
   )
 
   // Same normalized point arrays (a style-only edit leaves them identical).

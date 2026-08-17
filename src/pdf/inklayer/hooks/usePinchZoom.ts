@@ -338,4 +338,20 @@ export function usePinchZoom({
             container.removeEventListener('touchcancel', handleTouchEnd)
         }
     }, [pdfViewer, containerRef, applyZoom])
+
+    // Drop any pending pinch/rAF accumulation — an external scale write (the
+    // toolbar's +/- buttons) must not have a stale gesture factor applied on
+    // top of the new scale (the two writers would compound each other).
+    const cancelPendingZoom = useCallback(() => {
+        if (zoomRafRef.current) {
+            cancelAnimationFrame(zoomRafRef.current)
+            zoomRafRef.current = 0
+        }
+        pendingFactorRef.current = 1
+        pendingAnchorRef.current = null
+        wheelFactorRef.current = 1
+        touchFactorRef.current = 1
+    }, [])
+
+    return { cancelPendingZoom }
 }

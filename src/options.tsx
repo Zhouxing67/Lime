@@ -2478,6 +2478,7 @@ export default function OptionsPage() {
                 setPdfCurrentPage,
                 setPdfPageCount,
                 setPdfSidebarView,
+                onToast: setSnackbarMsg,
                 searchRequest,
                 handlePdfSearchResults,
                 jumpRequest,

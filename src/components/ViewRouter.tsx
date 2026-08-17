@@ -91,6 +91,7 @@ interface PdfViewRouterProps {
   pdfBatchMode: boolean
   pdfBatchSelectedIds: string[]
   onTogglePdfBatchSelect: (id: string) => void
+  onToast?: (message: string, severity?: "success" | "error") => void
 }
 
 type GridProps = React.ComponentProps<typeof CardGrid>
@@ -237,7 +238,8 @@ function PdfViewRouter(props: PdfViewRouterProps) {
     handleMovePdf,
     pdfBatchMode,
     pdfBatchSelectedIds,
-    onTogglePdfBatchSelect
+    onTogglePdfBatchSelect,
+    onToast
   } = props
   if (openPdfIds.length === 0) {
     return (
@@ -293,6 +295,7 @@ function PdfViewRouter(props: PdfViewRouterProps) {
             onAnnotationSelected={handlePdfAnnotationSelected}
             clearRingToken={pdfClearRingToken}
             annotationById={annotationById}
+            onToast={onToast}
           />
         </Box>
       ) : (

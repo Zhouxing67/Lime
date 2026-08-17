@@ -29,7 +29,8 @@ export default function PdfView({
   typeChangeRequest,
   onAnnotationSelected,
   clearRingToken,
-  annotationById
+  annotationById,
+  onToast
 }: {
   pdfId: string | null
   outlineDest?: PdfOutlineItem | null
@@ -49,6 +50,7 @@ export default function PdfView({
   onAnnotationSelected?: (annId: string | null) => void
   clearRingToken?: number
   annotationById?: Map<string, PdfAnnotation>
+  onToast?: (message: string, severity?: "success" | "error") => void
 }) {
   const { loaded, error } = usePdfDocument(pdfId)
   const [stores, setStores] = useState<IAnnotationStore[]>([])
@@ -161,9 +163,15 @@ export default function PdfView({
         }
       } catch (e) {
         console.error("[pdf] saveAnnotationFromStore failed:", e)
+        onToast?.("批注保存失败", "error")
+        // Rethrow so EngineBridge's handleAdd catch can drop the mark from the
+        // canvas via painter.removeAnnotationFromPanel — without the rejection
+        // the mark lingers drawn-but-unpersisted (the engine has no external
+        // update/removal channel other than that painter call).
+        throw e
       }
     },
-    [loaded]
+    [loaded, onToast]
   )
 
   const handleDelete = useCallback(async (id: string) => {
@@ -196,9 +204,13 @@ export default function PdfView({
         })
       } catch (e) {
         console.error("[pdf] saveAnnotationFromStore (changed) failed:", e)
+        // Documented divergence: on a failed geometry edit the engine keeps the
+        // edited mark while the DB keeps the old geometry — the engine has no
+        // external re-draw channel, so they converge only on viewer remount.
+        onToast?.("批注修改保存失败", "error")
       }
     },
-    [loaded]
+    [loaded, onToast]
   )
 
   const handleSelected = useCallback(

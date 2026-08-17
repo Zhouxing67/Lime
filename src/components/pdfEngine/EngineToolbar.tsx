@@ -34,7 +34,7 @@ export default function EngineToolbar({
   readerOpen?: boolean
 }) {
   const { painter } = usePainter()
-  const { pdfViewer, eventBus } = usePdfViewerContext()
+  const { pdfViewer, eventBus, cancelPendingZoom } = usePdfViewerContext()
   const setCurrentAnnotationType = useAnnotationStore((s) => s.setCurrentAnnotationType)
   const [activeTool, setActiveTool] = useState<
     (typeof LIME_REGION_TOOL_NAMES)[number] | null
@@ -108,17 +108,21 @@ export default function EngineToolbar({
   const applyZoom = useCallback(
     (factor: number) => {
       if (!pdfViewer) return
+      // Drop any pending pinch-zoom accumulation first — a stale gesture
+      // factor applied on top of this new scale would compound the two writers.
+      cancelPendingZoom()
       const next = Math.max(0.5, Math.min(3, pdfViewer.currentScale * factor))
       pdfViewer.currentScale = next
     },
-    [pdfViewer]
+    [pdfViewer, cancelPendingZoom]
   )
 
   const toggleFit = useCallback(() => {
     if (!pdfViewer) return
+    cancelPendingZoom()
     pdfViewer.currentScaleValue =
       pdfViewer.currentScaleValue === "page-width" ? "page-fit" : "page-width"
-  }, [pdfViewer])
+  }, [pdfViewer, cancelPendingZoom])
 
   useEffect(() => {
     if (!eventBus) return
@@ -204,7 +208,9 @@ export default function EngineToolbar({
           <Typography
             title="适应宽度"
             onClick={() => {
-              if (pdfViewer) pdfViewer.currentScaleValue = "page-width"
+              if (!pdfViewer) return
+              cancelPendingZoom()
+              pdfViewer.currentScaleValue = "page-width"
             }}
             sx={{
               fontSize: "0.75rem",

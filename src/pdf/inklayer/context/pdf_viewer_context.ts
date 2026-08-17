@@ -16,6 +16,9 @@ export interface PdfViewerContextValue {
     viewerContainerRef: React.RefObject<HTMLDivElement>
     /** PDF 核心实例是否都已准备就绪，可以安全地进行交互 */
     isReady: boolean
+    /** Drop any pending pinch-zoom accumulation before an external scale write
+     *  (toolbar buttons) so the two writers never compound (zoom interlock). */
+    cancelPendingZoom: () => void
 }
 
 // 创建 Context
