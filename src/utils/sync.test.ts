@@ -4,6 +4,7 @@ import {
   hydratePayloadImages,
   listRemotePdfs,
   pruneRemoteImages,
+  sanitizeSyncPayload,
   uploadPdfFiles
 } from "./sync"
 
@@ -223,5 +224,60 @@ describe("Image file sync (multi-file layer)", () => {
     // Only the genuinely-orphaned ccc333 is deleted.
     expect(deletes).toHaveLength(1)
     expect(deletes[0]).toContain("ccc333.png")
+  })
+
+  it("sanitizeSyncPayload keeps valid records unchanged and skips corrupt ones", () => {
+    const payload = {
+      version: 6,
+      syncedAt: 123,
+      contentHash: "abc",
+      deviceInfo: { version: "0.1.0" },
+      projects: [{ id: "p1", name: "ok", createdAt: 1 }],
+      projectCards: [
+        { id: "c1", type: "text", content: "ok", projectId: "p1", createdAt: 1 },
+        { id: "c2", type: "bogus", content: "bad", projectId: "p1", createdAt: 1 }
+      ],
+      pdfCards: [],
+      todos: [{ id: "t1", content: "ok", createdAt: 1 }],
+      reviews: [],
+      pdfAnnotations: [
+        { id: "a1", pdfId: "f1", page: 1, kind: "text", type: "highlight", createdAt: 1 },
+        { id: "a2", pdfId: "f1", page: "NaN", kind: "text", type: "highlight", createdAt: 1 }
+      ],
+      pdfs: [{ id: "f1", name: "ok.pdf", pageCount: 3, addedAt: 1 }],
+      images: { c1: "aaa111" }
+    } as any
+
+    const { payload: clean, skipped } = sanitizeSyncPayload(payload)
+
+    expect(skipped).toBe(2)
+    // Valid records pass through UNCHANGED (unknown fields survive).
+    expect(clean.projectCards).toHaveLength(1)
+    expect(clean.projectCards[0]).toEqual(payload.projectCards[0])
+    expect(clean.pdfAnnotations).toHaveLength(1)
+    expect(clean.pdfAnnotations[0].id).toBe("a1")
+    // projects / todos / pdfs intact.
+    expect(clean.projects).toHaveLength(1)
+    expect(clean.todos).toHaveLength(1)
+    expect(clean.pdfs).toHaveLength(1)
+  })
+
+  it("sanitizeSyncPayload drops a malformed images map", () => {
+    const payload = {
+      version: 6,
+      syncedAt: 123,
+      contentHash: "abc",
+      deviceInfo: { version: "0.1.0" },
+      projects: [],
+      projectCards: [],
+      pdfCards: [],
+      todos: [],
+      reviews: [],
+      pdfAnnotations: [],
+      pdfs: [],
+      images: { c1: 42 }
+    } as any
+    const { payload: clean } = sanitizeSyncPayload(payload)
+    expect(clean.images).toBeUndefined()
   })
 })

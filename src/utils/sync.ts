@@ -7,6 +7,15 @@ import type {
   ReviewEntry,
   TodoCard
 } from "../types"
+import {
+  pdfAnnotationSchema,
+  pdfCardSchema,
+  pdfMetaSchema,
+  projectCardSchema,
+  projectSchema,
+  reviewEntrySchema,
+  todoCardSchema
+} from "../types/schemas"
 import { sendMessage } from "../types/messages"
 import { splitLegacyItem, type LegacyItem } from "./cards"
 import {
@@ -57,6 +66,51 @@ export interface SyncResult {
    *  file another device's payload still references is never deleted (A1). */
   remoteImageRefs?: Set<string>
   payload?: SyncPayload
+}
+
+/** Validate a downloaded payload's record arrays against the single-source
+ *  schemas BEFORE they are applied. Corrupt records are SKIPPED (never write
+ *  garbage into the DB) and counted; valid records are returned UNCHANGED —
+ *  bulkReplace spreads them, so forward-compatible unknown fields survive. */
+export function sanitizeSyncPayload(
+  payload: SyncPayload
+): { payload: SyncPayload; skipped: number } {
+  let skipped = 0
+  const keep = <T>(
+    arr: T[] | undefined,
+    schema: { safeParse(data: unknown): { success: boolean } }
+  ): T[] =>
+    (arr ?? []).filter((rec) => {
+      const res = schema.safeParse(rec)
+      if (res.success) return true
+      skipped++
+      const issues = (res as { error?: { issues: { path: (string | number)[]; message: string }[] } })
+        .error?.issues
+      const issue = issues?.[0]
+      console.warn(
+        `[lime] sync: 跳过无效记录 ${issue?.path.join(".") || "(根)"}: ${issue?.message} (id=${String((rec as { id?: unknown } | null)?.id)})`
+      )
+      return false
+    })
+  const imagesOk =
+    payload.images === undefined ||
+    (payload.images !== null &&
+      typeof payload.images === "object" &&
+      Object.values(payload.images).every((v) => typeof v === "string"))
+  return {
+    payload: {
+      ...payload,
+      projects: keep(payload.projects, projectSchema),
+      projectCards: keep(payload.projectCards, projectCardSchema),
+      pdfCards: keep(payload.pdfCards, pdfCardSchema),
+      todos: keep(payload.todos, todoCardSchema),
+      reviews: keep(payload.reviews, reviewEntrySchema),
+      pdfAnnotations: keep(payload.pdfAnnotations, pdfAnnotationSchema),
+      pdfs: keep(payload.pdfs, pdfMetaSchema),
+      images: imagesOk ? payload.images : undefined
+    },
+    skipped
+  }
 }
 
 async function bgFetch(

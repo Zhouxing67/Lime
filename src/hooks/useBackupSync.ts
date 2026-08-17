@@ -24,7 +24,8 @@ import {
   runSync,
   uploadImageFiles,
   uploadPdfFiles,
-  type SyncCredentials
+  type SyncCredentials,
+  sanitizeSyncPayload,
 } from "../utils/sync"
 import { toJsonZip } from "../utils/zip"
 
@@ -248,19 +249,27 @@ export function useBackupSync(options: {
         return
       }
       if (remote.payload) {
+        // Validate the downloaded record arrays against the single-source
+        // schemas BEFORE applying — corrupt records are skipped, never written
+        // into the DB.
+        const { payload: cleanPayload, skipped } = sanitizeSyncPayload(remote.payload)
+        if (skipped > 0) {
+          console.warn(`[lime] sync: ${skipped} 条记录因校验失败被跳过`)
+          setSyncStatus(`下载：${skipped} 条无效记录已跳过`)
+        }
         // Image file layer: pull the referenced /images/ files + hydrate the
         // stripped image fields (v6 references) back into local-form data-URLs.
         const { files: imageFiles, unresolved } = await downloadImageFiles(
           cred,
-          remote.payload,
+          cleanPayload,
           setSyncStatus
         )
-        const hydrated = hydratePayloadImages(remote.payload, imageFiles)
+        const hydrated = hydratePayloadImages(cleanPayload, imageFiles)
         // Records whose image ref couldn't resolve (dangling remote file) KEEP
         // their local version — never overwrite a local image with an
         // imageless remote record (A1).
         if (unresolved.size > 0) {
-          const refs = remote.payload.images ?? {}
+          const refs = cleanPayload.images ?? {}
           const drop = (id: string) => unresolved.has(refs[id] ?? "")
           hydrated.projectCards = hydrated.projectCards.filter((c) => !drop(c.id))
           hydrated.pdfCards = hydrated.pdfCards.filter((c) => !drop(c.id))
@@ -293,7 +302,7 @@ export function useBackupSync(options: {
         // Persist each PDF as it downloads (never accumulate N blobs in memory).
         await downloadPdfFiles(
           cred,
-          remote.payload.pdfs ?? [],
+          cleanPayload.pdfs ?? [],
           localPdfs,
           setSyncStatus,
           async (meta, bytes) => {
