@@ -38,12 +38,18 @@ export default function PdfSaver() {
       const buf = await res.arrayBuffer()
       const name =
         location.pathname.split("/").pop()?.split("?")[0] || "web.pdf"
-      const out = await sendMessage<{ ok: boolean; error?: string }>({
-        kind: "save-web-pdf",
-        url: location.href,
-        name,
-        body: bytesToBase64(new Uint8Array(buf))
-      })
+      const out = await sendMessage<{ ok: boolean; error?: string }>(
+        {
+          kind: "save-web-pdf",
+          url: location.href,
+          name,
+          body: bytesToBase64(new Uint8Array(buf))
+        },
+        // The SW re-hashes the whole blob (content-hash id) + writes it to
+        // IndexedDB — large PDFs take a while. A dead-SW hang must still
+        // unblock the ball (the timeout rejects → the catch resets to "error").
+        120_000
+      )
       if (!out?.ok) throw new Error(out?.error ?? "保存失败")
       setState("saved")
       window.setTimeout(() => setState("idle"), 2000)
