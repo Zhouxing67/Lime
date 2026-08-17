@@ -14,6 +14,7 @@ import {
 import { useState } from "react"
 import { useTheme } from "@mui/material/styles"
 import { usePanelDragResize } from "../hooks/usePanelDragResize"
+import { usePdfPanelMaxWidth } from "../hooks/usePdfPanelMaxWidth"
 
 import type { PdfSearchEntry } from "./pdfText"
 import EmptyState from "./EmptyState"
@@ -43,7 +44,7 @@ export default function PdfSearchPanel({
   onWidthChange: (w: number) => void
   /** While a drag is in flight, the panel floats fixed over the PDF area
    *  (viewport rect measured at drag start) instead of squeezing it. */
-  dragRect?: { top: number; height: number; right: number } | null
+  dragRect?: { top: number; height: number } | null
   onDragStart?: () => void
   onDragEnd?: () => void
   query: string
@@ -64,10 +65,11 @@ export default function PdfSearchPanel({
   const [draft, setDraft] = useState(query)
   const theme = useTheme()
 
+  const { rootRef, getMax } = usePdfPanelMaxWidth(width)
   const startDrag = usePanelDragResize(
     width,
     onWidthChange,
-    () => 2000,
+    getMax,
     240,
     { onDragStart, onDragEnd }
   )
@@ -87,13 +89,14 @@ export default function PdfSearchPanel({
 
   return (
     <Paper
+      ref={rootRef}
       elevation={0}
       sx={{
         width,
         height: dragRect ? dragRect.height : "100%",
         position: dragRect ? "fixed" : "relative",
         top: dragRect ? dragRect.top : undefined,
-        right: dragRect ? dragRect.right : undefined,
+        right: dragRect ? 0 : undefined,
         zIndex: dragRect ? 30 : undefined,
         borderRadius: 0,
         display: "flex",

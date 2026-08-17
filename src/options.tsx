@@ -158,18 +158,13 @@ export default function OptionsPage() {
   const [pdfPanelDrag, setPdfPanelDrag] = useState<{
     top: number
     height: number
-    right: number
   } | null>(null)
   const mainAreaRef = useRef<HTMLDivElement | null>(null)
   const startPanelDrag = useCallback(() => {
     const el = mainAreaRef.current
     if (!el) return
     const r = el.getBoundingClientRect()
-    setPdfPanelDrag({
-      top: r.top,
-      height: r.height,
-      right: window.innerWidth - r.right
-    })
+    setPdfPanelDrag({ top: r.top, height: r.height })
   }, [])
   const endPanelDrag = useCallback(() => setPdfPanelDrag(null), [])
   const [pdfFlashTarget, setPdfFlashTarget] = useState<{

@@ -26,6 +26,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTheme } from "@mui/material/styles"
 import { usePanelDragResize } from "../hooks/usePanelDragResize"
+import { usePdfPanelMaxWidth } from "../hooks/usePdfPanelMaxWidth"
 import { sortPdfCards } from "../utils/cards"
 /** Compact card date: always YYYY-MM-DD HH:MM. */
 function formatCardDate(ts?: number): string {
@@ -62,7 +63,7 @@ interface PdfCardsPanelProps {
   onWidthChange: (w: number) => void
   /** While a drag is in flight, the panel floats fixed over the PDF area
    *  (viewport rect measured at drag start) instead of squeezing it. */
-  dragRect?: { top: number; height: number; right: number } | null
+  dragRect?: { top: number; height: number } | null
   onDragStart?: () => void
   onDragEnd?: () => void
   cards: PdfCard[]
@@ -125,8 +126,6 @@ export default function PdfCardsPanel({
     })
   }, [])
   const [batchMode, setBatchMode] = useState(false)
-  const [mainAreaW, setMainAreaW] = useState(0)
-  const maxPanelWRef = useRef(0)
   const [placeMenu, setPlaceMenu] = useState<{
     anchor: HTMLElement
     cardIds: string[]
@@ -139,7 +138,6 @@ export default function PdfCardsPanel({
   const [deleteTarget, setDeleteTarget] = useState<PdfCard | null>(null)
   const [batchDeleteOpen, setBatchDeleteOpen] = useState(false)
   const listRef = useRef<HTMLDivElement>(null)
-  const rootRef = useRef<HTMLDivElement>(null)
   const jumpTimerRef = useRef<number | null>(null)
 
   useEffect(
@@ -222,33 +220,16 @@ export default function PdfCardsPanel({
     }, 1500)
   }, [scrollTarget])
 
-  // The panel's max width must leave the PDF workspace at least 400px. The
-  // panel is a top-level sibling AFTER the main-area, so measuring the ROOT
-  // (parent) width would include the NavRail + sidebar and let the panel squeeze
-  // the PDF to ~0. Instead measure the main-area (the previous sibling): the
-  // shared space = main-area width + the current panel width is constant, so
-  // max = sharedSpace − 400.
-  const sharedSpace = mainAreaW + width
-  const maxPanelW =
-    sharedSpace > 0 ? Math.max(240, Math.min(520, sharedSpace - 400)) : 520
-  maxPanelWRef.current = maxPanelW
-
-  useEffect(() => {
-    const el = rootRef.current?.previousElementSibling
-    if (!el) return
-    const ro = new ResizeObserver((entries) => {
-      setMainAreaW(Math.floor(entries[0].contentRect.width))
-    })
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
+  // The panel's max width must leave the PDF workspace at least 400px (shared
+  // space = main-area width + panel width is constant).
+  const { rootRef, getMax } = usePdfPanelMaxWidth(width)
 
   // Right-anchored width drag (shared with the search panel): dragging the
   // left edge widens/narrows the panel; no width transition while dragging.
   const startDrag = usePanelDragResize(
     width,
     onWidthChange,
-    () => maxPanelWRef.current,
+    getMax,
     240,
     { onDragStart, onDragEnd }
   )
@@ -263,7 +244,7 @@ export default function PdfCardsPanel({
         height: dragRect ? dragRect.height : "100vh",
         position: dragRect ? "fixed" : "relative",
         top: dragRect ? dragRect.top : undefined,
-        right: dragRect ? dragRect.right : undefined,
+        right: dragRect ? 0 : undefined,
         zIndex: dragRect ? 30 : undefined,
         borderLeft: open ? "1px solid" : "none",
         borderColor: "divider",
