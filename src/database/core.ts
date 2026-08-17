@@ -55,6 +55,12 @@ function openDb(version?: number): Promise<IDBDatabase> {
     const req = indexedDB.open(DB_NAME, v)
     req.onupgradeneeded = () => {
       const db = req.result
+      // The upgrade must NEVER abort the versionchange transaction: an aborted
+      // upgrade leaves every later open failing (the "all data lost" symptom).
+      // All store creation below is idempotent-guarded and every migration is
+      // best-effort — an unexpected error in ONE step must not brick the app.
+      // It is logged and the step's data simply stays untouched (never deleted).
+      try {
       // Only a TRULY fresh database (no stores at all) gets the legacy `items`
       // store. Guarding on `!contains("items")` is wrong: the v12 migration
       // DELETED items, so a v12+ database has no items — a v12→v13 upgrade
@@ -148,10 +154,14 @@ function openDb(version?: number): Promise<IDBDatabase> {
         backfill.onsuccess = () => {
           const cursor = backfill.result
           if (cursor) {
-            const item = cursor.value
-            if (item?.pdfRef?.pdfId && !item.pdfRefPdfId) {
-              item.pdfRefPdfId = item.pdfRef.pdfId
-              cursor.update(item)
+            try {
+              const item = cursor.value
+              if (item?.pdfRef?.pdfId && !item.pdfRefPdfId) {
+                item.pdfRefPdfId = item.pdfRef.pdfId
+                cursor.update(item)
+              }
+            } catch (e) {
+              console.warn("[lime] v10 backfill: skip item", cursor.value?.id, e)
             }
             cursor.continue()
           }
@@ -214,13 +224,21 @@ function openDb(version?: number): Promise<IDBDatabase> {
           rc.onsuccess = (e) => {
             const c = (e.target as IDBRequest<IDBCursorWithValue>).result
             if (c) {
-              const r = c.value as ReviewEntry
-              const mapped = reviewRemap.get(r.itemId)
-              if (mapped) c.update({ ...r, itemId: mapped })
-              else if (!validProjectCardIds.has(r.itemId)) c.delete()
+              try {
+                const r = c.value as ReviewEntry
+                const mapped = reviewRemap.get(r.itemId)
+                if (mapped) c.update({ ...r, itemId: mapped })
+                else if (!validProjectCardIds.has(r.itemId)) c.delete()
+              } catch (err) {
+                console.warn("[lime] v12 migration: review skip", c.value?.id, err)
+              }
               c.continue()
             } else {
-              db.deleteObjectStore("items")
+              try {
+                db.deleteObjectStore("items")
+              } catch (err) {
+                console.warn("[lime] v12 migration: items drop skipped", err)
+              }
             }
           }
         }
@@ -237,57 +255,68 @@ function openDb(version?: number): Promise<IDBDatabase> {
             return
           }
           const item = c.value as LegacyItem
-          if (item.type === "todo") {
-            tdStore.put({
-              id: item.id,
-              title: item.title,
-              content: item.content,
-              dueDate: item.dueDate,
-              createdAt: item.createdAt,
-              updatedAt: item.updatedAt
-            })
-          } else if (item.pdfRef) {
-            pending++
-            const annReq = annStore.get(item.pdfRef.annotationId)
-            const convert = (annotationType?: PdfMark) => {
-              const split = splitLegacyItem(item, annotationType)
-              if (!split.pdfCard) {
-                pending--
-                maybeFinish()
-                return
+          try {
+            if (item.type === "todo") {
+              tdStore.put({
+                id: item.id,
+                title: item.title,
+                content: item.content,
+                dueDate: item.dueDate,
+                createdAt: item.createdAt,
+                updatedAt: item.updatedAt
+              })
+            } else if (item.pdfRef) {
+              pending++
+              const annReq = annStore.get(item.pdfRef.annotationId)
+              const convert = (annotationType?: PdfMark) => {
+                try {
+                  const split = splitLegacyItem(item, annotationType)
+                  if (!split.pdfCard) {
+                    pending--
+                    maybeFinish()
+                    return
+                  }
+                  pdStore.put(split.pdfCard)
+                  if (split.placement) {
+                    pcStore.put(split.placement)
+                    // splitLegacyItem already set the mutual reference.
+                    reviewRemap.set(item.id, split.placement.id)
+                    validProjectCardIds.add(split.placement.id)
+                  }
+                } catch (e) {
+                  console.warn("[lime] v12 migration: skip item", item.id, e)
+                } finally {
+                  pending--
+                  maybeFinish()
+                }
               }
-              pdStore.put(split.pdfCard)
-              if (split.placement) {
-                pcStore.put(split.placement)
-                // splitLegacyItem already set the mutual reference.
-                reviewRemap.set(item.id, split.placement.id)
-                validProjectCardIds.add(split.placement.id)
+              annReq.onsuccess = () => {
+                const ann = annReq.result as PdfAnnotation | undefined
+                if (ann) {
+                  // The pdfCard keeps the old item id — the annotation's cardId
+                  // maps naturally + the old itemId field is retired.
+                  const updated = { ...ann, cardId: item.id } as PdfAnnotation
+                  delete (updated as unknown as Record<string, unknown>).itemId
+                  annStore.put(updated)
+                }
+                convert(ann?.type)
               }
-              pending--
-              maybeFinish()
-            }
-            annReq.onsuccess = () => {
-              const ann = annReq.result as PdfAnnotation | undefined
-              if (ann) {
-                // The pdfCard keeps the old item id — the annotation's cardId
-                // maps naturally + the old itemId field is retired.
-                const updated = { ...ann, cardId: item.id } as PdfAnnotation
-                delete (updated as unknown as Record<string, unknown>).itemId
-                annStore.put(updated)
+              annReq.onerror = () => {
+                // Annotation lookup failed — still convert (the type falls back
+                // to highlight) so the migration can't hang or drop cards.
+                convert(undefined)
               }
-              convert(ann?.type)
+            } else {
+              const split = splitLegacyItem(item)
+              if (split.projectCard) {
+                pcStore.put(split.projectCard)
+                validProjectCardIds.add(split.projectCard.id)
+              }
             }
-            annReq.onerror = () => {
-              // Annotation lookup failed — still convert (the type falls back
-              // to highlight) so the migration can't hang or drop cards.
-              convert(undefined)
-            }
-          } else {
-            const split = splitLegacyItem(item)
-            if (split.projectCard) {
-              pcStore.put(split.projectCard)
-              validProjectCardIds.add(split.projectCard.id)
-            }
+          } catch (e) {
+            // A malformed legacy item must not abort the whole upgrade — skip
+            // it and keep migrating the rest (data stays in items store).
+            console.warn("[lime] v12 migration: skip item", item.id, e)
           }
           c.continue()
         }
@@ -315,6 +344,12 @@ function openDb(version?: number): Promise<IDBDatabase> {
         dropIndex("pdfCards", "annotationId")
         dropIndex("pdfCards", "projectCardId")
         dropIndex("projectCards", "pdfCardId")
+      }
+      } catch (e) {
+        console.error(
+          "[lime] DB upgrade step threw — continuing, data preserved (no abort):",
+          e
+        )
       }
     }
     req.onsuccess = async () => {

@@ -1204,6 +1204,114 @@ describe("v12 migration: items → three typed stores", () => {
       req.onerror = () => resolve(req.result)
     })
 
+  it("v12 → v13 with items still present (partial migration) never aborts", async () => {
+    // A v12 DB whose v12 data-migration never completed: items is still there
+    // alongside the three typed stores. Upgrading must NOT abort — the re-run
+    // of the split must tolerate the pre-existing stores + any bad item.
+    const legacy = await new Promise<IDBDatabase>((resolve) => {
+      const req = indexedDB.open("pickquote-db", 12)
+      req.onupgradeneeded = () => {
+        const d = req.result
+        const items = d.createObjectStore("items", { keyPath: "id" })
+        items.createIndex("type", "type")
+        items.createIndex("projectId", "projectId")
+        d.createObjectStore("projectCards", { keyPath: "id" }).createIndex(
+          "projectId",
+          "projectId"
+        )
+        d.createObjectStore("todos", { keyPath: "id" }).createIndex(
+          "dueDate",
+          "dueDate"
+        )
+        d.createObjectStore("pdfCards", { keyPath: "id" }).createIndex(
+          "pdfId",
+          "pdfId"
+        )
+        d.createObjectStore("projects", { keyPath: "id" }).createIndex(
+          "name",
+          "name",
+          { unique: true }
+        )
+        const revs = d.createObjectStore("reviews", { keyPath: "id" })
+        revs.createIndex("itemId", "itemId", { unique: true })
+        revs.createIndex("dueDate", "dueDate")
+        d.createObjectStore("pdfs", { keyPath: "id" }).createIndex(
+          "addedAt",
+          "addedAt"
+        )
+        d.createObjectStore("pdfAnnotations", { keyPath: "id" }).createIndex(
+          "pdfId",
+          "pdfId"
+        )
+        const tx = req.transaction as IDBTransaction
+        // The already-typed stores carry data from the earlier partial run…
+        tx.objectStore("projectCards").put({
+          id: "already-placed",
+          projectId: "p1",
+          order: 1,
+          content: "",
+          type: "placed",
+          pdfCardId: "already-pdfcard",
+          createdAt: 1
+        })
+        tx.objectStore("pdfCards").put({
+          id: "already-pdfcard",
+          pdfId: "pdf-x",
+          page: 1,
+          kind: "region",
+          type: "frame",
+          annotationId: "ann-x",
+          pdfOrder: 1000000,
+          projectCardId: "already-placed",
+          createdAt: 1
+        })
+        tx.objectStore("projects").put({
+          id: "p1",
+          name: "P",
+          createdAt: 1,
+          lastOpened: 1,
+          order: 0
+        })
+        tx.objectStore("pdfAnnotations").put({
+          id: "ann-x",
+          pdfId: "pdf-x",
+          page: 1,
+          kind: "region",
+          type: "frame",
+          cardId: "already-pdfcard",
+          createdAt: 1
+        })
+        // …and items still holds its records (one well-formed, one malformed).
+        tx.objectStore("items").put({
+          id: "todo-legacy",
+          type: "todo",
+          content: "- [ ] x",
+          createdAt: 1
+        })
+        tx.objectStore("items").put({
+          id: "broken-item",
+          type: "text",
+          pdfRef: { pdfId: "pdf-x", page: 1, annotationId: "ann-missing" },
+          createdAt: 1
+        })
+      }
+      req.onsuccess = () => resolve(req.result)
+    })
+    legacy.close()
+
+    // Any DB call now opens at DB_VERSION (13) — must not abort.
+    await getPdf("pdf-x")
+    const cards = await getPdfCards("pdf-x")
+    expect(cards.map((c) => c.id)).toContain("already-pdfcard")
+    expect((await getAllTodos()).map((t) => t.id)).toContain("todo-legacy")
+
+    const upgraded = await openRaw(DB_VERSION)
+    const names = Array.from(upgraded.objectStoreNames)
+    expect(names).toContain("projectCards")
+    expect(names).not.toContain("items")
+    upgraded.close()
+  })
+
   it("v12 → v13 upgrade preserves ALL existing data (regression: no data loss)", async () => {
     // Build a REAL v12 DB (the current schema minus the v13 index drops) and
     // seed one record of every kind — the v12→v13 migration must keep them.
