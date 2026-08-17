@@ -60,6 +60,11 @@ interface PdfCardsPanelProps {
   open: boolean
   width: number
   onWidthChange: (w: number) => void
+  /** While a drag is in flight, the panel floats fixed over the PDF area
+   *  (viewport rect measured at drag start) instead of squeezing it. */
+  dragRect?: { top: number; height: number; right: number } | null
+  onDragStart?: () => void
+  onDragEnd?: () => void
   cards: PdfCard[]
   annotations: PdfAnnotation[]
   onCardClick: (card: PdfCard) => void
@@ -87,6 +92,9 @@ export default function PdfCardsPanel({
   open,
   width,
   onWidthChange,
+  dragRect,
+  onDragStart,
+  onDragEnd,
   cards,
   annotations,
   onCardClick,
@@ -240,7 +248,9 @@ export default function PdfCardsPanel({
   const startDrag = usePanelDragResize(
     width,
     onWidthChange,
-    () => maxPanelWRef.current
+    () => maxPanelWRef.current,
+    240,
+    { onDragStart, onDragEnd }
   )
 
   return (
@@ -250,14 +260,17 @@ export default function PdfCardsPanel({
         width: open ? width : 0,
         flexShrink: 0,
         overflow: "hidden",
-        height: "100vh",
+        height: dragRect ? dragRect.height : "100vh",
+        position: dragRect ? "fixed" : "relative",
+        top: dragRect ? dragRect.top : undefined,
+        right: dragRect ? dragRect.right : undefined,
+        zIndex: dragRect ? 30 : undefined,
         borderLeft: open ? "1px solid" : "none",
         borderColor: "divider",
         bgcolor: "background.default",
         display: "flex",
         flexDirection: "column",
-        minHeight: 0,
-        position: "relative"
+        minHeight: 0
       }}>
       {/* Drag handle (the panel's left edge — right-anchored: drag left widens) */}
       <Box

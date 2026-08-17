@@ -24,6 +24,9 @@ import EmptyState from "./EmptyState"
 export default function PdfSearchPanel({
   width,
   onWidthChange,
+  dragRect,
+  onDragStart,
+  onDragEnd,
   query,
   caseSensitive,
   wholeWord,
@@ -38,6 +41,11 @@ export default function PdfSearchPanel({
 }: {
   width: number
   onWidthChange: (w: number) => void
+  /** While a drag is in flight, the panel floats fixed over the PDF area
+   *  (viewport rect measured at drag start) instead of squeezing it. */
+  dragRect?: { top: number; height: number; right: number } | null
+  onDragStart?: () => void
+  onDragEnd?: () => void
   query: string
   caseSensitive: boolean
   wholeWord: boolean
@@ -56,7 +64,13 @@ export default function PdfSearchPanel({
   const [draft, setDraft] = useState(query)
   const theme = useTheme()
 
-  const startDrag = usePanelDragResize(width, onWidthChange, () => 2000)
+  const startDrag = usePanelDragResize(
+    width,
+    onWidthChange,
+    () => 2000,
+    240,
+    { onDragStart, onDragEnd }
+  )
 
   // Group entries by page, preserving the first-hit order.
   const byPage: { page: number; items: { entry: PdfSearchEntry; index: number }[] }[] = []
@@ -76,7 +90,11 @@ export default function PdfSearchPanel({
       elevation={0}
       sx={{
         width,
-        height: "100%",
+        height: dragRect ? dragRect.height : "100%",
+        position: dragRect ? "fixed" : "relative",
+        top: dragRect ? dragRect.top : undefined,
+        right: dragRect ? dragRect.right : undefined,
+        zIndex: dragRect ? 30 : undefined,
         borderRadius: 0,
         display: "flex",
         flexDirection: "column",
