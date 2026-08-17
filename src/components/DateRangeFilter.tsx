@@ -12,6 +12,7 @@ import {
 } from "@mui/material"
 import { useCallback, useMemo, useRef, useState } from "react"
 
+import { dayKey } from "../hooks/useSrs"
 import DateField from "./DateField"
 
 interface DateRangeFilterProps {
@@ -20,8 +21,7 @@ interface DateRangeFilterProps {
 }
 
 function toDateInput(ts: number): string {
-  const d = new Date(ts)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+  return dayKey(ts)
 }
 
 function fromDateInput(s: string): number {

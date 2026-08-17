@@ -1,4 +1,4 @@
-import { tx, withStore } from "./core"
+import { collectAll, tx, withStore } from "./core"
 import type { TodoCard } from "../types"
 import { isTodoComplete } from "../utils"
 
@@ -14,22 +14,7 @@ export async function addTodo(todo: TodoCard): Promise<void> {
 }
 
 export async function getAllTodos(): Promise<TodoCard[]> {
-  return withStore("todos", "readonly", async (store) => {
-    const all: TodoCard[] = []
-    return new Promise<TodoCard[]>((resolve, reject) => {
-      const cursorReq = store.openCursor()
-      cursorReq.onsuccess = () => {
-        const cursor = cursorReq.result
-        if (cursor) {
-          all.push(cursor.value as TodoCard)
-          cursor.continue()
-        } else {
-          resolve(all)
-        }
-      }
-      cursorReq.onerror = () => reject(cursorReq.error)
-    })
-  })
+  return withStore("todos", "readonly", (store) => collectAll<TodoCard>(store))
 }
 
 export async function updateTodo(todo: TodoCard): Promise<void> {

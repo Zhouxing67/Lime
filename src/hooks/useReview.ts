@@ -131,16 +131,17 @@ export function useReview(options: UseReviewOptions) {
     const now = Date.now()
     const result: { key: string; label: string; count: number }[] = []
     for (let i = 0; i < 3; i++) {
-      const d = new Date(now - i * DAY_MS)
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+      const key = dayKey(now - i * DAY_MS)
       const label = i === 0 ? "（今天）" : i === 1 ? "（昨天）" : "（前天）"
       const group = recentItems.find((g) => g.date === key)
-      if (group)
+      if (group) {
+        const day = new Date(now - i * DAY_MS)
         result.push({
           key,
-          label: `${d.getMonth() + 1}月${d.getDate()}日${label}`,
+          label: `${day.getMonth() + 1}月${day.getDate()}日${label}`,
           count: group.items.length
         })
+      }
     }
     return result
   }, [recentItems])

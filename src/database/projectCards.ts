@@ -1,4 +1,4 @@
-import { tx, withStore } from "./core"
+import { collectAll, tx, withStore } from "./core"
 import { getByKeys, safeHostname } from "./helpers"
 import type { PdfAnnotation, PdfCard, ProjectCard, ProjectCardType, SearchQuery, SourceMeta } from "../types"
 import { computeItemHash } from "../utils"
@@ -525,22 +525,9 @@ export async function deleteProjectCards(ids: string[]): Promise<void> {
 }
 
 export async function getAllProjectCards(): Promise<ProjectCard[]> {
-  return withStore("projectCards", "readonly", (store) => {
-    return new Promise<ProjectCard[]>((resolve, reject) => {
-      const all: ProjectCard[] = []
-      const req = store.openCursor()
-      req.onsuccess = () => {
-        const cursor = req.result
-        if (cursor) {
-          all.push(cursor.value as ProjectCard)
-          cursor.continue()
-        } else {
-          resolve(all)
-        }
-      }
-      req.onerror = () => reject(req.error)
-    })
-  })
+  return withStore("projectCards", "readonly", (store) =>
+    collectAll<ProjectCard>(store)
+  )
 }
 
 export async function getProjectCardById(

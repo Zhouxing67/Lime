@@ -1,4 +1,4 @@
-import { tx, withStore } from "./core"
+import { collectAll, tx, withStore } from "./core"
 import { getByKeys } from "./helpers"
 import { getMaxOrderInSection } from "./projectCards"
 import type {
@@ -128,22 +128,11 @@ export async function getPdf(id: string): Promise<PdfFile | undefined> {
 }
 
 export async function listPdfs(): Promise<PdfFile[]> {
-  return withStore("pdfs", "readonly", (store) => {
-    return new Promise((resolve, reject) => {
-      const results: PdfFile[] = []
-      const req = store.openCursor()
-      req.onsuccess = () => {
-        const cursor = req.result
-        if (cursor) {
-          results.push(cursor.value as PdfFile)
-          cursor.continue()
-        } else {
-          resolve(results.sort((a, b) => b.addedAt - a.addedAt))
-        }
-      }
-      req.onerror = () => reject(req.error)
-    })
-  })
+  return withStore("pdfs", "readonly", (store) =>
+    collectAll<PdfFile>(store).then((all) =>
+      all.sort((a, b) => b.addedAt - a.addedAt)
+    )
+  )
 }
 
 /** A PDF record WITHOUT its bytes Blob — the library listing / sync payload
@@ -153,31 +142,21 @@ export async function listPdfs(): Promise<PdfFile[]> {
 export type PdfMetaLite = Omit<PdfFile, "bytes"> & { hasBytes: boolean }
 
 export async function listPdfMeta(): Promise<PdfMetaLite[]> {
-  return withStore("pdfs", "readonly", (store) => {
-    return new Promise((resolve, reject) => {
-      const results: PdfMetaLite[] = []
-      const req = store.openCursor()
-      req.onsuccess = () => {
-        const cursor = req.result
-        if (cursor) {
-          const p = cursor.value as PdfFile
-          results.push({
-            id: p.id,
-            name: p.name,
-            pageCount: p.pageCount,
-            addedAt: p.addedAt,
-            lastOpened: p.lastOpened,
-            topic: p.topic,
-            hasBytes: !!p.bytes
-          })
-          cursor.continue()
-        } else {
-          resolve(results.sort((a, b) => b.addedAt - a.addedAt))
-        }
-      }
-      req.onerror = () => reject(req.error)
-    })
-  })
+  return withStore("pdfs", "readonly", (store) =>
+    collectAll<PdfFile>(store).then((all) =>
+      all
+        .map((p) => ({
+          id: p.id,
+          name: p.name,
+          pageCount: p.pageCount,
+          addedAt: p.addedAt,
+          lastOpened: p.lastOpened,
+          topic: p.topic,
+          hasBytes: !!p.bytes
+        }))
+        .sort((a, b) => b.addedAt - a.addedAt)
+    )
+  )
 }
 
 /** Delete a PDF + its annotations + its PDF cards together (no orphans). */
@@ -234,22 +213,9 @@ export async function deletePdf(id: string): Promise<void> {
 
 /** All pdfCards across every PDF (for backup/sync payloads). */
 export async function getAllPdfCards(): Promise<PdfCard[]> {
-  return withStore("pdfCards", "readonly", (store) => {
-    return new Promise<PdfCard[]>((resolve, reject) => {
-      const all: PdfCard[] = []
-      const req = store.openCursor()
-      req.onsuccess = () => {
-        const cursor = req.result
-        if (cursor) {
-          all.push(cursor.value as PdfCard)
-          cursor.continue()
-        } else {
-          resolve(all)
-        }
-      }
-      req.onerror = () => reject(req.error)
-    })
-  })
+  return withStore("pdfCards", "readonly", (store) =>
+    collectAll<PdfCard>(store)
+  )
 }
 
 /** Low-level insert/overwrite of a pdfCard (identity-keyed — used by import
@@ -817,22 +783,9 @@ export async function unplacePdfCard(pdfCardId: string): Promise<void> {
 
 /** All annotations across every PDF (for backup). */
 export async function getAllAnnotations(): Promise<PdfAnnotation[]> {
-  return withStore("pdfAnnotations", "readonly", (store) => {
-    return new Promise((resolve, reject) => {
-      const results: PdfAnnotation[] = []
-      const req = store.openCursor()
-      req.onsuccess = () => {
-        const cursor = req.result
-        if (cursor) {
-          results.push(cursor.value as PdfAnnotation)
-          cursor.continue()
-        } else {
-          resolve(results)
-        }
-      }
-      req.onerror = () => reject(req.error)
-    })
-  })
+  return withStore("pdfAnnotations", "readonly", (store) =>
+    collectAll<PdfAnnotation>(store)
+  )
 }
 
 /** Add or update a single annotation (low-level store CRUD). */

@@ -1,12 +1,11 @@
 import type {
+  MergeSeparator,
   PdfCard,
   PdfMark,
   ProjectCard,
   SourceMeta,
   TodoCard
 } from "../types"
-
-export type MergeSeparator = "rule" | "ordered" | "unordered" | "none"
 
 /** Join several cards' content per the chosen separator. */
 /** Rejoin PDF hyphenation artifacts so the quote reads naturally in a web

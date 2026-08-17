@@ -589,6 +589,25 @@ export async function withStore<T>(
   }
 }
 
+/** Collect every record in a store with a plain cursor (no index / filter).
+ *  Each `getAll*` DB accessor is a thin wrapper over this. */
+export function collectAll<T>(store: IDBObjectStore): Promise<T[]> {
+  return new Promise<T[]>((resolve, reject) => {
+    const all: T[] = []
+    const req = store.openCursor()
+    req.onsuccess = () => {
+      const cursor = req.result
+      if (cursor) {
+        all.push(cursor.value as T)
+        cursor.continue()
+      } else {
+        resolve(all)
+      }
+    }
+    req.onerror = () => reject(req.error)
+  })
+}
+
 /**
  * Declarative multi-store IndexedDB transaction.
  * All operations in `fn` execute within a single atomic transaction.

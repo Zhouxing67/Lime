@@ -27,8 +27,6 @@ export type {
   Project
 } from "./schemas"
 
-export type AnyCard = ProjectCard | PdfCard | TodoCard
-
 /** The project view's render form of a ProjectCard. For a placed card
  *  (pdfCardId) the body/comment are RESOLVED from the linked pdfCard (the
  *  placement itself carries no content) + `pdfSource` carries the PDF page for

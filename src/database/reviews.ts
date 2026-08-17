@@ -1,4 +1,4 @@
-import { withStore } from "./core"
+import { collectAll, withStore } from "./core"
 import type { ReviewEntry, SrsData } from "../types"
 
 export async function addReview(entry: ReviewEntry): Promise<void> {
@@ -86,22 +86,7 @@ export async function getDueReviews(): Promise<ReviewEntry[]> {
 }
 
 export async function getAllReviews(): Promise<ReviewEntry[]> {
-  return withStore("reviews", "readonly", (store) => {
-    return new Promise<ReviewEntry[]>((resolve, reject) => {
-      const results: ReviewEntry[] = []
-      const req = store.openCursor()
-      req.onsuccess = () => {
-        const cursor = req.result
-        if (cursor) {
-          results.push(cursor.value as ReviewEntry)
-          cursor.continue()
-        } else {
-          resolve(results)
-        }
-      }
-      req.onerror = () => reject(req.error)
-    })
-  })
+  return withStore("reviews", "readonly", (store) => collectAll<ReviewEntry>(store))
 }
 
 export async function updateReviewSrs(
