@@ -424,7 +424,9 @@ export default function PdfEngineView({
 .textLayer::selection,.textLayer ::selection,.textLayer :is(span,br)::selection{background:transparent !important;color:transparent !important}
 .annotationLayer{z-index:2}
 .annotationLayer section:not(.linkAnnotation){display:none}
-.annotationLayer .linkAnnotation > a{cursor:pointer;pointer-events:auto}`
+.annotationLayer .linkAnnotation > a{cursor:pointer;pointer-events:auto}
+.annotationLayer :is(.linkAnnotation,.buttonWidgetAnnotation.pushButton):not(.hasBorder)>a:hover{opacity:1;background:none;box-shadow:none}
+.annotationLayer .linkAnnotation.hasBorder:hover{background:none}`
     document.head.append(styleEl)
     return () => {
       cssLink.remove()
