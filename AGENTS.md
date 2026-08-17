@@ -75,11 +75,11 @@ src/
 
 - `withStore(name, mode, fn)` — 打开/关闭 DB，readwrite 事务完成自动广播
 - `tx(storeMap, fn)` — 跨 store 原子事务
-- **DB_VERSION = 12**。Stores：`projectCards`, `pdfCards`, `todos`, `projects`, `reviews`, `pdfs`, `pdfAnnotations`
-- 卡片类型：`ProjectCard`（projectId/sectionId/order/content）、`PdfCard`（pdfId/page/annotationId/pdfOrder/content/idea）、`TodoCard`（dueDate/content，全局跨项目，identity-unique）
+- **DB_VERSION = 14**。Stores：`projectCards`, `pdfCards`, `todos`, `projects`, `reviews`, `pdfs`, `pdfAnnotations`, `readLater`
+- 卡片类型：`ProjectCard`（projectId/sectionId/order/content）、`PdfCard`（pdfId/page/annotationId/pdfOrder/content/idea）、`TodoCard`（dueDate/content，全局跨项目，identity-unique，可带 `pdfId/cardId/url` 链接）、`ReadLater`（title/url/pdfId/excerpt/notes/status，全局，`byPdfId` 唯一索引 = 一 PDF 一张稍后读卡）
 - **placed PDF 卡 = 两条记录**：`pdfCard` 源 + `projectCard` 置入（互指 `pdfCardId` ↔ `projectCardId`，1:1）；置入记录 **不含 content**（渲染/搜索时经 pdfCard 解析）；`stripPlacementContent()` 守卫所有写入
-- 广播键：`projectCards` → `_dbi`，`todos` → `_dbt`，`pdfCards`/`pdfs`/`pdfAnnotations` → `_dbpdf`，`projects` → `_dbp`，`reviews` → `_dbr`；`pdfs` 元数据写（rename/topic）→ `_dbpdfTouch`
-- ProjectCard 去重：同 `hash` + `source.url` 同 projectId 跳过（`addProjectCard` 返回 false）；placements/todos identity-unique
+- 广播键：`projectCards` → `_dbi`，`todos` → `_dbt`，`pdfCards`/`pdfs`/`pdfAnnotations` → `_dbpdf`，`projects` → `_dbp`，`reviews` → `_dbr`，`readLater` → `_dbrl`；`pdfs` 元数据写（rename/topic）→ `_dbpdfTouch`
+- ProjectCard 去重：同 `hash` + `source.url` 同 projectId 跳过（`addProjectCard` 返回 false）；placements/todos identity-unique；readLater `byPdfId` 唯一（PDF 一卡规则，add/update 返回 false 冲突）
 - `searchProjectCards(q)` — keyword/type/site/projectId/date 过滤；placed 卡命中解析关联 pdfCard 内容
 - `bulkReplace(...)` — 同步用 diff 原子替换
 - **迁移必须用已打开的 db 连接**（`db.transaction`），禁用 `withStore`/`tx`（会重开 DB 重触发迁移 → 无限递归）
@@ -94,7 +94,7 @@ Kinds：`capture`（→SW 落库）、`toast`（SW→tab）、`webdav`（SW 代�
 
 三栏布局：**NavRail | Sidebar | Main**。
 - **NavRail**：~52px 左栏，三视图按钮（项目/间隔复习/备份与同步，复习带到期数 badge）+ 底部设置齿轮。点视图即开侧栏；AppHeader 是唯一开/关侧栏控制。
-- **Sidebar**：可拖宽（宽度存 `_uiNav`）。项目 tab 注入 `ProjectTree` + 新建项目/稍后阅读行；PDF tab = PDF 库 + 打开本地 PDF/URL；复习/备份 tab 各自内容。
+- **Sidebar**：可拖宽（宽度存 `_uiNav`）。项目 tab 注入 `ProjectTree` + 新建项目行；PDF tab = PDF 库 + 打开本地 PDF/URL；复习/备份 tab 各自内容；待办 tab = 待办/稍后读 双 tab（稍后读独立 store）。
 - **Main**：单项目视图（面包屑 项目/L1/L2，L1 聚合其 L2）；搜索覆盖全项目卡（有项目时）或项目名（hub 模式）。
 
 **ProjectTree**：项目 recent-first（活跃置顶），默认 ~7 个 +「全部项目 (N)」展开；L1/L2 分区树节点带计数 + 未分类；行操作：项目 `＋`/`⋯`（重命名/备注/删除）、L1 `＋`/`⋯`、L2 `⋯`；L1/L2 增删改走 `useProjects`。分区拖拽仅限同父兄弟。
@@ -167,7 +167,7 @@ Kinds：`capture`（→SW 落库）、`toast`（SW→tab）、`webdav`（SW 代�
 
 - WebDAV provider：`https://dav.jianguoyun.com/dav/Apps/lime/lime-sync.json`；凭据在 `chrome.storage.sync`（`syncUsername`/`syncPassword`）
 - 冲突：SHA-256 内容哈希对比 → 用户选上传/下载（无自动仲裁）
-- **SyncPayload v6**（2026-08）：单 JSON（projectCards/pdfCards/todos/projects/reviews/pdfs 元数据/pdfAnnotations）+ **多文件图片层**（`/Apps/lime/images/<contentHash>.png`，payload `images` 映射）+ **PDF 文件层**（`/pdfs/<id>.pdf`）。上传 uploadImageFiles/uploadPdfFiles + prune 孤儿；下载 downloadImageFiles/downloadPdfFiles + hydratePayloadImages。版本门控 v3-v6（v5 内联图片透传读兼容）。哈希覆盖全部数组（稳定 id 排序）
+- **SyncPayload v7**（2026-08）：单 JSON（projectCards/pdfCards/todos/projects/reviews/pdfs 元数据/pdfAnnotations/readLater）+ **多文件图片层**（`/Apps/lime/images/<contentHash>.png`，payload `images` 映射）+ **PDF 文件层**（`/pdfs/<id>.pdf`）。上传 uploadImageFiles/uploadPdfFiles + prune 孤儿；下载 downloadImageFiles/downloadPdfFiles + hydratePayloadImages。版本门控 v3-v7（v5 内联图片透传读兼容）。哈希覆盖全部数组（稳定 id 排序）
 - `hasChangesSince`（广播戳 vs lastSyncTime）跳「无变化」；force 同步清零 lastSyncTime
 - `toJsonZip`/`jsonImport` 数据往返：spread + key 校验放行新字段；id 语义变更需重映射
 - **反序列化分层**：形状校验 = `schemas.ts` 的 `schema.safeParse`（单一来源）；语义转换（默认值/legacy 映射/未知字段保留）= import 校验器预解析。**同步下载**经 `sanitizeSyncPayload` 逐条 `safeParse`（畸形跳过+计数，合法记录原样应用、未知字段零丢失）；**上传守卫** `wouldWipeRemote`：从未同步 + 本地记录 < 云端 → 阻断上传（防全新设备清空云端）

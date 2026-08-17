@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.3.0 — 待办链接 + 独立稍后读
+- **待办↔卡片/PDF/网页链接**：TodoCard 新增可选 `pdfId/cardId/url` 链接字段（schema 单一来源，无 DB 迁移/同步升版）；待办卡显示关联 chip 点击跳转；编辑表单可设关联（卡片/PDF/URL/无）。
+- **独立稍后读**：新 `ReadLater` 类型 + `readLater` store（DB v14，`byPdfId` 唯一索引 —— 一个 PDF 一张稍后读卡）；并入待办视图为「待办 | 稍后读」tab；ReadingCard（未读/在读/已读 + 摘录/笔记/来源）；阅读完毕自动归档。
+- **PDF 瓦片稍后读 icon**：一键加入稍后读；未归档时显示「稍后读」提醒 chip + 填充图标，标记已读后取消。
+- **双入口**：网页悬浮球「稍后读」按钮 + 稍后读 tab 新建瓦片（填 URL 或选库内 PDF）。
+- **同步 v7**：SyncPayload 新增 `readLater` 数组（哈希覆盖、门控 v3-v7、sanitize 校验、bulkReplace 冲突去重）。
+- 备份导出/导入含 readLater（ZIP v5 增列）。
+
 ## 0.2.0 — 序列化单一来源 + 发布前加固
 - **序列化单一来源**：记录类型由 Zod schema（`types/schemas.ts`）`z.infer` 推导，`types/index.ts` re-export；import 校验器改为 `schema.safeParse`（形状校验自动随数据模型更新）。
 - **同步下载校验**：`sanitizeSyncPayload` 应用前逐条 `safeParse`，畸形记录跳过+计数，合法记录原样应用（未知字段零丢失）。
