@@ -146,9 +146,9 @@ export default function ReadingCard({
             "&:hover": { color: "primary.main" }
           }}>
           {item.pdfId ? (
-            <PictureAsPdfRoundedIcon sx={{ fontSize: 14, flexShrink: 0 }} />
+            <PictureAsPdfRoundedIcon sx={{ fontSize: 16, flexShrink: 0 }} />
           ) : (
-            <LinkRoundedIcon sx={{ fontSize: 14, flexShrink: 0 }} />
+            <LinkRoundedIcon sx={{ fontSize: 16, flexShrink: 0 }} />
           )}
           <Typography
             variant="caption"

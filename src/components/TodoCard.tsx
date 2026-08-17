@@ -347,7 +347,7 @@ export default function TodoCard({
         </Typography>
         {done ? (
           <Stack direction="row" alignItems="center" spacing={0.5}>
-            <CheckRoundedIcon sx={{ fontSize: 14, color: "success.main" }} />
+            <CheckRoundedIcon sx={{ fontSize: 16, color: "success.main" }} />
             <Typography
               variant="caption"
               sx={{ color: "success.main", fontSize: "0.7rem" }}>

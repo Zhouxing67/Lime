@@ -317,7 +317,7 @@ export default function PdfHub({
                       setTopicRename(t)
                     }}
                     sx={{ p: 0.5, color: "text.disabled" }}>
-                    <EditRoundedIcon sx={{ fontSize: 15 }} />
+                    <EditRoundedIcon sx={{ fontSize: 16 }} />
                   </IconButton>
                   <IconButton
                     size="small"
@@ -328,7 +328,7 @@ export default function PdfHub({
                     title="删除主题"
                     aria-label="删除主题"
                     sx={{ p: 0.5, color: "text.disabled" }}>
-                    <DeleteOutlineRoundedIcon sx={{ fontSize: 15 }} />
+                    <DeleteOutlineRoundedIcon sx={{ fontSize: 16 }} />
                   </IconButton>
                 </Box>
               </>

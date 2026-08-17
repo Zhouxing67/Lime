@@ -657,17 +657,14 @@ export default function LimePanel() {
             openPanel()
           }}
           onReadLater={() => {
-            // 稍后读 = 把当前网页直接加入，无需选中内容；若恰好有选中文本则一并带上。
-            const sel = window.getSelection()
-            const text = sel?.toString().trim() ?? ""
+            // 稍后读 = 把当前网页直接加入（仅标题 + URL，不带选中文本作为摘录）。
             // The SW handler toasts the result back to the page (kind:"toast"),
             // so we don't show a second panel toast here.
             void sendMessage({
               kind: "read-later",
               payload: {
                 title: document.title,
-                url: location.href,
-                ...(text.length > 0 ? { excerpt: text.slice(0, 2000) } : {})
+                url: location.href
               }
             })
           }}
