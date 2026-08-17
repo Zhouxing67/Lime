@@ -1,11 +1,13 @@
 import {
+  countPayloadRecords,
   downloadImageFiles,
   downloadPdfFiles,
   hydratePayloadImages,
   listRemotePdfs,
   pruneRemoteImages,
   sanitizeSyncPayload,
-  uploadPdfFiles
+  uploadPdfFiles,
+  wouldWipeRemote
 } from "./sync"
 
 // jest's jsdom doesn't expose DOMParser globally — take it from jsdom.
@@ -279,5 +281,60 @@ describe("Image file sync (multi-file layer)", () => {
     } as any
     const { payload: clean } = sanitizeSyncPayload(payload)
     expect(clean.images).toBeUndefined()
+  })
+
+  it("wouldWipeRemote blocks a never-synced empty local vs a populated remote", () => {
+    const empty: any = {
+      projects: [],
+      projectCards: [],
+      pdfCards: [],
+      todos: [],
+      reviews: [],
+      pdfAnnotations: [],
+      pdfs: []
+    }
+    const full: any = {
+      ...empty,
+      todos: [{ id: "t1", content: "x", createdAt: 1 }]
+    }
+    expect(wouldWipeRemote(null, empty, full)).toBe(true)
+    expect(countPayloadRecords(full)).toBe(1)
+  })
+
+  it("wouldWipeRemote allows an empty upload once the user HAS synced", () => {
+    const empty: any = {
+      projects: [],
+      projectCards: [],
+      pdfCards: [],
+      todos: [],
+      reviews: [],
+      pdfAnnotations: [],
+      pdfs: []
+    }
+    const full: any = { ...empty, todos: [{ id: "t1", content: "x", createdAt: 1 }] }
+    expect(wouldWipeRemote(123, empty, full)).toBe(false)
+  })
+
+  it("wouldWipeRemote does not block first sync (no remote) or richer local", () => {
+    const one: any = {
+      projects: [],
+      projectCards: [{ id: "c1", type: "text", content: "x", projectId: "p", createdAt: 1 }],
+      pdfCards: [],
+      todos: [],
+      reviews: [],
+      pdfAnnotations: [],
+      pdfs: []
+    }
+    const empty: any = {
+      projects: [],
+      projectCards: [],
+      pdfCards: [],
+      todos: [],
+      reviews: [],
+      pdfAnnotations: [],
+      pdfs: []
+    }
+    expect(wouldWipeRemote(null, one, null)).toBe(false)
+    expect(wouldWipeRemote(null, one, empty)).toBe(false)
   })
 })

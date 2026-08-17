@@ -68,6 +68,35 @@ export interface SyncResult {
   payload?: SyncPayload
 }
 
+/** Total record count across all 7 payload arrays (tolerant of older versions
+ *  that may omit an array). */
+export function countPayloadRecords(payload: SyncPayload | null): number {
+  if (!payload) return 0
+  return (
+    (payload.projects?.length ?? 0) +
+    (payload.projectCards?.length ?? 0) +
+    (payload.pdfCards?.length ?? 0) +
+    (payload.todos?.length ?? 0) +
+    (payload.reviews?.length ?? 0) +
+    (payload.pdfAnnotations?.length ?? 0) +
+    (payload.pdfs?.length ?? 0)
+  )
+}
+
+/** Fresh-install upload guard (R1): a never-synced local that carries FEWER
+ *  records than a populated remote is a fresh install about to overwrite the
+ *  cloud. The user must download instead — an upload would wipe remote data. */
+export function wouldWipeRemote(
+  lastSync: number | null,
+  localPayload: SyncPayload,
+  remotePayload: SyncPayload | null
+): boolean {
+  if (lastSync) return false
+  const local = countPayloadRecords(localPayload)
+  const remote = countPayloadRecords(remotePayload)
+  return remote > 0 && local < remote
+}
+
 /** Validate a downloaded payload's record arrays against the single-source
  *  schemas BEFORE they are applied. Corrupt records are SKIPPED (never write
  *  garbage into the DB) and counted; valid records are returned UNCHANGED —
@@ -724,6 +753,19 @@ export async function runSync(
 
     if (localPayload.contentHash === remote.contentHash) {
       return { success: true, direction: "noop", message: "数据无变化" }
+    }
+
+    // R1: a never-synced local with fewer records than the remote is a fresh
+    // install about to overwrite the cloud — force a download instead of a wipe.
+    if (wouldWipeRemote(lastSync, localPayload, remote)) {
+      const remoteCount = countPayloadRecords(remote)
+      return {
+        success: false,
+        direction: "error",
+        message:
+          `本机还没有数据，但云端已有 ${remoteCount} 条记录 —— ` +
+          `首次使用请选择「下载」（「上传」会清空云端）。`
+      }
     }
 
     onStatus?.("正在上传…")
