@@ -22,6 +22,12 @@ export async function getReadLaterByPdfId(
   })
 }
 
+/** Active (not-yet-read) read-later count — feeds the NavRail todo badge. */
+export async function getActiveReadLaterCount(): Promise<number> {
+  const all = await getAllReadLater()
+  return all.filter((r) => r.status !== "done").length
+}
+
 /** Add a read-later record. Returns false (no write) when another record
  *  already references the same pdfId — the PDF one-card rule. The uniqueness
  *  check runs INSIDE the write tx (reading the unique byPdfId index) so two

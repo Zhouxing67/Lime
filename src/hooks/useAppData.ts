@@ -14,6 +14,7 @@ import {
   getAllPdfCards,
   getAllProjectCards,
   getAllReadLater,
+  getActiveReadLaterCount,
   getAllReviews,
   getAllTodos,
   getAnnotationsByPdf,
@@ -147,13 +148,14 @@ export function useAppData({
   }, [activePdfIdRef])
 
   const refreshLiteCounts = useCallback(async () => {
-    const [due, todo] = await Promise.all([
+    const [due, todo, readLater] = await Promise.all([
       getDueCount(),
-      getIncompleteTodoCount()
+      getIncompleteTodoCount(),
+      getActiveReadLaterCount()
     ])
     setLiteDueCount(due)
-    setLiteTodoCount(todo)
-    applyBadge(due + todo)
+    setLiteTodoCount(todo + readLater)
+    applyBadge(due + todo + readLater)
   }, [])
 
   const pdfPanelTimerRef = useRef<number | null>(null)

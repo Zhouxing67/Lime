@@ -153,6 +153,28 @@ export default function TodoView({
               "&:hover": { bgcolor: "action.hover" }
             })}>
             {tab.label}
+            {tab.key === "readLater" && activeReadLater.length > 0 && (
+              <Box
+                component="span"
+                sx={(t) => ({
+                  ml: 0.75,
+                  px: 0.5,
+                  py: 0.1,
+                  borderRadius: 1,
+                  fontSize: "0.65rem",
+                  lineHeight: 1.4,
+                  color:
+                    activeTab === tab.key
+                      ? t.palette.primary.main
+                      : "text.secondary",
+                  bgcolor:
+                    activeTab === tab.key
+                      ? alpha(t.palette.primary.main, 0.1)
+                      : alpha(t.palette.text.secondary, 0.08)
+                })}>
+                {activeReadLater.length}
+              </Box>
+            )}
           </Box>
         ))}
       </Box>

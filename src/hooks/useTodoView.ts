@@ -251,11 +251,15 @@ export function useTodoView({
       if (item.status !== "reading") {
         await updateReadLater({ ...item, status: "reading" })
       }
-      // 开始阅读 = 打开条目：PDF → 阅读视图（选中该 PDF），网页 → 新标签页。
-      if (item.pdfId) onOpenPdf(item.pdfId)
-      else if (item.url) window.open(item.url, "_blank", "noopener")
+      // 开始阅读 = 打开条目并切到对应视图：PDF → PDF 阅读视图，网页 → 新标签页。
+      if (item.pdfId) {
+        onOpenPdf(item.pdfId)
+        navigate("pdf")
+      } else if (item.url) {
+        window.open(item.url, "_blank", "noopener")
+      }
     },
-    [onOpenPdf]
+    [onOpenPdf, navigate]
   )
 
   const handleMarkDone = useCallback(async (item: ReadLater) => {
@@ -265,10 +269,12 @@ export function useTodoView({
 
   const handleOpenReadLater = useCallback(
     (item: ReadLater) => {
-      if (item.pdfId) onOpenPdf(item.pdfId)
-      else if (item.url) window.open(item.url, "_blank", "noopener")
+      if (item.pdfId) {
+        onOpenPdf(item.pdfId)
+        navigate("pdf")
+      } else if (item.url) window.open(item.url, "_blank", "noopener")
     },
-    [onOpenPdf]
+    [onOpenPdf, navigate]
   )
 
   const handleOpenTodoLink = useCallback(

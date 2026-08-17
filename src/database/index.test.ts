@@ -61,6 +61,7 @@ import {
   deleteReadLater,
   getAllReadLater,
   getReadLaterByPdfId,
+  getActiveReadLaterCount,
   DB_VERSION
 } from "./index"
 
@@ -1929,6 +1930,17 @@ describe("readLater CRUD", () => {
     expect(await updateReadLater({ ...b, pdfId: "pdf-a" })).toBe(false)
     // a can keep its own pdfId.
     expect(await updateReadLater({ ...a, status: "reading" })).toBe(true)
+  })
+
+  it("getActiveReadLaterCount counts only non-done records (badge)", async () => {
+    const a = make({ url: "https://a.com" })
+    const b = make({ url: "https://b.com" })
+    const c = make({ url: "https://c.com" })
+    await addReadLater(a) // unread
+    await addReadLater(b) // reading
+    await addReadLater(c)
+    await updateReadLater({ ...c, status: "done" })
+    expect(await getActiveReadLaterCount()).toBe(2)
   })
 })
 

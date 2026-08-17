@@ -60,6 +60,7 @@ export default function ReadingCard({
         flexDirection: "column",
         gap: 1,
         minWidth: 0,
+        minHeight: 140,
         transition: "all 0.2s",
         "&:hover": {
           boxShadow: theme.custom.cardShadowHover,
