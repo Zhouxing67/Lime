@@ -25,7 +25,7 @@ import EmptyState from "./EmptyState"
 export default function PdfSearchPanel({
   width,
   onWidthChange,
-  dragRect,
+  dragging,
   onDragStart,
   onDragEnd,
   query,
@@ -42,9 +42,10 @@ export default function PdfSearchPanel({
 }: {
   width: number
   onWidthChange: (w: number) => void
-  /** While a drag is in flight, the panel floats fixed over the PDF area
-   *  (viewport rect measured at drag start) instead of squeezing it. */
-  dragRect?: { top: number; height: number } | null
+  /** While a drag is in flight, the panel floats FIXED at its normal spot
+   *  (right edge, full height) so the PDF container size — and its re-render —
+   *  stays frozen until the drag ends (deferred dock). */
+  dragging?: boolean
   onDragStart?: () => void
   onDragEnd?: () => void
   query: string
@@ -93,11 +94,11 @@ export default function PdfSearchPanel({
       elevation={0}
       sx={{
         width,
-        height: dragRect ? dragRect.height : "100%",
-        position: dragRect ? "fixed" : "relative",
-        top: dragRect ? dragRect.top : undefined,
-        right: dragRect ? 0 : undefined,
-        zIndex: dragRect ? 30 : undefined,
+        height: dragging ? "100vh" : "100%",
+        position: dragging ? "fixed" : "relative",
+        top: dragging ? 0 : undefined,
+        right: dragging ? 0 : undefined,
+        zIndex: dragging ? 30 : undefined,
         borderRadius: 0,
         display: "flex",
         flexDirection: "column",

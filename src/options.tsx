@@ -152,21 +152,12 @@ export default function OptionsPage() {
   const [extraTopics, setExtraTopics] = useState<string[]>([])
   const [pdfCardsOpen, setPdfCardsOpen] = useState(true)
   const [pdfCardsWidth, setPdfCardsWidth] = useState(320)
-  // While a right-panel drag is in flight, the panel floats FIXED over the PDF
-  // workspace (the rect measured at drag start) instead of squeezing it — the
-  // PDF container size stays frozen, so no per-frame re-render (deferred dock).
-  const [pdfPanelDrag, setPdfPanelDrag] = useState<{
-    top: number
-    height: number
-  } | null>(null)
-  const mainAreaRef = useRef<HTMLDivElement | null>(null)
-  const startPanelDrag = useCallback(() => {
-    const el = mainAreaRef.current
-    if (!el) return
-    const r = el.getBoundingClientRect()
-    setPdfPanelDrag({ top: r.top, height: r.height })
-  }, [])
-  const endPanelDrag = useCallback(() => setPdfPanelDrag(null), [])
+  // While a right-panel drag is in flight, the panel floats FIXED at its normal
+  // spot (right edge, full height) instead of squeezing the PDF — the PDF
+  // container size stays frozen, so no per-frame re-render (deferred dock).
+  const [pdfPanelDragging, setPdfPanelDragging] = useState(false)
+  const startPanelDrag = useCallback(() => setPdfPanelDragging(true), [])
+  const endPanelDrag = useCallback(() => setPdfPanelDragging(false), [])
   const [pdfFlashTarget, setPdfFlashTarget] = useState<{
     page: number
     annId: string
@@ -2463,7 +2454,6 @@ export default function OptionsPage() {
           )}
 
           <Box
-            ref={mainAreaRef}
             sx={{
               flex: 1,
               overflow: sidebarTab === "pdf" ? "hidden" : "auto",
@@ -2931,7 +2921,7 @@ export default function OptionsPage() {
           <PdfSearchPanel
             width={pdfCardsWidth}
             onWidthChange={setPdfCardsWidth}
-            dragRect={pdfPanelDrag}
+            dragging={pdfPanelDragging}
             onDragStart={startPanelDrag}
             onDragEnd={endPanelDrag}
             query={pdfSearch.query}
@@ -2951,7 +2941,7 @@ export default function OptionsPage() {
             open={pdfCardsOpen && sidebarTab === "pdf" && Boolean(activePdfId)}
             width={pdfCardsWidth}
             onWidthChange={setPdfCardsWidth}
-            dragRect={pdfPanelDrag}
+            dragging={pdfPanelDragging}
             onDragStart={startPanelDrag}
             onDragEnd={endPanelDrag}
             cards={pdfPanelCards}

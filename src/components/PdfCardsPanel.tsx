@@ -63,7 +63,10 @@ interface PdfCardsPanelProps {
   onWidthChange: (w: number) => void
   /** While a drag is in flight, the panel floats fixed over the PDF area
    *  (viewport rect measured at drag start) instead of squeezing it. */
-  dragRect?: { top: number; height: number } | null
+  /** While a drag is in flight, the panel floats FIXED at its normal spot
+   *  (right edge, full height) so the PDF container size — and its re-render —
+   *  stays frozen until the drag ends (deferred dock). */
+  dragging?: boolean
   onDragStart?: () => void
   onDragEnd?: () => void
   cards: PdfCard[]
@@ -93,7 +96,7 @@ export default function PdfCardsPanel({
   open,
   width,
   onWidthChange,
-  dragRect,
+  dragging,
   onDragStart,
   onDragEnd,
   cards,
@@ -241,11 +244,11 @@ export default function PdfCardsPanel({
         width: open ? width : 0,
         flexShrink: 0,
         overflow: "hidden",
-        height: dragRect ? dragRect.height : "100vh",
-        position: dragRect ? "fixed" : "relative",
-        top: dragRect ? dragRect.top : undefined,
-        right: dragRect ? 0 : undefined,
-        zIndex: dragRect ? 30 : undefined,
+        height: "100vh",
+        position: dragging ? "fixed" : "relative",
+        top: dragging ? 0 : undefined,
+        right: dragging ? 0 : undefined,
+        zIndex: dragging ? 30 : undefined,
         borderLeft: open ? "1px solid" : "none",
         borderColor: "divider",
         bgcolor: "background.default",
