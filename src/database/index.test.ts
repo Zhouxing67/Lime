@@ -1028,6 +1028,21 @@ describe("pdf delete cascade + lastOpened", () => {
     expect(await getPdfCards(pdfId)).toHaveLength(0)
     expect(await getAnnotation(card.annotationId)).toBeUndefined()
   })
+
+  it("deletePdf also removes the read-later card bound to the PDF", async () => {
+    const pdfId = await addPdf({
+      id: "pdf-del-rl",
+      name: "del-rl.pdf",
+      bytes: new Blob(["y"]),
+      pageCount: 1,
+      addedAt: 1
+    })
+    const rl = createReadLater({ title: "del-rl.pdf", pdfId })
+    expect(await addReadLater(rl)).toBe(true)
+    await deletePdf(pdfId)
+    expect(await getPdf(pdfId)).toBeUndefined()
+    expect(await getReadLaterByPdfId(pdfId)).toBeUndefined()
+  })
 })
 
 describe("pdf content-hash id + notes-only sync", () => {

@@ -169,7 +169,8 @@ export async function deletePdf(id: string): Promise<void> {
       pdfAnnotations: "readwrite",
       projectCards: "readwrite",
       pdfs: "readwrite",
-      reviews: "readwrite"
+      reviews: "readwrite",
+      readLater: "readwrite"
     },
     async (stores) => {
       const cards = await new Promise<PdfCard[]>((resolve, reject) => {
@@ -205,6 +206,22 @@ export async function deletePdf(id: string): Promise<void> {
       await new Promise<void>((resolve, reject) => {
         const r = stores.pdfs.delete(id)
         r.onsuccess = () => resolve()
+        r.onerror = () => reject(r.error)
+      })
+      // The read-later card bound to this PDF (one per PDF via byPdfId) must
+      // not dangle after the PDF is gone.
+      await new Promise<void>((resolve, reject) => {
+        const r = stores.readLater.index("byPdfId").getKey(id)
+        r.onsuccess = () => {
+          const key = r.result as string | undefined
+          if (key) {
+            const del = stores.readLater.delete(key)
+            del.onsuccess = () => resolve()
+            del.onerror = () => reject(del.error)
+          } else {
+            resolve()
+          }
+        }
         r.onerror = () => reject(r.error)
       })
     }
