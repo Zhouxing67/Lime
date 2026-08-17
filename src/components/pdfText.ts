@@ -243,6 +243,25 @@ export function textLayerText(textLayer: any): string {
     .join("")
 }
 
+/** Search the RENDERED text layer (the same text native find operates on) and
+ *  return matches in ITS coordinate space. This is the robust way to highlight
+ *  search hits: getTextContent can diverge from the rendered text layer (marked
+ *  content, producer-specific layout), which drifts char offsets and lights up
+ *  the wrong word. The text layer is the ground truth of what's on screen. */
+export function searchTextLayer(
+  textLayer: any,
+  query: string,
+  opts: PdfSearchOptions = {}
+): { domText: string; matches: PdfSearchMatch[] } {
+  const domText = textLayerText(textLayer)
+  const q = opts.caseSensitive ? query.trim() : caseFoldPreserving(query.trim())
+  if (!q) return { domText, matches: [] }
+  // No EOL markers in the DOM concatenation — treat the whole page as one line.
+  const lines: TextLine[] = [{ start: 0, end: domText.length }]
+  const res = scanText(domText, lines, q, opts)
+  return { domText, matches: res.matches }
+}
+
 /** Cached per-render index (WeakMap → auto-invalidated when the text layer is
  *  re-rendered/unmounted, covering zoom/rotate + lifecycle). */
 const indexCache = new WeakMap<object, TextLayerIndex>()

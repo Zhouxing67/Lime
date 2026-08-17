@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useRef } from "react"
 
 import { usePdfViewerContext } from "~/src/pdf/inklayer/context/pdf_viewer_context"
-import { highlightRectsForOffsets, textLayerOffsets, textLayerText } from "../pdfText"
+import {
+  highlightRectsForOffsets,
+  searchTextLayer,
+  textLayerOffsets,
+  textLayerText
+} from "../pdfText"
 import type { PdfRect } from "../pdfText"
 
 export interface PdfSearchFlashData {
@@ -10,6 +15,8 @@ export interface PdfSearchFlashData {
   current: number
   query?: string
   full?: string
+  caseSensitive?: boolean
+  wholeWord?: boolean
 }
 
 /** The line-bridging selection/search highlight overlay (see PdfEngineView).
@@ -140,6 +147,8 @@ export function usePdfHighlights(searchFlash: PdfSearchFlashData | null) {
     current: number
     query?: string
     full?: string
+    caseSensitive?: boolean
+    wholeWord?: boolean
   } | null>(null)
 
   const renderSearchOverlay = useCallback(() => {
@@ -222,15 +231,47 @@ export function usePdfHighlights(searchFlash: PdfSearchFlashData | null) {
         divergence
       )
     }
+    // Re-scan the RENDERED text layer so the highlight offsets live in the
+    // coordinate space of what's actually on screen. getTextContent can drift
+    // from the text layer on marked-content / complex-layout PDFs (the
+    // long-standing "highlight lands on the wrong word" bug — native find
+    // searches the rendered DOM and stays correct). Fall back to the
+    // getTextContent offsets only if there's no query to re-scan with.
+    let hits = matches
+    let curIdx = current
+    if (data.query) {
+      const { domText, matches: domMatches } = searchTextLayer(
+        textLayer,
+        data.query,
+        { caseSensitive: data.caseSensitive, wholeWord: data.wholeWord }
+      )
+      hits = domMatches.map((m) => ({ start: m.start, end: m.end }))
+      // Map the active (clicked) getTextContent match onto the DOM space
+      // proportionally (the two spaces differ in length) — nearest DOM hit.
+      if (hits.length > 0 && matches.length > 0) {
+        const clicked = matches[Math.min(current, matches.length - 1)]
+        const srcLen = data.full?.length || domText.length
+        const est = Math.round((clicked.start * domText.length) / srcLen)
+        let best = Infinity
+        curIdx = 0
+        for (let i = 0; i < hits.length; i++) {
+          const d = Math.abs(hits[i].start - est)
+          if (d < best) {
+            best = d
+            curIdx = i
+          }
+        }
+      }
+    }
     const all: { r: PdfRect; isCurrent: boolean }[] = []
-    for (let i = 0; i < matches.length; i++) {
+    for (let i = 0; i < hits.length; i++) {
       const rects = highlightRectsForOffsets(
         textLayer,
         pageEl,
-        matches[i].start,
-        matches[i].end
+        hits[i].start,
+        hits[i].end
       )
-      rects.forEach((r) => all.push({ r, isCurrent: i === current }))
+      rects.forEach((r) => all.push({ r, isCurrent: i === curIdx }))
     }
     const flat = all.map((a) => a.r)
     const cur = new Set(
@@ -250,7 +291,9 @@ export function usePdfHighlights(searchFlash: PdfSearchFlashData | null) {
       matches: searchFlash.matches,
       current: searchFlash.current,
       query: searchFlash.query,
-      full: searchFlash.full
+      full: searchFlash.full,
+      caseSensitive: searchFlash.caseSensitive,
+      wholeWord: searchFlash.wholeWord
     }
     renderSearchOverlay()
   }, [searchFlash, renderSearchOverlay, clearOverlay])

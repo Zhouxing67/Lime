@@ -14,6 +14,8 @@ export interface PdfSearchFlash {
   /** The page's getTextContent concatenation — lets the diagnostic diff it
    *  against the rendered text layer's text (drift root cause). */
   full?: string
+  caseSensitive?: boolean
+  wholeWord?: boolean
 }
 
 /** PDF full-text search coordination (hosted by PdfView, driven by the options
@@ -92,7 +94,9 @@ export function usePdfSearch(
       matches: pageMatches.map((m) => ({ start: m.start, end: m.end })),
       current: current >= 0 ? current : 0,
       query: searchRequest?.query,
-      full: lastSearchRef.current.pageTexts?.[entry.page]
+      full: lastSearchRef.current.pageTexts?.[entry.page],
+      caseSensitive: searchRequest?.caseSensitive,
+      wholeWord: searchRequest?.wholeWord
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jumpRequest?.seq])
