@@ -514,14 +514,25 @@ export async function saveAnnotationFromStore(input: {
 export async function cleanupLegacyPdfAnnotations(): Promise<number> {
   const all = await getAllAnnotations()
   const legacy = all.filter((a) => !a.store)
+  let failed = 0
   for (const ann of legacy) {
     try {
       await deleteAnnotationWithCard(ann.id)
     } catch (e) {
+      failed += 1
       console.warn("[lime] cleanup legacy annotation failed:", ann.id, e)
     }
   }
-  return legacy.length
+  // Audit trail: the sweep is destructive (annotation + card + placement +
+  // review) — log what it removed so an unexpected loss is traceable.
+  const removed = legacy.length - failed
+  if (removed > 0) {
+    console.warn(
+      `[lime] legacy pdf cleanup: removed ${removed} pre-rewrite annotation(s) with no Konva store`,
+      legacy.slice(0, 10).map((a) => a.id)
+    )
+  }
+  return removed
 }
 
 /** Delete an annotation + its pdfCard + any placement (1:1 coupling). */
@@ -836,6 +847,15 @@ export async function getAnnotationsByPdf(
 }
 
 export async function deleteAnnotation(id: string): Promise<void> {
+  const ann = await getAnnotation(id)
+  if (ann?.cardId) {
+    // A bare delete would orphan the linked pdfCard + any placement — this
+    // path must NOT be used for card-linked annotations (use
+    // deleteAnnotationWithCard / deletePdfCards). Guard against silent breakage.
+    throw new Error(
+      "[lime] deleteAnnotation: annotation has a linked card — use deleteAnnotationWithCard"
+    )
+  }
   return withStore("pdfAnnotations", "readwrite", async (store) => {
     await new Promise<void>((resolve, reject) => {
       const req = store.delete(id)
@@ -867,21 +887,38 @@ export async function applyPdfSync(
     await addPdf({ ...pdf, bytes: null })
   }
   const remoteIds = new Set(remoteAnnotations.map((a) => a.id))
-  await tx({ pdfAnnotations: "readwrite" }, async (stores) => {
-    for (const ann of remoteAnnotations) stores.pdfAnnotations.put(ann)
-    for (const local of localAnnotations) {
-      if (!remoteIds.has(local.id)) stores.pdfAnnotations.delete(local.id)
-    }
-  })
-  // Enforce the annotation↔card 1:1: a remote annotation whose linked pdfCard
-  // is absent (a filtered/legacy payload) would leave any placement unresolvable
-  // — create the missing card so the invariant holds (R7).
-  const existingCards = await getAllPdfCards()
-  const cardByAnn = new Map(existingCards.map((c) => [c.annotationId, c.id]))
-  const missing = remoteAnnotations.filter((a) => !cardByAnn.has(a.id))
-  if (missing.length > 0) {
-    await tx({ pdfCards: "readwrite" }, async (stores) => {
-      for (const ann of missing) {
+  // ONE atomic transaction: annotation upserts + local-not-remote deletes +
+  // the annotation↔card 1:1 backfill all commit together, so a crash between
+  // them can't leave a card-less annotation (the old two-tx version transiently
+  // broke the 1:1 invariant on crash between them).
+  await tx(
+    { pdfAnnotations: "readwrite", pdfCards: "readwrite" },
+    async (stores) => {
+      for (const ann of remoteAnnotations) stores.pdfAnnotations.put(ann)
+      for (const local of localAnnotations) {
+        if (!remoteIds.has(local.id)) stores.pdfAnnotations.delete(local.id)
+      }
+      // Enforce the annotation↔card 1:1: a remote annotation whose linked
+      // pdfCard is absent (a filtered/legacy payload) would leave any placement
+      // unresolvable — read the cards INSIDE this tx and create the missing
+      // ones so the invariant holds atomically (R7).
+      const existingCards = await new Promise<PdfCard[]>((resolve, reject) => {
+        const results: PdfCard[] = []
+        const req = stores.pdfCards.openCursor()
+        req.onsuccess = () => {
+          const cursor = req.result
+          if (cursor) {
+            results.push(cursor.value as PdfCard)
+            cursor.continue()
+          } else {
+            resolve(results)
+          }
+        }
+        req.onerror = () => reject(req.error)
+      })
+      const cardByAnn = new Map(existingCards.map((c) => [c.annotationId, c.id]))
+      for (const ann of remoteAnnotations) {
+        if (cardByAnn.has(ann.id)) continue
         const card = createPdfCard({
           pdfId: ann.pdfId,
           page: ann.page,
@@ -898,8 +935,8 @@ export async function applyPdfSync(
           r.onerror = () => reject(r.error)
         })
       }
-    })
-  }
+    }
+  )
 }
 
 /** Rename a topic across all PDFs carrying it. */
