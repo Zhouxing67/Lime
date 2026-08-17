@@ -1,18 +1,12 @@
 import {
-    CircleIcon,
     FreehandIcon,
     FreeHighlightIcon,
     FreetextIcon,
     HighlightIcon,
     RectangleIcon,
     SelectIcon,
-    SignatureIcon,
-    StampIcon,
     StrikeoutIcon,
-    UnderlineIcon,
-    NoteIcon,
-    ArrowIcon,
-    CloudIcon
+    UnderlineIcon
 } from './icons'
 import { IRect } from 'konva/lib/types'
 import { User } from '@/types'
@@ -286,80 +280,6 @@ export const annotationDefinitions: IAnnotationType[] = [
         } // 是否可编辑样式
     },
     {
-        name: 'circle',
-        type: AnnotationType.CIRCLE,
-        pdfjsAnnotationType: PdfjsAnnotationType.CIRCLE,
-        subtype: 'Circle',
-        webSelectionDependencies: false,
-        isOnce: true,
-        resizable: true,
-        draggable: true,
-        icon: <CircleIcon />,
-        style: {
-            color: '#ff6b6b', // 默认颜色
-            strokeWidth: 2, // 默认线条宽度
-            opacity: 1 // 默认透明度
-        },
-        styleEditable: {
-            color: true,
-            opacity: true,
-            strokeWidth: true
-        } // 是否可编辑样式
-    },
-    {
-        name: 'note',
-        type: AnnotationType.NOTE,
-        pdfjsAnnotationType: PdfjsAnnotationType.TEXT,
-        subtype: 'Text',
-        webSelectionDependencies: false,
-        isOnce: true,
-        resizable: false,
-        draggable: true,
-        icon: <NoteIcon />,
-    },
-    {
-        name: 'arrow',
-        type: AnnotationType.ARROW,
-        pdfjsAnnotationType: PdfjsAnnotationType.LINE,
-        subtype: 'Arrow',
-        webSelectionDependencies: false,
-        isOnce: true,
-        resizable: true,
-        draggable: true,
-        icon: <ArrowIcon />,
-        style: {
-            color: '#ff6b6b', // 默认颜色
-            strokeWidth: 2, // 默认线条宽度
-            opacity: 1 // 默认透明度
-        },
-        styleEditable: {
-            color: true,
-            opacity: true,
-            strokeWidth: true
-        } // 是否可编辑样式
-    },
-    {
-        name: 'cloud',
-        type: AnnotationType.CLOUD,
-        pdfjsAnnotationType: PdfjsAnnotationType.POLYLINE,
-        subtype: 'PolyLine',
-        webSelectionDependencies: false,
-        isOnce: true,
-        resizable: true,
-        draggable: true,
-        icon: <CloudIcon />,
-        style: {
-            color: '#ff6b6b', // 默认颜色
-            strokeWidth: 2, // 默认线条宽度
-            opacity: 1 // 默认透明度
-        },
-        styleEditable: {
-            color: true,
-            opacity: true,
-            strokeWidth: true
-        } // 是否可编辑样式
-    },
-    {
         name: 'freehand',
         type: AnnotationType.FREEHAND,
         pdfjsAnnotationType: PdfjsAnnotationType.INK,
@@ -424,27 +344,5 @@ export const annotationDefinitions: IAnnotationType[] = [
             opacity: true,
             strokeWidth: false
         } // 是否可编辑样式
-    },
-    {
-        name: 'signature',
-        type: AnnotationType.SIGNATURE,
-        pdfjsAnnotationType: PdfjsAnnotationType.STAMP,
-        subtype: 'Caret',
-        webSelectionDependencies: false,
-        isOnce: true,
-        resizable: true,
-        draggable: true,
-        icon: <SignatureIcon />
-    },
-    {
-        name: 'stamp',
-        type: AnnotationType.STAMP,
-        pdfjsAnnotationType: PdfjsAnnotationType.STAMP,
-        subtype: 'Stamp',
-        webSelectionDependencies: false,
-        isOnce: true,
-        resizable: true,
-        draggable: true,
-        icon: <StampIcon />
     }
 ]

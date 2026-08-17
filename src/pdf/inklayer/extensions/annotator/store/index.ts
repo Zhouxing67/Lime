@@ -13,13 +13,12 @@ interface SelectionInfo {
 
 interface AnnotationState {
     annotations: Map<string, IAnnotationStore>
-    originalAnnotations: Map<string, IAnnotationStore>
     selectedAnnotation: SelectionInfo | null
     selectionRevision: number
     currentAnnotationType: IAnnotationType | null
     getAnnotation: (id: string) => IAnnotationStore | undefined
     getByPage: (pageNumber: number) => IAnnotationStore[]
-    addAnnotation: (annotation: IAnnotationStore, isOriginal?: boolean) => IAnnotationStore
+    addAnnotation: (annotation: IAnnotationStore) => IAnnotationStore
     restoreAnnotation: (annotation: IAnnotationStore, index: number) => boolean
     updateAnnotation: (id: string, updates: Partial<IAnnotationStore>) => IAnnotationStore | null
     setAnnotationReferenceNumbers: (referenceNumbers: ReadonlyMap<string, number>) => void
@@ -32,7 +31,6 @@ interface AnnotationState {
 
 export const useAnnotationStore = create<AnnotationState>((set, get) => ({
     annotations: new Map(),
-    originalAnnotations: new Map(),
     selectedAnnotation: null,
     selectionRevision: 0,
     currentAnnotationType: null,
@@ -46,20 +44,10 @@ export const useAnnotationStore = create<AnnotationState>((set, get) => ({
         return Array.from(annotations.values()).filter((annotation) => annotation.pageNumber === pageNumber)
     },
 
-    addAnnotation: (annotation: IAnnotationStore, isOriginal = false) => {
+    addAnnotation: (annotation: IAnnotationStore) => {
         set((state) => {
             const newAnnotations = new Map(state.annotations)
             newAnnotations.set(annotation.id, annotation)
-
-            if (isOriginal) {
-                const newOriginalAnnotations = new Map(state.originalAnnotations)
-                newOriginalAnnotations.set(annotation.id, annotation)
-                return {
-                    annotations: newAnnotations,
-                    originalAnnotations: newOriginalAnnotations
-                }
-            }
-
             return { annotations: newAnnotations }
         })
 
@@ -128,7 +116,6 @@ export const useAnnotationStore = create<AnnotationState>((set, get) => ({
             }
 
             const annotations = applyReferenceNumbers(state.annotations)
-            const originalAnnotations = applyReferenceNumbers(state.originalAnnotations)
             const selectedStore = state.selectedAnnotation?.store
             const selectedReferenceNumber = selectedStore
                 ? referenceNumbers.get(selectedStore.id)
@@ -144,13 +131,12 @@ export const useAnnotationStore = create<AnnotationState>((set, get) => ({
 
             if (
                 annotations === state.annotations
-                && originalAnnotations === state.originalAnnotations
                 && selectedAnnotation === state.selectedAnnotation
             ) {
                 return state
             }
 
-            return { annotations, originalAnnotations, selectedAnnotation }
+            return { annotations, selectedAnnotation }
         }),
 
     removeAnnotation: (id: string) =>
@@ -174,7 +160,6 @@ export const useAnnotationStore = create<AnnotationState>((set, get) => ({
     clearAnnotations: () =>
         set((state) => ({
             annotations: new Map(),
-            originalAnnotations: new Map(),
             selectedAnnotation: null,
             selectionRevision: state.selectedAnnotation
                 ? state.selectionRevision + 1

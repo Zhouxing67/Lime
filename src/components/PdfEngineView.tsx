@@ -378,7 +378,6 @@ function EngineBridge({
       />
       <EngineSelectionBar range={textRange} />
       <AnnotatorExtension
-        enableNativeAnnotations={false}
         annotations={annotations}
         onLoad={() => {}}
         onAnnotationAdd={handleAdd}

@@ -16,38 +16,120 @@
  * @version 0.1.0
  */
 
-import type { Annotation, AnnotationKind, Geometry, AnnotationTarget, AnnotationPayload, AnnotationAppearance, AnnotationMeta, AnnotationRelations } from '../annotation.core'
 import {
   type PdfjsAnnotationSubtype,
   AnnotationType,
   PdfjsAnnotationType,
   IAnnotationStore,
-  type IAnnotationComment,
-  type IAnnotationContentsObj,
 } from '@/extensions/annotator/const/definitions'
 
 /* ============================================================================
- * 局部类型：映射层需要知道的 extensions 子结构
- * 
- * annotation.core 中 extensions 定义为 Record<string, unknown>（通用扩展点），
- * 但 store.mapper 作为适配器，明确知道自己写入/读取的结构。
- * 此处用接口收窄类型，不改 Core 的通用定义。
+ * 局部类型：storeToAnnotation 使用的 Core 数据模型
  * ========================================================================= */
-interface KnownExtensions {
-  konva?: {
-    serialized?: string
-    clientRect?: { x: number; y: number; width: number; height: number }
-  }
-  pdfjs?: {
-    type?: string
-    subtype?: string
-  }
-  legacy?: {
-    annotationType?: AnnotationType
-    title?: string
-    contentsObj?: IAnnotationContentsObj | null
-    comments?: IAnnotationComment[]
-  }
+interface PdfPoint {
+  x: number
+  y: number
+}
+
+interface PdfRect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+interface PdfQuad {
+  p1: PdfPoint
+  p2: PdfPoint
+  p3: PdfPoint
+  p4: PdfPoint
+}
+
+type Geometry =
+  | { type: 'rect'; rect: PdfRect }
+  | { type: 'quad'; quads: PdfQuad[] }
+  | { type: 'path'; points: PdfPoint[]; closed?: boolean }
+  | { type: 'line'; start: PdfPoint; end: PdfPoint }
+  | { type: 'poly'; points: PdfPoint[]; closed: boolean }
+
+type AnnotationKind =
+  | 'text-markup'
+  | 'note'
+  | 'ink'
+  | 'shape'
+  | 'line'
+  | 'stamp'
+  | 'file'
+
+interface AnnotationTarget {
+  pageIndex: number
+  geometry: Geometry
+  coordinateSystem: string
+  documentId?: string
+}
+
+type AnnotationPayload =
+  | {
+      kind: 'text-markup'
+      variant: 'highlight' | 'underline' | 'squiggly' | 'strikeout'
+      text?: string
+      selectedText?: string
+      color?: string
+      opacity?: number
+    }
+  | { kind: 'note'; text: string }
+  | { kind: 'ink'; color?: string; width?: number }
+  | { kind: 'shape'; shape: 'rect' | 'ellipse' | 'cloud' | 'polygon' }
+  | { kind: 'line'; arrowStart?: boolean; arrowEnd?: boolean }
+  | {
+      kind: 'stamp'
+      name: string
+      label?: string
+      source?: 'standard' | 'custom' | 'image'
+      appearanceRef?: string
+      rotation?: number
+      scale?: number
+    }
+  | { kind: 'file'; fileName: string; fileUrl: string; size?: number; mimeType?: string }
+
+interface AnnotationAppearance {
+  strokeColor?: string
+  fillColor?: string
+  strokeWidth?: number
+  opacity?: number
+  dashArray?: number[]
+  fontSize?: number
+  fontFamily?: string
+  textAlign?: 'left' | 'center' | 'right'
+  zIndex?: number
+}
+
+interface AnnotationRelations {
+  parentId?: string
+  replies?: string[]
+  popupFor?: string
+  linkedAnnotationIds?: string[]
+}
+
+interface AnnotationMeta {
+  referenceNumber?: number
+  createdAt?: string
+  updatedAt?: string
+  authorId?: string | { id: string; name?: string; avatarUrl?: string }
+  isNative?: boolean
+  source?: 'inklayer' | 'pdfjs' | 'import'
+  version?: number
+}
+
+interface Annotation {
+  id: string
+  kind: AnnotationKind
+  target: AnnotationTarget
+  payload?: AnnotationPayload
+  appearance?: AnnotationAppearance
+  relations?: AnnotationRelations
+  meta?: AnnotationMeta
+  extensions?: Record<string, unknown>
 }
 
 /* ============================================================================
@@ -99,13 +181,6 @@ const SUBTYPE_TO_TEXT_MARKUP_VARIANT: Record<string, 'highlight' | 'underline' |
   'Squiggly': 'squiggly',
   'StrikeOut': 'strikeout',
 }
-
-const TEXT_MARKUP_VARIANT_TO_SUBTYPE = {
-  highlight: 'Highlight',
-  underline: 'Underline',
-  squiggly: 'Squiggly',
-  strikeout: 'StrikeOut',
-} as const satisfies Record<'highlight' | 'underline' | 'squiggly' | 'strikeout', PdfjsAnnotationSubtype>
 
 /** PdfjsAnnotationSubtype → shape variant 映射 */
 const SUBTYPE_TO_SHAPE_VARIANT: Record<string, 'rect' | 'ellipse' | 'cloud' | 'polygon'> = {
@@ -316,174 +391,6 @@ function adjustOpacity(color: string, opacity: number): string {
   return color
 }
 
-/* ============================================================================
- * 逆向转换：Annotation → IAnnotationStore（可选，用于兼容旧系统）
- * ========================================================================= */
-
-/**
- * 将 Annotation Core 转换回 IAnnotationStore（旧系统格式）
- * 
- * 从 Annotation 的 extensions 字段提取 Konva 渲染数据和旧系统元数据。
- * 
- * 这主要用于：
- * - 渐进式迁移期间
- * - 与旧系统兼容
- * - 导出时需要旧格式
- */
-export function annotationToStore(annotation: Annotation): IAnnotationStore {
-  const kind = annotation.kind
-
-  // 从 extensions 恢复旧系统字段（收窄类型，不改 Core 定义）
-  const ext = annotation.extensions as KnownExtensions | undefined
-  const legacy = ext?.legacy
-  const konva = ext?.konva
-  const geometry = annotation.target.geometry
-  const subtype = (ext?.pdfjs?.subtype as PdfjsAnnotationSubtype | undefined)
-    || getSubtypeFromKind(kind, annotation.payload)
-  const pdfjsType = getPdfjsTypeFromExtension(ext?.pdfjs?.type)
-    ?? getPdfjsTypeFromKind(kind, annotation.payload)
-  const type = legacy?.annotationType
-    ?? (kind === 'shape' && subtype === 'PolyLine'
-      ? AnnotationType.CLOUD
-      : getTypeFromKind(kind, annotation.payload))
-
-  return {
-    id: annotation.id,
-    referenceNumber: annotation.meta?.referenceNumber,
-    pageNumber: annotation.target.pageIndex + 1, // 转换回 1-based
-    konvaString: konva?.serialized || '',
-    konvaClientRect: konva?.clientRect || extractBoundingRect(geometry),
-    title: legacy?.title || extractTitleFromPayload(annotation.payload),
-    type,
-    color: annotation.appearance?.strokeColor || null,
-    subtype,
-    pdfjsType,
-    date: annotation.meta?.createdAt || null,
-    contentsObj: legacy?.contentsObj || extractContentsFromPayload(annotation.payload),
-    comments: legacy?.comments || [],
-    user: extractUserFromMeta(annotation.meta),
-    native: annotation.meta?.isNative || false,
-  }
-}
-
-/**
- * 从 Kind 获取 AnnotationType
- */
-function getTypeFromKind(kind: AnnotationKind, payload?: AnnotationPayload): AnnotationType {
-  if (kind === 'shape' && payload?.kind === 'shape') {
-    if (payload.shape === 'cloud') return AnnotationType.CLOUD
-    if (payload.shape === 'ellipse') return AnnotationType.CIRCLE
-  }
-  const KIND_TO_TYPE: Record<AnnotationKind, AnnotationType> = {
-    'text-markup': AnnotationType.HIGHLIGHT,
-    'note': AnnotationType.NOTE,
-    'ink': AnnotationType.FREEHAND,
-    'shape': AnnotationType.RECTANGLE,
-    'line': AnnotationType.ARROW,
-    'stamp': AnnotationType.STAMP,
-    'file': AnnotationType.STAMP,
-  }
-  return KIND_TO_TYPE[kind] || AnnotationType.NONE
-}
-
-/**
- * 从 Kind 获取 PdfjsAnnotationType
- */
-function getPdfjsTypeFromKind(kind: AnnotationKind, payload?: AnnotationPayload): PdfjsAnnotationType {
-  if (kind === 'shape' && payload?.kind === 'shape') {
-    if (payload.shape === 'cloud') return PdfjsAnnotationType.POLYLINE
-    if (payload.shape === 'ellipse') return PdfjsAnnotationType.CIRCLE
-    if (payload.shape === 'polygon') return PdfjsAnnotationType.POLYGON
-  }
-  const KIND_TO_PDFJS_TYPE: Record<AnnotationKind, PdfjsAnnotationType> = {
-    'text-markup': PdfjsAnnotationType.HIGHLIGHT,
-    'note': PdfjsAnnotationType.TEXT,
-    'ink': PdfjsAnnotationType.INK,
-    'shape': PdfjsAnnotationType.SQUARE,
-    'line': PdfjsAnnotationType.LINE,
-    'stamp': PdfjsAnnotationType.STAMP,
-    'file': PdfjsAnnotationType.FILEATTACHMENT,
-  }
-  return KIND_TO_PDFJS_TYPE[kind] || PdfjsAnnotationType.NONE
-}
-
-function getPdfjsTypeFromExtension(type?: string): PdfjsAnnotationType | undefined {
-  if (!type) return undefined
-  const value = (PdfjsAnnotationType as unknown as Record<string, unknown>)[type]
-  return typeof value === 'number' ? value as PdfjsAnnotationType : undefined
-}
-
-/**
- * 从 Payload 获取 Subtype
- */
-function getSubtypeFromKind(kind: AnnotationKind, payload?: AnnotationPayload): PdfjsAnnotationSubtype {
-  if (!payload) return 'None'
-
-  switch (kind) {
-    case 'text-markup': {
-      if (payload.kind !== 'text-markup') return 'Highlight'
-      return TEXT_MARKUP_VARIANT_TO_SUBTYPE[payload.variant]
-    }
-    case 'note': return 'Text'
-    case 'ink': return 'Ink'
-    case 'shape': {
-      if (payload.kind !== 'shape') return 'Square'
-      if (payload.shape === 'cloud') return 'PolyLine'
-      if (payload.shape === 'ellipse') return 'Circle'
-      if (payload.shape === 'polygon') return 'Polygon'
-      return 'Square'
-    }
-    case 'line': return 'Line'
-    case 'stamp': return 'Stamp'
-    case 'file': return 'FileAttachment'
-    default: return 'None'
-  }
-}
-
-/**
- * 从 Payload 提取标题
- */
-function extractTitleFromPayload(payload?: AnnotationPayload): string {
-  if (!payload) return ''
-  switch (payload.kind) {
-    case 'note': return payload.text.slice(0, 50)
-    case 'stamp': return payload.label || payload.name
-    default: return ''
-  }
-}
-
-/**
- * 从 Payload 提取内容对象
- */
-function extractContentsFromPayload(payload?: AnnotationPayload) {
-  if (!payload) return null
-  switch (payload.kind) {
-    case 'text-markup':
-      return {
-        text: payload.text || '',
-        selectedText: payload.selectedText,
-      }
-    case 'note': return { text: payload.text }
-    default: return null
-  }
-}
-
-/**
- * 从 Meta 提取用户信息（确保 name 总是 string）
- */
-function extractUserFromMeta(meta?: AnnotationMeta): { id: string; name: string } {
-  if (!meta?.authorId) {
-    return { id: 'unknown', name: 'Unknown' }
-  }
-  if (typeof meta.authorId === 'string') {
-    return { id: meta.authorId, name: meta.authorId }
-  }
-  return {
-    id: meta.authorId.id,
-    name: meta.authorId.name || meta.authorId.id,
-  }
-}
-
 /**
  * 从任意 Geometry 提取包围盒（用作 konvaClientRect 的 fallback）
  */
@@ -534,22 +441,4 @@ function extractBoundingRect(geometry: Geometry): { x: number; y: number; width:
       }
     }
   }
-}
-
-/* ============================================================================
- * 工具函数
- * ========================================================================= */
-
-/**
- * 批量转换 IAnnotationStore 数组到 Annotation 数组
- */
-export function storesToAnnotations(stores: IAnnotationStore[]): Annotation[] {
-  return stores.map((s) => storeToAnnotation(s))
-}
-
-/**
- * 批量转换 Annotation 数组到 IAnnotationStore 数组
- */
-export function annotationsToStores(annotations: Annotation[]): IAnnotationStore[] {
-  return annotations.map((ann) => annotationToStore(ann))
 }

@@ -12,7 +12,6 @@ import { debounce } from '@/utils'
 import type { AnnotationPermissions } from './types/annotator'
 
 interface AnnotatorExtensionProps {
-    enableNativeAnnotations: boolean
     annotations?: IAnnotationStore[]
     annotationPermissions?: AnnotationPermissions
     defaultShowAnnotationAuthorLabels?: boolean
@@ -28,7 +27,6 @@ interface AnnotatorExtensionProps {
 }
 
 export const AnnotatorExtension: React.FC<AnnotatorExtensionProps> = ({
-    enableNativeAnnotations,
     annotations,
     annotationPermissions,
     defaultShowAnnotationAuthorLabels = false,
@@ -49,7 +47,6 @@ export const AnnotatorExtension: React.FC<AnnotatorExtensionProps> = ({
 
     const latestPropsRef = useRef({
         annotations: annotations ?? [],
-        enableNativeAnnotations,
         onLoad,
         onAnnotationAdd,
         onAnnotationDelete,
@@ -59,7 +56,6 @@ export const AnnotatorExtension: React.FC<AnnotatorExtensionProps> = ({
     })
     latestPropsRef.current = {
         annotations: annotations ?? [],
-        enableNativeAnnotations,
         onLoad,
         onAnnotationAdd,
         onAnnotationDelete,
@@ -129,8 +125,6 @@ export const AnnotatorExtension: React.FC<AnnotatorExtensionProps> = ({
                 latestPropsRef.current.onAnnotationSelected(annotation ?? null, isClick)
             },
 
-            onAnnotationChanging: () => {},
-
             onAnnotationChanged: (annotation) => {
                 latestPropsRef.current.onAnnotationChanged(annotation)
             }
@@ -163,8 +157,8 @@ export const AnnotatorExtension: React.FC<AnnotatorExtensionProps> = ({
             documentLoadStarted = true
 
             try {
-                const { annotations: latestAnnotations, enableNativeAnnotations: latestEnableNativeAnnotations } = latestPropsRef.current
-                await painterInstance.initAnnotationsOnce(latestAnnotations, latestEnableNativeAnnotations)
+                const { annotations: latestAnnotations } = latestPropsRef.current
+                await painterInstance.initAnnotationsOnce(latestAnnotations)
             } catch (error) {
                 if (!disposed) {
                     console.error('[Annotator] Failed to initialize annotations', error)

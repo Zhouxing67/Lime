@@ -44,76 +44,6 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
     return value !== null && typeof value === 'object' && Object.prototype.toString.call(value) === '[object Object]'
 }
 
-function forceToSRGB(color: string) {
-    const canvas = document.createElement('canvas')
-    canvas.width = canvas.height = 1
-
-    // 必须显式指定 sRGB 强制降级
-    const ctx = canvas.getContext('2d', { colorSpace: 'srgb' })
-
-    if (!ctx) {
-        // 如果无法获取上下文，直接返回原始颜色值
-        return color
-    }
-
-    ctx.fillStyle = color
-    ctx.fillRect(0, 0, 1, 1)
-
-    // 读回像素获得 sRGB 值
-    const data = ctx.getImageData(0, 0, 1, 1).data // RGBA
-    return `rgb(${data[0]}, ${data[1]}, ${data[2]})`
-}
-
-export function getThemeColor(): string {
-    const el = document.getElementById('InkLayer')
-    if (el) {
-        const styles = getComputedStyle(el)
-        const accent9 = styles.getPropertyValue('--accent-9').trim()
-        return forceToSRGB(accent9)
-    }
-    return '#1677ff'
-}
-
-function normalizeColor(input: string): string {
-    const hexRegex = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
-    const rgbRegex = /^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/
-
-    input = input.trim().toLowerCase()
-
-    if (hexRegex.test(input)) {
-        if (input.length === 4) {
-            return (
-                '#' +
-                input
-                    .slice(1)
-                    .split('')
-                    .map((c) => c + c)
-                    .join('')
-            )
-        }
-        return input
-    }
-
-    const match = input.match(rgbRegex)
-    if (match) {
-        const r = Number(match[1])
-        const g = Number(match[2])
-        const b = Number(match[3])
-        const clamp = (n: number) => Math.max(0, Math.min(255, n))
-        return '#' + [r, g, b].map((n) => clamp(n).toString(16).padStart(2, '0')).join('')
-    }
-
-    throw new Error(`Unsupported color format: ${input}`)
-}
-
-export function isSameColor(color1: string, color2: string): boolean {
-    try {
-        return normalizeColor(color1) === normalizeColor(color2)
-    } catch {
-        return false
-    }
-}
-
 export function debounce<Args extends unknown[], Result, This = unknown>(
     func: (this: This, ...args: Args) => Result,
     wait: number,
@@ -133,18 +63,5 @@ export function debounce<Args extends unknown[], Result, This = unknown>(
         }, wait)
         
         if (callNow) func.apply(this, args)
-    }
-}
-export function once<Args extends unknown[], Result, This = unknown>(
-    fn: (this: This, ...args: Args) => Result
-): (this: This, ...args: Args) => Result {
-    let called = false
-    let result: Result
-    return function (this: This, ...args: Args): Result {
-        if (!called) {
-            called = true
-            result = fn.apply(this, args)
-        }
-        return result
     }
 }

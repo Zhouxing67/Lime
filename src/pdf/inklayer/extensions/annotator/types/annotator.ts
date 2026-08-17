@@ -1,7 +1,85 @@
-import { PdfBaseProps, User } from '@/types'
+import { User } from '@/types'
 import { DeepPartial } from '@/types/utils'
-import type { Annotation } from '@/core/annotation.core'
 import type { IAnnotationComment } from '@/extensions/annotator/const/definitions'
+
+type AnnotationKind =
+    | 'text-markup'
+    | 'note'
+    | 'ink'
+    | 'shape'
+    | 'line'
+    | 'stamp'
+    | 'file'
+
+type Geometry =
+    | { type: 'rect'; rect: { x: number; y: number; width: number; height: number } }
+    | { type: 'quad'; quads: { p1: { x: number; y: number }; p2: { x: number; y: number }; p3: { x: number; y: number }; p4: { x: number; y: number } }[] }
+    | { type: 'path'; points: { x: number; y: number }[]; closed?: boolean }
+    | { type: 'line'; start: { x: number; y: number }; end: { x: number; y: number } }
+    | { type: 'poly'; points: { x: number; y: number }[]; closed: boolean }
+
+interface AnnotationTarget {
+    pageIndex: number
+    geometry: Geometry
+    coordinateSystem: string
+    documentId?: string
+}
+
+type AnnotationPayload =
+    | {
+        kind: 'text-markup'
+        variant: string
+        text?: string
+        selectedText?: string
+        color?: string
+        opacity?: number
+    }
+    | { kind: 'note'; text: string }
+    | { kind: 'ink'; color?: string; width?: number }
+    | { kind: 'shape'; shape: string }
+    | { kind: 'line'; arrowStart?: boolean; arrowEnd?: boolean }
+    | { kind: 'stamp'; name: string; label?: string; source?: string; appearanceRef?: string; rotation?: number; scale?: number }
+    | { kind: 'file'; fileName: string; fileUrl: string; size?: number; mimeType?: string }
+
+interface AnnotationAppearance {
+    strokeColor?: string
+    fillColor?: string
+    strokeWidth?: number
+    opacity?: number
+    dashArray?: number[]
+    fontSize?: number
+    fontFamily?: string
+    textAlign?: string
+    zIndex?: number
+}
+
+interface AnnotationRelations {
+    parentId?: string
+    replies?: string[]
+    popupFor?: string
+    linkedAnnotationIds?: string[]
+}
+
+interface AnnotationMeta {
+    referenceNumber?: number
+    createdAt?: string
+    updatedAt?: string
+    authorId?: string | { id: string; name?: string; avatarUrl?: string }
+    isNative?: boolean
+    source?: string
+    version?: number
+}
+
+interface Annotation {
+    id: string
+    kind: AnnotationKind
+    target: AnnotationTarget
+    payload?: AnnotationPayload
+    appearance?: AnnotationAppearance
+    relations?: AnnotationRelations
+    meta?: AnnotationMeta
+    extensions?: Record<string, unknown>
+}
 
 export type AnnotationPermissionMode = 'unrestricted' | 'owner-only'
 
@@ -225,7 +303,7 @@ export type PdfAnnotatorOptions = {
 /**
  * PDF 批注组件的配置参数
  */
-export interface PdfAnnotatorProps extends PdfBaseProps {
+export interface PdfAnnotatorProps {
 
     /**
      * 当前用户信息，用于标注作者标识
@@ -247,12 +325,6 @@ export interface PdfAnnotatorProps extends PdfBaseProps {
      * @default false
      */
     defaultShowAnnotationAuthorLabels?: boolean
-
-    /**
-     * 是否加载PDF自带的批注
-     * @default false
-     */
-    enableNativeAnnotations?: boolean
 
     /**
      * 默认选项配置

@@ -2,8 +2,8 @@ import './index.scss' // 导入画笔样式文件
 
 import Konva from 'konva'
 import { annotationDefinitions, AnnotationType, IAnnotationComment, IAnnotationStore, IAnnotationStyle, IAnnotationType } from '../const/definitions'
-import { isElementInDOM, removeCssCustomProperty } from '../utils/utils'
-import { CURSOR_CSS_PROPERTY, PAINTER_IS_PAINTING_STYLE, PAINTER_PAINTING_TYPE, PAINTER_WRAPPER_PREFIX, SHAPE_GROUP_NAME } from './const'
+import { isElementInDOM } from '../utils/utils'
+import { PAINTER_IS_PAINTING_STYLE, PAINTER_PAINTING_TYPE, PAINTER_WRAPPER_PREFIX, SHAPE_GROUP_NAME } from './const'
 import { Editor } from './editor/editor'
 import { EditorFreeHand } from './editor/editor_free_hand'
 import { EditorFreeHighlight } from './editor/editor_free_highlight'
@@ -13,7 +13,6 @@ import { EditorRectangle } from './editor/editor_rectangle'
 import { Selector } from './editor/selector'
 import { SelectionSource, useAnnotationStore } from '../store'
 import { WebSelection } from './webSelection'
-import { Transform } from './transform/transform'
 import { IRect } from 'konva/lib/types'
 import { AnnotationPermissionAction, AnnotationPermissions, PdfAnnotatorOptions } from '../types/annotator'
 import { PageViewport } from 'pdfjs-dist/types/web/interfaces'
@@ -74,13 +73,10 @@ export class Painter {
     private readonly annotationHover = new AnnotationHoverCoordinator()
     private deleteUndoController?: DeleteUndoController
     private readonly unsubscribeAnnotationHover: () => void
-    private transform: Transform // 转换器
-    private tempDataTransfer: string | null = null // 临时数据传输
     public readonly onTextSelected: (range: Range | null) => void
     public readonly onAnnotationAdd: (annotationStore: IAnnotationStore, isOriginal: boolean, currentAnnotation: IAnnotationType | undefined) => void
     public readonly onAnnotationDelete: (id: string) => void
     public readonly onAnnotationSelected: (annotationStore: IAnnotationStore | undefined, isClick: boolean, selectorRect: IRect) => void
-    public readonly onAnnotationChanging: () => void // 批注正在更改的回调函数
     public readonly onAnnotationChanged: (annotationStore: IAnnotationStore | undefined, selectorRect?: IRect) => void // 批注已更改的回调函数
     /**
      * 构造函数，初始化 PDFViewerApplication, EventBus, 和 WebSelection
@@ -97,7 +93,6 @@ export class Painter {
         onAnnotationAdd,
         onAnnotationDelete,
         onAnnotationSelected,
-        onAnnotationChanging,
         onAnnotationChanged
     }: {
         primaryColor: string
@@ -110,7 +105,6 @@ export class Painter {
         onAnnotationAdd: (annotationStore: IAnnotationStore, isOriginal: boolean, currentAnnotation: IAnnotationType | undefined) => void
         onAnnotationDelete: (id: string) => void
         onAnnotationSelected: (annotationStore: IAnnotationStore | undefined, isClick: boolean, selectorRect: IRect) => void
-        onAnnotationChanging: () => void
         onAnnotationChanged: (annotationStore: IAnnotationStore | undefined, selectorRect?: IRect) => void
     }) {
         this.primaryColor = primaryColor
@@ -147,7 +141,6 @@ export class Painter {
         this.onAnnotationAdd = onAnnotationAdd
         this.onAnnotationDelete = onAnnotationDelete
         this.onAnnotationSelected = onAnnotationSelected
-        this.onAnnotationChanging = onAnnotationChanging // 批注正在更改的回调函数
         this.onAnnotationChanged = onAnnotationChanged // 批注已更改的回调函数
         this.selector = new Selector({
             primaryColor: this.primaryColor,
@@ -187,9 +180,7 @@ export class Painter {
 
                 this.onAnnotationChanged(updatedAnnotation, transformerRect)
             },
-            onCancel: () => {
-                this.onAnnotationChanging() // 批注正在更改的回调
-            },
+            onCancel: () => {},
             onDelete: (id) => {
                 this.delete(id, true)
             }
@@ -249,8 +240,6 @@ export class Painter {
                 this.annotationHover.clear('canvas-passive', id)
             }
         })
-        this.transform = new Transform(PDFViewerApplication)
-        this.bindGlobalEvents() // 绑定全局事件
     }
 
     public setPermissionContext(currentUser: User, annotationPermissions?: AnnotationPermissions): void {
@@ -296,27 +285,6 @@ export class Painter {
 
     private setDefaultMode = () => {
         useAnnotationStore.getState().setCurrentAnnotationType(annotationDefinitions[0])
-    }
-
-    /**
-     * 绑定全局事件。
-     */
-    private bindGlobalEvents(): void {
-        window.addEventListener('keyup', this.globalKeyUpHandler) // 监听全局键盘事件
-    }
-
-    /**
-     * 全局键盘抬起事件处理器。
-     * @param e - 键盘事件。
-     */
-    private globalKeyUpHandler = (e: KeyboardEvent): void => {
-        if (
-            e.code === 'Escape' &&
-            (this.currentAnnotation?.type === AnnotationType.SIGNATURE || this.currentAnnotation?.type === AnnotationType.STAMP)
-        ) {
-            removeCssCustomProperty(CURSOR_CSS_PROPERTY) // 移除自定义 CSS 属性
-            this.setDefaultMode() // 设置默认模式
-        }
     }
 
     /**
@@ -425,8 +393,6 @@ export class Painter {
             .map((type) => `${PAINTER_PAINTING_TYPE}_${type}`)
         // 移除所有可能存在的批注类型样式
         allAnnotationClasses.forEach((cls) => document.body.classList.remove(cls))
-        // 移出签名鼠标指针变量
-        removeCssCustomProperty(CURSOR_CSS_PROPERTY)
 
         if (this.currentAnnotation) {
             document.body.classList.add(`${PAINTER_PAINTING_TYPE}_${this.currentAnnotation?.type}`)
@@ -449,7 +415,7 @@ export class Painter {
             this.nextAnnotationReferenceNumber = numberedAnnotation.referenceNumber! + 1
         }
         const currentAnnotation = annotationDefinitions.find((item) => item.pdfjsAnnotationType === numberedAnnotation.pdfjsType)
-        useAnnotationStore.getState().addAnnotation(numberedAnnotation, isOriginal)
+        useAnnotationStore.getState().addAnnotation(numberedAnnotation)
         this.authorLabels.refreshAnnotation(numberedAnnotation.id)
         if (isOriginal) return
         if (currentAnnotation) {
@@ -616,7 +582,6 @@ export class Painter {
                 break
 
             default:
-                console.warn(`未实现的批注类型: ${annotation.type}`)
                 return
         }
 
@@ -843,27 +808,7 @@ export class Painter {
      */
     private disablePainting(): void {
         this.setMode('default') // 设置默认模式
-        this.clearTempDataTransfer() // 清除临时数据传输
         this.selector.clear() // 清除选择器
-    }
-
-    /**
-     * 保存临时数据传输
-     * @param data - 数据
-     * @returns 临时数据传输
-     */
-    private saveTempDataTransfer(data: string): string {
-        this.tempDataTransfer = data
-        return this.tempDataTransfer
-    }
-
-    /**
-     * 清除临时数据传输
-     * @returns 临时数据传输
-     */
-    private clearTempDataTransfer() {
-        this.tempDataTransfer = null
-        return this.tempDataTransfer
     }
 
     /**
@@ -947,7 +892,6 @@ export class Painter {
         this.currentAnnotation = annotation
         this.passiveHover.clear()
         this.disablePainting()
-        this.saveTempDataTransfer(dataTransfer || '')
 
         if (!annotation) {
             return
@@ -956,14 +900,8 @@ export class Painter {
         switch (annotation.type) {
             case AnnotationType.FREETEXT:
             case AnnotationType.RECTANGLE:
-            case AnnotationType.CIRCLE:
             case AnnotationType.FREEHAND:
             case AnnotationType.FREE_HIGHLIGHT:
-            case AnnotationType.SIGNATURE:
-            case AnnotationType.STAMP:
-            case AnnotationType.NOTE:
-            case AnnotationType.ARROW:
-            case AnnotationType.CLOUD:
                 this.setMode('painting') // 设置绘画模式
                 break
 
@@ -979,11 +917,6 @@ export class Painter {
 
         this.enablePainting()
     }
-
-    /**
-     * 重置 PDF.js 批注存储
-     */
-    public resetPdfjsAnnotationStorage(): void {}
 
     /**
      * @description 根据 range 加亮
@@ -1008,33 +941,16 @@ export class Painter {
     /**
      * @description 将annotation 存入 store, 包含外部 annotation 和 pdf 文件上的 annotation
      */
-    public async initAnnotationsOnce(annotations: IAnnotationStore[], enableNativeAnnotations: boolean) {
+    public async initAnnotationsOnce(annotations: IAnnotationStore[]) {
         const normalizedInputAnnotations = normalizeAnnotationReferenceNumbers(annotations)
         this.nextAnnotationReferenceNumber = Math.min(
             getGreatestReferenceNumber(normalizedInputAnnotations) + 1,
             Number.MAX_SAFE_INTEGER
         )
 
-        // 加载 pdf 文件批注
-        if (enableNativeAnnotations) {
-            // 先将 pdf 文件中的存入
-            const annotationMap = await this.transform.decodePdfAnnotation()
-            annotationMap.forEach((annotation) => {
-                this.saveToStore(annotation, true)
-            })
-            // 再用外部数据覆盖
-            normalizedInputAnnotations.forEach((annotation) => {
-                if (annotationMap.has(annotation.id)) {
-                    this.updateStore(annotation.id, annotation, true, null)
-                } else {
-                    this.saveToStore(annotation, true)
-                }
-            })
-        } else {
-            normalizedInputAnnotations.forEach((annotation) => {
-                this.saveToStore(annotation, true)
-            })
-        }
+        normalizedInputAnnotations.forEach((annotation) => {
+            this.saveToStore(annotation, true)
+        })
 
         const annotationState = useAnnotationStore.getState()
         const normalizedAnnotations = normalizeAnnotationReferenceNumbers(
@@ -1266,9 +1182,6 @@ export class Painter {
         this.hoverPreview.destroy()
         this.authorLabels.destroy()
 
-        // 移除全局事件监听器
-        window.removeEventListener('keyup', this.globalKeyUpHandler)
-
         // 销毁所有 Konva Stage 和清理画布
         this.konvaCanvasStore.forEach((konvaCanvas) => {
             konvaCanvas.konvaStage.destroy()
@@ -1281,9 +1194,6 @@ export class Painter {
         // 销毁选择器
         this.selector.delete()
 
-        // 清理临时数据
-        this.clearTempDataTransfer()
-
         // 重置状态
         this.currentAnnotation = null
 
@@ -1293,6 +1203,5 @@ export class Painter {
             .filter((type) => typeof type === 'number')
             .map((type) => `${PAINTER_PAINTING_TYPE}_${type}`)
         allAnnotationClasses.forEach((cls) => document.body.classList.remove(cls))
-        removeCssCustomProperty(CURSOR_CSS_PROPERTY)
     }
 }

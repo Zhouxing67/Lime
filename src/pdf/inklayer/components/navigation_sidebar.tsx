@@ -4,10 +4,6 @@ import { useTranslation } from 'react-i18next'
 import { usePdfViewerContext } from '@/context/pdf_viewer_context'
 import { PdfThumbnailList } from './pdf_thumbnail_list'
 import { PdfOutline } from './pdf_outline'
-import {
-    NAVIGATION_PAGE_MARKERS_CHANGED_EVENT,
-    type NavigationPageMarkersChangedEvent,
-} from './navigation_page_markers'
 import styles from './navigation_sidebar.module.scss'
 
 type NavigationPanelKey = 'thumbnails' | 'outline'
@@ -24,7 +20,6 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
     onTransitionEnd,
 }) => {
     const { t } = useTranslation(['viewer'], { useSuspense: false })
-    const { eventBus } = usePdfViewerContext()
     const [activePanel, setActivePanel] = useState<NavigationPanelKey>('thumbnails')
     const [markerSources, setMarkerSources] = useState<
         Map<string, ReadonlyMap<number, number>>
@@ -35,31 +30,6 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
             setActivePanel(value)
         }
     }, [])
-
-    useEffect(() => {
-        setMarkerSources(new Map())
-        if (!eventBus) return
-
-        const handleMarkersChanged = ({
-            source,
-            markers,
-        }: NavigationPageMarkersChangedEvent) => {
-            setMarkerSources((currentSources) => {
-                const nextSources = new Map(currentSources)
-                if (markers.size > 0) {
-                    nextSources.set(source, markers)
-                } else {
-                    nextSources.delete(source)
-                }
-                return nextSources
-            })
-        }
-
-        eventBus.on(NAVIGATION_PAGE_MARKERS_CHANGED_EVENT, handleMarkersChanged)
-        return () => {
-            eventBus.off(NAVIGATION_PAGE_MARKERS_CHANGED_EVENT, handleMarkersChanged)
-        }
-    }, [eventBus])
 
     useEffect(() => {
         if (!open) return
