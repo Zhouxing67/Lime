@@ -55,7 +55,13 @@ function openDb(version?: number): Promise<IDBDatabase> {
     const req = indexedDB.open(DB_NAME, v)
     req.onupgradeneeded = () => {
       const db = req.result
-      if (!db.objectStoreNames.contains("items")) {
+      // Only a TRULY fresh database (no stores at all) gets the legacy `items`
+      // store. Guarding on `!contains("items")` is wrong: the v12 migration
+      // DELETED items, so a v12+ database has no items — a v12→v13 upgrade
+      // would re-create an empty items store and then the v12 split block
+      // re-creates projectCards/pdfCards → ConstraintError → upgrade aborts
+      // → every DB open fails (the "all data lost" regression).
+      if (db.objectStoreNames.length === 0) {
         const store = db.createObjectStore("items", { keyPath: "id" })
         store.createIndex("type", "type", { unique: false })
         store.createIndex("createdAt", "createdAt", { unique: false })
@@ -157,7 +163,12 @@ function openDb(version?: number): Promise<IDBDatabase> {
       // references (pdfCardId / projectCardId). Reviews of placed items remap
       // to the placement ids. Runs on the upgrade transaction directly (the
       // tx() helper would re-open the DB — recursion, see the 9bd05a5 lesson).
-      if (db.objectStoreNames.contains("items")) {
+      // Store creation is TOP-LEVEL + guarded so it is idempotent for a fresh
+      // DB, a pre-v12 upgrade AND the A3 missing-store heal — it must NOT live
+      // inside the items guard: a v12+ DB has no items, and creating the stores
+      // there would run only when items was (re)created and collide with the
+      // existing stores (the v12→v13 "all data lost" ConstraintError).
+      if (!db.objectStoreNames.contains("projectCards")) {
         const pc = db.createObjectStore("projectCards", { keyPath: "id" })
         pc.createIndex("projectId", "projectId", { unique: false })
         pc.createIndex("hash", "hash", { unique: false })
@@ -165,13 +176,20 @@ function openDb(version?: number): Promise<IDBDatabase> {
         pc.createIndex("type", "type", { unique: false })
         pc.createIndex("createdAt", "createdAt", { unique: false })
         pc.createIndex("sourceSite", "sourceSite", { unique: false })
+      }
+      if (!db.objectStoreNames.contains("todos")) {
         const td = db.createObjectStore("todos", { keyPath: "id" })
         td.createIndex("dueDate", "dueDate", { unique: false })
+      }
+      if (!db.objectStoreNames.contains("pdfCards")) {
         const pd = db.createObjectStore("pdfCards", { keyPath: "id" })
         pd.createIndex("pdfId", "pdfId", { unique: false })
         pd.createIndex("annotationId", "annotationId", { unique: false })
         pd.createIndex("projectCardId", "projectCardId", { unique: false })
+      }
 
+      // ---- v12 data migration: split items records into the three stores.
+      if (db.objectStoreNames.contains("items")) {
         const tx = req.transaction as IDBTransaction
         const itemsStore = tx.objectStore("items")
         const pcStore = tx.objectStore("projectCards")

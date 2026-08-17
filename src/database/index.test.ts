@@ -1204,6 +1204,148 @@ describe("v12 migration: items → three typed stores", () => {
       req.onerror = () => resolve(req.result)
     })
 
+  it("v12 → v13 upgrade preserves ALL existing data (regression: no data loss)", async () => {
+    // Build a REAL v12 DB (the current schema minus the v13 index drops) and
+    // seed one record of every kind — the v12→v13 migration must keep them.
+    const legacy = await new Promise<IDBDatabase>((resolve) => {
+      const req = indexedDB.open("pickquote-db", 12)
+      req.onupgradeneeded = () => {
+        const d = req.result
+        const pc = d.createObjectStore("projectCards", { keyPath: "id" })
+        pc.createIndex("projectId", "projectId")
+        pc.createIndex("hash", "hash")
+        pc.createIndex("pdfCardId", "pdfCardId")
+        pc.createIndex("type", "type")
+        pc.createIndex("createdAt", "createdAt")
+        pc.createIndex("sourceSite", "sourceSite")
+        d.createObjectStore("todos", { keyPath: "id" }).createIndex(
+          "dueDate",
+          "dueDate"
+        )
+        const pd = d.createObjectStore("pdfCards", { keyPath: "id" })
+        pd.createIndex("pdfId", "pdfId")
+        pd.createIndex("annotationId", "annotationId")
+        pd.createIndex("projectCardId", "projectCardId")
+        d.createObjectStore("projects", { keyPath: "id" }).createIndex(
+          "name",
+          "name",
+          { unique: true }
+        )
+        const rs = d.createObjectStore("reviews", { keyPath: "id" })
+        rs.createIndex("itemId", "itemId", { unique: true })
+        rs.createIndex("projectId", "projectId")
+        rs.createIndex("status", "status")
+        rs.createIndex("dueDate", "dueDate")
+        d.createObjectStore("pdfs", { keyPath: "id" }).createIndex(
+          "addedAt",
+          "addedAt"
+        )
+        d.createObjectStore("pdfAnnotations", { keyPath: "id" }).createIndex(
+          "pdfId",
+          "pdfId"
+        )
+        const tx = req.transaction as IDBTransaction
+        tx.objectStore("projects").put({
+          id: "p1",
+          name: "项目A",
+          createdAt: 1,
+          lastOpened: 1,
+          order: 0
+        })
+        tx.objectStore("projectCards").put({
+          id: "card-1",
+          projectId: "p1",
+          sectionId: undefined,
+          order: 1,
+          content: "文本卡内容",
+          type: "text",
+          createdAt: 1
+        })
+        tx.objectStore("todos").put({
+          id: "todo-1",
+          content: "- [ ] 待办",
+          createdAt: 1
+        })
+        tx.objectStore("reviews").put({
+          id: "rev-1",
+          itemId: "card-1",
+          projectId: "p1",
+          srs: {
+            dueDate: 1,
+            interval: 1,
+            easeFactor: 2.5,
+            reviewCount: 1,
+            lastReviewDate: 1
+          },
+          status: "active",
+          dueDate: 1,
+          addedAt: 1
+        })
+        tx.objectStore("pdfs").put({
+          id: "pdf-1",
+          name: "doc.pdf",
+          bytes: new Blob(["%PDF-fake"], { type: "application/pdf" }),
+          pageCount: 1,
+          addedAt: 1
+        })
+        tx.objectStore("pdfAnnotations").put({
+          id: "ann-1",
+          pdfId: "pdf-1",
+          page: 1,
+          kind: "region",
+          type: "frame",
+          rects: [{ x: 0.1, y: 0.1, w: 0.2, h: 0.2 }],
+          cardId: "pdfcard-1",
+          store: { id: "ann-1", konvaString: "{}" },
+          createdAt: 1
+        })
+        tx.objectStore("pdfCards").put({
+          id: "pdfcard-1",
+          pdfId: "pdf-1",
+          page: 1,
+          kind: "region",
+          type: "frame",
+          annotationId: "ann-1",
+          pdfOrder: 1000000,
+          projectCardId: "placed-1",
+          createdAt: 1
+        })
+        tx.objectStore("projectCards").put({
+          id: "placed-1",
+          projectId: "p1",
+          sectionId: undefined,
+          order: 2,
+          content: "",
+          type: "placed",
+          pdfCardId: "pdfcard-1",
+          createdAt: 1
+        })
+      }
+      req.onsuccess = () => resolve(req.result)
+    })
+    legacy.close()
+
+    // A real DB call opens at DB_VERSION (13) — the migration runs.
+    const pdf = await getPdf("pdf-1")
+    expect(pdf?.name).toBe("doc.pdf")
+    expect(pdf?.bytes).not.toBeNull()
+    expect((await getAnnotation("ann-1"))?.cardId).toBe("pdfcard-1")
+    expect((await getPdfCards("pdf-1")).map((c) => c.id)).toContain("pdfcard-1")
+    expect((await getAllTodos()).map((t) => t.id)).toContain("todo-1")
+    const projects = await listProjects()
+    expect(projects.map((p) => p.id)).toContain("p1")
+    const cards = await searchProjectCards({ projectId: "p1" })
+    expect(cards.map((c) => c.id)).toEqual(
+      expect.arrayContaining(["card-1", "placed-1"])
+    )
+    expect((await getAllReviews()).length).toBeGreaterThan(0)
+
+    // The upgrade must NOT have re-created the legacy items store.
+    const upgraded = await openRaw(DB_VERSION)
+    expect(Array.from(upgraded.objectStoreNames)).not.toContain("items")
+    upgraded.close()
+  })
+
   it("splits todos / pdf-only / placed / plain cards + remaps reviews + mutual refs", async () => {
     // Build a legacy v11 DB with the items store + seed four card kinds.
     const legacy = await new Promise<IDBDatabase>((resolve) => {
