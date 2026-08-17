@@ -290,6 +290,8 @@ export class Selector {
         transformer.off('transformend')
         transformer.off('transformstart')
         if (transformAllowed) transformer.on('transformend', () => {
+            // konvaClientRect must be STAGE-LOCAL — use the deserialized clone
+            // (live group.getClientRect() includes the stage scale; see editor.ts:124).
             this.onChanged(group.id(), group.toJSON(), { ...rawAnnotationStore }, Konva.Node.create(group.toJSON()).getClientRect(), transformer.getClientRect())
         })
         if (transformAllowed) transformer.on('transformstart', () => {
@@ -301,6 +303,7 @@ export class Selector {
         })
 
         if (transformAllowed) transformer.on('dragend', () => {
+            // konvaClientRect must be STAGE-LOCAL — deserialized clone, see editor.ts:124.
             this.onChanged(group.id(), group.toJSON(), { ...rawAnnotationStore }, Konva.Node.create(group.toJSON()).getClientRect(), transformer.getClientRect())
         })
 

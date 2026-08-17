@@ -165,7 +165,7 @@ export interface IAnnotationStore {
     referenceNumber?: number;
     pageNumber: number; // 批注所在的页码
     konvaString: string; // Konva 的序列化表示
-    konvaClientRect: IRect; // 批注在 stage 中的位置
+    konvaClientRect: IRect; // 批注在 stage 中的位置（STAGE-LOCAL = PDF 用户空间，top-left origin；勿用 live getClientRect 替代反序列化，见 editor.ts:124 注释）
     title: string; // 批注标题
     type: AnnotationType; // 批注类型
     color?: string | null; // 可选颜色，可以是 undefined 或 null

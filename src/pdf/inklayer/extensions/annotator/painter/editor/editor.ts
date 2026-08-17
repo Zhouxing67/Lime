@@ -121,6 +121,13 @@ export abstract class Editor {
                 id,
                 pageNumber,
                 konvaString: konvaGroup.toJSON(),
+                // Do NOT replace with `konvaGroup.getClientRect()`: the live
+                // group's absolute transform includes the STAGE scale
+                // (stage.scale = viewport.scale ≠ 1), so the live rect is in
+                // CSS-px, not stage-local (= PDF user space). The detached
+                // clone has no parents → stage-local units, which every
+                // consumer (annotationGeometry / painter highlight / type-switch)
+                // relies on.
                 konvaClientRect: Konva.Node.create(konvaGroup.toJSON()).getClientRect(),
                 title: this.currentUser.name,
                 type: annotation.type,

@@ -11,6 +11,7 @@ import { usePainter } from "~/src/pdf/inklayer/extensions/annotator/context/use_
 import { usePdfViewerContext } from "~/src/pdf/inklayer/context/pdf_viewer_context"
 import type { IAnnotationStore } from "~/src/pdf/inklayer/extensions/annotator/const/definitions"
 import type { PdfAnnotation } from "../types"
+import { annotationGeometry } from "../utils/geometry"
 import { TooltipProvider } from "@radix-ui/react-tooltip"
 import { Theme } from "@radix-ui/themes"
 import "@radix-ui/themes/styles.css"
@@ -141,70 +142,16 @@ function EngineBridge({
 
   const computeGeometry = useCallback(
     (store: IAnnotationStore) => {
-      let pos: { x: number; y: number } | undefined
-      let rects: { x: number; y: number; w: number; h: number }[] | undefined
-      let path: { x: number; y: number }[] | undefined
-      let allPaths: { x: number; y: number }[][] | undefined
-      try {
-        const pv = pdfViewer?.getPageView(store.pageNumber - 1)
-        const vp = pv?.viewport
-        const r = store.konvaClientRect
-        // The Konva stage is { width: vp.width, scale: vp.scale } — a shape's
-        // clientRect is in STAGE-LOCAL coords, so its rendered CSS position is
-        // (local × vp.scale). Normalize to 0-1 via the page's CSS size.
-        if (vp && r && vp.width > 0 && vp.height > 0) {
-          const sx = vp.scale / vp.width
-          const sy = vp.scale / vp.height
-          pos = {
-            x: (r.x + r.width / 2) * sx,
-            y: (r.y + r.height / 2) * sy
-          }
-          rects = [
-            { x: r.x * sx, y: r.y * sy, w: r.width * sx, h: r.height * sy }
-          ]
-          // Extract ALL stroke points (freehand / free-highlight) from the
-          // Konva serialization — a multi-stroke annotation has several Lines,
-          // each a separate pen-up/pen-down; every stroke must render in the
-          // crop overlay.
-          try {
-            const json = JSON.parse(store.konvaString)
-            const allLines: number[][] = []
-            const collectLines = (n: any) => {
-              if (n?.className === "Line" && Array.isArray(n?.attrs?.points)) {
-                allLines.push(n.attrs.points as number[])
-              }
-              for (const c of n?.children ?? []) collectLines(c)
-            }
-            collectLines(json)
-            const strokes = allLines
-              .filter((pts) => pts.length >= 4)
-              .map((pts) => {
-                const stroke: { x: number; y: number }[] = []
-                for (let i = 0; i < pts.length; i += 2) {
-                  stroke.push({ x: pts[i] * sx, y: pts[i + 1] * sy })
-                }
-                return stroke
-              })
-            if (strokes.length > 0) {
-              path = strokes.length === 1 ? strokes[0] : undefined
-              allPaths = strokes
-            }
-          } catch {
-            // no path extracted — overlay falls back to the bbox stroke
-          }
-        }
-      } catch {
-        // fall back to no pos/rects/path
-      }
-      return { pos, rects, path, allPaths }
+      const pv = pdfViewer?.getPageView(store.pageNumber - 1)
+      return annotationGeometry(store, pv?.viewport)
     },
     [pdfViewer]
   )
 
   const handleAdd = useCallback(
     (store: IAnnotationStore) => {
-      const { pos, rects, path, allPaths } = computeGeometry(store)
-      onAnnotationAdd?.(store, pos, rects, path, allPaths)
+      const { pos, rects, path, paths } = computeGeometry(store)
+      onAnnotationAdd?.(store, pos, rects, path, paths)
     },
     [computeGeometry, onAnnotationAdd]
   )
@@ -236,18 +183,18 @@ function EngineBridge({
 
   const handleChange = useCallback(
     (store: IAnnotationStore) => {
-      const { pos, rects, path, allPaths } = computeGeometry(store)
+      const { pos, rects, path, paths } = computeGeometry(store)
       // A style-only edit (color/opacity/type) keeps the same normalized
       // geometry — pass NO geometry so saveAnnotationFromStore keeps the crop
       // image instead of treating it as a shape edit and clearing the placed
       // card's crop (A6).
-      const geometryChanged = !geometrySame(annotationById?.get(store.id), rects, path, allPaths)
+      const geometryChanged = !geometrySame(annotationById?.get(store.id), rects, path, paths)
       onAnnotationChanged?.(
         store,
         pos,
         geometryChanged ? rects : undefined,
         geometryChanged ? path : undefined,
-        geometryChanged ? allPaths : undefined
+        geometryChanged ? paths : undefined
       )
     },
     [computeGeometry, onAnnotationChanged, annotationById, geometrySame]

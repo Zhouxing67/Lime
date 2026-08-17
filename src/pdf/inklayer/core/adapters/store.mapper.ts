@@ -272,7 +272,9 @@ export function storeToAnnotation(store: IAnnotationStore): Annotation {
  */
 function extractGeometryFromStore(store: IAnnotationStore): Geometry {
   const geoType = TYPE_TO_GEOMETRY_TYPE[store.type] || 'rect'
-  const { x, y, width, height } = store.konvaClientRect
+  // A clientRect can be missing on degenerate/legacy marks — fall back to a
+  // zero rect rather than destructuring undefined (NaN/TypeError).
+  const { x = 0, y = 0, width = 0, height = 0 } = store.konvaClientRect ?? {}
 
   // 根据类型构造对应的几何结构
   // konvaClientRect 只提供矩形信息，非 rect 类型做最小化近似
@@ -379,66 +381,22 @@ function adjustOpacity(color: string, opacity: number): string {
   // 如果已经是 rgba，直接返回
   if (color.startsWith('rgba')) return color
 
-  // 如果是 hex，转换
+  // 如果是 hex，转换（支持 3/4/6/8 位）
   if (color.startsWith('#')) {
-    const hex = color.slice(1)
+    let hex = color.slice(1)
+    if (hex.length === 3 || hex.length === 4) {
+      hex = hex
+        .split('')
+        .map((c) => c + c)
+        .join('')
+    }
+    if (hex.length < 6) return color
     const r = parseInt(hex.slice(0, 2), 16)
     const g = parseInt(hex.slice(2, 4), 16)
     const b = parseInt(hex.slice(4, 6), 16)
+    if ([r, g, b].some((n) => Number.isNaN(n))) return color
     return `rgba(${r}, ${g}, ${b}, ${opacity})`
   }
 
   return color
-}
-
-/**
- * 从任意 Geometry 提取包围盒（用作 konvaClientRect 的 fallback）
- */
-function extractBoundingRect(geometry: Geometry): { x: number; y: number; width: number; height: number } {
-  switch (geometry.type) {
-    case 'rect':
-      return {
-        x: geometry.rect.x,
-        y: geometry.rect.y,
-        width: geometry.rect.width,
-        height: geometry.rect.height,
-      }
-    case 'quad': {
-      // QuadGeometry 只有 quads（p1/p2/p3/p4），从所有四边形点计算包围盒
-      const allPts = geometry.quads.flatMap((q) => [q.p1, q.p2, q.p3, q.p4])
-      const qxs = allPts.map((p) => p.x)
-      const qys = allPts.map((p) => p.y)
-      const qMinX = Math.min(...qxs)
-      const qMinY = Math.min(...qys)
-      return {
-        x: qMinX,
-        y: qMinY,
-        width: Math.max(...qxs) - qMinX,
-        height: Math.max(...qys) - qMinY,
-      }
-    }
-    case 'line':
-      return {
-        x: Math.min(geometry.start.x, geometry.end.x),
-        y: Math.min(geometry.start.y, geometry.end.y),
-        width: Math.abs(geometry.end.x - geometry.start.x),
-        height: Math.abs(geometry.end.y - geometry.start.y),
-      }
-    case 'path':
-    case 'poly': {
-      if (geometry.points.length === 0) {
-        return { x: 0, y: 0, width: 0, height: 0 }
-      }
-      const xs = geometry.points.map((p) => p.x)
-      const ys = geometry.points.map((p) => p.y)
-      const minX = Math.min(...xs)
-      const minY = Math.min(...ys)
-      return {
-        x: minX,
-        y: minY,
-        width: Math.max(...xs) - minX,
-        height: Math.max(...ys) - minY,
-      }
-    }
-  }
 }
