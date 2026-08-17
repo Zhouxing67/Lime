@@ -170,6 +170,7 @@ chrome.runtime.onMessage.addListener((raw: any, _sender, sendResponse) => {
     case "fetch-pdf": {
       const controller = new AbortController()
       const timer = setTimeout(() => controller.abort(), 60000)
+      const MAX_PDF_BYTES = 50 * 1024 * 1024
       fetch(msg.url, { signal: controller.signal })
         .then(async (res) => {
           clearTimeout(timer)
@@ -177,7 +178,18 @@ chrome.runtime.onMessage.addListener((raw: any, _sender, sendResponse) => {
             sendResponse({ ok: false, error: `下载失败：HTTP ${res.status}` })
             return
           }
+          // Size cap BEFORE buffering — a giant PDF would OOM the SW as a
+          // ~1.37x base64 string in memory.
+          const len = Number(res.headers.get("Content-Length") ?? 0)
+          if (len > MAX_PDF_BYTES) {
+            sendResponse({ ok: false, error: "PDF 过大（超过 50MB），无法导入" })
+            return
+          }
           const buf = await res.arrayBuffer()
+          if (buf.byteLength > MAX_PDF_BYTES) {
+            sendResponse({ ok: false, error: "PDF 过大（超过 50MB），无法导入" })
+            return
+          }
           // PDF magic check — best-effort: the URL must point at a direct PDF.
           const head = new TextDecoder("ascii").decode(buf.slice(0, 4))
           if (!buf.byteLength || head !== "%PDF") {

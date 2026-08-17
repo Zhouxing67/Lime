@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react"
 
-import type { PdfFile, Project } from "../types"
+import type { PdfMetaLite } from "../database"
+import type { Project } from "../types"
 
 /** The backup view's own selection + scope state. The export/download/sync
  *  handlers stay in the composition root (they coordinate the WebDAV layer). */
@@ -9,7 +10,7 @@ export function useBackupView({
   pdfs
 }: {
   projects: Project[]
-  pdfs: PdfFile[]
+  pdfs: PdfMetaLite[]
 }) {
   const [backupSelectedIds, setBackupSelectedIds] = useState<string[]>([])
   const [backupScope, setBackupScope] = useState<"projects" | "pdfs">(

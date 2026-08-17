@@ -26,7 +26,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { ReactNode } from "react"
 
 import RenameDialog from "./RenameDialog"
-import type { PdfFile, TodoFilter, TodoStats } from "../types"
+import type { PdfMetaLite } from "../database"
+import type { TodoFilter, TodoStats } from "../types"
 import type { SidebarTab } from "./NavRail"
 import { RECENT_TOTAL as RECENT_TOTAL_SHARED } from "../constants"
 import DialogShell from "./DialogShell"
@@ -42,7 +43,7 @@ interface SidebarFiltersProps {
   reviewDateFilter: string | null
   todoStats: TodoStats
   todoFilter: TodoFilter
-  pdfs: PdfFile[]
+  pdfs: PdfMetaLite[]
   countByPdf: Record<string, number>
   activePdfId: string | null
   onTodoFilterChange: (filter: TodoFilter) => void
@@ -50,7 +51,7 @@ interface SidebarFiltersProps {
   onOpenPdf: (id: string) => void
   onOpenUrl?: () => void
   onRenamePdf?: (id: string, name: string) => void
-  onDeletePdf?: (pdf: PdfFile) => void
+  onDeletePdf?: (pdf: PdfMetaLite) => void
   topics?: string[]
   onNewTopic?: (name: string) => void
   onRenameTopic?: (oldName: string, name: string) => void
@@ -113,13 +114,13 @@ function PdfTab({
   onMovePdf
 }: {
   activePdfId: string | null
-  pdfs: PdfFile[]
+  pdfs: PdfMetaLite[]
   countByPdf: Record<string, number>
   onOpenPdfClick: () => void
   onOpenPdf: (id: string) => void
   onOpenUrl?: () => void
   onRenamePdf?: (id: string, name: string) => void
-  onDeletePdf?: (pdf: PdfFile) => void
+  onDeletePdf?: (pdf: PdfMetaLite) => void
   topics?: string[]
   onNewTopic?: (name: string) => void
   onRenameTopic?: (oldName: string, name: string) => void
@@ -154,7 +155,7 @@ function PdfTab({
   }, [])
 
   // Active PDF pins to the top (like the project tree's active project).
-  const byLastOpened = byRecency<PdfFile>(
+  const byLastOpened = byRecency<PdfMetaLite>(
     (p) => p.lastOpened,
     (a, b) => b.addedAt - a.addedAt
   )
@@ -169,8 +170,8 @@ function PdfTab({
   )
   // Topic view grouping: pdfs by topic + the 未分类 bucket.
   const { groups, unclassified } = useMemo(() => {
-    const g = new Map<string, PdfFile[]>()
-    const u: PdfFile[] = []
+    const g = new Map<string, PdfMetaLite[]>()
+    const u: PdfMetaLite[] = []
     for (const p of ordered) {
       if (p.topic) {
         const arr = g.get(p.topic) ?? []
@@ -188,8 +189,8 @@ function PdfTab({
   }, [])
 
   // Shared PDF row (recent + topic views).
-  const renderPdfRow = (p: PdfFile, allowMove?: boolean) => {
-    const isPlaceholder = !p.bytes
+  const renderPdfRow = (p: PdfMetaLite, allowMove?: boolean) => {
+    const isPlaceholder = !p.hasBytes
     const isActive = p.id === activePdfId
     return (
       <Box

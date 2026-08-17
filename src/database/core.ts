@@ -10,7 +10,7 @@ import type {
 import { sha256Bytes } from "../utils"
 
 const DB_NAME = "pickquote-db"
-const DB_VERSION = 12
+export const DB_VERSION = 13
 
 type TableNames =
   | "projectCards"
@@ -273,6 +273,30 @@ function openDb(version?: number): Promise<IDBDatabase> {
           }
           c.continue()
         }
+      }
+      // ---- v13 migration: drop dead indexes (created but never queried —
+      // pure write-amplification on every put). MUST run AFTER the v12 block:
+      // a direct old-version → v13 upgrade creates pdfCards/projectCards in
+      // v12, and v13 then drops the dead indexes. deleteIndex is allowed inside
+      // the versionchange transaction; guarded so it re-runs safely on any path.
+      {
+        const dropIndex = (storeName: string, indexName: string) => {
+          try {
+            if (!db.objectStoreNames.contains(storeName)) return
+            const store = (req.transaction as IDBTransaction).objectStore(
+              storeName
+            )
+            if (Array.from(store.indexNames).includes(indexName)) {
+              store.deleteIndex(indexName)
+            }
+          } catch {
+            /* store/index absent — nothing to drop */
+          }
+        }
+        dropIndex("pdfs", "addedAt")
+        dropIndex("pdfCards", "annotationId")
+        dropIndex("pdfCards", "projectCardId")
+        dropIndex("projectCards", "pdfCardId")
       }
     }
     req.onsuccess = async () => {

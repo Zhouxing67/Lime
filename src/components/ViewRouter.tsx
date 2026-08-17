@@ -20,7 +20,8 @@ import ProjectHub from "./ProjectHub"
 import CardGrid from "./CardGrid"
 import EmptyState from "./EmptyState"
 import type { SidebarTab } from "./NavRail"
-import type { DisplayCard, PdfAnnotation, PdfFile, PdfOutlineItem, Project, ProjectCard } from "../types"
+import type { DisplayCard, PdfAnnotation, PdfOutlineItem, Project, ProjectCard } from "../types"
+import type { PdfMetaLite } from "../database"
 import type { PdfSearchEntry, PdfSearchMatch } from "./pdfText"
 import type { CardWorkspaceState } from "../hooks/useWorkspaceView"
 import type { CardDropState } from "../hooks/useCardDragReorder"
@@ -77,12 +78,12 @@ interface PdfViewRouterProps {
   }) => void
   jumpRequest: { index: number; seq: number } | null
   topics: string[]
-  pdfs: PdfFile[]
+  pdfs: PdfMetaLite[]
   countByPdf: Record<string, number>
   handleOpenPdf: (id: string) => void
   onOpenUrl?: () => void
   pdfFileInputRef: React.RefObject<HTMLInputElement | null>
-  handleDeletePdf: (pdf: PdfFile) => void
+  handleDeletePdf: (pdf: PdfMetaLite) => void
   onRenamePdf?: (id: string, name: string) => void
   handleNewTopic: (name: string) => void
   handleRenameTopic: (oldName: string, name: string) => void

@@ -311,12 +311,15 @@ export function hydratePayloadImages(
 }
 
 /** Download the PDF files the remote has that the local lacks (or only holds
- *  as a placeholder) — returns the fetched files for the caller to addPdf. */
+ *  as a placeholder). Pass `onFile` to persist each file AS it downloads (the
+ *  caller must not accumulate N large PDFs in memory); without it, the files
+ *  are returned collected for the caller to persist. */
 export async function downloadPdfFiles(
   cred: SyncCredentials,
   remotePdfs: PdfSyncMeta[],
   localPdfs: PdfFile[],
-  onStatus?: (status: string) => void
+  onStatus?: (status: string) => void,
+  onFile?: (meta: PdfSyncMeta, bytes: Blob) => void | Promise<void>
 ): Promise<{ meta: PdfSyncMeta; bytes: Blob }[]> {
   const local = new Map(localPdfs.map((p) => [p.id, p]))
   const remoteFiles = new Set(await listRemotePdfs(cred))
@@ -332,10 +335,14 @@ export async function downloadPdfFiles(
       method: "GET"
     })
     if (!res.ok) continue
-    out.push({
-      meta,
-      bytes: new Blob([base64ToBytes(res.body)], { type: "application/pdf" })
+    const bytes = new Blob([base64ToBytes(res.body)], {
+      type: "application/pdf"
     })
+    if (onFile) {
+      await onFile(meta, bytes)
+    } else {
+      out.push({ meta, bytes })
+    }
   }
   return out
 }

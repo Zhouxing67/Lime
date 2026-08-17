@@ -22,7 +22,7 @@ import { alpha, type Theme } from "@mui/material/styles"
 import { useState } from "react"
 
 import RenameDialog from "./RenameDialog"
-import type { PdfFile } from "../types"
+import type { PdfMetaLite } from "../database"
 import EmptyState from "./EmptyState"
 import { avatarColor, byRecency } from "../utils"
 import DashedTile from "./DashedTile"
@@ -89,12 +89,12 @@ function TileFooter({
 const UNCLASSIFIED = "__unclassified__"
 
 interface PdfHubProps {
-  pdfs: PdfFile[]
+  pdfs: PdfMetaLite[]
   countByPdf: Record<string, number>
   onOpenPdf: (id: string) => void
   onNewPdf: () => void
   onOpenUrl?: () => void
-  onDeletePdf: (pdf: PdfFile) => void
+  onDeletePdf: (pdf: PdfMetaLite) => void
   onRenamePdf?: (id: string, name: string) => void
   keyword?: string
   /** Read-only multi-select mode (backup view): click toggles selection. */
@@ -494,7 +494,7 @@ export default function PdfHub({
         )}
         {shownPdfs.map((p) => {
           const isSelected = selectable ? selected?.(p.id) ?? false : false
-          const isPlaceholder = !p.bytes
+          const isPlaceholder = !p.hasBytes
           return (
             <Paper
               key={p.id}

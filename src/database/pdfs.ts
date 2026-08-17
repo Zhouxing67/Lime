@@ -146,6 +146,40 @@ export async function listPdfs(): Promise<PdfFile[]> {
   })
 }
 
+/** A PDF record WITHOUT its bytes Blob — the library listing / sync payload
+ *  need only the presence signal, never the file content (loadPdfs used to pull
+ *  every PDF's bytes into JS at once). `hasBytes` preserves the placeholder
+ *  semantics of the old `bytes !== null` check. */
+export type PdfMetaLite = Omit<PdfFile, "bytes"> & { hasBytes: boolean }
+
+export async function listPdfMeta(): Promise<PdfMetaLite[]> {
+  return withStore("pdfs", "readonly", (store) => {
+    return new Promise((resolve, reject) => {
+      const results: PdfMetaLite[] = []
+      const req = store.openCursor()
+      req.onsuccess = () => {
+        const cursor = req.result
+        if (cursor) {
+          const p = cursor.value as PdfFile
+          results.push({
+            id: p.id,
+            name: p.name,
+            pageCount: p.pageCount,
+            addedAt: p.addedAt,
+            lastOpened: p.lastOpened,
+            topic: p.topic,
+            hasBytes: !!p.bytes
+          })
+          cursor.continue()
+        } else {
+          resolve(results.sort((a, b) => b.addedAt - a.addedAt))
+        }
+      }
+      req.onerror = () => reject(req.error)
+    })
+  })
+}
+
 /** Delete a PDF + its annotations + its PDF cards together (no orphans). */
 /** Delete a PDF + its pdfCards + their placements + annotations together
  *  (no orphans anywhere). */
@@ -880,7 +914,6 @@ export async function applyPdfSync(
     topic?: string
   }[],
   remoteAnnotations: PdfAnnotation[],
-  _localPdfs: PdfFile[],
   localAnnotations: PdfAnnotation[]
 ): Promise<void> {
   for (const pdf of remotePdfs) {

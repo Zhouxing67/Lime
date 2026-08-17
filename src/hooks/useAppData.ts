@@ -3,7 +3,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type {
   PdfAnnotation,
   PdfCard,
-  PdfFile,
   ProjectCard,
   ReviewEntry,
   SrsData,
@@ -19,7 +18,8 @@ import {
   getIncompleteTodoCount,
   getPdfCards,
   getDueCount,
-  listPdfs
+  listPdfMeta,
+  type PdfMetaLite
 } from "../database/index"
 import { cleanupLegacyPdfAnnotations, ensureRegionImage } from "../database/pdfs"
 import { applyBadge } from "../utils"
@@ -43,7 +43,7 @@ export function useAppData({
   activePdfId,
   activePdfIdRef
 }: UseAppDataOpts) {
-  const [pdfs, setPdfs] = useState<PdfFile[]>([])
+  const [pdfs, setPdfs] = useState<PdfMetaLite[]>([])
   const [allProjectCardsUnfiltered, setAllProjectCardsUnfiltered] = useState<
     ProjectCard[]
   >([])
@@ -115,7 +115,7 @@ export function useAppData({
   }, [])
 
   const loadPdfs = useCallback(async () => {
-    const list = await listPdfs()
+    const list = await listPdfMeta()
     setPdfs(list)
   }, [])
 

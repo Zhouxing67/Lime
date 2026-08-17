@@ -93,7 +93,8 @@ import {
   updatePdfCard,
   updatePdfTopic,
   updateProjectCard,
-  updateReviewSrs
+  updateReviewSrs,
+  type PdfMetaLite
 } from "./database"
 import { useBackupSync } from "./hooks/useBackupSync"
 import { useCardDragReorder } from "./hooks/useCardDragReorder"
@@ -261,7 +262,7 @@ export default function OptionsPage() {
     handlePdfSearchEntry,
     handlePdfSearchNav
   } = usePdfSearchPanel()
-  const [pdfDeleteTarget, setPdfDeleteTarget] = useState<PdfFile | null>(null)
+  const [pdfDeleteTarget, setPdfDeleteTarget] = useState<PdfMetaLite | null>(null)
   const [topicDeleteTarget, setTopicDeleteTarget] = useState<string | null>(
     null
   )
@@ -889,7 +890,6 @@ export default function OptionsPage() {
     backupScope,
     backupSelectedIds,
     backupSelectedPdfIds,
-    pdfs,
     syncStatus,
     setSyncStatus,
     setSnackbarMsg
@@ -1511,7 +1511,7 @@ export default function OptionsPage() {
   )
 
   const handleDeletePdf = useCallback(
-    (pdf: PdfFile) => {
+    (pdf: PdfMetaLite) => {
       setPdfDeleteTarget(pdf)
     },
     []

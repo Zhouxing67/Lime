@@ -54,7 +54,8 @@ import {
   touchPdf,
   updateProjectCard,
   updateReviewSrs,
-  getReviewByItemId
+  getReviewByItemId,
+  DB_VERSION
 } from "./index"
 
 // Helper to create a test project card (projectId is REQUIRED — defaults to "p1")
@@ -1003,7 +1004,7 @@ describe("pdf content-hash id + notes-only sync", () => {
       startOffset: 0, endOffset: 1, text: "y", createdAt: 2
     }
     await addAnnotation(localAnn)
-    await applyPdfSync([{ id: "pdf-s", name: "s.pdf", pageCount: 1, addedAt: 1 }], [remoteAnn], [], [localAnn])
+    await applyPdfSync([{ id: "pdf-s", name: "s.pdf", pageCount: 1, addedAt: 1 }], [remoteAnn], [localAnn])
     expect((await getAnnotation("ra1"))?.text).toBe("x")
     expect(await getAnnotation("la1")).toBeUndefined()
     expect((await getPdf("pdf-s"))?.bytes).toBeNull()
@@ -1017,7 +1018,6 @@ describe("pdf content-hash id + notes-only sync", () => {
     await applyPdfSync(
       [{ id: "pdf-1to1", name: "a.pdf", pageCount: 3, addedAt: 1 }],
       [remoteAnn],
-      [],
       []
     )
     const cards = await getPdfCards("pdf-1to1")
@@ -1300,7 +1300,8 @@ describe("v12 migration: items → three typed stores", () => {
     })
     legacy.close()
 
-    // Open at v12 — the migration converts + drops the items store.
+    // Open at the current version — the migration converts + drops the items
+    // store.
     await addTodo({
       id: "t0",
       content: "- [ ] x",
@@ -1339,12 +1340,19 @@ describe("v12 migration: items → three typed stores", () => {
     expect(await getReviewByItemId("pdfonly-1")).toBeUndefined()
 
     // The old items store is gone; the annotation's itemId → cardId.
-    const db = await openRaw(12)
+    const db = await openRaw(DB_VERSION)
     const names = Array.from(db.objectStoreNames)
     expect(names).not.toContain("items")
     expect(names).toContain("projectCards")
     expect(names).toContain("pdfCards")
     expect(names).toContain("todos")
+    // v13: the dead indexes were dropped.
+    const indexNames = (s: string) =>
+      Array.from(db.transaction(s).objectStore(s).indexNames)
+    expect(indexNames("pdfs")).not.toContain("addedAt")
+    expect(indexNames("pdfCards")).not.toContain("annotationId")
+    expect(indexNames("pdfCards")).not.toContain("projectCardId")
+    expect(indexNames("projectCards")).not.toContain("pdfCardId")
     const anns = await getAnnotationsByPdf("pdf-1")
     const ann = anns.find((a) => a.id === "ann-1")
     expect(ann?.cardId).toBe("placed-1")

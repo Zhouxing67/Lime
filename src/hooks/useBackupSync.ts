@@ -9,9 +9,10 @@ import {
   getAllProjectCards,
   getAllReviews,
   getAllTodos,
-  listPdfs
+  listPdfs,
+  listPdfMeta
 } from "../database"
-import type { PdfFile, Project, ProjectCard } from "../types"
+import type { Project, ProjectCard } from "../types"
 import {
   collectImageFiles,
   downloadImageFiles,
@@ -33,7 +34,6 @@ export function useBackupSync(options: {
   backupScope: "projects" | "pdfs"
   backupSelectedIds: string[]
   backupSelectedPdfIds: string[]
-  pdfs: PdfFile[]
   syncStatus: string
   setSyncStatus: (status: string) => void
   setSnackbarMsg: (msg: string, severity?: "success" | "error") => void
@@ -44,7 +44,6 @@ export function useBackupSync(options: {
     backupScope,
     backupSelectedIds,
     backupSelectedPdfIds,
-    pdfs,
     setSyncStatus,
     setSnackbarMsg
   } = options
@@ -109,7 +108,10 @@ export function useBackupSync(options: {
       await chrome.downloads.download({ url, filename: "lime-backup.zip" })
       URL.revokeObjectURL(url)
     } else {
-      const selectedPdfs = pdfs.filter((p) =>
+      // PDF-scope export embeds the real bytes — load the FULL records only on
+      // export (the shared library list carries no blobs, listPdfs pulls them).
+      const allPdfs = await listPdfs()
+      const selectedPdfs = allPdfs.filter((p) =>
         backupSelectedPdfIds.includes(p.id)
       )
       const allPdfCards = await getAllPdfCards()
@@ -222,7 +224,7 @@ export function useBackupSync(options: {
       const todos = await getAllTodos()
       const reviews = await getAllReviews()
       const annotations = await getAllAnnotations()
-      const pdfMeta = (await listPdfs()).map((p) => ({
+      const pdfMeta = (await listPdfMeta()).map((p) => ({
         id: p.id,
         name: p.name,
         pageCount: p.pageCount,
@@ -279,34 +281,33 @@ export function useBackupSync(options: {
             reviews
           )
           // PDF domain (notes only — local file bytes are preserved).
-          const localPdfs = await listPdfs()
           await applyPdfSync(
             hydrated.pdfs ?? [],
             hydrated.pdfAnnotations ?? [],
-            localPdfs,
             annotations
           )
         }
         // PDF file layer: ALWAYS attempt to pull missing files — a noop hash
         // match must not strand PDFs interrupted on a previous download.
         const localPdfs = await listPdfs()
-        const fetched = await downloadPdfFiles(
+        // Persist each PDF as it downloads (never accumulate N blobs in memory).
+        await downloadPdfFiles(
           cred,
           remote.payload.pdfs ?? [],
           localPdfs,
-          setSyncStatus
+          setSyncStatus,
+          async (meta, bytes) => {
+            await addPdf({
+              id: meta.id,
+              name: meta.name,
+              bytes,
+              pageCount: meta.pageCount,
+              addedAt: meta.addedAt,
+              lastOpened: meta.lastOpened,
+              ...(meta.topic ? { topic: meta.topic } : {})
+            })
+          }
         )
-        for (const { meta, bytes } of fetched) {
-          await addPdf({
-            id: meta.id,
-            name: meta.name,
-            bytes,
-            pageCount: meta.pageCount,
-            addedAt: meta.addedAt,
-            lastOpened: meta.lastOpened,
-            ...(meta.topic ? { topic: meta.topic } : {})
-          })
-        }
         chrome.storage.local.set({ lastSyncTime: Date.now() })
         const msg = remote.message || "从云端同步"
         setSyncStatus(msg)

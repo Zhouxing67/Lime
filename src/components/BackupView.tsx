@@ -2,7 +2,8 @@ import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded"
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
 import { Box } from "@mui/material"
 
-import type { PdfFile, Project } from "../types"
+import type { PdfMetaLite } from "../database"
+import type { Project } from "../types"
 import EmptyState from "./EmptyState"
 import PdfHub from "./PdfHub"
 import ProjectHub from "./ProjectHub"
@@ -10,7 +11,7 @@ import ProjectHub from "./ProjectHub"
 interface BackupViewProps {
   scope: "projects" | "pdfs"
   projects: Project[]
-  pdfs: PdfFile[]
+  pdfs: PdfMetaLite[]
   countByProject: Record<string, number>
   countByPdf: Record<string, number>
   keyword: string
