@@ -1,4 +1,5 @@
 import JSZip from "jszip"
+import { z } from "zod"
 
 import {
   addAnnotation,
@@ -14,6 +15,14 @@ import {
   getAllTodos,
   getProjectByName
 } from "../database"
+import {
+  pdfAnnotationSchema,
+  pdfCardSchema,
+  projectCardSchema,
+  projectSchema,
+  reviewEntrySchema,
+  todoCardSchema
+} from "../types/schemas"
 import type {
   PdfAnnotation,
   PdfCard,
@@ -143,6 +152,58 @@ function validateLegacyItem(
   return { item }
 }
 
+/** --------------------------------------------------------------------------
+ *  Deserializer. SHAPE validation is owned by the single-source Zod schemas
+ *  (src/types/schemas.ts — the same schemas that derive the TS types), so a
+ *  data-model change updates the type AND this validator together. This file
+ *  keeps only the IMPORT semantics a schema shouldn't own: scalar defaults,
+ *  legacy field mapping, null→absence normalization, and preservation of
+ *  forward-compatible unknown fields.
+ *  ------------------------------------------------------------------------ */
+
+/** zod parses strip unknown keys — restore them (only keys NOT in the schema's
+ *  known shape) so forward-compatible fields survive export→import round-trips. */
+function restoreUnknown<T extends object>(
+  raw: unknown,
+  validated: T,
+  knownKeys: string[]
+): T {
+  const out: Record<string, unknown> = {
+    ...(validated as Record<string, unknown>)
+  }
+  if (!raw || typeof raw !== "object") return validated
+  for (const k of Object.keys(raw as Record<string, unknown>)) {
+    if (!knownKeys.includes(k) && !(k in out)) {
+      out[k] = (raw as Record<string, unknown>)[k]
+    }
+  }
+  return out as T
+}
+
+/** Legacy exports sometimes stored optional fields as null; the schemas accept
+ *  absence but not null, so drop nulls on the listed (optional) fields. */
+function dropNulls(
+  obj: Record<string, unknown>,
+  optionalKeys: string[]
+): Record<string, unknown> {
+  const out = { ...obj }
+  for (const k of optionalKeys) if (out[k] === null) delete out[k]
+  return out
+}
+
+function defaultStr(v: unknown): string | undefined {
+  return typeof v === "string" && v.length > 0 ? v : undefined
+}
+
+function defaultNum(v: unknown): number | undefined {
+  return typeof v === "number" && v > 0 ? v : undefined
+}
+
+function firstIssue(err: z.ZodError): string {
+  const issue = err.issues[0]
+  return `无效的字段 "${issue.path.join(".") || "(根)"}": ${issue.message}`
+}
+
 function validateProjectCard(
   raw: unknown
 ): { card: ProjectCard } | { error: string } {
@@ -162,61 +223,45 @@ function validateProjectCard(
     return { error: "content 缺失或非字符串" }
   }
 
-  const source: Record<string, unknown> | undefined =
-    obj.source && typeof obj.source === "object"
-      ? (obj.source as Record<string, unknown>)
-      : undefined
-
-  const card: ProjectCard = { ...(raw as ProjectCard) }
-  card.id =
-    typeof obj.id === "string" && obj.id.length > 0
-      ? obj.id
-      : crypto.randomUUID()
-  card.type = obj.type as ProjectCard["type"]
-  card.content = obj.content
-  card.createdAt =
-    typeof obj.createdAt === "number" && obj.createdAt > 0
-      ? obj.createdAt
-      : Date.now()
-  card.projectId = typeof obj.projectId === "string" ? obj.projectId : ""
-  card.source = source
-    ? {
-        title: typeof source.title === "string" ? source.title : "",
-        url: typeof source.url === "string" ? source.url : "",
-        site: typeof source.site === "string" ? source.site : undefined
-      }
-    : undefined
-  card.hash =
-    typeof obj.hash === "string" && obj.hash.length === 64
-      ? obj.hash
-      : undefined
-  card.title =
-    typeof obj.title === "string" && obj.title.length > 0
-      ? obj.title
-      : undefined
-  card.order = typeof obj.order === "number" ? obj.order : undefined
-  card.updatedAt =
-    typeof obj.updatedAt === "number" && obj.updatedAt > 0
-      ? obj.updatedAt
-      : undefined
-  card.images =
-    Array.isArray(obj.images) &&
-    obj.images.every((v) => typeof v === "string" && v.length > 0)
-      ? (obj.images as string[])
-      : undefined
-  card.sectionId =
-    typeof obj.sectionId === "string" && obj.sectionId.length > 0
-      ? obj.sectionId
-      : undefined
-  card.sourceSite =
-    typeof obj.sourceSite === "string" && obj.sourceSite.length > 0
-      ? obj.sourceSite
-      : undefined
-  card.pdfCardId =
-    typeof obj.pdfCardId === "string" && obj.pdfCardId.length > 0
-      ? obj.pdfCardId
-      : undefined
-  return { card }
+  const parsed = projectCardSchema.safeParse(
+    dropNulls(
+      {
+        ...obj,
+        // Lenient source normalization (legacy): title/url default to "".
+        source: (() => {
+          const s = obj.source as Record<string, unknown> | null | undefined
+          if (!s || typeof s !== "object") return undefined
+          return {
+            title: typeof s.title === "string" ? s.title : "",
+            url: typeof s.url === "string" ? s.url : "",
+            site: typeof s.site === "string" ? s.site : undefined
+          }
+        })(),
+        id: defaultStr(obj.id) ?? crypto.randomUUID(),
+        createdAt: defaultNum(obj.createdAt) ?? Date.now(),
+        projectId: typeof obj.projectId === "string" ? obj.projectId : ""
+      },
+      [
+        "source",
+        "hash",
+        "title",
+        "order",
+        "updatedAt",
+        "images",
+        "sectionId",
+        "sourceSite",
+        "pdfCardId",
+        "comment",
+        "image",
+        "isDraft",
+        "draftOf"
+      ]
+    )
+  )
+  if (!parsed.success) return { error: firstIssue(parsed.error) }
+  return {
+    card: restoreUnknown(raw, parsed.data, Object.keys(projectCardSchema.shape))
+  }
 }
 
 function validatePdfCard(raw: unknown): { card: PdfCard } | { error: string } {
@@ -226,51 +271,40 @@ function validatePdfCard(raw: unknown): { card: PdfCard } | { error: string } {
 
   const obj = raw as Record<string, unknown>
 
-  if (typeof obj.pdfId !== "string" || obj.pdfId.length === 0) {
-    return { error: "pdfId 缺失" }
-  }
-  if (typeof obj.page !== "number") {
-    return { error: "page 缺失" }
-  }
-  if (obj.content !== undefined && typeof obj.content !== "string") {
-    return { error: "content 类型错误" }
-  }
-  if (typeof obj.annotationId !== "string" || obj.annotationId.length === 0) {
-    return { error: "annotationId 缺失" }
-  }
-
-  const card: PdfCard = { ...(raw as PdfCard) }
-  card.id =
-    typeof obj.id === "string" && obj.id.length > 0
-      ? obj.id
-      : crypto.randomUUID()
-  card.pdfId = obj.pdfId
-  card.page = obj.page
-  card.kind = obj.kind === "region" ? "region" : "text"
-  card.type = VALID_MARKS.includes(obj.type as PdfMark)
-    ? (obj.type as PdfMark)
-    : "highlight"
-  card.annotationId = obj.annotationId
   // Legacy read-compat: cards no longer carry content; strip it on import so
   // old backups don't reintroduce the storage/display bloat.
-  delete card.content
-  card.comment =
-    (typeof obj.comment === "string" && obj.comment.length > 0
-      ? obj.comment
-      : typeof obj.idea === "string" && obj.idea.length > 0
-        ? obj.idea
-        : undefined)
-  card.pdfOrder =
-    typeof obj.pdfOrder === "number" ? obj.pdfOrder : obj.page * 1e6
-  card.projectCardId =
-    typeof obj.projectCardId === "string" && obj.projectCardId.length > 0
-      ? obj.projectCardId
-      : undefined
-  card.createdAt =
-    typeof obj.createdAt === "number" && obj.createdAt > 0
-      ? obj.createdAt
-      : Date.now()
-  return { card }
+  const normalized: Record<string, unknown> = { ...obj }
+  delete normalized.content
+  if (
+    normalized.comment === undefined &&
+    typeof obj.idea === "string" &&
+    obj.idea.length > 0
+  ) {
+    normalized.comment = obj.idea
+  }
+  delete normalized.idea
+  normalized.id = defaultStr(obj.id) ?? crypto.randomUUID()
+  normalized.createdAt = defaultNum(obj.createdAt) ?? Date.now()
+  if (typeof obj.pdfOrder !== "number") {
+    normalized.pdfOrder = (typeof obj.page === "number" ? obj.page : 0) * 1e6
+  }
+
+  const parsed = pdfCardSchema.safeParse(
+    dropNulls(normalized, [
+      "comment",
+      "content",
+      "projectCardId",
+      "kind",
+      "type",
+      "annotationId",
+      "page",
+      "pdfId"
+    ])
+  )
+  if (!parsed.success) return { error: firstIssue(parsed.error) }
+  return {
+    card: restoreUnknown(raw, parsed.data, Object.keys(pdfCardSchema.shape))
+  }
 }
 
 function validateTodoCard(
@@ -286,29 +320,20 @@ function validateTodoCard(
     return { error: "content 缺失或为空" }
   }
 
-  const card: TodoCard = { ...(raw as TodoCard) }
-  card.id =
-    typeof obj.id === "string" && obj.id.length > 0
-      ? obj.id
-      : crypto.randomUUID()
-  card.title =
-    typeof obj.title === "string" && obj.title.length > 0
-      ? obj.title
-      : undefined
-  card.content = obj.content
-  card.dueDate =
-    typeof obj.dueDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(obj.dueDate)
-      ? obj.dueDate
-      : undefined
-  card.createdAt =
-    typeof obj.createdAt === "number" && obj.createdAt > 0
-      ? obj.createdAt
-      : Date.now()
-  card.updatedAt =
-    typeof obj.updatedAt === "number" && obj.updatedAt > 0
-      ? obj.updatedAt
-      : undefined
-  return { card }
+  const parsed = todoCardSchema.safeParse(
+    dropNulls(
+      {
+        ...obj,
+        id: defaultStr(obj.id) ?? crypto.randomUUID(),
+        createdAt: defaultNum(obj.createdAt) ?? Date.now()
+      },
+      ["title", "dueDate", "updatedAt"]
+    )
+  )
+  if (!parsed.success) return { error: firstIssue(parsed.error) }
+  return {
+    card: restoreUnknown(raw, parsed.data, Object.keys(todoCardSchema.shape))
+  }
 }
 
 function validateReview(raw: unknown): ReviewEntry | null {
@@ -317,101 +342,103 @@ function validateReview(raw: unknown): ReviewEntry | null {
   if (typeof obj.itemId !== "string" || obj.itemId.length === 0) return null
   const srs = obj.srs as Record<string, unknown> | undefined
   if (!srs || typeof srs !== "object") return null
-  const review: ReviewEntry = { ...(raw as ReviewEntry) }
-  review.id =
-    typeof obj.id === "string" && obj.id.length > 0
-      ? obj.id
-      : crypto.randomUUID()
-  review.itemId = obj.itemId
-  review.projectId = typeof obj.projectId === "string" ? obj.projectId : ""
-  review.status = obj.status === "mastered" ? "mastered" : "active"
-  review.dueDate = typeof obj.dueDate === "number" ? obj.dueDate : Date.now()
-  review.addedAt = typeof obj.addedAt === "number" ? obj.addedAt : Date.now()
-  review.srs = {
-    ...(srs as unknown as ReviewEntry["srs"]),
-    dueDate: typeof srs.dueDate === "number" ? srs.dueDate : Date.now(),
-    interval: typeof srs.interval === "number" ? srs.interval : 0,
-    easeFactor: typeof srs.easeFactor === "number" ? srs.easeFactor : 2.5,
-    reviewCount: typeof srs.reviewCount === "number" ? srs.reviewCount : 0,
-    lastReviewDate:
-      typeof srs.lastReviewDate === "number" ? srs.lastReviewDate : 0,
-    reviewHistory: Array.isArray(srs.reviewHistory)
-      ? (srs.reviewHistory as ReviewEntry["srs"]["reviewHistory"])
-      : undefined
-  }
-  return review
+
+  const parsed = reviewEntrySchema.safeParse(
+    dropNulls(
+      {
+        ...obj,
+        id: defaultStr(obj.id) ?? crypto.randomUUID(),
+        projectId: typeof obj.projectId === "string" ? obj.projectId : "",
+        status: obj.status === "mastered" ? "mastered" : "active",
+        dueDate: defaultNum(obj.dueDate) ?? Date.now(),
+        addedAt: defaultNum(obj.addedAt) ?? Date.now(),
+        srs: {
+          ...srs,
+          dueDate: defaultNum(srs.dueDate) ?? Date.now(),
+          interval: typeof srs.interval === "number" ? srs.interval : 0,
+          easeFactor: typeof srs.easeFactor === "number" ? srs.easeFactor : 2.5,
+          reviewCount: typeof srs.reviewCount === "number" ? srs.reviewCount : 0,
+          lastReviewDate:
+            typeof srs.lastReviewDate === "number" ? srs.lastReviewDate : 0
+        }
+      },
+      ["srs"]
+    )
+  )
+  if (!parsed.success) return null
+  return restoreUnknown(raw, parsed.data, Object.keys(reviewEntrySchema.shape))
 }
 
 function validatePdfAnnotation(raw: unknown): PdfAnnotation | null {
   if (!raw || typeof raw !== "object") return null
   const obj = raw as Record<string, unknown>
   if (typeof obj.pdfId !== "string" || typeof obj.page !== "number") return null
-  const ann: PdfAnnotation = { ...(raw as PdfAnnotation) }
-  ann.id =
-    typeof obj.id === "string" && obj.id.length > 0
-      ? obj.id
-      : crypto.randomUUID()
-  ann.pdfId = obj.pdfId
-  ann.page = obj.page
-  ann.kind = obj.kind === "region" ? "region" : "text"
-  ann.type = VALID_MARKS.includes(obj.type as PdfMark)
-    ? (obj.type as PdfMark)
-    : "highlight"
-  ann.createdAt =
-    typeof obj.createdAt === "number" && obj.createdAt > 0
-      ? obj.createdAt
-      : Date.now()
-  ann.cardId =
-    typeof obj.cardId === "string" && obj.cardId.length > 0
-      ? obj.cardId
-      : undefined
-  ann.image =
-    typeof obj.image === "string" && obj.image.length > 0 ? obj.image : undefined
-  return ann
+
+  const parsed = pdfAnnotationSchema.safeParse(
+    dropNulls(
+      {
+        ...obj,
+        id: defaultStr(obj.id) ?? crypto.randomUUID(),
+        createdAt: defaultNum(obj.createdAt) ?? Date.now(),
+        kind: obj.kind === "region" ? "region" : "text",
+        type: VALID_MARKS.includes(obj.type as PdfMark)
+          ? (obj.type as PdfMark)
+          : "highlight"
+      },
+      [
+        "cardId",
+        "image",
+        "text",
+        "rects",
+        "path",
+        "paths",
+        "color",
+        "pos",
+        "store",
+        "startOffset",
+        "endOffset",
+        "updatedAt",
+        "kind",
+        "type"
+      ]
+    )
+  )
+  if (!parsed.success) return null
+  return restoreUnknown(
+    raw,
+    parsed.data,
+    Object.keys(pdfAnnotationSchema.shape)
+  )
 }
 
 function validateProject(raw: unknown): Project | null {
   if (!raw || typeof raw !== "object") return null
   const obj = raw as Record<string, unknown>
   if (typeof obj.name !== "string" || obj.name.length === 0) return null
-  const project: Project = { ...(raw as Project) }
-  project.id =
-    typeof obj.id === "string" && obj.id.length > 0
-      ? obj.id
-      : crypto.randomUUID()
-  project.name = obj.name
-  project.createdAt =
-    typeof obj.createdAt === "number" && obj.createdAt > 0
-      ? obj.createdAt
-      : Date.now()
-  project.note = typeof obj.note === "string" ? obj.note : undefined
-  project.lastOpened =
-    typeof obj.lastOpened === "number" && obj.lastOpened > 0
-      ? obj.lastOpened
-      : undefined
-  if (Array.isArray(obj.sections) && obj.sections.length > 0) {
-    const sections: Section[] = []
-    for (const s of obj.sections) {
-      if (!s || typeof s !== "object") continue
-      const so = s as Record<string, unknown>
-      if (
-        typeof so.id === "string" &&
-        typeof so.title === "string" &&
-        (so.level === 1 || so.level === 2) &&
-        typeof so.order === "number"
-      ) {
-        sections.push({
-          id: so.id,
-          parentId: typeof so.parentId === "string" ? so.parentId : null,
-          title: so.title,
-          order: so.order,
-          level: so.level
-        })
-      }
-    }
-    project.sections = sections.length > 0 ? sections : undefined
-  }
-  return project
+
+  // Sections without a parentId are treated as top-level (null) for compat.
+  const sections: unknown = Array.isArray(obj.sections)
+    ? obj.sections.map((s) => {
+        const so = s as Record<string, unknown> | null
+        return so && typeof so === "object" && so.parentId === undefined
+          ? { ...so, parentId: null }
+          : s
+      })
+    : obj.sections
+
+  const parsed = projectSchema.safeParse(
+    dropNulls(
+      {
+        ...obj,
+        sections,
+        id: defaultStr(obj.id) ?? crypto.randomUUID(),
+        createdAt: defaultNum(obj.createdAt) ?? Date.now()
+      },
+      ["note", "lastOpened", "sections"]
+    )
+  )
+  if (!parsed.success) return null
+  return restoreUnknown(raw, parsed.data, Object.keys(projectSchema.shape))
 }
 
 interface ParsedExport {
