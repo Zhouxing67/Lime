@@ -455,6 +455,8 @@ export default function PdfEngineView({
     setTextRange(range)
   }, [])
 
+  const userValue = useMemo(() => ({ id: "local", name: "我" }), [])
+
   return (
     <div ref={rootRef} style={{ width: "100%", height: "100%" }}>
       <Theme accentColor="blue" appearance="light" style={{ height: "100%" }}>
@@ -464,10 +466,9 @@ export default function PdfEngineView({
             <PdfViewerProvider
               data={data}
               url={undefined}
-              user={{ id: "local", name: "我" }}
+              user={userValue}
               title={title}
               toolbar={null}
-              sidebar={[]}
               style={{
                 width: rootSize ? rootSize.w : "100%",
                 height: rootSize ? rootSize.h : "100%"

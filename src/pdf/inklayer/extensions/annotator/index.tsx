@@ -37,7 +37,7 @@ export const AnnotatorExtension: React.FC<AnnotatorExtensionProps> = ({
     onAnnotationChanged,
     onTextSelected
 }) => {
-    const { isReady, pdfViewer, eventBus, isSidebarCollapsed } = usePdfViewerContext()
+    const { isReady, pdfViewer, eventBus } = usePdfViewerContext()
     const { user } = useUserContext()
     const { refreshPainter, setPainter } = usePainter()
     const { defaultOptions, primaryColor } = useOptionsContext()
@@ -219,7 +219,7 @@ export const AnnotatorExtension: React.FC<AnnotatorExtensionProps> = ({
 
     useEffect(() => {
         handleViewAreaChanged()
-    }, [handleViewAreaChanged, isSidebarCollapsed])
+    }, [handleViewAreaChanged])
 
     // Sync the in-memory marks with the persisted annotation list: annotations
     // deleted in the cards panel (broadcast via _dbpdf → reloaded annotations

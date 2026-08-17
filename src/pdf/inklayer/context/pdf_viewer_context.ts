@@ -1,7 +1,6 @@
 // src/context/PdfViewerContext.ts
 import React, { createContext, useContext } from 'react'
 import { EventBus, PDFDocumentProxy, PDFViewer } from 'pdfjs-dist/types/web/pdf_viewer'
-import { SidebarPanelKey } from './pdf_viewer_provider'
 
 /**
  * 定义通过 Context 提供给所有子组件的值
@@ -17,20 +16,6 @@ export interface PdfViewerContextValue {
     viewerContainerRef: React.RefObject<HTMLDivElement>
     /** PDF 核心实例是否都已准备就绪，可以安全地进行交互 */
     isReady: boolean
-
-    activeSidebarPanel: SidebarPanelKey | null
-    
-    toggleSidebar: () => void
-
-    openSidebar: (key: SidebarPanelKey) => void
-
-    closeSidebar: () => void
-
-    isSidebarCollapsed: boolean
-
-    print: () => void
-
-    download: (fileName?: string) => void
 }
 
 // 创建 Context

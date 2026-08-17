@@ -1,37 +1,19 @@
-import React, { useRef, useMemo, useEffect, useState, useCallback } from 'react'
+import React, { useRef, useMemo, useEffect } from 'react'
 import { usePdfViewer, type UseViewerOptions } from '../hooks/usePdfViewer'
 import { PdfViewerContext, type PdfViewerContextValue } from './pdf_viewer_context'
 import { UserContext, UserContextValue } from './user_context'
 import { PdfScale, User } from '@/types'
 import styles from './styles.module.scss'
-import { Flex, Box, Tooltip, Button } from '@radix-ui/themes'
+import { Flex, Box } from '@radix-ui/themes'
 import { LoadingIndicator } from '@/components/loading_indicator'
 import { ErrorDisplay } from '@/components/error_display'
-import { PageIndicator } from '@/components/page_indicator'
-import { usePdfTool } from '@/hooks/usePdfTool'
 import { usePinchZoom } from '@/hooks/usePinchZoom'
-import { useTranslation } from 'react-i18next'
-import { GoSidebarCollapse, GoSidebarExpand } from 'react-icons/go'
-import { NavigationSidebar } from '@/components/navigation_sidebar'
-
-export type SidebarPanelKey = string
-
-const ADAPTIVE_SCALE_VALUES = new Set(['auto', 'page-fit', 'page-width'])
-
-export interface SidebarPanel {
-    key: string
-    title: React.ReactNode
-    icon: React.ReactNode
-    render: (context: PdfViewerContextValue) => React.ReactNode
-}
 
 export interface PdfViewerProviderProps extends Omit<UseViewerOptions, 'eventBus'> {
     children: React.ReactNode
     toolbar?: React.ReactNode
     title?: React.ReactNode
     actions?: React.ReactNode
-    sidebar?: SidebarPanel[]
-    defaultActiveSidebarKey?: SidebarPanelKey | null
     style?: React.CSSProperties
     initialScale?: PdfScale
     user?: User
@@ -40,8 +22,6 @@ export interface PdfViewerProviderProps extends Omit<UseViewerOptions, 'eventBus
 export const PdfViewerProvider: React.FC<PdfViewerProviderProps> = ({
     children,
     toolbar,
-    sidebar,
-    defaultActiveSidebarKey,
     title,
     actions,
     style = { width: '100vw', height: '100vh' },
@@ -49,17 +29,8 @@ export const PdfViewerProvider: React.FC<PdfViewerProviderProps> = ({
     user,
     ...viewerOptions
 }) => {
-    const { t } = useTranslation(['viewer'], { useSuspense: false })
     const viewerContainerRef = useRef<HTMLDivElement>(null)
     const { loading, progress, pdfDocument, pdfViewer, eventBus, loadError } = usePdfViewer(viewerContainerRef, viewerOptions)
-    const [isNavigationSidebarOpen, setIsNavigationSidebarOpen] = useState(false)
-
-    const [activeSidebarPanel, setActiveSidebarPanel] = useState<SidebarPanelKey | null>(() => {
-        if (defaultActiveSidebarKey) return defaultActiveSidebarKey
-        return null
-    })
-
-    const sidebarCollapsed = activeSidebarPanel === null
 
     useEffect(() => {
         if (!pdfViewer || !eventBus) return
@@ -75,48 +46,7 @@ export const PdfViewerProvider: React.FC<PdfViewerProviderProps> = ({
         }
     }, [pdfViewer, eventBus, initialScale])
 
-    const toggleSidebar = useCallback(() => {
-        setActiveSidebarPanel((prev) => {
-            if (prev) return null
-            return sidebar?.[0]?.key ?? null
-        })
-    }, [sidebar])
-
-    const openSidebar = useCallback((key: string) => {
-        setActiveSidebarPanel(key)
-    }, [])
-
-    const closeSidebar = useCallback(() => {
-        setActiveSidebarPanel(null)
-    }, [])
-
-    const refreshAdaptiveScale = useCallback(() => {
-        if (!pdfViewer) return
-
-        const currentScaleValue = pdfViewer.currentScaleValue
-        if (!ADAPTIVE_SCALE_VALUES.has(currentScaleValue)) return
-
-        pdfViewer.currentScaleValue = currentScaleValue
-        pdfViewer.update()
-    }, [pdfViewer])
-
-    const handleSidebarTransitionEnd = useCallback(
-        (event: React.TransitionEvent<HTMLElement>) => {
-            if (
-                event.target !== event.currentTarget
-                || event.propertyName !== 'width'
-            ) {
-                return
-            }
-
-            refreshAdaptiveScale()
-        },
-        [refreshAdaptiveScale]
-    )
-
     const isReady = !!(pdfViewer && eventBus && viewerContainerRef.current && !loading)
-
-    const { printClean, downloadClean } = usePdfTool(pdfDocument);
 
     // Pinch zoom: Ctrl+wheel and trackpad pinch zoom with anchor point
     usePinchZoom({
@@ -132,28 +62,9 @@ export const PdfViewerProvider: React.FC<PdfViewerProviderProps> = ({
             pdfViewer,
             eventBus,
             viewerContainerRef,
-            isReady,
-            activeSidebarPanel,
-            toggleSidebar,
-            openSidebar,
-            closeSidebar,
-            isSidebarCollapsed: sidebarCollapsed,
-            print: printClean,
-            download: downloadClean,
+            isReady
         }),
-        [
-            pdfDocument,
-            pdfViewer,
-            eventBus,
-            isReady,
-            toggleSidebar,
-            sidebarCollapsed,
-            openSidebar,
-            closeSidebar,
-            activeSidebarPanel,
-            printClean,
-            downloadClean
-        ]
+        [pdfDocument, pdfViewer, eventBus, isReady]
     )
 
     const userContextValue = useMemo<UserContextValue>(
@@ -182,41 +93,6 @@ export const PdfViewerProvider: React.FC<PdfViewerProviderProps> = ({
         }
     }, [pdfViewer, eventBus])
 
-    const sidebarTriggerElement = sidebar && (
-        <Flex gap="2">
-            {sidebar.map((panel) => (
-                <Tooltip key={panel.key} content={panel.title}>
-                    <Button
-                        variant={activeSidebarPanel === panel.key ? 'soft' : 'outline'}
-                        size="2"
-                        color="gray"
-                        highContrast
-                        style={{
-                            boxShadow: 'none',
-                        }}
-                        onClick={() => setActiveSidebarPanel((prev) => (prev === panel.key ? null : panel.key))}
-                    >
-                        {panel.icon}
-                    </Button>
-                </Tooltip>
-            ))}
-        </Flex>
-    )
-
-    const activePanel = useMemo(() => {
-        if (!sidebar || !activeSidebarPanel) return null
-        return sidebar.find((p) => p.key === activeSidebarPanel) || null
-    }, [sidebar, activeSidebarPanel])
-
-    useEffect(() => {
-        if (!sidebar || !activeSidebarPanel) return
-
-        const exists = sidebar.some((p) => p.key === activeSidebarPanel)
-        if (!exists) {
-            setActiveSidebarPanel(null)
-        }
-    }, [sidebar, activeSidebarPanel])
-
     return (
         <UserContext.Provider value={userContextValue}>
             <PdfViewerContext.Provider value={contextValue}>
@@ -226,39 +102,16 @@ export const PdfViewerProvider: React.FC<PdfViewerProviderProps> = ({
                     <Flex pl="2" pr="2" className={styles.viewerHeader}>
                         <div className={styles['viewerHeader-title']}>
                             <Flex align="center" gap="2" className={styles['viewerHeader-title-left']}>
-                                <Tooltip content={t('viewer:navigation.toggle')}>
-                                    <Button
-                                        variant="outline"
-                                        size="2"
-                                        color="gray"
-                                        highContrast
-                                        style={{ boxShadow: 'none' }}
-                                        aria-controls="InkLayer-navigation-sidebar"
-                                        aria-expanded={isNavigationSidebarOpen}
-                                        aria-label={t('viewer:navigation.toggle')}
-                                        onClick={() => setIsNavigationSidebarOpen((open) => !open)}
-                                    >
-                                        {isNavigationSidebarOpen
-                                            ? <GoSidebarExpand className={styles.navigationSidebarTriggerIcon} />
-                                            : <GoSidebarCollapse className={styles.navigationSidebarTriggerIcon} />}
-                                    </Button>
-                                </Tooltip>
                                 <div className={styles['viewerHeader-title-name']}>{title || 'PDF Viewer'}</div>
                             </Flex>
                             <div className={styles['viewerHeader-title-actions']}>
                                 <Flex direction="row" gap="3" justify="between" align="center">
-                                    {sidebarTriggerElement}
                                     {actions}
                                 </Flex>
                             </div>
                         </div>
                     </Flex>
                     <Flex flexGrow="1" minHeight="0" className={styles.viewerBody}>
-                        <NavigationSidebar
-                            open={isNavigationSidebarOpen}
-                            onClose={() => setIsNavigationSidebarOpen(false)}
-                            onTransitionEnd={handleSidebarTransitionEnd}
-                        />
                         <Flex flexGrow="1" minHeight="0" className={styles.viewerWrapper}>
                             <Flex className={styles.viewerContainer} direction="column" flexGrow="1">
                                 {toolbar && (
@@ -267,32 +120,11 @@ export const PdfViewerProvider: React.FC<PdfViewerProviderProps> = ({
                                     </Flex>
                                 )}
                                 <Box position="relative" flexGrow="1" className={styles['viewerContainer-content']}>
-                                    <PageIndicator />
                                     <div ref={viewerContainerRef} className={styles.pdfjsViewerContainer}>
                                         <div className="pdfViewer"></div>
                                     </div>
                                 </Box>
                             </Flex>
-                            <Box
-                                id="InkLayer-viewer-sidebar"
-                                className={[
-                                    styles.viewerSidebar,
-                                    !activePanel ? styles['viewerSidebar--hidden'] : '',
-                                ].join(' ')}
-                                pl="1"
-                                pr="1"
-                                onTransitionEnd={handleSidebarTransitionEnd}
-                            >
-                                {activePanel && (
-                                    <div className={styles['viewerSidebar-container']}>{activePanel.render(contextValue)}</div>
-                                )}
-                            </Box>
-                            {activePanel && (
-                                <div
-                                    className={styles.sidebarOverlay}
-                                    onClick={() => setActiveSidebarPanel(null)}
-                                />
-                            )}
                         </Flex>
                     </Flex>
                     {children}
