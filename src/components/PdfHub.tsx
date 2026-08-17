@@ -1,5 +1,7 @@
 import AddRoundedIcon from "@mui/icons-material/AddRounded"
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded"
+import BookmarkAddRoundedIcon from "@mui/icons-material/BookmarkAddRounded"
+import BookmarkAddedRoundedIcon from "@mui/icons-material/BookmarkAddedRounded"
 import CheckRoundedIcon from "@mui/icons-material/CheckRounded"
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
 import EditRoundedIcon from "@mui/icons-material/EditRounded"
@@ -16,6 +18,7 @@ import {
   Paper,
   Stack,
   TextField,
+  Tooltip,
   Typography
 } from "@mui/material"
 import { alpha, type Theme } from "@mui/material/styles"
@@ -76,11 +79,9 @@ function TileFooter({
         {left}
       </Typography>
       {right && (
-        <Typography
-          variant="caption"
-          sx={{ color: "text.disabled", fontSize: "0.7rem" }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
           {right}
-        </Typography>
+        </Box>
       )}
     </Box>
   )
@@ -107,6 +108,9 @@ interface PdfHubProps {
   onRenameTopic?: (oldName: string, newName: string) => void
   onDeleteTopic?: (topic: string) => void
   onMovePdf?: (pdfId: string, topic: string | undefined) => void
+  /** PDFs currently in an ACTIVE (non-done) read-later — the reminder icon. */
+  readLaterPdfIds?: Set<string>
+  onAddReadLater?: (pdfId: string, name: string) => void
 }
 
 export default function PdfHub({
@@ -125,7 +129,9 @@ export default function PdfHub({
   onNewTopic,
   onRenameTopic,
   onDeleteTopic,
-  onMovePdf
+  onMovePdf,
+  readLaterPdfIds,
+  onAddReadLater
 }: PdfHubProps) {
   const [topicView, setTopicView] = useState<"topics" | "all" | string>(
     "topics"
@@ -553,6 +559,39 @@ export default function PdfHub({
               )}
               {!selectable && (
                 <>
+                  <Tooltip
+                    title={
+                      readLaterPdfIds?.has(p.id)
+                        ? "该 PDF 已在稍后读中"
+                        : "加入稍后读"
+                    }>
+                    <IconButton
+                      size="small"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onAddReadLater?.(p.id, p.name)
+                      }}
+                      sx={{
+                        position: "absolute",
+                        top: 4,
+                        right: 4,
+                        p: 0.5,
+                        color: readLaterPdfIds?.has(p.id)
+                          ? "primary.main"
+                          : "text.secondary",
+                        transition: "color 0.15s",
+                        "&:hover": {
+                          color: "primary.main",
+                          bgcolor: "transparent"
+                        }
+                      }}>
+                      {readLaterPdfIds?.has(p.id) ? (
+                        <BookmarkAddedRoundedIcon sx={{ fontSize: 20 }} />
+                      ) : (
+                        <BookmarkAddRoundedIcon sx={{ fontSize: 20 }} />
+                      )}
+                    </IconButton>
+                  </Tooltip>
                   <IconButton
                     size="small"
                     onClick={(e) => {
@@ -562,7 +601,7 @@ export default function PdfHub({
                     sx={{
                       position: "absolute",
                       top: 4,
-                      right: 4,
+                      right: 28,
                       p: 0.5,
                       // Destructive actions stay visible (设计基线), not
                       // hover-revealed like the tile's other actions.
@@ -584,7 +623,7 @@ export default function PdfHub({
                     sx={{
                       position: "absolute",
                       top: 4,
-                      right: 50,
+                      right: 72,
                       p: 0.5,
                       opacity: 0,
                       color: "text.disabled",
@@ -604,7 +643,7 @@ export default function PdfHub({
                     sx={{
                       position: "absolute",
                       top: 4,
-                      right: 26,
+                      right: 50,
                       p: 0.5,
                       opacity: 0,
                       color: "text.disabled",
@@ -635,7 +674,31 @@ export default function PdfHub({
               </Stack>
               <TileFooter
                 left={p.topic ?? "未分类"}
-                right={`${countByPdf[p.id] ?? 0} 张摘录`}
+                right={
+                  <Stack direction="row" spacing={0.5} alignItems="center">
+                    {readLaterPdfIds?.has(p.id) && (
+                      <Box
+                        sx={(t) => ({
+                          px: 0.6,
+                          py: 0.15,
+                          borderRadius: 1,
+                          fontSize: "0.62rem",
+                          lineHeight: 1.4,
+                          color: "text.secondary",
+                          bgcolor: t.custom.surface2,
+                          border: "1px solid",
+                          borderColor: t.custom.borderStrong
+                        })}>
+                        稍后读
+                      </Box>
+                    )}
+                    <Typography
+                      variant="caption"
+                      sx={{ color: "text.disabled", fontSize: "0.7rem" }}>
+                      {`${countByPdf[p.id] ?? 0} 张摘录`}
+                    </Typography>
+                  </Stack>
+                }
               />
              </Paper>
            )

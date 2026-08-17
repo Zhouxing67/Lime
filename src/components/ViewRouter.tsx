@@ -93,6 +93,9 @@ interface PdfViewRouterProps {
   pdfBatchSelectedIds: string[]
   onTogglePdfBatchSelect: (id: string) => void
   onToast?: (message: string, severity?: "success" | "error") => void
+  /** PDFs currently in an ACTIVE read-later (the hub's reminder icon). */
+  readLaterPdfIds?: Set<string>
+  onAddReadLater?: (pdfId: string, name: string) => void
 }
 
 type GridProps = React.ComponentProps<typeof CardGrid>
@@ -240,7 +243,9 @@ function PdfViewRouter(props: PdfViewRouterProps) {
     pdfBatchMode,
     pdfBatchSelectedIds,
     onTogglePdfBatchSelect,
-    onToast
+    onToast,
+    readLaterPdfIds,
+    onAddReadLater
   } = props
   if (openPdfIds.length === 0) {
     return (
@@ -268,6 +273,8 @@ function PdfViewRouter(props: PdfViewRouterProps) {
             selectable={pdfBatchMode}
             selected={(id) => pdfBatchSelectedIds.includes(id)}
             onToggleSelect={onTogglePdfBatchSelect}
+            readLaterPdfIds={readLaterPdfIds}
+            onAddReadLater={onAddReadLater}
           />
         </Container>
       </Box>
@@ -314,6 +321,8 @@ function PdfViewRouter(props: PdfViewRouterProps) {
           onRenameTopic={handleRenameTopic}
           onDeleteTopic={handleDeleteTopic}
           onMovePdf={handleMovePdf}
+          readLaterPdfIds={readLaterPdfIds}
+          onAddReadLater={onAddReadLater}
         />
       )}
     </Box>

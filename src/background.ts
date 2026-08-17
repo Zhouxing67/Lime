@@ -1,5 +1,6 @@
 import {
   addProject,
+  addReadLater,
   createImageCard,
   createTextCard,
   getDueCount,
@@ -8,6 +9,7 @@ import {
   listProjects,
   touchProject
 } from "./database"
+import { createReadLater } from "./utils"
 import type { Project } from "./types"
 import type { ExtensionMessage } from "./types/messages"
 import { applyBadge } from "./utils"
@@ -231,6 +233,30 @@ chrome.runtime.onMessage.addListener((raw: any, _sender, sendResponse) => {
           sendResponse({ ok: true })
         })
         .catch((e) => {
+          sendResponse({ ok: false, error: String(e) })
+        })
+      return true
+    }
+    case "read-later": {
+      const item = createReadLater({
+        title: msg.payload.title,
+        url: msg.payload.url,
+        excerpt: msg.payload.excerpt
+      })
+      addReadLater(item)
+        .then((saved) => {
+          const text = saved ? "已加入稍后读" : "该页面已在稍后读中"
+          if (_sender?.tab?.id) {
+            chrome.tabs
+              .sendMessage(_sender.tab.id, { kind: "toast", text })
+              .catch(() => notifySystem(text))
+          } else {
+            notifySystem(text)
+          }
+          sendResponse({ ok: true, saved })
+        })
+        .catch((e) => {
+          console.warn("[lime] read-later failed:", e)
           sendResponse({ ok: false, error: String(e) })
         })
       return true

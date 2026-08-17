@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import Menu from "@mui/material/Menu"
 import MenuItem from "@mui/material/MenuItem"
 import TextFieldsRoundedIcon from "@mui/icons-material/TextFieldsRounded"
+import BookmarkAddRoundedIcon from "@mui/icons-material/BookmarkAddRounded"
 
 import CaptureSidebar from "../components/CaptureSidebar"
 import type { PanelData } from "../components/FloatingPanel"
@@ -32,10 +33,12 @@ export const config: PlasmoCSConfig = {
  *    options settings dialog. Alt+S / Alt+L keep working while hidden. */
 function LimeFloatBall({
   onOpen,
-  onCaptureSelection
+  onCaptureSelection,
+  onReadLater
 }: {
   onOpen: () => void
   onCaptureSelection: () => void
+  onReadLater: () => void
 }) {
   const host = location.hostname
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
@@ -153,6 +156,15 @@ function LimeFloatBall({
           }}>
           <TextFieldsRoundedIcon sx={{ fontSize: 16 }} />
           捕获选中内容
+        </MenuItem>
+        <MenuItem
+          sx={{ fontSize: "0.85rem", gap: 1 }}
+          onClick={() => {
+            setAnchor(null)
+            onReadLater()
+          }}>
+          <BookmarkAddRoundedIcon sx={{ fontSize: 16 }} />
+          稍后读
         </MenuItem>
         <MenuItem
           sx={{ fontSize: "0.85rem", gap: 1 }}
@@ -643,6 +655,24 @@ export default function LimePanel() {
               )
             }
             openPanel()
+          }}
+          onReadLater={() => {
+            const sel = window.getSelection()
+            const text = sel?.toString().trim() ?? ""
+            if (text.length === 0) {
+              pageToast("请先选中要稍后读的内容")
+              return
+            }
+            // The SW handler toasts the result back to the page (kind:"toast"),
+            // so we don't show a second panel toast here.
+            void sendMessage({
+              kind: "read-later",
+              payload: {
+                title: document.title,
+                url: location.href,
+                excerpt: text.slice(0, 2000)
+              }
+            })
           }}
         />
       )}

@@ -62,6 +62,18 @@ export interface SaveWebPdfMessage {
   body: string
 }
 
+/** The capture panel's 稍后读 entry — the content script can't touch the
+ *  extension's IndexedDB (different origin), so the background SW owns the
+ *  write (mirrors capture). */
+export interface ReadLaterMessage {
+  kind: "read-later"
+  payload: {
+    title: string
+    url: string
+    excerpt?: string
+  }
+}
+
 export type ExtensionMessage =
   | CaptureMessage
   | ToastMessage
@@ -72,6 +84,7 @@ export type ExtensionMessage =
   | CaptureVisibleTabMessage
   | FetchPdfMessage
   | SaveWebPdfMessage
+  | ReadLaterMessage
 
 export function sendMessage<T = any>(
   msg: ExtensionMessage,

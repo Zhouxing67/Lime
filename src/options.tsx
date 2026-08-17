@@ -66,6 +66,7 @@ import {
   addPdf,
   addProject,
   addProjectCard,
+  addReadLater,
   buildProjectCard,
   addReview,
   batchUpdateProjectCards,
@@ -115,7 +116,7 @@ import type {
 } from "./types"
 import { base64ToBytes } from "./utils"
 import { sendMessage } from "./types/messages"
-import { RATING_META, buildMergedContent, cloneProjectCard, compareCards, computeItemHash, dueStatus, isTodoComplete, sortAllCards, todayLocalDate } from "./utils"
+import { RATING_META, buildMergedContent, cloneProjectCard, compareCards, computeItemHash, createReadLater, dueStatus, isTodoComplete, sortAllCards, todayLocalDate } from "./utils"
 import { resolveCardContent, stripPlacementContent } from "./utils/cards"
 
 const ITEMS_PER_PAGE = 20
@@ -232,6 +233,7 @@ export default function OptionsPage() {
     allPdfCards,
     annotationById,
     allTodos,
+    allReadLater,
     allReviews,
     setReviewsVersion,
     reviewItemIds,
@@ -510,7 +512,33 @@ export default function OptionsPage() {
   // The review / todo / backup views' own state (filters, selection, edit flow).
   const reviewView = useReviewView()
   const { setReviewTitlePending: reviewSetTitlePending } = reviewView
+  // A todo's linked card chip → jump to its project + highlight it (mirrors
+  // handleJumpToProject but for a plain project card).
+  const handleJumpToCard = useCallback(
+    (cardId: string) => {
+      const card = allProjectCardsUnfiltered.find((c) => c.id === cardId)
+      if (!card) return
+      navigate("projects")
+      setKeyword("")
+      setDateRange(null)
+      setActiveProjectId(card.projectId)
+      setActiveSectionByProject((prev) => ({
+        ...prev,
+        [card.projectId]: card.sectionId ?? "__unclassified__"
+      }))
+      setProjectCardHighlightId(card.id)
+      if (projectCardHighlightTimer.current)
+        window.clearTimeout(projectCardHighlightTimer.current)
+      projectCardHighlightTimer.current = window.setTimeout(() => {
+        setProjectCardHighlightId(null)
+        projectCardHighlightTimer.current = null
+      }, 2000)
+    },
+    [allProjectCardsUnfiltered, navigate, setActiveProjectId, setActiveSectionByProject, setDateRange, setKeyword]
+  )
   const {
+    activeTab,
+    setActiveTab,
     todoFilter,
     setTodoFilter,
     todoEditingId,
@@ -525,8 +553,31 @@ export default function OptionsPage() {
     handleQuickAdd,
     handleToggleTodoTask,
     handleSaveTodo,
-    handleDeleteTodo
-  } = useTodoView({ allTodos, navigate })
+    handleDeleteTodo,
+    readLaterFilter,
+    setReadLaterFilter,
+    readLaterEditingId,
+    setReadLaterEditingId,
+    readLaterDeleteTarget,
+    setReadLaterDeleteTarget,
+    activeReadLater,
+    doneReadLater,
+    handleNewReadLater,
+    handleStartEditReadLater,
+    handleSaveReadLater,
+    handleDeleteReadLater,
+    handleStartRead,
+    handleMarkDone,
+    handleOpenReadLater,
+    handleOpenTodoLink
+  } = useTodoView({
+    allTodos,
+    allReadLater,
+    navigate,
+    onToast: setSnackbarMsg,
+    onOpenPdf: openPdf,
+    onJumpToCard: handleJumpToCard
+  })
   const {
     backupSelectedIds,
     backupScope,
@@ -1906,6 +1957,36 @@ export default function OptionsPage() {
     return { total: allTodos.length, incomplete, completed, overdue, today: todayCount }
   }, [allTodos, today])
 
+  // PDFs that are in an ACTIVE (non-done) read-later — the PDF hub's reminder
+  // icon shows for these and reverts once the item is archived (done).
+  const activeReadLaterPdfIds = useMemo(
+    () =>
+      new Set(
+        allReadLater
+          .filter((r) => r.status !== "done" && r.pdfId)
+          .map((r) => r.pdfId as string)
+      ),
+    [allReadLater]
+  )
+
+  // Project-card options for the todo link picker (only titled cards are
+  // identifiable in a select), grouped by project name.
+  const todoCardOptions = useMemo(() => {
+    const projectName = new Map(projects.map((p) => [p.id, p.name]))
+    return allProjectCardsUnfiltered
+      .filter((c) => c.title)
+      .map((c) => ({
+        id: c.id,
+        title: c.title as string,
+        projectName: projectName.get(c.projectId) ?? ""
+      }))
+      .sort(
+        (a, b) =>
+          a.projectName.localeCompare(b.projectName) ||
+          a.title.localeCompare(b.title)
+      )
+  }, [allProjectCardsUnfiltered, projects])
+
   // Full card set the current view renders. 全选 must target this scope, not
   // the paginated displayedItems slice (which only holds the first page) —
   // otherwise select-all in the section/outline view only picks 20 cards.
@@ -2502,7 +2583,18 @@ export default function OptionsPage() {
                 handleMovePdf,
                 pdfBatchMode,
                 pdfBatchSelectedIds,
-                onTogglePdfBatchSelect: togglePdfBatchSelect
+                onTogglePdfBatchSelect: togglePdfBatchSelect,
+                readLaterPdfIds: activeReadLaterPdfIds,
+                onAddReadLater: (pdfId, name) => {
+                  void (async () => {
+                    const created = createReadLater({ title: name, pdfId })
+                    const saved = await addReadLater(created)
+                    setSnackbarMsg(
+                      saved ? "已加入稍后读" : "该 PDF 已在稍后读中",
+                      saved ? "success" : "error"
+                    )
+                  })()
+                }
               }}
               backupProps={{
                 scope: backupScope,
@@ -2530,7 +2622,28 @@ export default function OptionsPage() {
                 onSave: handleSaveTodo,
                 onDelete: setTodoDeleteTarget,
                 onQuickAdd: handleQuickAdd,
-                onNewTodo: handleNewTodo
+                onNewTodo: handleNewTodo,
+                activeTab,
+                setActiveTab,
+                readLaterFilter,
+                setReadLaterFilter,
+                readLaterEditingId,
+                setReadLaterEditingId,
+                readLaterDeleteTarget,
+                setReadLaterDeleteTarget,
+                activeReadLater,
+                doneReadLater,
+                onNewReadLater: handleNewReadLater,
+                onStartEditReadLater: handleStartEditReadLater,
+                onCancelEditReadLater: () => setReadLaterEditingId(null),
+                onSaveReadLater: handleSaveReadLater,
+                onDeleteReadLater: setReadLaterDeleteTarget,
+                onStartRead: handleStartRead,
+                onMarkDone: handleMarkDone,
+                onOpenReadLater: handleOpenReadLater,
+                onOpenLink: handleOpenTodoLink,
+                projectCards: todoCardOptions,
+                pdfs
               }}
               reviewProps={{
                 reviewDateFilter: reviewView.reviewDateFilter,
@@ -2681,6 +2794,19 @@ export default function OptionsPage() {
                 onConfirm={() => {
                   if (todoDeleteTarget) handleDeleteTodo(todoDeleteTarget)
                   setTodoDeleteTarget(null)
+                }}
+              />
+
+              <DeleteConfirmDialog
+                open={Boolean(readLaterDeleteTarget)}
+                batch={false}
+                count={1}
+                itemLabel="这条稍后读"
+                onCancel={() => setReadLaterDeleteTarget(null)}
+                onConfirm={() => {
+                  if (readLaterDeleteTarget)
+                    handleDeleteReadLater(readLaterDeleteTarget)
+                  setReadLaterDeleteTarget(null)
                 }}
               />
 

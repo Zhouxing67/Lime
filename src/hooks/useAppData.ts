@@ -4,6 +4,7 @@ import type {
   PdfAnnotation,
   PdfCard,
   ProjectCard,
+  ReadLater,
   ReviewEntry,
   SrsData,
   TodoCard
@@ -12,6 +13,7 @@ import {
   getAllAnnotations,
   getAllPdfCards,
   getAllProjectCards,
+  getAllReadLater,
   getAllReviews,
   getAllTodos,
   getAnnotationsByPdf,
@@ -52,6 +54,7 @@ export function useAppData({
     Map<string, PdfAnnotation>
   >(new Map())
   const [allTodos, setAllTodos] = useState<TodoCard[]>([])
+  const [allReadLater, setAllReadLater] = useState<ReadLater[]>([])
   const [allReviews, setAllReviews] = useState<ReviewEntry[]>([])
   const [reviewsVersion, setReviewsVersion] = useState(0)
   const [reviewItemIds, setReviewItemIds] = useState<Set<string>>(new Set())
@@ -112,6 +115,11 @@ export function useAppData({
   const loadTodos = useCallback(async () => {
     const todos = await getAllTodos()
     setAllTodos(todos)
+  }, [])
+
+  const loadReadLater = useCallback(async () => {
+    const list = await getAllReadLater()
+    setAllReadLater(list)
   }, [])
 
   const loadPdfs = useCallback(async () => {
@@ -217,6 +225,7 @@ export function useAppData({
     getAllAnnotations().then((list) =>
       setAnnotationById(new Map(list.map((a) => [a.id, a])))
     )
+    getAllReadLater().then(setAllReadLater)
     // One-time sweep of pre-rewrite offset-based annotations (no Konva store)
     // that the inklayer engine can't render + their cards/reviews.
     void cleanupLegacyPdfAnnotations().catch((e) =>
@@ -336,6 +345,10 @@ export function useAppData({
         loadTodos()
         refreshLiteCounts()
       }
+      // readLater writes broadcast `_dbrl`: reload the read-later list only.
+      if (changes._dbrl) {
+        loadReadLater()
+      }
       // Review writes broadcast `_dbr`: reload only review state (light),
       // never the full refreshAllData chain.
       if (changes._dbr) {
@@ -361,6 +374,7 @@ export function useAppData({
     loadPdfs,
     loadPdfPanelData,
     loadTodos,
+    loadReadLater,
     refreshLiteCounts,
     scheduleSearchReload,
     schedulePdfDataReload,
@@ -376,6 +390,7 @@ export function useAppData({
     allPdfCards,
     annotationById,
     allTodos,
+    allReadLater,
     allReviews,
     setReviewsVersion,
     reviewItemIds,

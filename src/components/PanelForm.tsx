@@ -167,6 +167,29 @@ export default function PanelForm({
 
   const iconBtn = iconBtnStyle(colors)
 
+  // 稍后读: the content script can't touch the extension's IndexedDB (different
+  // origin), so the background SW owns the write (mirrors capture) and toasts
+  // the result back to this tab.
+  const addReadLater = useCallback(async () => {
+    setError("")
+    try {
+      await sendMessage(
+        {
+          kind: "read-later",
+          payload: {
+            title: document.title,
+            url: location.href,
+            excerpt: dataText.trim() || undefined
+          }
+        },
+        15000
+      )
+    } catch (err) {
+      console.warn("[lime] read-later failed:", err)
+      setError("加入稍后读失败")
+    }
+  }, [dataText])
+
   // Images live inside the content as Markdown tokens.
   const panelImages = extractMarkdownImages(content)
   const addImage = useCallback(
@@ -562,6 +585,22 @@ export default function PanelForm({
           </span>
         )}
         {!error && <span style={{ flex: 1 }} />}
+        <button
+          type="button"
+          onClick={addReadLater}
+          title="将当前页面加入稍后读"
+          style={{
+            borderRadius: 8,
+            padding: "6px 12px",
+            fontSize: 12,
+            cursor: "pointer",
+            fontWeight: 600,
+            background: colors.bgPaper,
+            color: colors.textSecondary,
+            border: `1px solid ${colors.borderStrong}`
+          }}>
+          稍后读
+        </button>
         <button
           type="button"
           onClick={onClose}
