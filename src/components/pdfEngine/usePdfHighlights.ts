@@ -231,7 +231,8 @@ export function usePdfHighlights(searchFlash: PdfSearchFlashData | null) {
     lastSearchRef.current = {
       page: searchFlash.page,
       matches: searchFlash.matches,
-      current: searchFlash.current
+      current: searchFlash.current,
+      query: searchFlash.query
     }
     renderSearchOverlay()
   }, [searchFlash, renderSearchOverlay, clearOverlay])
