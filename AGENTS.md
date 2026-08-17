@@ -1,10 +1,12 @@
 # lime — Agent Guide
 
-> 当前版本 **0.1.0**（2026-08，版本机制重置：从 8.x 切到 `0.Y.Z` 开发期版本）。本文件随 v0 实际架构对齐；与代码冲突时以代码为准。
+> 当前版本 **0.2.0**（2026-08，版本机制重置：从 8.x 切到 `0.Y.Z` 开发期版本）。本文件随 v0 实际架构对齐；与代码冲突时以代码为准。
 
 ## Stack
 
-- Chrome MV3 扩展，**Plasmo v0.90.5**（TypeScript、React 18、MUI v7）
+- Chrome MV3 扩展，**Plasmo v0.90.5**（TypeScript 5.6、React 18、MUI v7）
+- **zod 4.1.x**（锁 4.1，勿升 4.4+：parcel scope-hoisting 会把 zod@4.4 的 external.js 摇掉 → `z.enum is not a function` 白屏，见 Constraints）
+- **序列化单一来源**：记录类型由 `src/types/schemas.ts` 的 Zod schema `z.infer` 推导（`types/index.ts` re-export）——加字段 = 改 schema = 类型与反序列化同时更新
 - PDF 引擎：**pdfjs-dist 4.3.136**（vendored，`assets/pdfjs/`，package.json `alias` 把 `pdfjs-dist` 指向 `./assets/pdfjs/pdf.mjs`；运行时 viewer 用 npm `pdfjs-dist/legacy/web/pdf_viewer.mjs`）+ **inklayer 引擎**（vendored，`src/pdf/inklayer/`，Konva 批注层）
 - 状态：React hooks + IndexedDB（测试用 fake-indexeddb）；无状态管理器/无路由/CSS Modules（MUI Emotion）
 - 路径别名：`~` → 仓库根，`@/*` → `src/pdf/inklayer/*`
@@ -59,10 +61,10 @@ src/
   components/       # MUI 组件（含 PdfEngineView = PDF 阅读区）
   hooks/            # useAppData/useWorkspaceView/useProjectsView/useReviewView/useBackupView/useTodoView/usePdfSearch/usePdfDocument/useSrs/useCardDragReorder/usePanelDragResize ...
   database/         # IndexedDB via withStore()/tx()
-  types/            # ProjectCard/PdfCard/TodoCard, Project, ReviewEntry, SearchQuery, ExtensionMessage
+  types/            # types/index.ts re-export 记录类型（来自 schemas.ts 的 z.infer）；schemas.ts = 记录类型的 Zod 单一来源；SearchQuery 等非记录类型手写
   contents/         # 内容脚本（capture/floating-panel/pdf-saver/formula/mathFormats）
   background.ts     # SW 单文件（捕获落库、WebDAV 代理、PDF 保存、badge 更新）
-  import/           # ZIP/JSON 导入
+  import/           # ZIP/JSON 导入（校验器 = schema.safeParse + 导入语义预解析）
   utils/            # sync/zip/crypto/cards/export
   theme/            # MUI createAppTheme(light|dark, preset)
   pdf/inklayer/     # vendored 标注引擎（pdfjs viewer + Konva），已裁剪掉未使用的 features/components
@@ -168,6 +170,8 @@ Kinds：`capture`（→SW 落库）、`toast`（SW→tab）、`webdav`（SW 代�
 - **SyncPayload v6**（2026-08）：单 JSON（projectCards/pdfCards/todos/projects/reviews/pdfs 元数据/pdfAnnotations）+ **多文件图片层**（`/Apps/lime/images/<contentHash>.png`，payload `images` 映射）+ **PDF 文件层**（`/pdfs/<id>.pdf`）。上传 uploadImageFiles/uploadPdfFiles + prune 孤儿；下载 downloadImageFiles/downloadPdfFiles + hydratePayloadImages。版本门控 v3-v6（v5 内联图片透传读兼容）。哈希覆盖全部数组（稳定 id 排序）
 - `hasChangesSince`（广播戳 vs lastSyncTime）跳「无变化」；force 同步清零 lastSyncTime
 - `toJsonZip`/`jsonImport` 数据往返：spread + key 校验放行新字段；id 语义变更需重映射
+- **反序列化分层**：形状校验 = `schemas.ts` 的 `schema.safeParse`（单一来源）；语义转换（默认值/legacy 映射/未知字段保留）= import 校验器预解析。**同步下载**经 `sanitizeSyncPayload` 逐条 `safeParse`（畸形跳过+计数，合法记录原样应用、未知字段零丢失）；**上传守卫** `wouldWipeRemote`：从未同步 + 本地记录 < 云端 → 阻断上传（防全新设备清空云端）
+- **v6 是同步格式**（图片/PDF 引用，需在线下载）——`parseExport` 检测 v6 直接报「请用同步导入」，不允许 ZIP 静默导入丢图
 
 ## Testing
 
