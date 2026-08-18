@@ -190,6 +190,10 @@ export function useTodoView({
     setReadLaterEditingId("__new__")
   }, [])
 
+  const handleStartEditReadLater = useCallback((id: string) => {
+    setReadLaterEditingId(id)
+  }, [])
+
   const handleSaveReadLater = useCallback(
     async (
       item: ReadLater,
@@ -311,6 +315,7 @@ export function useTodoView({
     activeReadLater,
     doneReadLater,
     handleNewReadLater,
+    handleStartEditReadLater,
     handleSaveReadLater,
     handleDeleteReadLater,
     handleStartRead,

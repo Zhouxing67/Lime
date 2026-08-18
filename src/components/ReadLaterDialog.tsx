@@ -54,7 +54,11 @@ export default function ReadLaterDialog({
 
   const canSave =
     title.trim() !== "" &&
-    (sourceType === "pdf" ? pdfId !== "" : url.trim() !== "")
+    (item ? true : sourceType === "pdf" ? pdfId !== "" : url.trim() !== "")
+
+  const editSourceName = item?.pdfId
+    ? pdfs.find((p) => p.id === item.pdfId)?.name
+    : undefined
 
   return (
     <DialogShell
@@ -66,8 +70,16 @@ export default function ReadLaterDialog({
       onConfirm={() =>
         onSave(
           title.trim(),
-          sourceType === "url" ? url.trim() || undefined : undefined,
-          sourceType === "pdf" ? pdfId || undefined : undefined,
+          item
+            ? (item.url ?? undefined)
+            : sourceType === "url"
+              ? url.trim() || undefined
+              : undefined,
+          item
+            ? (item.pdfId ?? undefined)
+            : sourceType === "pdf"
+              ? pdfId || undefined
+              : undefined,
           notes
         )
       }>
@@ -80,26 +92,56 @@ export default function ReadLaterDialog({
           fullWidth
           autoFocus
         />
-        <FormControl size="small" fullWidth>
-          <InputLabel>来源</InputLabel>
-          <Select
-            label="来源"
-            value={sourceType}
-            onChange={(e) => setSourceType(e.target.value as SourceType)}>
-            <MenuItem value="url">
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <LinkRoundedIcon sx={{ fontSize: 16 }} />
-                网页链接
-              </Box>
-            </MenuItem>
-            <MenuItem value="pdf">
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <PictureAsPdfRoundedIcon sx={{ fontSize: 16 }} />
-                库内 PDF
-              </Box>
-            </MenuItem>
-          </Select>
-        </FormControl>
+        {item ? (
+          /* 编辑模式：来源锁定，仅标题/笔记可改 */
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 1,
+              px: 1.5,
+              py: 1,
+              borderRadius: 1,
+              bgcolor: "action.hover"
+            }}>
+            {item.pdfId ? (
+              <PictureAsPdfRoundedIcon
+                sx={{ fontSize: 16, flexShrink: 0, color: "text.secondary" }}
+              />
+            ) : (
+              <LinkRoundedIcon
+                sx={{ fontSize: 16, flexShrink: 0, color: "text.secondary" }}
+              />
+            )}
+            <Typography
+              variant="body2"
+              noWrap
+              sx={{ fontSize: "0.8rem", color: "text.secondary", minWidth: 0 }}>
+              {item.pdfId ? (editSourceName ?? "PDF") : (item.url ?? "")}
+            </Typography>
+          </Box>
+        ) : (
+          <FormControl size="small" fullWidth>
+            <InputLabel>来源</InputLabel>
+            <Select
+              label="来源"
+              value={sourceType}
+              onChange={(e) => setSourceType(e.target.value as SourceType)}>
+              <MenuItem value="url">
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <LinkRoundedIcon sx={{ fontSize: 16 }} />
+                  网页链接
+                </Box>
+              </MenuItem>
+              <MenuItem value="pdf">
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <PictureAsPdfRoundedIcon sx={{ fontSize: 16 }} />
+                  库内 PDF
+                </Box>
+              </MenuItem>
+            </Select>
+          </FormControl>
+        )}
         {sourceType === "url" ? (
           <TextField
             size="small"

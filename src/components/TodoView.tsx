@@ -38,6 +38,7 @@ interface TodoViewProps {
   activeReadLater: ReadLater[]
   doneReadLater: ReadLater[]
   onNewReadLater: () => void
+  onStartEditReadLater: (id: string) => void
   onCancelEditReadLater: () => void
   onSaveReadLater: (
     item: ReadLater,
@@ -81,6 +82,7 @@ export default function TodoView({
   activeReadLater,
   doneReadLater,
   onNewReadLater,
+  onStartEditReadLater,
   onCancelEditReadLater,
   onSaveReadLater,
   onDeleteReadLater,
@@ -211,6 +213,7 @@ export default function TodoView({
                 key={r.id}
                 item={r}
                 pdfName={r.pdfId ? pdfNameById.get(r.pdfId) : undefined}
+                onStartEdit={() => onStartEditReadLater(r.id)}
                 onDelete={() => onDeleteReadLater(r)}
                 onStartRead={() => onStartRead(r)}
                 onMarkDone={() => onMarkDone(r)}

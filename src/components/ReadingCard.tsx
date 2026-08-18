@@ -1,5 +1,6 @@
 import BookmarkRoundedIcon from "@mui/icons-material/BookmarkRounded"
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
+import EditRoundedIcon from "@mui/icons-material/EditRounded"
 import LinkRoundedIcon from "@mui/icons-material/LinkRounded"
 import OpenInNewRoundedIcon from "@mui/icons-material/OpenInNewRounded"
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
@@ -12,6 +13,7 @@ interface ReadingCardProps {
   item: ReadLater
   /** Resolved PDF name for the source line (undefined for web items). */
   pdfName?: string
+  onStartEdit: () => void
   onDelete: () => void
   onStartRead: () => void
   onMarkDone: () => void
@@ -36,6 +38,7 @@ function resolvePalette(
 export default function ReadingCard({
   item,
   pdfName,
+  onStartEdit,
   onDelete,
   onStartRead,
   onMarkDone,
@@ -62,7 +65,8 @@ export default function ReadingCard({
         "&:hover": {
           boxShadow: theme.custom.cardShadowHover,
           transform: "translateY(-1px)",
-          borderColor: theme.custom.borderStrong
+          borderColor: theme.custom.borderStrong,
+          ".reading-actions": { opacity: 1 }
         }
       })}>
       {/* Status dot + label */}
@@ -224,6 +228,21 @@ export default function ReadingCard({
           )}
         </Stack>
         <Stack direction="row" spacing={0.25} alignItems="center">
+          <Box
+            className="reading-actions"
+            sx={{
+              display: "flex",
+              gap: 0.25,
+              opacity: 0,
+              transition: "opacity 0.15s"
+            }}
+            onClick={(e) => e.stopPropagation()}>
+            <Tooltip title="编辑标题/笔记">
+              <IconButton size="small" onClick={onStartEdit} sx={{ p: 0.75 }}>
+                <EditRoundedIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
+          </Box>
           {/* Destructive action stays visible (设计基线). */}
           <Box onClick={(e) => e.stopPropagation()}>
             <Tooltip title="删除">
