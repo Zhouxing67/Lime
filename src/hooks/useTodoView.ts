@@ -280,10 +280,12 @@ export function useTodoView({
   const handleOpenTodoLink = useCallback(
     (link: TodoLink) => {
       if (link.cardId) onJumpToCard(link.cardId)
-      else if (link.pdfId) onOpenPdf(link.pdfId)
-      else if (link.url) window.open(link.url, "_blank", "noopener")
+      else if (link.pdfId) {
+        onOpenPdf(link.pdfId)
+        navigate("pdf")
+      } else if (link.url) window.open(link.url, "_blank", "noopener")
     },
-    [onJumpToCard, onOpenPdf]
+    [onJumpToCard, onOpenPdf, navigate]
   )
 
   return {

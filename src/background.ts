@@ -3,6 +3,7 @@ import {
   addReadLater,
   createImageCard,
   createTextCard,
+  getActiveReadLaterCount,
   getDueCount,
   getIncompleteTodoCount,
   getRecentProjects,
@@ -16,7 +17,10 @@ import { applyBadge } from "./utils"
 
 async function updateBadge() {
   try {
-    const total = (await getDueCount()) + (await getIncompleteTodoCount())
+    const total =
+      (await getDueCount()) +
+      (await getIncompleteTodoCount()) +
+      (await getActiveReadLaterCount())
     applyBadge(total)
   } catch {}
 }
@@ -74,7 +78,7 @@ function notifySystem(text: string) {
 
 // Listen for database changes broadcast via storage
 chrome.storage.onChanged.addListener((changes) => {
-  if (changes._dbi || changes._dbr || changes._dbt) {
+  if (changes._dbi || changes._dbr || changes._dbt || changes._dbrl) {
     updateBadge()
   }
 })
