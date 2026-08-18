@@ -10,7 +10,7 @@ import type {
 import { sha256Bytes } from "../utils"
 
 const DB_NAME = "pickquote-db"
-export const DB_VERSION = 14
+export const DB_VERSION = 15
 
 type TableNames =
   | "projectCards"
@@ -351,12 +351,30 @@ function openDb(version?: number): Promise<IDBDatabase> {
       // ---- v14 migration: readLater store (todo-links + read-later feature).
       // MUST run AFTER the v13 block: a direct old-version → v14 upgrade runs
       // v12/v13 first, then creates readLater here. Idempotent via the
-      // contains-check so it re-runs safely on any upgrade path. The byPdfId
-      // index is UNIQUE — IndexedDB unique indexes skip records lacking the
-      // key, so web items (no pdfId) are fine.
+      // contains-check so it re-runs safely on any upgrade path.
       if (!db.objectStoreNames.contains("readLater")) {
         const rl = db.createObjectStore("readLater", { keyPath: "id" })
-        rl.createIndex("byPdfId", "pdfId", { unique: true })
+        // v15 makes this non-unique (one ACTIVE card per PDF, done cards may
+        // accumulate) — created non-unique directly for fresh DBs.
+        rl.createIndex("byPdfId", "pdfId", { unique: false })
+      }
+      // ---- v15 migration: byPdfId becomes NON-unique. A PDF may have several
+      // read-later cards as long as only ONE is active — a done/archived card
+      // no longer blocks re-adding the PDF, and archived history accumulates.
+      // The "one active per PDF" rule is enforced in the business layer
+      // (readLater.ts / bulkReplace) inside the write tx. MUST run AFTER v14.
+      try {
+        if (db.objectStoreNames.contains("readLater")) {
+          const rl = (req.transaction as IDBTransaction).objectStore(
+            "readLater"
+          )
+          if (Array.from(rl.indexNames).includes("byPdfId")) {
+            rl.deleteIndex("byPdfId")
+          }
+          rl.createIndex("byPdfId", "pdfId", { unique: false })
+        }
+      } catch (e) {
+        console.warn("[lime] v15 migration: readLater index rebuild skipped", e)
       }
       } catch (e) {
         console.error(

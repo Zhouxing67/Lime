@@ -8,17 +8,52 @@ export async function getAllReadLater(): Promise<ReadLater[]> {
   )
 }
 
-/** Look up a read-later record by its linked PDF (via the unique byPdfId
- *  index). Returns undefined when no record references the PDF. */
+/** Look up the ACTIVE (non-done) read-later record linked to a PDF, if any.
+ *  Done/archived cards no longer block re-adding a PDF, so only an active one
+ *  counts as "the" card for the PDF (one active card per PDF rule). */
 export async function getReadLaterByPdfId(
   pdfId: string
 ): Promise<ReadLater | undefined> {
   return withStore("readLater", "readonly", (store) => {
     return new Promise((resolve, reject) => {
-      const req = store.index("byPdfId").get(pdfId)
-      req.onsuccess = () => resolve(req.result as ReadLater | undefined)
+      const req = store.index("byPdfId").openCursor(IDBKeyRange.only(pdfId))
+      req.onsuccess = () => {
+        const c = req.result
+        if (c) {
+          if ((c.value as ReadLater).status !== "done") {
+            resolve(c.value as ReadLater)
+          } else {
+            c.continue()
+          }
+        } else {
+          resolve(undefined)
+        }
+      }
       req.onerror = () => reject(req.error)
     })
+  })
+}
+
+/** Scan a store's byPdfId index (same tx) for an ACTIVE record holding the
+ *  pdfId — the in-tx one-active-per-PDF check (IndexedDB readwrite txs on the
+ *  same store are serialized, so this is race-free even without a unique
+ *  index). Done/archived cards are ignored. */
+function findActiveForPdf(
+  store: IDBObjectStore,
+  pdfId: string
+): Promise<ReadLater | undefined> {
+  return new Promise((resolve, reject) => {
+    const req = store.index("byPdfId").openCursor(IDBKeyRange.only(pdfId))
+    req.onsuccess = () => {
+      const c = req.result
+      if (c) {
+        if ((c.value as ReadLater).status !== "done") resolve(c.value as ReadLater)
+        else c.continue()
+      } else {
+        resolve(undefined)
+      }
+    }
+    req.onerror = () => reject(req.error)
   })
 }
 
@@ -28,36 +63,15 @@ export async function getActiveReadLaterCount(): Promise<number> {
   return all.filter((r) => r.status !== "done").length
 }
 
-/** Add a read-later record. Returns false (no write) when another record
- *  already references the same pdfId — the PDF one-card rule. The uniqueness
- *  check runs INSIDE the write tx (reading the unique byPdfId index) so two
- *  overlapping calls can't both pass a separate readonly check and then throw
- *  ConstraintError on the second put. */
+/** Add a read-later record. Returns false (no write) when an ACTIVE card
+ *  already references the same pdfId (one active card per PDF). Done/archived
+ *  cards for the same PDF coexist freely. The check runs INSIDE the write tx. */
 export async function addReadLater(item: ReadLater): Promise<boolean> {
   const ready: ReadLater = { ...item, updatedAt: item.updatedAt ?? Date.now() }
   return withStore("readLater", "readwrite", async (store) => {
-    if (ready.pdfId) {
-      const existing = await new Promise<ReadLater | undefined>(
-        (resolve, reject) => {
-          const req = store.index("byPdfId").get(ready.pdfId)
-          req.onsuccess = () => resolve(req.result as ReadLater | undefined)
-          req.onerror = () => reject(req.error)
-        }
-      )
-      if (existing && existing.id !== ready.id) {
-        // A DONE (archived) card no longer counts — replace it with the new
-        // card so the PDF can be re-added without deleting the archive. An
-        // ACTIVE card still blocks (one active card per PDF).
-        if (existing.status === "done") {
-          await new Promise<void>((resolve, reject) => {
-            const del = store.delete(existing.id)
-            del.onsuccess = () => resolve()
-            del.onerror = () => reject(del.error)
-          })
-        } else {
-          return false
-        }
-      }
+    if (ready.pdfId && ready.status !== "done") {
+      const existing = await findActiveForPdf(store, ready.pdfId)
+      if (existing && existing.id !== ready.id) return false
     }
     await new Promise<void>((resolve, reject) => {
       const req = store.put(ready)
@@ -68,31 +82,13 @@ export async function addReadLater(item: ReadLater): Promise<boolean> {
   })
 }
 
-/** Update a read-later record. Returns false when the update would collide
- *  with another record's pdfId (the PDF one-card rule). The check runs inside
- *  the write tx (see addReadLater). */
+/** Update a read-later record. Returns false when the update would make an
+ *  ACTIVE card collide with another active card's pdfId. Same in-tx check. */
 export async function updateReadLater(item: ReadLater): Promise<boolean> {
   return withStore("readLater", "readwrite", async (store) => {
-    if (item.pdfId) {
-      const existing = await new Promise<ReadLater | undefined>(
-        (resolve, reject) => {
-          const req = store.index("byPdfId").get(item.pdfId)
-          req.onsuccess = () => resolve(req.result as ReadLater | undefined)
-          req.onerror = () => reject(req.error)
-        }
-      )
-      if (existing && existing.id !== item.id) {
-        // Same as addReadLater: a DONE holder is replaced, an ACTIVE one blocks.
-        if (existing.status === "done") {
-          await new Promise<void>((resolve, reject) => {
-            const del = store.delete(existing.id)
-            del.onsuccess = () => resolve()
-            del.onerror = () => reject(del.error)
-          })
-        } else {
-          return false
-        }
-      }
+    if (item.pdfId && item.status !== "done") {
+      const existing = await findActiveForPdf(store, item.pdfId)
+      if (existing && existing.id !== item.id) return false
     }
     await new Promise<void>((resolve, reject) => {
       const req = store.put({ ...item, updatedAt: Date.now() })

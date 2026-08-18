@@ -1,7 +1,7 @@
 import AddRoundedIcon from "@mui/icons-material/AddRounded"
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded"
-import BookmarkAddRoundedIcon from "@mui/icons-material/BookmarkAddRounded"
-import BookmarkAddedRoundedIcon from "@mui/icons-material/BookmarkAddedRounded"
+import BookmarkRoundedIcon from "@mui/icons-material/BookmarkRounded"
+import BookmarkBorderRoundedIcon from "@mui/icons-material/BookmarkBorderRounded"
 import CheckRoundedIcon from "@mui/icons-material/CheckRounded"
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
 import EditRoundedIcon from "@mui/icons-material/EditRounded"
@@ -566,6 +566,7 @@ export default function PdfHub({
                         : "加入稍后读"
                     }>
                     <IconButton
+                      className="hub-delete"
                       size="small"
                       onClick={(e) => {
                         e.stopPropagation()
@@ -574,21 +575,22 @@ export default function PdfHub({
                       sx={{
                         position: "absolute",
                         top: 4,
-                        right: 4,
+                        right: 28,
                         p: 0.5,
+                        opacity: 0,
                         color: readLaterPdfIds?.has(p.id)
                           ? "primary.main"
-                          : "text.secondary",
-                        transition: "color 0.15s",
+                          : "text.disabled",
+                        transition: "opacity 0.15s, color 0.15s",
                         "&:hover": {
                           color: "primary.main",
                           bgcolor: "transparent"
                         }
                       }}>
                       {readLaterPdfIds?.has(p.id) ? (
-                        <BookmarkAddedRoundedIcon sx={{ fontSize: 16 }} />
+                        <BookmarkRoundedIcon sx={{ fontSize: 16 }} />
                       ) : (
-                        <BookmarkAddRoundedIcon sx={{ fontSize: 16 }} />
+                        <BookmarkBorderRoundedIcon sx={{ fontSize: 16 }} />
                       )}
                     </IconButton>
                   </Tooltip>
@@ -601,7 +603,7 @@ export default function PdfHub({
                     sx={{
                       position: "absolute",
                       top: 4,
-                      right: 28,
+                      right: 4,
                       p: 0.5,
                       // Destructive actions stay visible (设计基线), not
                       // hover-revealed like the tile's other actions.

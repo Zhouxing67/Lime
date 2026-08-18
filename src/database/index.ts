@@ -101,29 +101,35 @@ export async function bulkReplace(
           })
         }
       }
-      // readLater: upsert remote (deduping the PDF one-card rule — a payload
-      // with two records sharing a pdfId keeps the first, skips the rest) and
-      // delete local-not-remote. Before each put, clear any local record that
-      // already holds the pdfId in the UNIQUE byPdfId index — otherwise a
-      // cross-device conflict (two devices read-later'd the same PDF) throws
-      // ConstraintError and aborts the whole tx (mirrors the reviews loop).
-      // The pre-delete also covers the dedup-skipped edge: the kept remote
-      // record's put clears whatever local record holds its pdfId, even when
-      // that local record matches a skipped remote duplicate.
+      // readLater: upsert remote + delete local-not-remote. The byPdfId index
+      // is NON-unique (v15): done/archived cards coexist per PDF, so only
+      // ACTIVE cards are deduped (a payload with two active records sharing a
+      // pdfId keeps the first) and only an active conflict needs clearing —
+      // a cross-device clash (two devices active-read-later'd the same PDF)
+      // must not leave two active cards, so the put clears any existing ACTIVE
+      // holder for that pdfId first (done holders are left alone).
       const rlIdx = stores.readLater.index("byPdfId")
-      const seenPdfIds = new Set<string>()
+      const seenActivePdfIds = new Set<string>()
       for (const rl of remoteReadLater ?? []) {
-        // Treat "" as a real key too (the unique index keys on it) so two
-        // records with an empty-string pdfId are deduped, not a ConstraintError.
-        if (rl.pdfId != null && seenPdfIds.has(rl.pdfId)) continue
-        if (rl.pdfId != null) seenPdfIds.add(rl.pdfId)
-        if (rl.pdfId != null) {
-          const req = rlIdx.getKey(rl.pdfId)
-          const existing = await new Promise<string | null>((resolve) => {
-            req.onsuccess = () => resolve((req.result as string) ?? null)
+        const active = rl.pdfId != null && rl.status !== "done"
+        if (active && seenActivePdfIds.has(rl.pdfId)) continue
+        if (active) seenActivePdfIds.add(rl.pdfId)
+        if (active) {
+          const req = rlIdx.openCursor(IDBKeyRange.only(rl.pdfId))
+          const holder = await new Promise<string | null>((resolve) => {
+            req.onsuccess = () => {
+              const c = req.result
+              if (c && (c.value as { status?: string }).status !== "done") {
+                resolve(c.primaryKey as string)
+              } else if (c) {
+                c.continue()
+              } else {
+                resolve(null)
+              }
+            }
             req.onerror = () => resolve(null)
           })
-          if (existing) stores.readLater.delete(existing)
+          if (holder && holder !== rl.id) stores.readLater.delete(holder)
         }
         stores.readLater.put(rl)
       }

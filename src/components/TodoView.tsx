@@ -105,6 +105,13 @@ export default function TodoView({
 
   const pdfNameById = new Map(pdfs.map((p) => [p.id, p.name]))
 
+  // PDFs that already have an ACTIVE read-later — disabled in the picker,
+  // except the one currently being edited.
+  const activeReadLaterPdfIds = new Set(
+    activeReadLater.filter((r) => r.pdfId).map((r) => r.pdfId)
+  )
+  if (editingReadLater?.pdfId) activeReadLaterPdfIds.delete(editingReadLater.pdfId)
+
   return (
     <>
       {activeTab === "todo" ? (
@@ -246,6 +253,7 @@ export default function TodoView({
         open={readLaterEditingId !== null}
         item={editingReadLater}
         pdfs={pdfs}
+        activeReadLaterPdfIds={activeReadLaterPdfIds}
         onClose={onCancelEditReadLater}
         onSave={(title, url, pdfId, notes) => {
           const target =

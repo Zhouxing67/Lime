@@ -1,6 +1,7 @@
 import LinkRoundedIcon from "@mui/icons-material/LinkRounded"
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
 import {
+  Autocomplete,
   Box,
   FormControl,
   InputLabel,
@@ -19,6 +20,9 @@ interface ReadLaterDialogProps {
   /** The item being edited, or null for a new one. */
   item: ReadLater | null
   pdfs: { id: string; name: string }[]
+  /** pdfIds that already have an ACTIVE read-later (excluded from the picker,
+   *  minus the item being edited). */
+  activeReadLaterPdfIds?: Set<string>
   onClose: () => void
   onSave: (title: string, url?: string, pdfId?: string, notes?: string) => void
 }
@@ -29,6 +33,7 @@ export default function ReadLaterDialog({
   open,
   item,
   pdfs,
+  activeReadLaterPdfIds,
   onClose,
   onSave
 }: ReadLaterDialogProps) {
@@ -105,26 +110,60 @@ export default function ReadLaterDialog({
             placeholder="https://…"
           />
         ) : (
-          <FormControl size="small" fullWidth>
-            <InputLabel>选择 PDF</InputLabel>
-            <Select
-              label="选择 PDF"
-              value={pdfId}
-              onChange={(e) => setPdfId(e.target.value as string)}>
-              {pdfs.length === 0 && (
-                <MenuItem value="" disabled>
-                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                    库内暂无 PDF
+          <Autocomplete
+            size="small"
+            fullWidth
+            options={pdfs}
+            getOptionLabel={(p) => p.name}
+            getOptionDisabled={(p) =>
+              activeReadLaterPdfIds?.has(p.id) ?? false
+            }
+            value={pdfs.find((p) => p.id === pdfId) ?? null}
+            onChange={(_, v) => setPdfId(v?.id ?? "")}
+            isOptionEqualToValue={(o, v) => o.id === v.id}
+            noOptionsText="库内暂无 PDF"
+            renderOption={(props, option) => (
+              <li {...props} key={option.id}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1,
+                    minWidth: 0,
+                    width: "100%"
+                  }}>
+                  <PictureAsPdfRoundedIcon
+                    sx={{ fontSize: 16, flexShrink: 0, color: "text.secondary" }}
+                  />
+                  <Typography
+                    variant="body2"
+                    noWrap
+                    sx={{ fontSize: "0.8rem", flex: 1, minWidth: 0 }}>
+                    {option.name}
                   </Typography>
-                </MenuItem>
-              )}
-              {pdfs.map((p) => (
-                <MenuItem key={p.id} value={p.id}>
-                  {p.name}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+                  {activeReadLaterPdfIds?.has(option.id) && (
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: "text.disabled",
+                        fontSize: "0.65rem",
+                        flexShrink: 0
+                      }}>
+                      已在稍后读中
+                    </Typography>
+                  )}
+                </Box>
+              </li>
+            )}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="选择 PDF"
+                placeholder="搜索 PDF 名称…"
+                size="small"
+              />
+            )}
+          />
         )}
         <TextField
           size="small"

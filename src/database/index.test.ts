@@ -1943,17 +1943,20 @@ describe("readLater CRUD", () => {
     expect(await getActiveReadLaterCount()).toBe(2)
   })
 
-  it("a DONE read-later for a PDF can be replaced by a new card (re-add after reading)", async () => {
+  it("a DONE read-later for a PDF coexists with a new active card (re-add after reading)", async () => {
     const first = make({ pdfId: "pdf-reread" })
     expect(await addReadLater(first)).toBe(true)
     expect(await updateReadLater({ ...first, status: "done" })).toBe(true)
-    // The PDF's done card is archived — a new card may take its place.
+    // The PDF's done card stays archived; a NEW active card may be added.
     const second = make({ title: "重新阅读", pdfId: "pdf-reread" })
     expect(await addReadLater(second)).toBe(true)
     const list = await getAllReadLater()
-    expect(list).toHaveLength(1)
-    expect(list[0].id).toBe(second.id)
-    expect(list[0].status).toBe("unread")
+    expect(list).toHaveLength(2)
+    const done = list.find((r) => r.id === first.id)
+    expect(done?.status).toBe("done")
+    expect(list.find((r) => r.id === second.id)?.status).toBe("unread")
+    // The active card is the one returned for the pdfId.
+    expect((await getReadLaterByPdfId("pdf-reread"))?.id).toBe(second.id)
   })
 
   it("an ACTIVE read-later for a PDF still blocks a second card", async () => {
@@ -1963,7 +1966,7 @@ describe("readLater CRUD", () => {
   })
 })
 
-describe("v14 migration: readLater store", () => {
+describe("v14/v15 migration: readLater store", () => {
   const openRaw = (version: number) =>
     new Promise<IDBDatabase>((resolve) => {
       const req = indexedDB.open("pickquote-db", version)
@@ -1971,7 +1974,7 @@ describe("v14 migration: readLater store", () => {
       req.onerror = () => resolve(req.result)
     })
 
-  it("v13 → v14 creates the readLater store and preserves all existing data", async () => {
+  it("v13 → v15 creates the readLater store (non-unique byPdfId) and preserves all data", async () => {
     // Build a REAL v13 DB (the current schema minus the readLater store) and
     // seed one record of every kind — the v13→v14 migration must keep them.
     const legacy = await new Promise<IDBDatabase>((resolve) => {
@@ -2067,23 +2070,67 @@ describe("v14 migration: readLater store", () => {
     })
     legacy.close()
 
-    // A real DB call opens at DB_VERSION (14) — the migration runs.
+    // A real DB call opens at DB_VERSION (15) — the migration runs.
     expect((await getPdf("pdf-1"))?.name).toBe("doc.pdf")
     expect((await getAllTodos()).map((t) => t.id)).toContain("todo-1")
     expect((await listProjects()).map((p) => p.id)).toContain("p1")
     expect((await getAllReviews()).length).toBeGreaterThan(0)
     expect((await getPdfCards("pdf-1")).map((c) => c.id)).toContain("pdfcard-1")
 
-    // The readLater store now exists and is usable.
+    // The readLater store now exists, usable, and its byPdfId index is
+    // NON-unique (v15: done cards may coexist per PDF).
     const upgraded = await openRaw(DB_VERSION)
     expect(Array.from(upgraded.objectStoreNames)).toContain("readLater")
     const rlStore = upgraded.transaction("readLater").objectStore("readLater")
     expect(Array.from(rlStore.indexNames)).toContain("byPdfId")
+    expect(rlStore.index("byPdfId").unique).toBe(false)
     upgraded.close()
 
     // A read-later record written after the upgrade persists.
     const item = createReadLater({ title: "x", pdfId: "pdf-1" })
     expect(await addReadLater(item)).toBe(true)
     expect(await getReadLaterByPdfId("pdf-1")).toBeDefined()
+  })
+
+  it("v14 → v15 relaxes the unique byPdfId index: done cards coexist with a new active card", async () => {
+    // Build a REAL v14 DB: readLater store with a UNIQUE byPdfId index + one
+    // active record for pdf-X.
+    const legacy = await new Promise<IDBDatabase>((resolve) => {
+      const req = indexedDB.open("pickquote-db", 14)
+      req.onupgradeneeded = () => {
+        const d = req.result
+        d.createObjectStore("readLater", { keyPath: "id" }).createIndex(
+          "byPdfId",
+          "pdfId",
+          { unique: true }
+        )
+        const tx = req.transaction as IDBTransaction
+        tx.objectStore("readLater").put({
+          id: "rl-1",
+          title: "读它",
+          pdfId: "pdf-X",
+          status: "unread",
+          addedAt: 1
+        })
+      }
+      req.onsuccess = () => resolve(req.result)
+    })
+    legacy.close()
+
+    // Trigger the app's migration (openDb) with a real DB call.
+    expect((await getAllReadLater()).map((r) => r.id)).toContain("rl-1")
+
+    // Opening at DB_VERSION (15) rebuilds the index non-unique.
+    const upgraded = await openRaw(DB_VERSION)
+    expect(upgraded.transaction("readLater").objectStore("readLater").index("byPdfId").unique).toBe(false)
+    upgraded.close()
+
+    // After the migration, a done card + a new active card for pdf-X coexist.
+    const existing = (await getAllReadLater())[0]
+    expect(await updateReadLater({ ...existing, status: "done" })).toBe(true)
+    expect(await addReadLater(createReadLater({ title: "再读", pdfId: "pdf-X" }))).toBe(true)
+    expect(await getAllReadLater()).toHaveLength(2)
+    // An active card still blocks a second active one.
+    expect(await addReadLater(createReadLater({ title: "第三个", pdfId: "pdf-X" }))).toBe(false)
   })
 })
