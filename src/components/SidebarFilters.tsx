@@ -27,8 +27,9 @@ import type { ReactNode } from "react"
 
 import RenameDialog from "./RenameDialog"
 import type { PdfMetaLite } from "../database"
-import type { TodoFilter, TodoStats } from "../types"
+import type { ReadLater, TodoFilter, TodoStats } from "../types"
 import type { SidebarTab } from "./NavRail"
+import type { ReadLaterFilter, TodoTab } from "../hooks/useTodoView"
 import { RECENT_TOTAL as RECENT_TOTAL_SHARED } from "../constants"
 import DialogShell from "./DialogShell"
 import Well from "./Well"
@@ -43,10 +44,15 @@ interface SidebarFiltersProps {
   reviewDateFilter: string | null
   todoStats: TodoStats
   todoFilter: TodoFilter
+  todoTab: TodoTab
+  readLaterFilter: ReadLaterFilter
+  activeReadLater: ReadLater[]
+  doneReadLater: ReadLater[]
   pdfs: PdfMetaLite[]
   countByPdf: Record<string, number>
   activePdfId: string | null
   onTodoFilterChange: (filter: TodoFilter) => void
+  onReadLaterFilterChange: (filter: ReadLaterFilter) => void
   onOpenPdfClick: () => void
   onOpenPdf: (id: string) => void
   onOpenUrl?: () => void
@@ -624,10 +630,15 @@ export default function SidebarFilters({
   reviewDateFilter,
   todoStats,
   todoFilter,
+  todoTab,
+  readLaterFilter,
+  activeReadLater,
+  doneReadLater,
   pdfs,
   countByPdf,
   activePdfId,
   onTodoFilterChange,
+  onReadLaterFilterChange,
   onOpenPdfClick,
   onOpenPdf,
   onOpenUrl,
@@ -883,56 +894,103 @@ export default function SidebarFilters({
               </DialogShell>
             </Box>
           ) : sidebarTab === "todo" ? (
-            /* Todo tab: filter groups with counts */
+            /* Todo tab: the filter follows the sub-view (待办项 → todo filters;
+             * 稍后读 → 进行中/已读), with counts. */
             <Box sx={{ py: 1 }}>
               <Well>
                 <Box sx={{ mb: 0.5 }}>
-                  <SectionLabel>待办</SectionLabel>
+                  <SectionLabel>
+                    {todoTab === "readLater" ? "稍后读" : "待办项"}
+                  </SectionLabel>
                 </Box>
-                {(
-                  [
-                    ["all", "全部", todoStats.total],
-                    ["incomplete", "未完成", todoStats.incomplete],
-                    ["completed", "已完成", todoStats.completed],
-                    ["overdue", "已过期", todoStats.overdue],
-                    ["today", "今天到期", todoStats.today]
-                  ] as [TodoFilter, string, number][]
-                ).map(([key, label, count]) => (
-                  <Box
-                    key={key}
-                    onClick={() => onTodoFilterChange(key)}
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      px: 1,
-                      py: 0.5,
-                      borderRadius: 1,
-                      cursor: "pointer",
-                      bgcolor:
-                        todoFilter === key ? "action.selected" : "transparent",
-                      color:
-                        todoFilter === key
-                          ? "primary.main"
-                          : "text.secondary",
-                      "&:hover": { bgcolor: "action.hover" }
-                    }}>
-                    <Typography variant="body2" sx={{ fontSize: "0.8rem" }}>
-                      {label}
-                    </Typography>
-                    <Typography
-                      variant="caption"
+                {todoTab === "readLater" ? (
+                  (
+                    [
+                      ["active", "进行中", activeReadLater.length],
+                      ["done", "已读", doneReadLater.length]
+                    ] as [ReadLaterFilter, string, number][]
+                  ).map(([key, label, count]) => (
+                    <Box
+                      key={key}
+                      onClick={() => onReadLaterFilterChange(key)}
                       sx={{
-                        fontSize: "0.7rem",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        px: 1,
+                        py: 0.5,
+                        borderRadius: 1,
+                        cursor: "pointer",
+                        bgcolor:
+                          readLaterFilter === key
+                            ? "action.selected"
+                            : "transparent",
                         color:
-                          todoFilter === key
+                          readLaterFilter === key
                             ? "primary.main"
-                            : "text.disabled"
+                            : "text.secondary",
+                        "&:hover": { bgcolor: "action.hover" }
                       }}>
-                      {count}
-                    </Typography>
-                  </Box>
-                ))}
+                      <Typography variant="body2" sx={{ fontSize: "0.8rem" }}>
+                        {label}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          fontSize: "0.7rem",
+                          color:
+                            readLaterFilter === key
+                              ? "primary.main"
+                              : "text.disabled"
+                        }}>
+                        {count}
+                      </Typography>
+                    </Box>
+                  ))
+                ) : (
+                  (
+                    [
+                      ["all", "全部", todoStats.total],
+                      ["incomplete", "未完成", todoStats.incomplete],
+                      ["completed", "已完成", todoStats.completed],
+                      ["overdue", "已过期", todoStats.overdue],
+                      ["today", "今天到期", todoStats.today]
+                    ] as [TodoFilter, string, number][]
+                  ).map(([key, label, count]) => (
+                    <Box
+                      key={key}
+                      onClick={() => onTodoFilterChange(key)}
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        px: 1,
+                        py: 0.5,
+                        borderRadius: 1,
+                        cursor: "pointer",
+                        bgcolor:
+                          todoFilter === key ? "action.selected" : "transparent",
+                        color:
+                          todoFilter === key ? "primary.main" : "text.secondary",
+                        "&:hover": { bgcolor: "action.hover" }
+                      }}>
+                      <Typography variant="body2" sx={{ fontSize: "0.8rem" }}>
+                        {label}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          fontSize: "0.7rem",
+                          color:
+                            todoFilter === key
+                              ? "primary.main"
+                              : "text.disabled"
+                        }}>
+                        {count}
+                      </Typography>
+                    </Box>
+                  ))
+                )}
               </Well>
             </Box>
           ) : sidebarTab === "pdf" ? (

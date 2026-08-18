@@ -1,7 +1,7 @@
 import AddRoundedIcon from "@mui/icons-material/AddRounded"
 import BookmarkAddRoundedIcon from "@mui/icons-material/BookmarkAddRounded"
 import CheckCircleOutlineRoundedIcon from "@mui/icons-material/CheckCircleOutlineRounded"
-import { alpha, Box, Typography } from "@mui/material"
+import { Box, Typography } from "@mui/material"
 
 import type { ReadLater, TodoCard as TodoCardType } from "../types"
 import type { TodoLink } from "../hooks/useTodoView"
@@ -30,9 +30,7 @@ interface TodoViewProps {
   onQuickAdd: (item: TodoCardType) => void
   onNewTodo: () => void
   activeTab: TodoTab
-  setActiveTab: (tab: TodoTab) => void
   readLaterFilter: ReadLaterFilter
-  setReadLaterFilter: (f: ReadLaterFilter) => void
   readLaterEditingId: string | null
   setReadLaterEditingId: (id: string | null) => void
   readLaterDeleteTarget: ReadLater | null
@@ -64,16 +62,6 @@ const NEW_TODO: TodoCardType = {
   createdAt: Date.now()
 }
 
-const TABS: { key: TodoTab; label: string }[] = [
-  { key: "todo", label: "待办" },
-  { key: "readLater", label: "稍后读" }
-]
-
-const FILTERS: { key: ReadLaterFilter; label: string }[] = [
-  { key: "active", label: "进行中" },
-  { key: "done", label: "已读" }
-]
-
 export default function TodoView({
   items,
   editingId,
@@ -86,9 +74,7 @@ export default function TodoView({
   onQuickAdd,
   onNewTodo,
   activeTab,
-  setActiveTab,
   readLaterFilter,
-  setReadLaterFilter,
   readLaterEditingId,
   setReadLaterEditingId,
   readLaterDeleteTarget,
@@ -121,65 +107,8 @@ export default function TodoView({
 
   return (
     <>
-      <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: 0.5,
-          mb: 2,
-          p: 0.25,
-          borderRadius: 1,
-          bgcolor: "action.hover",
-          width: "fit-content"
-        }}>
-        {TABS.map((tab) => (
-          <Box
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            sx={(t) => ({
-              px: 1.5,
-              py: 0.5,
-              borderRadius: 1,
-              cursor: "pointer",
-              fontSize: "0.8rem",
-              lineHeight: 1.5,
-              color:
-                activeTab === tab.key ? t.palette.primary.main : "text.secondary",
-              bgcolor:
-                activeTab === tab.key
-                  ? alpha(t.palette.primary.main, 0.08)
-                  : "transparent",
-              transition: "all 0.15s",
-              "&:hover": { bgcolor: "action.hover" }
-            })}>
-            {tab.label}
-            {tab.key === "readLater" && activeReadLater.length > 0 && (
-              <Box
-                component="span"
-                sx={(t) => ({
-                  ml: 0.75,
-                  px: 0.5,
-                  py: 0.1,
-                  borderRadius: 1,
-                  fontSize: "0.65rem",
-                  lineHeight: 1.4,
-                  color:
-                    activeTab === tab.key
-                      ? t.palette.primary.main
-                      : "text.secondary",
-                  bgcolor:
-                    activeTab === tab.key
-                      ? alpha(t.palette.primary.main, 0.1)
-                      : alpha(t.palette.text.secondary, 0.08)
-                })}>
-                {activeReadLater.length}
-              </Box>
-            )}
-          </Box>
-        ))}
-      </Box>
-
       {activeTab === "todo" ? (
+        <>
         <Box
           sx={{
             display: "grid",
@@ -215,15 +144,6 @@ export default function TodoView({
             />
           )}
 
-          {items.length === 0 && editingId !== "__new__" && (
-            <EmptyState
-              icon={<CheckCircleOutlineRoundedIcon />}
-              iconSize={48}
-              title="还没有待办"
-              subtitle="点击上方「新增待办」开始记录"
-            />
-          )}
-
           {items.map((it) => (
             <TodoCard
               key={it.id}
@@ -242,49 +162,26 @@ export default function TodoView({
             />
           ))}
         </Box>
-      ) : (
-        <>
+
+        {items.length === 0 && editingId !== "__new__" && (
           <Box
             sx={{
               display: "flex",
-              alignItems: "center",
-              gap: 0.5,
-              mb: 2
+              justifyContent: "center",
+              width: "100%",
+              pt: 5
             }}>
-            {FILTERS.map((f) => (
-              <Box
-                key={f.key}
-                onClick={() => setReadLaterFilter(f.key)}
-                sx={(t) => ({
-                  px: 1,
-                  py: 0.4,
-                  borderRadius: 1,
-                  cursor: "pointer",
-                  fontSize: "0.75rem",
-                  lineHeight: 1.5,
-                  color:
-                    readLaterFilter === f.key
-                      ? t.palette.primary.main
-                      : "text.secondary",
-                  bgcolor:
-                    readLaterFilter === f.key
-                      ? alpha(t.palette.primary.main, 0.08)
-                      : "transparent",
-                  transition: "all 0.15s",
-                  "&:hover": { bgcolor: "action.hover" }
-                })}>
-                {f.label}
-              </Box>
-            ))}
-            <Typography
-              variant="caption"
-              sx={{ color: "text.disabled", fontSize: "0.72rem", ml: 1 }}>
-              {readLaterFilter === "active"
-                ? `${activeReadLater.length} 条进行中`
-                : `${doneReadLater.length} 条已读`}
-            </Typography>
+            <EmptyState
+              icon={<CheckCircleOutlineRoundedIcon />}
+              iconSize={48}
+              title="还没有待办项"
+              subtitle="点击上方「新增待办」开始记录"
+            />
           </Box>
-
+        )}
+        </>
+      ) : (
+        <>
           <Box
             sx={{
               display: "grid",

@@ -2,6 +2,8 @@ import { Box, Typography } from "@mui/material"
 
 import type { SidebarTab } from "./NavRail"
 import type { TodoStats } from "../types"
+import type { ReadLater } from "../types"
+import type { TodoTab } from "../hooks/useTodoView"
 
 interface FooterBarProps {
   sidebarTab: SidebarTab
@@ -13,6 +15,9 @@ interface FooterBarProps {
   activeProjectName?: string | null
   activeProjectItemCount?: number
   todoStats: TodoStats
+  todoTab: TodoTab
+  activeReadLater: ReadLater[]
+  doneReadLater: ReadLater[]
   /** Current page / total of the active PDF (PDF view only). */
   pdfCurrentPage?: number
   pdfPageCount?: number
@@ -28,12 +33,17 @@ export default function FooterBar({
   activeProjectName,
   activeProjectItemCount,
   todoStats,
+  todoTab,
+  activeReadLater,
+  doneReadLater,
   pdfCurrentPage = 1,
   pdfPageCount = 0
 }: FooterBarProps) {
   const pct = todoStats.total
     ? Math.round((todoStats.completed / todoStats.total) * 100)
     : 0
+  const rlTotal = activeReadLater.length + doneReadLater.length
+  const rlPct = rlTotal ? Math.round((doneReadLater.length / rlTotal) * 100) : 0
 
   return (
     <Box
@@ -49,67 +59,117 @@ export default function FooterBar({
       }}>
       {sidebarTab === "todo" ? (
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          <Typography
-            variant="caption"
-            sx={{ fontSize: "0.75rem", color: "text.secondary" }}>
-            待办{" "}
-            <Box
-              component="span"
-              sx={{ fontWeight: 700, color: "text.primary" }}>
-              {todoStats.incomplete}
-            </Box>
-            /{todoStats.total}
-          </Typography>
-          <Box
-            sx={{
-              width: 56,
-              height: 3,
-              borderRadius: 1,
-              bgcolor: "action.hover",
-              overflow: "hidden"
-            }}>
-            <Box
-              sx={{
-                width: `${pct}%`,
-                height: "100%",
-                bgcolor:
-                  pct === 100 ? "success.main" : "primary.main",
-                transition: "width 0.15s"
-              }}
-            />
-          </Box>
-          <Typography
-            variant="caption"
-            sx={{ fontSize: "0.75rem", color: "text.secondary" }}>
-            <Box
-              component="span"
-              sx={{ mx: 0.5, color: "text.disabled" }}>
-              ·
-            </Box>
-            已过期{" "}
-            <Box
-              component="span"
-              sx={{
-                fontWeight: 700,
-                color: todoStats.overdue ? "error.main" : "text.secondary"
-              }}>
-              {todoStats.overdue}
-            </Box>
-            <Box
-              component="span"
-              sx={{ mx: 0.5, color: "text.disabled" }}>
-              ·
-            </Box>
-            今天{" "}
-            <Box
-              component="span"
-              sx={{
-                fontWeight: 700,
-                color: todoStats.today ? "warning.main" : "text.secondary"
-              }}>
-              {todoStats.today}
-            </Box>
-          </Typography>
+          {todoTab === "readLater" ? (
+            <>
+              <Typography
+                variant="caption"
+                sx={{ fontSize: "0.75rem", color: "text.secondary" }}>
+                稍后读{" "}
+                <Box
+                  component="span"
+                  sx={{ fontWeight: 700, color: "text.primary" }}>
+                  {activeReadLater.length}
+                </Box>
+                /{rlTotal}
+              </Typography>
+              <Box
+                sx={{
+                  width: 56,
+                  height: 3,
+                  borderRadius: 1,
+                  bgcolor: "action.hover",
+                  overflow: "hidden"
+                }}>
+                <Box
+                  sx={{
+                    width: `${rlPct}%`,
+                    height: "100%",
+                    bgcolor: rlPct === 100 ? "success.main" : "primary.main",
+                    transition: "width 0.15s"
+                  }}
+                />
+              </Box>
+              <Typography
+                variant="caption"
+                sx={{ fontSize: "0.75rem", color: "text.secondary" }}>
+                <Box
+                  component="span"
+                  sx={{ mx: 0.5, color: "text.disabled" }}>
+                  ·
+                </Box>
+                已读{" "}
+                <Box
+                  component="span"
+                  sx={{ fontWeight: 700, color: "text.secondary" }}>
+                  {doneReadLater.length}
+                </Box>
+              </Typography>
+            </>
+          ) : (
+            <>
+              <Typography
+                variant="caption"
+                sx={{ fontSize: "0.75rem", color: "text.secondary" }}>
+                待办项{" "}
+                <Box
+                  component="span"
+                  sx={{ fontWeight: 700, color: "text.primary" }}>
+                  {todoStats.incomplete}
+                </Box>
+                /{todoStats.total}
+              </Typography>
+              <Box
+                sx={{
+                  width: 56,
+                  height: 3,
+                  borderRadius: 1,
+                  bgcolor: "action.hover",
+                  overflow: "hidden"
+                }}>
+                <Box
+                  sx={{
+                    width: `${pct}%`,
+                    height: "100%",
+                    bgcolor:
+                      pct === 100 ? "success.main" : "primary.main",
+                    transition: "width 0.15s"
+                  }}
+                />
+              </Box>
+              <Typography
+                variant="caption"
+                sx={{ fontSize: "0.75rem", color: "text.secondary" }}>
+                <Box
+                  component="span"
+                  sx={{ mx: 0.5, color: "text.disabled" }}>
+                  ·
+                </Box>
+                已过期{" "}
+                <Box
+                  component="span"
+                  sx={{
+                    fontWeight: 700,
+                    color: todoStats.overdue ? "error.main" : "text.secondary"
+                  }}>
+                  {todoStats.overdue}
+                </Box>
+                <Box
+                  component="span"
+                  sx={{ mx: 0.5, color: "text.disabled" }}>
+                  ·
+                </Box>
+                今天{" "}
+                <Box
+                  component="span"
+                  sx={{
+                    fontWeight: 700,
+                    color: todoStats.today ? "warning.main" : "text.secondary"
+                  }}>
+                  {todoStats.today}
+                </Box>
+              </Typography>
+            </>
+          )}
         </Box>
       ) : sidebarTab === "pdf" ? (
         <Typography

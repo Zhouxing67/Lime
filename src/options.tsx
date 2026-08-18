@@ -1,5 +1,7 @@
 import AddRoundedIcon from "@mui/icons-material/AddRounded"
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded"
+import ChecklistRoundedIcon from "@mui/icons-material/ChecklistRounded"
+import BookmarkRoundedIcon from "@mui/icons-material/BookmarkRounded"
 import ViewColumnRoundedIcon from "@mui/icons-material/ViewColumnRounded"
 import DoneAllRoundedIcon from "@mui/icons-material/DoneAllRounded"
 import {
@@ -2063,10 +2065,15 @@ export default function OptionsPage() {
           syncStatus={syncStatus}
           todoStats={todoStats}
           todoFilter={todoFilter}
+          todoTab={activeTab}
+          readLaterFilter={readLaterFilter}
+          activeReadLater={activeReadLater}
+          doneReadLater={doneReadLater}
           pdfs={pdfs}
           countByPdf={countByPdf}
           activePdfId={activePdfId}
           onTodoFilterChange={setTodoFilter}
+          onReadLaterFilterChange={setReadLaterFilter}
           onOpenPdfClick={() => pdfFileInputRef.current?.click()}
           onOpenPdf={handleOpenPdf}
           onOpenUrl={() => setPdfUrlOpen(true)}
@@ -2154,7 +2161,11 @@ export default function OptionsPage() {
                       /\.pdf$/i,
                       ""
                     ) ?? null)
-                  : (activeProject?.name ?? null)
+                  : sidebarTab === "todo"
+                    ? activeTab === "todo"
+                      ? "待办项"
+                      : "稍后读"
+                    : (activeProject?.name ?? null)
               }>
               {sidebarTab === "review" ? (
                 <Tooltip title="退出复习">
@@ -2196,7 +2207,31 @@ export default function OptionsPage() {
                     </IconButton>
                   </Tooltip>
                 </>
-              ) : sidebarTab === "pdf" ? null : (
+              ) : sidebarTab === "pdf" ? null : sidebarTab === "todo" ? (
+                <Tooltip
+                  title={
+                    activeTab === "todo"
+                      ? "切换到稍后读"
+                      : "切换到待办项"
+                  }>
+                  <IconButton
+                    size="small"
+                    onClick={() =>
+                      setActiveTab(activeTab === "todo" ? "readLater" : "todo")
+                    }
+                    sx={{
+                      color: "text.secondary",
+                      "&:hover": { color: "primary.main" },
+                      "&.Mui-focusVisible": { outline: "none" }
+                    }}>
+                    {activeTab === "todo" ? (
+                      <ChecklistRoundedIcon sx={{ fontSize: 20 }} />
+                    ) : (
+                      <BookmarkRoundedIcon sx={{ fontSize: 20 }} />
+                    )}
+                  </IconButton>
+                </Tooltip>
+              ) : (
                 activeProject && (
                   <>
                     <Tooltip title="新建卡片">
@@ -2624,9 +2659,7 @@ export default function OptionsPage() {
                 onQuickAdd: handleQuickAdd,
                 onNewTodo: handleNewTodo,
                 activeTab,
-                setActiveTab,
                 readLaterFilter,
-                setReadLaterFilter,
                 readLaterEditingId,
                 setReadLaterEditingId,
                 readLaterDeleteTarget,
@@ -3032,6 +3065,9 @@ export default function OptionsPage() {
             syncStatus={syncStatus}
             version={chrome.runtime.getManifest().version}
             todoStats={todoStats}
+            todoTab={activeTab}
+            activeReadLater={activeReadLater}
+            doneReadLater={doneReadLater}
             activeProjectName={activeProject?.name ?? null}
             activeProjectItemCount={
               allProjectCardsUnfiltered.filter(
