@@ -3,12 +3,16 @@
 ## Unreleased
 
 ## 0.3.0 — 待办链接 + 独立稍后读
-- **待办↔卡片/PDF/网页链接**：TodoCard 新增可选 `pdfId/cardId/url` 链接字段（schema 单一来源，无 DB 迁移/同步升版）；待办卡显示关联 chip 点击跳转；编辑表单可设关联（卡片/PDF/URL/无）。
-- **独立稍后读**：新 `ReadLater` 类型 + `readLater` store（DB v14，`byPdfId` 唯一索引 —— 一个 PDF 一张稍后读卡）；并入待办视图为「待办 | 稍后读」tab；ReadingCard（未读/在读/已读 + 摘录/笔记/来源）；阅读完毕自动归档。
-- **PDF 瓦片稍后读 icon**：一键加入稍后读；未归档时显示「稍后读」提醒 chip + 填充图标，标记已读后取消。
-- **双入口**：网页悬浮球「稍后读」按钮 + 稍后读 tab 新建瓦片（填 URL 或选库内 PDF）。
-- **同步 v7**：SyncPayload 新增 `readLater` 数组（哈希覆盖、门控 v3-v7、sanitize 校验、bulkReplace 冲突去重）。
-- 备份导出/导入含 readLater（ZIP v5 增列）。
+- **待办↔卡片/PDF/网页链接**：TodoCard 新增可选 `pdfId/cardId/url` 链接字段（schema 单一来源，无 DB 迁移/同步升版）；待办卡显示关联 chip 点击跳转（PDF 链接点击切到阅读视图）；编辑表单可设关联（卡片/PDF/URL/无）。
+- **独立稍后读**：新 `ReadLater` 类型 + `readLater` store；并入待办视图为「待办项 | 稍后读」子视图；ReadingCard（状态点 + 标题 + 来源 + 摘录/笔记）；阅读完毕自动归档到「已读」。
+- **一 PDF 一活动卡（DB v15）**：`byPdfId` 索引改非唯一——已读（归档）卡可累积为阅读历史，同时仅允许一张**活动**卡（业务层写事务内检查，无竞态）；重读同一 PDF 时归档保留、新建活动卡。
+- **UI**：待办项/稍后读切换在顶部工具栏（icon 单击 + 视图名）；侧栏筛选随子视图（待办项→全部/未完成/…；稍后读→进行中/已读 带计数）；底部栏统计随子视图；空态居中。
+- **PDF 瓦片**：稍后读书签 icon（BookmarkBorder/Bookmark）hover 浮现、位于删除左侧；一键加入/标记已读后 icon 恢复可加。
+- **新建对话框**：PDF 选择改为可搜索 Autocomplete，已在活动稍后读中的 PDF 禁用标注；编辑模式来源锁定、仅标题/笔记可改。
+- **badge**：NavRail 待办 badge 与扩展图标 badge 均计入稍后读未读数（`_dbrl` 广播即时刷新）。
+- **双入口**：网页悬浮球「稍后读」（直接加入当前 URL）+ 稍后读 tab 新建瓦片。
+- **同步 v7**：SyncPayload 新增 `readLater` 数组（哈希覆盖、门控 v3-v7、sanitize 校验、bulkReplace 活动卡冲突去重）。
+- 备份导出/导入含 readLater（ZIP v5 增列）；删除 PDF 级联清理其全部稍后读卡。
 
 ## 0.2.0 — 序列化单一来源 + 发布前加固
 - **序列化单一来源**：记录类型由 Zod schema（`types/schemas.ts`）`z.infer` 推导，`types/index.ts` re-export；import 校验器改为 `schema.safeParse`（形状校验自动随数据模型更新）。
