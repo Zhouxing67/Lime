@@ -142,7 +142,7 @@ export default function ReadLaterDialog({
             </Select>
           </FormControl>
         )}
-        {sourceType === "url" ? (
+        {!item && (sourceType === "url" ? (
           <TextField
             size="small"
             label="URL"
@@ -206,7 +206,7 @@ export default function ReadLaterDialog({
               />
             )}
           />
-        )}
+        ))}
         <TextField
           size="small"
           label="笔记（可选）"
