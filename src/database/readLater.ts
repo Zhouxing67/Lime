@@ -44,7 +44,20 @@ export async function addReadLater(item: ReadLater): Promise<boolean> {
           req.onerror = () => reject(req.error)
         }
       )
-      if (existing) return false
+      if (existing && existing.id !== ready.id) {
+        // A DONE (archived) card no longer counts — replace it with the new
+        // card so the PDF can be re-added without deleting the archive. An
+        // ACTIVE card still blocks (one active card per PDF).
+        if (existing.status === "done") {
+          await new Promise<void>((resolve, reject) => {
+            const del = store.delete(existing.id)
+            del.onsuccess = () => resolve()
+            del.onerror = () => reject(del.error)
+          })
+        } else {
+          return false
+        }
+      }
     }
     await new Promise<void>((resolve, reject) => {
       const req = store.put(ready)
@@ -68,7 +81,18 @@ export async function updateReadLater(item: ReadLater): Promise<boolean> {
           req.onerror = () => reject(req.error)
         }
       )
-      if (existing && existing.id !== item.id) return false
+      if (existing && existing.id !== item.id) {
+        // Same as addReadLater: a DONE holder is replaced, an ACTIVE one blocks.
+        if (existing.status === "done") {
+          await new Promise<void>((resolve, reject) => {
+            const del = store.delete(existing.id)
+            del.onsuccess = () => resolve()
+            del.onerror = () => reject(del.error)
+          })
+        } else {
+          return false
+        }
+      }
     }
     await new Promise<void>((resolve, reject) => {
       const req = store.put({ ...item, updatedAt: Date.now() })

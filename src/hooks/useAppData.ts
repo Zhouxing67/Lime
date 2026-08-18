@@ -347,9 +347,11 @@ export function useAppData({
         loadTodos()
         refreshLiteCounts()
       }
-      // readLater writes broadcast `_dbrl`: reload the read-later list only.
+      // readLater writes broadcast `_dbrl`: reload the read-later list AND the
+      // badge (active read-later feeds the NavRail todo badge).
       if (changes._dbrl) {
         loadReadLater()
+        refreshLiteCounts()
       }
       // Review writes broadcast `_dbr`: reload only review state (light),
       // never the full refreshAllData chain.

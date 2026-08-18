@@ -1942,6 +1942,25 @@ describe("readLater CRUD", () => {
     await updateReadLater({ ...c, status: "done" })
     expect(await getActiveReadLaterCount()).toBe(2)
   })
+
+  it("a DONE read-later for a PDF can be replaced by a new card (re-add after reading)", async () => {
+    const first = make({ pdfId: "pdf-reread" })
+    expect(await addReadLater(first)).toBe(true)
+    expect(await updateReadLater({ ...first, status: "done" })).toBe(true)
+    // The PDF's done card is archived — a new card may take its place.
+    const second = make({ title: "重新阅读", pdfId: "pdf-reread" })
+    expect(await addReadLater(second)).toBe(true)
+    const list = await getAllReadLater()
+    expect(list).toHaveLength(1)
+    expect(list[0].id).toBe(second.id)
+    expect(list[0].status).toBe("unread")
+  })
+
+  it("an ACTIVE read-later for a PDF still blocks a second card", async () => {
+    const a = make({ pdfId: "pdf-active" })
+    await addReadLater(a)
+    expect(await addReadLater(make({ pdfId: "pdf-active" }))).toBe(false)
+  })
 })
 
 describe("v14 migration: readLater store", () => {
