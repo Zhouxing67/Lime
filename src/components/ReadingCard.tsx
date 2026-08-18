@@ -21,7 +21,7 @@ interface ReadingCardProps {
 }
 
 const STATUS_META = {
-  unread: { label: "未读", dot: "text.secondary" },
+  unread: { label: "未读", dot: "error.main" },
   reading: { label: "在读", dot: "error.main" },
   done: { label: "已读", dot: "success.main" }
 } as const
