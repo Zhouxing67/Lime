@@ -50,6 +50,7 @@ import NavRail from "./components/NavRail"
 import NewProjectDialog from "./components/NewProjectDialog"
 import OpenPdfUrlDialog from "./components/OpenPdfUrlDialog"
 import PdfCardsPanel from "./components/PdfCardsPanel"
+import { PDF_UNCLASSIFIED_TOPIC, type PdfTopicView } from "./components/PdfHub"
 import PdfSearchPanel from "./components/PdfSearchPanel"
 import { useAppData } from "./hooks/useAppData"
 import { useBackupView } from "./hooks/useBackupView"
@@ -118,7 +119,18 @@ import type {
 } from "./types"
 import { base64ToBytes } from "./utils"
 import { sendMessage } from "./types/messages"
-import { RATING_META, buildMergedContent, cloneProjectCard, compareCards, computeItemHash, createReadLater, dueStatus, isTodoComplete, sortAllCards, todayLocalDate } from "./utils"
+import {
+  RATING_META,
+  buildMergedContent,
+  cloneProjectCard,
+  compareCards,
+  computeItemHash,
+  createReadLater,
+  dueStatus,
+  isTodoComplete,
+  sortAllCards,
+  todayLocalDate
+} from "./utils"
 import { resolveCardContent, stripPlacementContent } from "./utils/cards"
 
 const ITEMS_PER_PAGE = 20
@@ -155,6 +167,8 @@ export default function OptionsPage() {
   const [extraTopics, setExtraTopics] = useState<string[]>([])
   const [pdfCardsOpen, setPdfCardsOpen] = useState(true)
   const [pdfCardsWidth, setPdfCardsWidth] = useState(320)
+  const [pdfHubTopicView, setPdfHubTopicView] =
+    useState<PdfTopicView>("topics")
   // While a right-panel drag is in flight, the panel floats FIXED at its normal
   // spot (right edge, full height) instead of squeezing the PDF — the PDF
   // container size stays frozen, so no per-frame re-render (deferred dock).
@@ -1163,10 +1177,15 @@ export default function OptionsPage() {
   const handleOpenPdf = openPdf
   const handleClosePdf = useCallback(
     (id: string) => {
+      const closingLastOpenPdf = openPdfIds.length === 1 && openPdfIds[0] === id
       closePdf(id)
       setPdfOutlineDest(null)
+      if (!closingLastOpenPdf) return
+
+      const closedPdf = pdfs.find((p) => p.id === id)
+      setPdfHubTopicView(closedPdf?.topic ?? PDF_UNCLASSIFIED_TOPIC)
     },
-    [closePdf]
+    [closePdf, openPdfIds, pdfs]
   )
 
   // PdfCardsPanel card click → open the PDF (if needed) + flash the annotation.
@@ -1196,6 +1215,8 @@ export default function OptionsPage() {
     (card: DisplayCard) => {
       if (!card.pdfSource) return
       navigate("pdf")
+      setPdfSidebarView("cards")
+      setPdfCardsOpen(true)
       openPdf(card.pdfSource.pdfId)
       const pdfCard = card.pdfCardId ? pdfById.get(card.pdfCardId) : undefined
       pdfFlashToken.current += 1
@@ -2605,6 +2626,8 @@ export default function OptionsPage() {
                 handlePdfSearchResults,
                 jumpRequest,
                 topics,
+                pdfTopicView: pdfHubTopicView,
+                onPdfTopicViewChange: setPdfHubTopicView,
                 pdfs,
                 countByPdf,
                 handleOpenPdf,

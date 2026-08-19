@@ -190,7 +190,7 @@ export class Painter {
             onSelect: (range) => {
                 this.onTextSelected(range)
             },
-            onHighlight: (selection) => {
+            onHighlight: (selection, range) => {
                 if (!this.can('annotation.create')) return
                 Object.keys(selection).forEach((key) => {
                     const pageNumber = Number(key)
@@ -220,7 +220,7 @@ export class Painter {
                             )
                             this.editorStore.set(storeEditor.id, storeEditor)
                         }
-                        storeEditor.convertTextSelection(elements as HTMLSpanElement[], wrapper)
+                        storeEditor.convertTextSelection(elements as HTMLSpanElement[], wrapper, range)
                     }
                 })
             }

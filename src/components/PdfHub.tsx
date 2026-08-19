@@ -22,7 +22,7 @@ import {
   Typography
 } from "@mui/material"
 import { alpha, type Theme } from "@mui/material/styles"
-import { useState } from "react"
+import { useCallback, useState } from "react"
 
 import RenameDialog from "./RenameDialog"
 import type { PdfMetaLite } from "../database"
@@ -87,7 +87,8 @@ function TileFooter({
   )
 }
 
-const UNCLASSIFIED = "__unclassified__"
+export const PDF_UNCLASSIFIED_TOPIC = "__unclassified__"
+export type PdfTopicView = "topics" | "all" | string
 
 interface PdfHubProps {
   pdfs: PdfMetaLite[]
@@ -103,6 +104,8 @@ interface PdfHubProps {
   selected?: (id: string) => boolean
   onToggleSelect?: (id: string) => void
   /** Topic layer (PDF view only — hidden in selectable/backup mode). */
+  topicView?: PdfTopicView
+  onTopicViewChange?: (view: PdfTopicView) => void
   topics?: string[]
   onNewTopic?: (name: string) => void
   onRenameTopic?: (oldName: string, newName: string) => void
@@ -125,6 +128,8 @@ export default function PdfHub({
   selectable,
   selected,
   onToggleSelect,
+  topicView: controlledTopicView,
+  onTopicViewChange,
   topics = [],
   onNewTopic,
   onRenameTopic,
@@ -133,8 +138,14 @@ export default function PdfHub({
   readLaterPdfIds,
   onAddReadLater
 }: PdfHubProps) {
-  const [topicView, setTopicView] = useState<"topics" | "all" | string>(
-    "topics"
+  const [localTopicView, setLocalTopicView] = useState<PdfTopicView>("topics")
+  const topicView = controlledTopicView ?? localTopicView
+  const setTopicView = useCallback(
+    (view: PdfTopicView) => {
+      setLocalTopicView(view)
+      onTopicViewChange?.(view)
+    },
+    [onTopicViewChange]
   )
   const [newTopicOpen, setNewTopicOpen] = useState(false)
   const [newTopicName, setNewTopicName] = useState("")
@@ -171,7 +182,7 @@ export default function PdfHub({
       // navigation only and its topicView ("topics") would filter everything out.
       if (selectable) return true
       if (topicView === "all") return true
-      if (topicView === UNCLASSIFIED) return !p.topic
+      if (topicView === PDF_UNCLASSIFIED_TOPIC) return !p.topic
       if (typeof topicView === "string") return p.topic === topicView
       return true
     })
@@ -337,7 +348,7 @@ export default function PdfHub({
 
         <Paper
           elevation={0}
-          onClick={() => setTopicView(UNCLASSIFIED)}
+          onClick={() => setTopicView(PDF_UNCLASSIFIED_TOPIC)}
           sx={tileSx}>
           <Stack direction="row" spacing={1.5} alignItems="center">
             <TileAvatar
@@ -451,7 +462,7 @@ export default function PdfHub({
             }}>
             {topicView === "all"
               ? "全部 PDF"
-              : topicView === UNCLASSIFIED
+              : topicView === PDF_UNCLASSIFIED_TOPIC
                 ? "未分类"
                 : topicView}
           </Typography>

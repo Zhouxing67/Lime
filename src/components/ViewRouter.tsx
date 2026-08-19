@@ -12,7 +12,7 @@ import NoteAddRoundedIcon from "@mui/icons-material/NoteAddRounded"
 import CardWorkspace from "./CardWorkspace"
 import type { CardEditorValues } from "./CardEditorView"
 import PdfView from "./PdfView"
-import PdfHub from "./PdfHub"
+import PdfHub, { type PdfTopicView } from "./PdfHub"
 import BackupView from "./BackupView"
 import TodoView from "./TodoView"
 import ReviewSession from "./ReviewSession"
@@ -78,6 +78,8 @@ interface PdfViewRouterProps {
   }) => void
   jumpRequest: { index: number; seq: number } | null
   topics: string[]
+  pdfTopicView: PdfTopicView
+  onPdfTopicViewChange: (view: PdfTopicView) => void
   pdfs: PdfMetaLite[]
   countByPdf: Record<string, number>
   handleOpenPdf: (id: string) => void
@@ -265,6 +267,8 @@ function PdfViewRouter(props: PdfViewRouterProps) {
             onOpenUrl={onOpenUrl}
             onDeletePdf={handleDeletePdf}
             onRenamePdf={onRenamePdf}
+            topicView={pdfTopicView}
+            onTopicViewChange={onPdfTopicViewChange}
             topics={topics}
             onNewTopic={handleNewTopic}
             onRenameTopic={handleRenameTopic}
@@ -316,6 +320,8 @@ function PdfViewRouter(props: PdfViewRouterProps) {
           onOpenUrl={onOpenUrl}
           onDeletePdf={handleDeletePdf}
           onRenamePdf={onRenamePdf}
+          topicView={pdfTopicView}
+          onTopicViewChange={onPdfTopicViewChange}
           topics={topics}
           onNewTopic={handleNewTopic}
           onRenameTopic={handleRenameTopic}

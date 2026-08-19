@@ -12,6 +12,13 @@ interface SpanCanvasRect {
     height: number
 }
 
+interface ViewportRectLike {
+    left: number
+    top: number
+    width: number
+    height: number
+}
+
 /**
  * EditorHighLight 是继承自 Editor 的高亮编辑器类。
  */
@@ -39,17 +46,27 @@ export class EditorHighLight extends Editor {
      * @param elements HTMLSpanElement 数组，表示要绘制的元素
      * @param fixElement 用于修正计算的元素
      */
-    public convertTextSelection(elements: HTMLSpanElement[], fixElement: HTMLDivElement) {
+    public convertTextSelection(elements: HTMLSpanElement[], fixElement: HTMLDivElement, range?: Range | null) {
         this.currentShapeGroup = this.createShapeGroup()
         this.getBgLayer().add(this.currentShapeGroup.konvaGroup)
 
         const fixBounding = fixElement.getBoundingClientRect()
 
-        // 1. 收集所有 span 的 canvas 坐标矩形
-        const spanRects: SpanCanvasRect[] = elements.map(spanEl => {
-            const bounding = spanEl.getBoundingClientRect()
-            return this.calculateRelativePosition(bounding, fixBounding)
-        })
+        // 1. 优先使用原始 Range 的 client rects：它保留首尾字符裁剪，
+        //    且天然按真实换行拆分；web-highlighter 生成的 mark/span
+        //    getBoundingClientRect() 可能跨多行，导致下划线/删除线塌成一条。
+        const rangeRects = range
+            ? Array.from(range.getClientRects())
+                .map(rect => this.clipRectToPage(rect, fixBounding))
+                .filter((rect): rect is ViewportRectLike => Boolean(rect))
+                .map(rect => this.calculateRelativePosition(rect, fixBounding))
+            : []
+        const spanRects: SpanCanvasRect[] = rangeRects.length > 0
+            ? rangeRects
+            : elements.map(spanEl => {
+                const bounding = spanEl.getBoundingClientRect()
+                return this.calculateRelativePosition(bounding, fixBounding)
+            })
 
         // 2. 按行分组 + 行内合并为连续块
         const mergedRects = this.mergeSpanRectsByRow(spanRects)
@@ -102,10 +119,21 @@ export class EditorHighLight extends Editor {
      * @param fixBounding 基准元素的边界矩形
      * @returns 相对位置和尺寸的对象 { x, y, width, height }
      */
-    private calculateRelativePosition(elementBounding: DOMRect, fixBounding: DOMRect) {
+    private clipRectToPage(rect: DOMRect, pageBounding: DOMRect): ViewportRectLike | null {
+        const left = Math.max(rect.left, pageBounding.left)
+        const top = Math.max(rect.top, pageBounding.top)
+        const right = Math.min(rect.right, pageBounding.right)
+        const bottom = Math.min(rect.bottom, pageBounding.bottom)
+        const width = right - left
+        const height = bottom - top
+        if (width <= 0 || height <= 0) return null
+        return { left, top, width, height }
+    }
+
+    private calculateRelativePosition(elementBounding: ViewportRectLike, fixBounding: DOMRect) {
         const scale = this.konvaStage.scale()
-        const x = (elementBounding.x - fixBounding.x) / scale.x
-        const y = (elementBounding.y - fixBounding.y) / scale.y
+        const x = (elementBounding.left - fixBounding.left) / scale.x
+        const y = (elementBounding.top - fixBounding.top) / scale.y
         const width = elementBounding.width / scale.x
         const height = elementBounding.height / scale.y
         return { x, y, width, height }
