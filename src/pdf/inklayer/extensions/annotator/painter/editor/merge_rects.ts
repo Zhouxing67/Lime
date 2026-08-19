@@ -19,15 +19,26 @@ export interface LineMergeRect {
 export function mergeRectsByLine(rects: LineMergeRect[]): LineMergeRect[] {
   if (rects.length === 0) return []
 
-  const rows: { top: number; bottom: number; items: LineMergeRect[] }[] = []
-  for (const r of rects) {
-    const row = rows.find((x) => r.y < x.bottom && r.y + r.height > x.top)
+  const sorted = [...rects].sort((a, b) => a.y - b.y)
+  const rows: {
+    center: number
+    top: number
+    bottom: number
+    items: LineMergeRect[]
+  }[] = []
+  for (const r of sorted) {
+    const center = r.y + r.height / 2
+    const tolerance = Math.max(3, Math.min(r.height * 0.45, 8))
+    const row = rows.find((x) => Math.abs(center - x.center) <= tolerance)
     if (row) {
       row.top = Math.min(row.top, r.y)
       row.bottom = Math.max(row.bottom, r.y + r.height)
       row.items.push(r)
+      row.center =
+        row.items.reduce((sum, item) => sum + item.y + item.height / 2, 0) /
+        row.items.length
     } else {
-      rows.push({ top: r.y, bottom: r.y + r.height, items: [r] })
+      rows.push({ center, top: r.y, bottom: r.y + r.height, items: [r] })
     }
   }
 

@@ -331,7 +331,11 @@ function EngineBridge({
             // A newer jump superseded this one — stop (its own flash draws the
             // ring); retrying here would cancel it and redraw on the old page.
             if (flashTokenRef.current !== token) return
-            if (ok || attempts >= 10) return
+            if (ok) {
+              onAnnotationSelected?.(mark, true)
+              return
+            }
+            if (attempts >= 10) return
             flashRetryRef.current = setTimeout(() => {
               flashRetryRef.current = null
               tryHighlight()

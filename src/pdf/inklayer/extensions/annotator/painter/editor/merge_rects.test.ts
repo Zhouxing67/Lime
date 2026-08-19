@@ -42,6 +42,16 @@ describe("mergeRectsByLine (annotation line-bridging)", () => {
     expect(merged[0].height).toBe(26)
   })
 
+  it("does not merge stacked lines through tall overlapping boxes", () => {
+    const rects = [
+      { x: 0, y: 100, width: 100, height: 22 },
+      { x: 0, y: 119, width: 90, height: 22 },
+      { x: 0, y: 138, width: 80, height: 22 }
+    ]
+    const merged = mergeRectsByLine(rects)
+    expect(merged).toHaveLength(3)
+  })
+
   it("returns [] for empty input", () => {
     expect(mergeRectsByLine([])).toEqual([])
   })

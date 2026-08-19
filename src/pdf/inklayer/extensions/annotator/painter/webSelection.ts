@@ -10,10 +10,11 @@ interface HighlightCreatedEvent {
 export class WebSelection {
     isEditing: boolean // 指示是否启用编辑模式
     onSelect: (range: Range | null) => void // 当选区被选中时调用的回调函数
-    onHighlight: (selection: Partial<Record<string, HTMLElement[]>>) => void
+    onHighlight: (selection: Partial<Record<string, HTMLElement[]>>, range: Range | null) => void
     highlighterObj: null | Highlighter
     private root: HTMLDivElement | null = null
     private isSelecting = false
+    private pendingHighlightRange: Range | null = null
 
     private readonly handleSelectionChange = () => {
         const selection = window.getSelection()
@@ -59,7 +60,9 @@ export class WebSelection {
             return acc
         }, {})
 
-        this.onHighlight(pageSelection)
+        const range = this.pendingHighlightRange
+        this.pendingHighlightRange = null
+        this.onHighlight(pageSelection, range)
         highlighter.removeAll()
         window.getSelection()?.removeAllRanges()
     }
@@ -73,7 +76,7 @@ export class WebSelection {
         onHighlight
     }: {
         onSelect: (range: Range | null) => void
-        onHighlight: (selection: Partial<Record<string, HTMLElement[]>>) => void
+        onHighlight: (selection: Partial<Record<string, HTMLElement[]>>, range: Range | null) => void
     }) {
         this.isEditing = false
         this.onSelect = onSelect
@@ -102,6 +105,7 @@ export class WebSelection {
 
     public highlight(range: Range | null) {
         if (range) {
+            this.pendingHighlightRange = range.cloneRange()
             this.highlighterObj?.fromRange(range)
         }
     }
@@ -119,6 +123,7 @@ export class WebSelection {
             this.highlighterObj.off('selection:create', this.handleHighlightCreated)
             this.highlighterObj.dispose()
             this.highlighterObj = null
+            this.pendingHighlightRange = null
         }
 
         this.root = null
