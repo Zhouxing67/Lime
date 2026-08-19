@@ -231,6 +231,8 @@ function PdfViewRouter(props: PdfViewRouterProps) {
     handlePdfSearchResults,
     jumpRequest,
     topics,
+    pdfTopicView,
+    onPdfTopicViewChange,
     pdfs,
     countByPdf,
     handleOpenPdf,
