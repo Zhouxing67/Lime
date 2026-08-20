@@ -9,6 +9,7 @@ import DriveFileMoveRoundedIcon from "@mui/icons-material/DriveFileMoveRounded"
 import FolderRoundedIcon from "@mui/icons-material/FolderRounded"
 import LinkRoundedIcon from "@mui/icons-material/LinkRounded"
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
+import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded"
 import {
   Box,
   Button,
@@ -29,6 +30,7 @@ import type { PdfMetaLite } from "../database"
 import EmptyState from "./EmptyState"
 import { avatarColor, byRecency } from "../utils"
 import DashedTile from "./DashedTile"
+import PdfAiContextDialog from "./PdfAiContextDialog"
 
 /** Colored circular avatar (avatarPalette, deterministic per name) — the same
  *  visual anchor the project tiles use; icon renders in the contrast color. */
@@ -98,6 +100,7 @@ interface PdfHubProps {
   onOpenUrl?: () => void
   onDeletePdf: (pdf: PdfMetaLite) => void
   onRenamePdf?: (id: string, name: string) => void
+  onSaveAiContext?: (id: string, value: string) => void | Promise<void>
   keyword?: string
   /** Read-only multi-select mode (backup view): click toggles selection. */
   selectable?: boolean
@@ -124,6 +127,7 @@ export default function PdfHub({
   onOpenUrl,
   onDeletePdf,
   onRenamePdf,
+  onSaveAiContext,
   keyword = "",
   selectable,
   selected,
@@ -154,6 +158,7 @@ export default function PdfHub({
     id: string
     name: string
   } | null>(null)
+  const [aiContextPdf, setAiContextPdf] = useState<PdfMetaLite | null>(null)
   const [moveMenu, setMoveMenu] = useState<{
     pdfId: string
     anchor: HTMLElement
@@ -628,6 +633,29 @@ export default function PdfHub({
                   <IconButton
                     className="hub-delete"
                     size="small"
+                    title="编辑 AI 上下文"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setAiContextPdf(p)
+                    }}
+                    sx={{
+                      position: "absolute",
+                      top: 4,
+                      right: 94,
+                      p: 0.5,
+                      opacity: 0,
+                      color: p.aiContext ? "primary.main" : "text.disabled",
+                      transition: "opacity 0.15s",
+                      "&:hover": {
+                        color: "primary.main",
+                        bgcolor: "transparent"
+                      }
+                    }}>
+                    <AutoAwesomeRoundedIcon sx={{ fontSize: 16 }} />
+                  </IconButton>
+                  <IconButton
+                    className="hub-delete"
+                    size="small"
                     title="重命名"
                     onClick={(e) => {
                       e.stopPropagation()
@@ -779,6 +807,15 @@ export default function PdfHub({
           onConfirm={(name) => {
             if (name && name !== pdfRename.name) onRenamePdf?.(pdfRename.id, name)
           }}
+        />
+      )}
+      {aiContextPdf && (
+        <PdfAiContextDialog
+          open
+          pdfName={aiContextPdf.name}
+          value={aiContextPdf.aiContext}
+          onClose={() => setAiContextPdf(null)}
+          onSave={(value) => onSaveAiContext?.(aiContextPdf.id, value)}
         />
       )}
     </Box>

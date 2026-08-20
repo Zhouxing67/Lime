@@ -205,6 +205,7 @@ export function useBackupSync(options: {
         addedAt: p.addedAt,
         lastOpened: p.lastOpened,
         lastPage: p.lastPage,
+        ...(p.aiContext ? { aiContext: p.aiContext } : {}),
         ...(p.topic ? { topic: p.topic } : {})
       }))
       const result = await runSync(
@@ -271,6 +272,7 @@ export function useBackupSync(options: {
         addedAt: p.addedAt,
         lastOpened: p.lastOpened,
         lastPage: p.lastPage,
+        ...(p.aiContext ? { aiContext: p.aiContext } : {}),
         ...(p.topic ? { topic: p.topic } : {})
       }))
       const remote = await downloadRemote(
@@ -360,6 +362,7 @@ export function useBackupSync(options: {
               addedAt: meta.addedAt,
               lastOpened: meta.lastOpened,
               lastPage: meta.lastPage,
+              ...(meta.aiContext ? { aiContext: meta.aiContext } : {}),
               ...(meta.topic ? { topic: meta.topic } : {})
             })
           }

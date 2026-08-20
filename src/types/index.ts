@@ -82,6 +82,8 @@ export interface PdfFile {
   lastOpened?: number
   /** Last visible page, restored on an ordinary open. */
   lastPage?: number
+  /** User-authored document context included in future AI requests. */
+  aiContext?: string
   /** Optional topic grouping (a plain string tag; PDFs with no topic are 未分类). */
   topic?: string
 }

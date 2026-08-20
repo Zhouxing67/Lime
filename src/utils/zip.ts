@@ -19,6 +19,7 @@ export interface PdfExportMeta {
   addedAt: number
   lastOpened?: number
   lastPage?: number
+  aiContext?: string
   topic?: string
 }
 
@@ -48,6 +49,7 @@ export async function toJsonZip(
       addedAt: pdf.addedAt,
       lastOpened: pdf.lastOpened,
       lastPage: pdf.lastPage,
+      aiContext: pdf.aiContext,
       topic: pdf.topic
     })
   }

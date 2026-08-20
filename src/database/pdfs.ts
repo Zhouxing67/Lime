@@ -97,6 +97,36 @@ export async function updatePdfLastPage(
   )
 }
 
+export async function updatePdfAiContext(
+  id: string,
+  aiContext: string | undefined
+): Promise<boolean | void> {
+  const normalized = aiContext?.trim()
+  if (normalized && normalized.length > 8000) {
+    throw new Error("AI 上下文不能超过 8000 个字符")
+  }
+  return withStore(
+    "pdfs",
+    "readwrite",
+    async (store) => {
+      const pdf = await new Promise<PdfFile | undefined>((resolve, reject) => {
+        const request = store.get(id)
+        request.onsuccess = () => resolve(request.result as PdfFile | undefined)
+        request.onerror = () => reject(request.error)
+      })
+      if (!pdf) return false
+      if (normalized) pdf.aiContext = normalized
+      else delete pdf.aiContext
+      await new Promise<void>((resolve, reject) => {
+        const request = store.put(pdf)
+        request.onsuccess = () => resolve()
+        request.onerror = () => reject(request.error)
+      })
+    },
+    { broadcastKey: "_dbpdfTouch" }
+  )
+}
+
 /** Set a PDF's topic (undefined → 未分类). Metadata-only → the lightweight
  *  `_dbpdfTouch` stamp re-sorts the library without reloading the cards. */
 export async function updatePdfTopic(
@@ -180,6 +210,7 @@ export async function listPdfMeta(): Promise<PdfMetaLite[]> {
           addedAt: p.addedAt,
           lastOpened: p.lastOpened,
           lastPage: p.lastPage,
+          aiContext: p.aiContext,
           topic: p.topic,
           hasBytes: !!p.bytes
         }))
@@ -924,6 +955,7 @@ export async function applyPdfSync(
     addedAt: number
     lastOpened?: number
     lastPage?: number
+    aiContext?: string
     topic?: string
   }[],
   remoteAnnotations: PdfAnnotation[],

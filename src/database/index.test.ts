@@ -54,6 +54,7 @@ import {
   promoteDraft,
   touchPdf,
   updatePdfLastPage,
+  updatePdfAiContext,
   updateProjectCard,
   updateReviewSrs,
   getReviewByItemId,
@@ -1124,6 +1125,20 @@ describe("pdf content-hash id + notes-only sync", () => {
     })
     await updatePdfLastPage(id, 7)
     expect((await getPdf(id))?.lastPage).toBe(7)
+  })
+
+  it("stores and clears the PDF AI context", async () => {
+    const id = await addPdf({
+      id: "pdf-ai-context",
+      name: "ai.pdf",
+      bytes: new Blob(["ai-context"]),
+      pageCount: 2,
+      addedAt: 1
+    })
+    await updatePdfAiContext(id, "  用中文解释关键概念  ")
+    expect((await getPdf(id))?.aiContext).toBe("用中文解释关键概念")
+    await updatePdfAiContext(id, undefined)
+    expect((await getPdf(id))?.aiContext).toBeUndefined()
   })
 
   it("applyPdfSync cascades removed annotations to pdfCards, placements, and reviews", async () => {

@@ -46,6 +46,7 @@ export type PdfSyncMeta = Pick<
   | "addedAt"
   | "lastOpened"
   | "lastPage"
+  | "aiContext"
   | "topic"
 >
 

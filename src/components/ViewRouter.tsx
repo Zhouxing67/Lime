@@ -91,6 +91,7 @@ interface PdfViewRouterProps {
   pdfFileInputRef: React.RefObject<HTMLInputElement | null>
   handleDeletePdf: (pdf: PdfMetaLite) => void
   onRenamePdf?: (id: string, name: string) => void
+  onSavePdfAiContext?: (id: string, value: string) => void | Promise<void>
   handleNewTopic: (name: string) => void
   handleRenameTopic: (oldName: string, name: string) => void
   handleDeleteTopic: (name: string) => void
@@ -244,6 +245,7 @@ function PdfViewRouter(props: PdfViewRouterProps) {
     pdfFileInputRef,
     handleDeletePdf,
     onRenamePdf,
+    onSavePdfAiContext,
     handleNewTopic,
     handleRenameTopic,
     handleDeleteTopic,
@@ -273,6 +275,7 @@ function PdfViewRouter(props: PdfViewRouterProps) {
             onOpenUrl={onOpenUrl}
             onDeletePdf={handleDeletePdf}
             onRenamePdf={onRenamePdf}
+            onSaveAiContext={onSavePdfAiContext}
             topicView={pdfTopicView}
             onTopicViewChange={onPdfTopicViewChange}
             topics={topics}
@@ -327,6 +330,7 @@ function PdfViewRouter(props: PdfViewRouterProps) {
           onOpenUrl={onOpenUrl}
           onDeletePdf={handleDeletePdf}
           onRenamePdf={onRenamePdf}
+          onSaveAiContext={onSavePdfAiContext}
           topicView={pdfTopicView}
           onTopicViewChange={onPdfTopicViewChange}
           topics={topics}

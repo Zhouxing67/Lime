@@ -536,7 +536,7 @@ describe("pdf backup round-trip", () => {
     expect(cards[0].id).toBe(card.id)
   })
 
-  it("survives export → import (topic + pageCount + lastOpened)", async () => {
+  it("survives export → import (topic + progress + AI context)", async () => {
     const pdf: PdfFile = {
       id: "topic-pdf",
       name: "paper.pdf",
@@ -544,6 +544,8 @@ describe("pdf backup round-trip", () => {
       pageCount: 5,
       addedAt: 123,
       lastOpened: 456,
+      lastPage: 4,
+      aiContext: "面向机器学习初学者解释，并保留英文术语。",
       topic: "深度学习"
     }
     const blob = await toJsonZip([], [], [], [], [], [pdf], [])
@@ -554,6 +556,10 @@ describe("pdf backup round-trip", () => {
     expect(restored?.topic).toBe("深度学习")
     expect(restored?.pageCount).toBe(5)
     expect(restored?.lastOpened).toBe(456)
+    expect(restored?.lastPage).toBe(4)
+    expect(restored?.aiContext).toBe(
+      "面向机器学习初学者解释，并保留英文术语。"
+    )
   })
 
   it("round-trips read-later through export → import (toJsonZip 9th arg)", async () => {

@@ -488,6 +488,7 @@ interface ParsedExport {
     addedAt: number
     lastOpened?: number
     lastPage?: number
+    aiContext?: string
     topic?: string
   }[]
 }
@@ -568,6 +569,7 @@ export function parseExport(rawJson: string): ParsedExport | { error: string } {
       addedAt: number
       lastOpened?: number
       lastPage?: number
+      aiContext?: string
       topic?: string
     }[]) ?? []
   return {
@@ -757,6 +759,7 @@ export async function importFromZip(
       addedAt: number
       lastOpened?: number
       lastPage?: number
+      aiContext?: string
       topic?: string
     }
   >()
@@ -775,6 +778,7 @@ export async function importFromZip(
         addedAt: meta?.addedAt ?? Date.now(),
         lastOpened: meta?.lastOpened,
         lastPage: meta?.lastPage,
+        aiContext: meta?.aiContext,
         topic: meta?.topic
       })
       pdfIdSet.add(actualId)

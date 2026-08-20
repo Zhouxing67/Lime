@@ -79,6 +79,7 @@ import {
   deletePdf,
   deletePdfCards,
   renamePdfName,
+  updatePdfAiContext,
   discardDraft,
   ensureOrder,
   createImageCard,
@@ -1687,6 +1688,14 @@ export default function OptionsPage() {
     [setSnackbarMsg]
   )
 
+  const handleSavePdfAiContext = useCallback(
+    async (id: string, value: string) => {
+      await updatePdfAiContext(id, value || undefined)
+      setSnackbarMsg(value ? "已保存 PDF AI 上下文" : "已清空 PDF AI 上下文")
+    },
+    [setSnackbarMsg]
+  )
+
   const handleDeletePdf = useCallback(
     (pdf: PdfMetaLite) => {
       setPdfDeleteTarget(pdf)
@@ -2706,6 +2715,7 @@ export default function OptionsPage() {
                 pdfFileInputRef,
                 handleDeletePdf,
                 onRenamePdf: handleRenamePdf,
+                onSavePdfAiContext: handleSavePdfAiContext,
                 handleNewTopic,
                 handleRenameTopic,
                 handleDeleteTopic,
