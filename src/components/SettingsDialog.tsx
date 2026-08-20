@@ -5,6 +5,7 @@ import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded"
 import FunctionsRoundedIcon from "@mui/icons-material/FunctionsRounded"
 import PaletteRoundedIcon from "@mui/icons-material/PaletteRounded"
 import TextFieldsRoundedIcon from "@mui/icons-material/TextFieldsRounded"
+import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded"
 import {
   Box,
   Button,
@@ -47,6 +48,10 @@ export default function SettingsDialog({
   const [mathHoverEnabled, setMathHover] = useState(true)
   const [ballEnabled, setBallEnabled] = useState(true)
   const [hiddenHostCount, setHiddenHostCount] = useState(0)
+  const [aiEndpoint, setAiEndpoint] = useState("")
+  const [aiModel, setAiModel] = useState("")
+  const [aiApiKey, setAiApiKey] = useState("")
+  const [aiSaved, setAiSaved] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -64,6 +69,17 @@ export default function SettingsDialog({
     chrome.storage.local.get("mathHoverEnabled", (data) => {
       setMathHover(data.mathHoverEnabled !== false)
     })
+    chrome.storage.local.get(
+      ["aiEndpoint", "aiModel", "aiApiKey"],
+      (data) => {
+        setAiEndpoint(
+          data.aiEndpoint ?? "https://api.openai.com/v1/chat/completions"
+        )
+        setAiModel(data.aiModel ?? "gpt-4.1-mini")
+        setAiApiKey(data.aiApiKey ?? "")
+        setAiSaved(false)
+      }
+    )
     chrome.storage.local.get(
       ["floatBallEnabled", "floatBallHiddenHosts"],
       (data) => {
@@ -114,17 +130,87 @@ export default function SettingsDialog({
           </Button>
         </DialogActions>
       }>
-      <Typography
-        variant="subtitle2"
-        sx={{ mb: 1.5, color: "text.secondary", fontSize: "0.85rem" }}>
-        <CloudDoneRoundedIcon
-          sx={{ fontSize: 16, mr: 0.5, verticalAlign: "text-bottom" }}
-        />
-        坚果云同步
-      </Typography>
-
       <Stack spacing={1.5}>
-        <Stack direction="row" spacing={1}>
+        <Box>
+          <Typography
+            variant="subtitle2"
+            sx={{ mb: 1.5, color: "text.secondary", fontSize: "0.85rem" }}>
+            <AutoAwesomeRoundedIcon
+              sx={{ fontSize: 16, mr: 0.5, verticalAlign: "text-bottom" }}
+            />
+            AI 解读
+          </Typography>
+          <Stack spacing={1.25}>
+            <TextField
+              size="small"
+              label="OpenAI 兼容 Endpoint"
+              value={aiEndpoint}
+              onChange={(event) => {
+                setAiEndpoint(event.target.value)
+                setAiSaved(false)
+              }}
+              fullWidth
+            />
+            <Stack direction="row" spacing={1}>
+              <TextField
+                size="small"
+                label="模型"
+                value={aiModel}
+                onChange={(event) => {
+                  setAiModel(event.target.value)
+                  setAiSaved(false)
+                }}
+                fullWidth
+              />
+              <TextField
+                size="small"
+                type="password"
+                label="API Key"
+                value={aiApiKey}
+                onChange={(event) => {
+                  setAiApiKey(event.target.value)
+                  setAiSaved(false)
+                }}
+                fullWidth
+              />
+            </Stack>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Button
+                size="small"
+                variant="outlined"
+                disabled={!aiEndpoint.trim() || !aiModel.trim() || !aiApiKey.trim()}
+                onClick={() => {
+                  void chrome.storage.local.set({
+                    aiEndpoint: aiEndpoint.trim(),
+                    aiModel: aiModel.trim(),
+                    aiApiKey: aiApiKey.trim()
+                  })
+                  setAiSaved(true)
+                }}>
+                保存 AI 配置
+              </Button>
+              {aiSaved && (
+                <Typography variant="caption" color="success.main">
+                  已保存到本机
+                </Typography>
+              )}
+            </Stack>
+            <Typography variant="caption" color="text.disabled">
+              API Key 仅保存在本机，不进入备份或 WebDAV 同步。
+            </Typography>
+          </Stack>
+        </Box>
+
+        <Box sx={{ pt: 2, borderTop: "1px solid", borderColor: "divider" }}>
+          <Typography
+            variant="subtitle2"
+            sx={{ mb: 1.5, color: "text.secondary", fontSize: "0.85rem" }}>
+            <CloudDoneRoundedIcon
+              sx={{ fontSize: 16, mr: 0.5, verticalAlign: "text-bottom" }}
+            />
+            坚果云同步
+          </Typography>
+          <Stack direction="row" spacing={1}>
           <TextField
             fullWidth
             size="small"
@@ -142,7 +228,7 @@ export default function SettingsDialog({
             onChange={(e) => setAppPassword(e.target.value)}
             sx={{ "& .MuiOutlinedInput-root": { borderRadius: 1 } }}
           />
-        </Stack>
+          </Stack>
         <Stack direction="row" spacing={1}>
           <Button
             size="small"
@@ -206,6 +292,7 @@ export default function SettingsDialog({
           <br />
           上传/下载请在「备份」视图中进行。
         </Typography>
+        </Box>
 
         <Box
           sx={{

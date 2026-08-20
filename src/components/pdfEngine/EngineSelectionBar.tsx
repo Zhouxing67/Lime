@@ -14,18 +14,26 @@ import {
   StrikethroughSRounded
 } from "@mui/icons-material"
 import MenuBookRoundedIcon from "@mui/icons-material/MenuBookRounded"
+import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded"
 
 import { usePainter } from "~/src/pdf/inklayer/extensions/annotator/context/use_painter"
 import { TOOL_LABELS, toolDef } from "./tools"
 import DialogShell from "../DialogShell"
+import AiInterpretDialog, { type AiInterpretResponse } from "./AiInterpretDialog"
 
 /** Our MUI text-selection bar — highlight/underline/strikeout on the range. */
 export default function EngineSelectionBar({
   range,
-  onAddVocabulary
+  onAddVocabulary,
+  onAiInterpret,
+  onAiCancel,
+  onApplyAiInterpretation
 }: {
   range: Range | null
   onAddVocabulary?: (range: Range, translation: string) => Promise<void>
+  onAiInterpret?: (text: string, requestId: string) => Promise<AiInterpretResponse>
+  onAiCancel?: (requestId: string) => Promise<void>
+  onApplyAiInterpretation?: (range: Range, comment: string) => void
 }) {
   const { painter } = usePainter()
   const anchorRef = useRef<HTMLDivElement>(null)
@@ -33,6 +41,7 @@ export default function EngineSelectionBar({
   const [vocabularyRange, setVocabularyRange] = useState<Range | null>(null)
   const [translation, setTranslation] = useState("")
   const [saving, setSaving] = useState(false)
+  const [aiRange, setAiRange] = useState<Range | null>(null)
   useEffect(() => {
     if (range && range.getBoundingClientRect) {
       const r = range.getBoundingClientRect()
@@ -96,6 +105,20 @@ export default function EngineSelectionBar({
                 }}
                 sx={{ color: "text.secondary" }}>
                 <MenuBookRoundedIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
+          )}
+          {onAiInterpret && onAiCancel && onApplyAiInterpretation && (
+            <Tooltip title="AI 解读">
+              <IconButton
+                size="small"
+                onClick={() => {
+                  if (!range || !range.toString().trim()) return
+                  setAiRange(range.cloneRange())
+                  setAnchorPos(null)
+                }}
+                sx={{ color: "text.secondary" }}>
+                <AutoAwesomeRoundedIcon sx={{ fontSize: 16 }} />
               </IconButton>
             </Tooltip>
           )}
@@ -163,6 +186,15 @@ export default function EngineSelectionBar({
           placeholder="输入这个单词或词组的翻译"
         />
       </DialogShell>
+      {aiRange && onAiInterpret && onAiCancel && onApplyAiInterpretation && (
+        <AiInterpretDialog
+          range={aiRange}
+          onClose={() => setAiRange(null)}
+          onInterpret={onAiInterpret}
+          onCancel={onAiCancel}
+          onApply={onApplyAiInterpretation}
+        />
+      )}
     </>
   )
 }

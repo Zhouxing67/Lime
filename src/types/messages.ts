@@ -74,6 +74,20 @@ export interface ReadLaterMessage {
   }
 }
 
+export interface AiInterpretMessage {
+  kind: "ai-interpret"
+  payload: {
+    requestId: string
+    text: string
+    aiContext?: string
+  }
+}
+
+export interface AiCancelMessage {
+  kind: "ai-cancel"
+  requestId: string
+}
+
 export type ExtensionMessage =
   | CaptureMessage
   | ToastMessage
@@ -85,6 +99,8 @@ export type ExtensionMessage =
   | FetchPdfMessage
   | SaveWebPdfMessage
   | ReadLaterMessage
+  | AiInterpretMessage
+  | AiCancelMessage
 
 export function sendMessage<T = any>(
   msg: ExtensionMessage,

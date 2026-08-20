@@ -512,6 +512,8 @@ export async function saveAnnotationFromStore(input: {
   path?: { x: number; y: number }[]
   /** All strokes (multi-stroke annotations) — the crop draws every one. */
   paths?: { x: number; y: number }[][]
+  /** Optional comment used when this save creates the linked PDF card. */
+  comment?: string
 }): Promise<PdfAnnotation> {
   const s = input.store
   const type = inkTypeToPdfMark(s.type)
@@ -537,6 +539,7 @@ export async function saveAnnotationFromStore(input: {
           kind,
           type,
           annotationId: s.id,
+          comment: input.comment?.trim() || undefined,
           pdfOrder:
             s.pageNumber * PDF_ORDER_BASE +
             Math.round((input.pos?.y ?? 0) * 1e6)

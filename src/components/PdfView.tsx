@@ -16,6 +16,10 @@ import { outlinePageNumber } from "./pdfText"
 import type { PdfAnnotation, PdfOutlineItem } from "../types"
 import type { PdfSearchEntry, PdfSearchMatch } from "./pdfText"
 import type { IAnnotationStore } from "../pdf/inklayer/extensions/annotator/const/definitions"
+import {
+  cancelAiInterpretation,
+  requestAiInterpretation
+} from "../utils/ai"
 
 export default function PdfView({
   pdfId,
@@ -209,7 +213,8 @@ export default function PdfView({
       pos?: { x: number; y: number },
       rects?: { x: number; y: number; w: number; h: number }[],
       path?: { x: number; y: number }[],
-      paths?: { x: number; y: number }[][]
+      paths?: { x: number; y: number }[][],
+      comment?: string
     ) => {
       if (!loaded) return
       try {
@@ -219,7 +224,8 @@ export default function PdfView({
           pos,
           rects,
           path,
-          paths
+          paths,
+          comment
         })
         if (saved.cardId) {
           annIdToCardId.current.set(saved.id, saved.cardId)
@@ -367,6 +373,10 @@ export default function PdfView({
               throw error
             }
           }}
+          onAiInterpret={(text, requestId) =>
+            requestAiInterpretation(requestId, text, loaded.file.aiContext)
+          }
+          onAiCancel={cancelAiInterpretation}
         />
       </Box>
     </Box>

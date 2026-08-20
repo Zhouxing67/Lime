@@ -1115,6 +1115,24 @@ describe("pdf content-hash id + notes-only sync", () => {
     expect(card?.page).toBe(2)
   })
 
+  it("stores an AI interpretation in the newly-created PDF card comment", async () => {
+    await saveAnnotationFromStore({
+      pdfId: "pdf-ai-note",
+      store: {
+        id: "ann-ai-note",
+        pageNumber: 2,
+        type: 1,
+        konvaClientRect: { x: 10, y: 20, width: 30, height: 10 },
+        contentsObj: { selectedText: "需要解释的原文" }
+      },
+      pos: { x: 0.2, y: 0.3 },
+      comment: "这是 AI 生成的解读"
+    })
+    const cards = await getPdfCards("pdf-ai-note")
+    expect(cards).toHaveLength(1)
+    expect(cards[0].comment).toBe("这是 AI 生成的解读")
+  })
+
   it("stores the last visible page", async () => {
     const id = await addPdf({
       id: "pdf-progress",

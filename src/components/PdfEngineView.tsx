@@ -19,6 +19,7 @@ import "@radix-ui/themes/styles.css"
 
 import EngineToolbar from "./pdfEngine/EngineToolbar"
 import EngineSelectionBar from "./pdfEngine/EngineSelectionBar"
+import { toolDef } from "./pdfEngine/tools"
 import { usePdfHighlights } from "./pdfEngine/usePdfHighlights"
 import { usePdfGeometryDiagnostics } from "./pdfEngine/usePdfGeometryDiagnostics"
 
@@ -31,8 +32,9 @@ export interface PdfEngineViewProps {
     pos?: { x: number; y: number },
     rects?: { x: number; y: number; w: number; h: number }[],
     path?: { x: number; y: number }[],
-    paths?: { x: number; y: number }[][]
-  ) => void
+    paths?: { x: number; y: number }[][],
+    comment?: string
+  ) => void | Promise<void>
   onAnnotationDelete?: (id: string) => void
   onAnnotationSelected?: (annotation: IAnnotationStore | null, isClick: boolean) => void
   onAnnotationChanged?: (
@@ -77,6 +79,11 @@ export interface PdfEngineViewProps {
     rects: { x: number; y: number; w: number; h: number }[]
     token: number
   } | null
+  onAiInterpret?: (
+    text: string,
+    requestId: string
+  ) => Promise<{ ok: boolean; text?: string; error?: string; cancelled?: boolean }>
+  onAiCancel?: (requestId: string) => Promise<void>
 }
 
 /** Bridge rendered INSIDE PdfViewerProvider — needs the pdfViewer/eventBus. */
@@ -100,7 +107,9 @@ function EngineBridge({
   textRange,
   onTextSelected,
   onAddVocabulary,
-  vocabularyFlashTarget
+  vocabularyFlashTarget,
+  onAiInterpret,
+  onAiCancel
 }: {
   annotations?: IAnnotationStore[]
   onAnnotationAdd?: (
@@ -108,8 +117,9 @@ function EngineBridge({
     pos?: { x: number; y: number },
     rects?: { x: number; y: number; w: number; h: number }[],
     path?: { x: number; y: number }[],
-    paths?: { x: number; y: number }[][]
-  ) => void
+    paths?: { x: number; y: number }[][],
+    comment?: string
+  ) => void | Promise<void>
   onAnnotationDelete?: (id: string) => void
   onAnnotationSelected?: (annotation: IAnnotationStore | null, isClick: boolean) => void
   onAnnotationChanged?: (
@@ -140,9 +150,19 @@ function EngineBridge({
   onTextSelected: (range: Range | null) => void
   onAddVocabulary?: PdfEngineViewProps["onAddVocabulary"]
   vocabularyFlashTarget?: PdfEngineViewProps["vocabularyFlashTarget"]
+  onAiInterpret?: PdfEngineViewProps["onAiInterpret"]
+  onAiCancel?: PdfEngineViewProps["onAiCancel"]
 }) {
   const { pdfViewer, eventBus } = usePdfViewerContext()
   const { painter } = usePainter()
+  const pendingAiCommentRef = useRef<string | null>(null)
+  const pendingAiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(
+    () => () => {
+      if (pendingAiTimerRef.current) clearTimeout(pendingAiTimerRef.current)
+    },
+    []
+  )
 
   useEffect(() => {
     if (!pdfViewer || !vocabularyFlashTarget) return
@@ -237,12 +257,18 @@ function EngineBridge({
   const handleAdd = useCallback(
     (store: IAnnotationStore) => {
       const { pos, rects, path, paths } = computeGeometry(store)
+      const comment = pendingAiCommentRef.current ?? undefined
+      pendingAiCommentRef.current = null
+      if (pendingAiTimerRef.current) {
+        clearTimeout(pendingAiTimerRef.current)
+        pendingAiTimerRef.current = null
+      }
       // Persistence is async in the host — if it rejects, drop the mark from
       // the canvas. The engine has no "update from external" channel (its sync
       // effect only removes), and `stores` only ever holds PERSISTED marks, so
       // a failed id is never in it and a filter there is a no-op — the painter
       // removal is the only channel that actually clears the lingering mark.
-      Promise.resolve(onAnnotationAdd?.(store, pos, rects, path, paths)).catch(
+      Promise.resolve(onAnnotationAdd?.(store, pos, rects, path, paths, comment)).catch(
         () => painter?.removeAnnotationFromPanel(store.id)
       )
     },
@@ -494,6 +520,20 @@ function EngineBridge({
               }
             : undefined
         }
+        onAiInterpret={onAiInterpret}
+        onAiCancel={onAiCancel}
+        onApplyAiInterpretation={(range, comment) => {
+          if (!painter) return
+          pendingAiCommentRef.current = comment
+          if (pendingAiTimerRef.current) clearTimeout(pendingAiTimerRef.current)
+          pendingAiTimerRef.current = setTimeout(() => {
+            pendingAiTimerRef.current = null
+            pendingAiCommentRef.current = null
+          }, 2000)
+          painter.highlightRange(range, toolDef("highlight"))
+          window.getSelection()?.removeAllRanges()
+          onTextSelected(null)
+        }}
       />
       <AnnotatorExtension
         annotations={annotations}
@@ -529,7 +569,9 @@ export default function PdfEngineView({
   clearRingToken,
   annotationById,
   onAddVocabulary,
-  vocabularyFlashTarget
+  vocabularyFlashTarget,
+  onAiInterpret,
+  onAiCancel
 }: PdfEngineViewProps) {
   const [textRange, setTextRange] = useState<Range | null>(null)
   const optionsValue = useMemo(
@@ -623,6 +665,8 @@ export default function PdfEngineView({
                 onTextSelected={handleTextSelected}
                 onAddVocabulary={onAddVocabulary}
                 vocabularyFlashTarget={vocabularyFlashTarget}
+                onAiInterpret={onAiInterpret}
+                onAiCancel={onAiCancel}
               />
             </PdfViewerProvider>
           </OptionsContext.Provider>
