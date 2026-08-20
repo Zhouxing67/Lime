@@ -53,6 +53,7 @@ import {
   saveDraftCard,
   promoteDraft,
   touchPdf,
+  updatePdfLastPage,
   updateProjectCard,
   updateReviewSrs,
   getReviewByItemId,
@@ -63,10 +64,13 @@ import {
   getReadLaterByPdfId,
   getActiveReadLaterCount,
   addVocabularyEntry,
+  deleteVocabularyTranslation,
   deleteVocabularyEntry,
   getAllVocabularyCards,
   getVocabularyCardByPdf,
   normalizeVocabularyTerm,
+  moveVocabularyTranslation,
+  updateVocabularyTranslation,
   DB_VERSION
 } from "./index"
 
@@ -1110,6 +1114,18 @@ describe("pdf content-hash id + notes-only sync", () => {
     expect(card?.page).toBe(2)
   })
 
+  it("stores the last visible page", async () => {
+    const id = await addPdf({
+      id: "pdf-progress",
+      name: "progress.pdf",
+      bytes: new Blob(["progress"]),
+      pageCount: 12,
+      addedAt: 1
+    })
+    await updatePdfLastPage(id, 7)
+    expect((await getPdf(id))?.lastPage).toBe(7)
+  })
+
   it("applyPdfSync cascades removed annotations to pdfCards, placements, and reviews", async () => {
     await addProject({ id: "proj-sync-del", name: "SYNC-DEL", createdAt: 1 })
     const { annotation, card } = await createTextAnnotationCard({
@@ -1192,6 +1208,59 @@ describe("PDF vocabulary cards", () => {
     await deleteVocabularyEntry(added.card.id, added.entry.id)
     expect(await getVocabularyCardByPdf("pdf-vocab-delete")).toBeUndefined()
     expect(await getProjectCardById(added.card.projectCardId)).toBeUndefined()
+  })
+
+  it("edits, reorders and deletes individual translations", async () => {
+    const first = await addVocabularyEntry({
+      pdfId: "pdf-vocab-manage",
+      page: 1,
+      term: "robust",
+      translation: "稳健的",
+      rects: []
+    })
+    const second = await addVocabularyEntry({
+      pdfId: "pdf-vocab-manage",
+      page: 1,
+      term: "robust",
+      translation: "强健的",
+      rects: []
+    })
+    const [translationA, translationB] = second.entry.translations
+
+    await updateVocabularyTranslation(
+      first.card.id,
+      first.entry.id,
+      translationA.id,
+      "鲁棒的"
+    )
+    await moveVocabularyTranslation(
+      first.card.id,
+      first.entry.id,
+      translationB.id,
+      -1
+    )
+    let card = await getVocabularyCardByPdf("pdf-vocab-manage")
+    expect(card?.entries[0].translations.map((item) => item.text)).toEqual([
+      "强健的",
+      "鲁棒的"
+    ])
+
+    await deleteVocabularyTranslation(
+      first.card.id,
+      first.entry.id,
+      translationB.id
+    )
+    card = await getVocabularyCardByPdf("pdf-vocab-manage")
+    expect(card?.entries[0].translations.map((item) => item.text)).toEqual([
+      "鲁棒的"
+    ])
+    await expect(
+      deleteVocabularyTranslation(
+        first.card.id,
+        first.entry.id,
+        translationA.id
+      )
+    ).rejects.toThrow("至少保留一个翻译")
   })
 })
 

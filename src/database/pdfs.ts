@@ -69,6 +69,34 @@ export async function touchPdf(id: string): Promise<boolean | void> {
   )
 }
 
+/** Persist reading progress without triggering the annotation/card reload
+ * channel. Repeated writes of the same page are ignored. */
+export async function updatePdfLastPage(
+  id: string,
+  page: number
+): Promise<boolean | void> {
+  const normalized = Math.max(1, Math.trunc(page))
+  return withStore(
+    "pdfs",
+    "readwrite",
+    async (store) => {
+      const pdf = await new Promise<PdfFile | undefined>((resolve, reject) => {
+        const request = store.get(id)
+        request.onsuccess = () => resolve(request.result as PdfFile | undefined)
+        request.onerror = () => reject(request.error)
+      })
+      if (!pdf || pdf.lastPage === normalized) return false
+      pdf.lastPage = normalized
+      await new Promise<void>((resolve, reject) => {
+        const request = store.put(pdf)
+        request.onsuccess = () => resolve()
+        request.onerror = () => reject(request.error)
+      })
+    },
+    { broadcastKey: "_dbpdfTouch" }
+  )
+}
+
 /** Set a PDF's topic (undefined → 未分类). Metadata-only → the lightweight
  *  `_dbpdfTouch` stamp re-sorts the library without reloading the cards. */
 export async function updatePdfTopic(
@@ -151,6 +179,7 @@ export async function listPdfMeta(): Promise<PdfMetaLite[]> {
           pageCount: p.pageCount,
           addedAt: p.addedAt,
           lastOpened: p.lastOpened,
+          lastPage: p.lastPage,
           topic: p.topic,
           hasBytes: !!p.bytes
         }))
@@ -894,13 +923,32 @@ export async function applyPdfSync(
     pageCount: number
     addedAt: number
     lastOpened?: number
+    lastPage?: number
     topic?: string
   }[],
   remoteAnnotations: PdfAnnotation[],
   localAnnotations: PdfAnnotation[]
 ): Promise<void> {
   for (const pdf of remotePdfs) {
-    await addPdf({ ...pdf, bytes: null })
+    await withStore("pdfs", "readwrite", async (store) => {
+      const existing = await new Promise<PdfFile | undefined>(
+        (resolve, reject) => {
+          const request = store.get(pdf.id)
+          request.onsuccess = () =>
+            resolve(request.result as PdfFile | undefined)
+          request.onerror = () => reject(request.error)
+        }
+      )
+      await new Promise<void>((resolve, reject) => {
+        const request = store.put({
+          ...(existing ?? { bytes: null }),
+          ...pdf,
+          bytes: existing?.bytes ?? null
+        })
+        request.onsuccess = () => resolve()
+        request.onerror = () => reject(request.error)
+      })
+    })
   }
   const remoteIds = new Set(remoteAnnotations.map((a) => a.id))
   // ONE atomic transaction: annotation upserts + local-not-remote deletes +

@@ -204,6 +204,7 @@ export function useBackupSync(options: {
         pageCount: p.pageCount,
         addedAt: p.addedAt,
         lastOpened: p.lastOpened,
+        lastPage: p.lastPage,
         ...(p.topic ? { topic: p.topic } : {})
       }))
       const result = await runSync(
@@ -269,6 +270,7 @@ export function useBackupSync(options: {
         pageCount: p.pageCount,
         addedAt: p.addedAt,
         lastOpened: p.lastOpened,
+        lastPage: p.lastPage,
         ...(p.topic ? { topic: p.topic } : {})
       }))
       const remote = await downloadRemote(
@@ -357,6 +359,7 @@ export function useBackupSync(options: {
               pageCount: meta.pageCount,
               addedAt: meta.addedAt,
               lastOpened: meta.lastOpened,
+              lastPage: meta.lastPage,
               ...(meta.topic ? { topic: meta.topic } : {})
             })
           }

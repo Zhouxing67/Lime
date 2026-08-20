@@ -40,7 +40,13 @@ export interface SyncCredentials {
 /** PDF metadata as it travels in the sync payload (never the file bytes). */
 export type PdfSyncMeta = Pick<
   PdfFile,
-  "id" | "name" | "pageCount" | "addedAt" | "lastOpened" | "topic"
+  | "id"
+  | "name"
+  | "pageCount"
+  | "addedAt"
+  | "lastOpened"
+  | "lastPage"
+  | "topic"
 >
 
 export interface SyncPayload {

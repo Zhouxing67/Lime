@@ -5,7 +5,13 @@ import PdfEngineView, { type PdfEngineViewProps } from "./PdfEngineView"
 import PdfReaderPanel from "./PdfReaderPanel"
 import { usePdfDocument } from "../hooks/usePdfDocument"
 import { usePdfSearch } from "../hooks/usePdfSearch"
-import { addVocabularyEntry, getAnnotationsByPdf, deleteAnnotationWithCard, saveAnnotationFromStore } from "../database"
+import {
+  addVocabularyEntry,
+  getAnnotationsByPdf,
+  deleteAnnotationWithCard,
+  saveAnnotationFromStore,
+  updatePdfLastPage
+} from "../database"
 import { outlinePageNumber } from "./pdfText"
 import type { PdfAnnotation, PdfOutlineItem } from "../types"
 import type { PdfSearchEntry, PdfSearchMatch } from "./pdfText"
@@ -60,6 +66,9 @@ export default function PdfView({
   const [pageJump, setPageJump] = useState<{ page: number; seq: number } | null>(null)
   const pageJumpSeqRef = useRef(0)
   const [currentPage, setCurrentPage] = useState(1)
+  const restoredPdfIdRef = useRef<string | null>(null)
+  const pageSaveTimerRef = useRef<number | null>(null)
+  const pendingPageRef = useRef<number | null>(null)
   const annIdToCardId = useRef<Map<string, string>>(new Map())
 
   const navigateTo = useCallback((page: number) => {
@@ -77,6 +86,48 @@ export default function PdfView({
   useEffect(() => {
     if (loaded) onPageCountChange?.(loaded.pageCount)
   }, [loaded, onPageCountChange])
+
+  useEffect(() => {
+    if (!loaded) {
+      restoredPdfIdRef.current = null
+      setPageJump(null)
+      return
+    }
+    if (restoredPdfIdRef.current === loaded.file.id) return
+    restoredPdfIdRef.current = loaded.file.id
+    const restored = Math.min(
+      loaded.pageCount,
+      Math.max(1, loaded.file.lastPage ?? 1)
+    )
+    setCurrentPage(restored)
+    if (
+      restored > 1 &&
+      !flashTarget &&
+      !vocabularyFlashTarget &&
+      !outlineDest
+    ) {
+      navigateTo(restored)
+    }
+  }, [
+    loaded,
+    flashTarget,
+    vocabularyFlashTarget,
+    outlineDest,
+    navigateTo
+  ])
+
+  useEffect(() => {
+    const pdfId = loaded?.file.id
+    return () => {
+      if (pageSaveTimerRef.current) {
+        window.clearTimeout(pageSaveTimerRef.current)
+        pageSaveTimerRef.current = null
+      }
+      const page = pendingPageRef.current
+      pendingPageRef.current = null
+      if (pdfId && page) void updatePdfLastPage(pdfId, page)
+    }
+  }, [loaded?.file.id])
 
   // The engine bytes + annotations for the loaded PDF. Reloads on `_dbpdf`
   // (panel deletes/edits must reflect in the PDF immediately, no refresh).
@@ -128,8 +179,18 @@ export default function PdfView({
     (page: number) => {
       setCurrentPage(page)
       onVisiblePageChange?.(page)
+      if (!loaded) return
+      pendingPageRef.current = page
+      if (pageSaveTimerRef.current) {
+        window.clearTimeout(pageSaveTimerRef.current)
+      }
+      pageSaveTimerRef.current = window.setTimeout(() => {
+        pageSaveTimerRef.current = null
+        pendingPageRef.current = null
+        void updatePdfLastPage(loaded.file.id, page)
+      }, 750)
     },
-    [onVisiblePageChange]
+    [loaded, onVisiblePageChange]
   )
 
   const handleOutlineClick = useCallback(

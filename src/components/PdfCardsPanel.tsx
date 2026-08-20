@@ -15,6 +15,8 @@ import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
 import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded"
 import MenuBookRoundedIcon from "@mui/icons-material/MenuBookRounded"
 import AddRoundedIcon from "@mui/icons-material/AddRounded"
+import ArrowUpwardRoundedIcon from "@mui/icons-material/ArrowUpwardRounded"
+import ArrowDownwardRoundedIcon from "@mui/icons-material/ArrowDownwardRounded"
 import {
   Box,
   Checkbox,
@@ -49,13 +51,17 @@ import type {
   PdfVocabularyCard,
   Project,
   ProjectCard,
+  VocabularyTranslation,
   VocabularyOccurrence
 } from "../types"
 import {
   addVocabularyEntry,
   addPdfCard,
+  deleteVocabularyTranslation,
   deleteVocabularyEntry,
-  getVocabularyCardByPdf
+  getVocabularyCardByPdf,
+  moveVocabularyTranslation,
+  updateVocabularyTranslation
 } from "../database"
 import DeleteConfirmDialog from "./DeleteConfirmDialog"
 import EmptyState from "./EmptyState"
@@ -145,6 +151,16 @@ export default function PdfCardsPanel({
   const [manualTranslation, setManualTranslation] = useState("")
   const [manualVocabularyError, setManualVocabularyError] = useState("")
   const [manualVocabularySaving, setManualVocabularySaving] = useState(false)
+  const [translationEdit, setTranslationEdit] = useState<{
+    entryId: string
+    translation: VocabularyTranslation
+  } | null>(null)
+  const [translationDraft, setTranslationDraft] = useState("")
+  const [translationError, setTranslationError] = useState("")
+  const [translationDelete, setTranslationDelete] = useState<{
+    entryId: string
+    translation: VocabularyTranslation
+  } | null>(null)
   const [sortMode, setSortMode] = useState<"single" | "two" | "time">("single")
   const [sortMenuAnchor, setSortMenuAnchor] = useState<HTMLElement | null>(null)
   useEffect(() => {
@@ -245,6 +261,32 @@ export default function PdfCardsPanel({
       setManualVocabularySaving(false)
     }
   }, [pdfId, currentPage, manualTerm, manualTranslation])
+
+  const saveTranslationEdit = useCallback(async () => {
+    if (!vocabularyCard || !translationEdit || !translationDraft.trim()) return
+    setTranslationError("")
+    try {
+      await updateVocabularyTranslation(
+        vocabularyCard.id,
+        translationEdit.entryId,
+        translationEdit.translation.id,
+        translationDraft
+      )
+      setTranslationEdit(null)
+    } catch (error) {
+      setTranslationError((error as Error)?.message ?? "修改翻译失败")
+    }
+  }, [vocabularyCard, translationEdit, translationDraft])
+
+  const confirmTranslationDelete = useCallback(async () => {
+    if (!vocabularyCard || !translationDelete) return
+    await deleteVocabularyTranslation(
+      vocabularyCard.id,
+      translationDelete.entryId,
+      translationDelete.translation.id
+    )
+    setTranslationDelete(null)
+  }, [vocabularyCard, translationDelete])
 
   const confirmDelete = useCallback(async () => {
     if (!deleteTarget) return
@@ -521,6 +563,39 @@ export default function PdfCardsPanel({
           />
         </Box>
       </DialogShell>
+      <DialogShell
+        open={Boolean(translationEdit)}
+        onClose={() => setTranslationEdit(null)}
+        title="编辑翻译"
+        maxWidth="xs"
+        confirmLabel="保存"
+        confirmDisabled={!translationDraft.trim()}
+        onConfirm={() => void saveTranslationEdit()}>
+        <TextField
+          autoFocus
+          label="翻译"
+          value={translationDraft}
+          onChange={(event) => setTranslationDraft(event.target.value)}
+          error={Boolean(translationError)}
+          helperText={translationError}
+          multiline
+          minRows={2}
+          fullWidth
+        />
+      </DialogShell>
+      <DeleteConfirmDialog
+        open={Boolean(translationDelete)}
+        batch={false}
+        count={1}
+        itemLabel="条翻译"
+        message={
+          translationDelete
+            ? `确定删除翻译“${translationDelete.translation.text}”吗？`
+            : undefined
+        }
+        onCancel={() => setTranslationDelete(null)}
+        onConfirm={() => void confirmTranslationDelete()}
+      />
       {/* Card list */}
       <Box ref={listRef} sx={{ flex: 1, overflowY: "auto", p: 2, minHeight: 0 }}>
         {vocabularyCard && vocabularyCard.entries.length > 0 && (
@@ -577,9 +652,102 @@ export default function PdfCardsPanel({
                       </IconButton>
                     </Tooltip>
                   </Box>
-                  <Typography sx={{ mt: 0.25, fontSize: "0.72rem", color: "text.secondary" }}>
-                    {entry.translations.map((item) => item.text).join("；")}
-                  </Typography>
+                  <Box sx={{ mt: 0.35, display: "flex", flexDirection: "column", gap: 0.25 }}>
+                    {entry.translations.map((translation, index) => (
+                      <Box
+                        key={translation.id}
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 0.25,
+                          "&:hover .vocabulary-translation-ops, &:focus-within .vocabulary-translation-ops": {
+                            opacity: 1
+                          }
+                        }}>
+                        <Typography
+                          sx={{
+                            flex: 1,
+                            minWidth: 0,
+                            fontSize: "0.72rem",
+                            color: "text.secondary",
+                            wordBreak: "break-word"
+                          }}>
+                          {translation.text}
+                        </Typography>
+                        <Box
+                          className="vocabulary-translation-ops"
+                          sx={{
+                            display: "flex",
+                            opacity: 0,
+                            transition: "opacity 0.15s",
+                            "@media (hover: none)": { opacity: 1 }
+                          }}>
+                          <IconButton
+                            size="small"
+                            disabled={index === 0}
+                            title="上移"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              void moveVocabularyTranslation(
+                                vocabularyCard.id,
+                                entry.id,
+                                translation.id,
+                                -1
+                              )
+                            }}
+                            sx={{ p: 0.2 }}>
+                            <ArrowUpwardRoundedIcon sx={{ fontSize: 13 }} />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            disabled={index === entry.translations.length - 1}
+                            title="下移"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              void moveVocabularyTranslation(
+                                vocabularyCard.id,
+                                entry.id,
+                                translation.id,
+                                1
+                              )
+                            }}
+                            sx={{ p: 0.2 }}>
+                            <ArrowDownwardRoundedIcon sx={{ fontSize: 13 }} />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            title="编辑翻译"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              setTranslationDraft(translation.text)
+                              setTranslationError("")
+                              setTranslationEdit({ entryId: entry.id, translation })
+                            }}
+                            sx={{ p: 0.2 }}>
+                            <EditRoundedIcon sx={{ fontSize: 13 }} />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            disabled={entry.translations.length <= 1}
+                            title={
+                              entry.translations.length <= 1
+                                ? "至少保留一个翻译"
+                                : "删除翻译"
+                            }
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              setTranslationDelete({
+                                entryId: entry.id,
+                                translation
+                              })
+                            }}
+                            sx={{ p: 0.2 }}>
+                            <DeleteOutlineRoundedIcon sx={{ fontSize: 13 }} />
+                          </IconButton>
+                        </Box>
+                      </Box>
+                    ))}
+                  </Box>
                 </Box>
               ))}
             </Box>

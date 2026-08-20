@@ -293,7 +293,9 @@ function EngineBridge({
     [computeGeometry, onAnnotationChanged, annotationById, geometrySame]
   )
 
-  const pageJumpSeqRef = useRef(pageJump?.seq ?? 0)
+  // A restore jump can already exist when the engine mounts; start at zero so
+  // it is consumed instead of mistaken for an already-handled request.
+  const pageJumpSeqRef = useRef(0)
   useEffect(() => {
     const seq = pageJump?.seq
     if (seq == null || seq === pageJumpSeqRef.current) return

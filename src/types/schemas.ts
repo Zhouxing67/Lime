@@ -234,6 +234,7 @@ export const pdfMetaSchema = z.object({
   pageCount: z.number(),
   addedAt: z.number(),
   lastOpened: z.number().optional(),
+  lastPage: z.number().int().positive().optional(),
   topic: z.string().optional()
 })
 export type PdfMeta = z.infer<typeof pdfMetaSchema>

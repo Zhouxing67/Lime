@@ -242,3 +242,96 @@ export async function deleteVocabularyEntry(
     }
   )
 }
+
+export async function updateVocabularyTranslation(
+  cardId: string,
+  entryId: string,
+  translationId: string,
+  text: string
+): Promise<boolean> {
+  const trimmed = text.trim()
+  if (!trimmed) throw new Error("翻译不能为空")
+  return withStore("pdfVocabularyCards", "readwrite", async (store) => {
+    const card = await requestValue<PdfVocabularyCard>(store.get(cardId))
+    if (!card) return false
+    const entryIndex = card.entries.findIndex((entry) => entry.id === entryId)
+    if (entryIndex < 0) return false
+    const entry = card.entries[entryIndex]
+    const translationIndex = entry.translations.findIndex(
+      (translation) => translation.id === translationId
+    )
+    if (translationIndex < 0) return false
+    if (
+      entry.translations.some(
+        (translation) =>
+          translation.id !== translationId &&
+          translation.text.normalize("NFKC").trim() ===
+            trimmed.normalize("NFKC")
+      )
+    ) {
+      throw new Error("该翻译已经存在")
+    }
+    const translations = [...entry.translations]
+    translations[translationIndex] = {
+      ...translations[translationIndex],
+      text: trimmed
+    }
+    const entries = [...card.entries]
+    entries[entryIndex] = { ...entry, translations, updatedAt: Date.now() }
+    store.put({ ...card, entries, updatedAt: Date.now() })
+    return true
+  })
+}
+
+export async function deleteVocabularyTranslation(
+  cardId: string,
+  entryId: string,
+  translationId: string
+): Promise<boolean> {
+  return withStore("pdfVocabularyCards", "readwrite", async (store) => {
+    const card = await requestValue<PdfVocabularyCard>(store.get(cardId))
+    if (!card) return false
+    const entryIndex = card.entries.findIndex((entry) => entry.id === entryId)
+    if (entryIndex < 0) return false
+    const entry = card.entries[entryIndex]
+    if (entry.translations.length <= 1) {
+      throw new Error("至少保留一个翻译；如不再需要，请删除整个词条")
+    }
+    const translations = entry.translations.filter(
+      (translation) => translation.id !== translationId
+    )
+    if (translations.length === entry.translations.length) return false
+    const entries = [...card.entries]
+    entries[entryIndex] = { ...entry, translations, updatedAt: Date.now() }
+    store.put({ ...card, entries, updatedAt: Date.now() })
+    return true
+  })
+}
+
+export async function moveVocabularyTranslation(
+  cardId: string,
+  entryId: string,
+  translationId: string,
+  direction: -1 | 1
+): Promise<boolean> {
+  return withStore("pdfVocabularyCards", "readwrite", async (store) => {
+    const card = await requestValue<PdfVocabularyCard>(store.get(cardId))
+    if (!card) return false
+    const entryIndex = card.entries.findIndex((entry) => entry.id === entryId)
+    if (entryIndex < 0) return false
+    const entry = card.entries[entryIndex]
+    const from = entry.translations.findIndex(
+      (translation) => translation.id === translationId
+    )
+    const to = from + direction
+    if (from < 0 || to < 0 || to >= entry.translations.length) return false
+    const translations = [...entry.translations]
+    const moved = translations[from]
+    translations[from] = translations[to]
+    translations[to] = moved
+    const entries = [...card.entries]
+    entries[entryIndex] = { ...entry, translations, updatedAt: Date.now() }
+    store.put({ ...card, entries, updatedAt: Date.now() })
+    return true
+  })
+}

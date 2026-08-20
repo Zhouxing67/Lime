@@ -18,6 +18,7 @@ export interface PdfExportMeta {
   pageCount: number
   addedAt: number
   lastOpened?: number
+  lastPage?: number
   topic?: string
 }
 
@@ -46,6 +47,7 @@ export async function toJsonZip(
       pageCount: pdf.pageCount,
       addedAt: pdf.addedAt,
       lastOpened: pdf.lastOpened,
+      lastPage: pdf.lastPage,
       topic: pdf.topic
     })
   }
