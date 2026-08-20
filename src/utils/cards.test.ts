@@ -1,5 +1,9 @@
 import type { PdfAnnotation, PdfCard, ProjectCard } from "../types"
-import { resolveCardContent, sortPdfCards } from "./cards"
+import {
+  occurrenceForTranslation,
+  resolveCardContent,
+  sortPdfCards
+} from "./cards"
 
 function card(id: string, annotationId: string, page: number, pdfOrder: number): PdfCard {
   return {
@@ -102,6 +106,37 @@ describe("sortPdfCards", () => {
     const cards = [card("b", "b", 1, 1e6 + 9), card("a", "a", 1, 1e6)]
     const anns = [ann("a", 1), ann("b", 1)]
     expect(sortPdfCards(cards, anns, "two").map((c) => c.id)).toEqual(["a", "b"])
+  })
+})
+
+describe("occurrenceForTranslation", () => {
+  it("uses the explicit source and falls back by legacy creation time", () => {
+    const entry = {
+      id: "entry",
+      term: "robust",
+      normalizedTerm: "robust",
+      translations: [],
+      occurrences: [
+        { id: "first", page: 1, text: "robust", rects: [], createdAt: 10 },
+        { id: "second", page: 4, text: "robust", rects: [], createdAt: 20 }
+      ],
+      createdAt: 10
+    }
+    expect(
+      occurrenceForTranslation(entry, {
+        id: "new",
+        text: "稳健",
+        occurrenceId: "first",
+        createdAt: 20
+      })?.id
+    ).toBe("first")
+    expect(
+      occurrenceForTranslation(entry, {
+        id: "legacy",
+        text: "强健",
+        createdAt: 19
+      })?.id
+    ).toBe("second")
   })
 })
 

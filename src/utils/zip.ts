@@ -4,6 +4,7 @@ import type {
   PdfAnnotation,
   PdfCard,
   PdfFile,
+  PdfMeta,
   PdfVocabularyCard,
   Project,
   ProjectCard,
@@ -12,16 +13,7 @@ import type {
   TodoCard
 } from "../types"
 
-export interface PdfExportMeta {
-  id: string
-  name: string
-  pageCount: number
-  addedAt: number
-  lastOpened?: number
-  lastPage?: number
-  aiContext?: string
-  topic?: string
-}
+export type PdfExportMeta = PdfMeta
 
 export async function toJsonZip(
   projectCards: ProjectCard[],

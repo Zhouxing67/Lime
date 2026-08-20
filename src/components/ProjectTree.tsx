@@ -2,6 +2,7 @@ import AddRoundedIcon from "@mui/icons-material/AddRounded"
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded"
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded"
 import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded"
+import MenuBookRoundedIcon from "@mui/icons-material/MenuBookRounded"
 import MoreHorizRoundedIcon from "@mui/icons-material/MoreHorizRounded"
 import {
   alpha,
@@ -17,10 +18,10 @@ import {
 } from "@mui/material"
 import { useCallback, useMemo, useState } from "react"
 
-import RenameDialog from "./RenameDialog"
-import type { Project, Section } from "../types"
 import { RECENT_TOTAL as RECENT_TOTAL_SHARED } from "../constants"
+import type { Project, Section } from "../types"
 import { byRecency } from "../utils"
+import RenameDialog from "./RenameDialog"
 
 type DropPos = "before" | "after"
 
@@ -103,18 +104,28 @@ export default function ProjectTree({
   // a "全部项目" toggle.
   const RECENT_TOTAL = RECENT_TOTAL_SHARED
   const orderedProjects = useMemo(() => {
-    const sorted = [...projects].sort(
-      byRecency(
-        (p) => p.lastOpened,
-        (a, b) => b.createdAt - a.createdAt
-      )
-    )
+    const sorted = [...projects].sort((a, b) => {
+      const systemRank =
+        Number(b.systemKind === "vocabulary") -
+        Number(a.systemKind === "vocabulary")
+      if (systemRank !== 0) return systemRank
+      return byRecency(
+        (p: Project) => p.lastOpened,
+        (left, right) => right.createdAt - left.createdAt
+      )(a, b)
+    })
     if (activeProjectId) {
       const active = sorted.find((p) => p.id === activeProjectId)
-      if (active) {
+      if (active && active.systemKind !== "vocabulary") {
+        const systemProjects = sorted.filter(
+          (p) => p.systemKind === "vocabulary"
+        )
         return [
+          ...systemProjects,
           active,
-          ...sorted.filter((p) => p.id !== activeProjectId)
+          ...sorted.filter(
+            (p) => p.id !== activeProjectId && p.systemKind !== "vocabulary"
+          )
         ]
       }
     }
@@ -162,9 +173,7 @@ export default function ProjectTree({
         p.sections?.some((s) => s.id === draggedSection)
       )
       if (!hostProject?.sections) return
-      const dragged = hostProject.sections.find(
-        (s) => s.id === draggedSection
-      )
+      const dragged = hostProject.sections.find((s) => s.id === draggedSection)
       if (!dragged) return
       // Reparent disabled: only reorder among same-parent, same-level siblings.
       if (dragged.level !== target.level) return
@@ -251,35 +260,31 @@ export default function ProjectTree({
       onExportMarkdown?: () => void
     }
   ) => (
-      <SectionNode
-        section={section}
-        isChild={isChild}
-        active={activeSectionId === section.id}
-        count={countBySection.get(section.id) ?? 0}
-        collapsed={opts.collapsed}
-        dropIndicator={
-          dropTarget?.id === section.id ? dropTarget.pos : null
-        }
-        onToggle={opts.onToggle}
-        onSelect={() => onSelectSection(section.id)}
-        onAddChild={opts.onAddChild}
-        onRename={() => setSectionRename({ id: section.id, title: section.title })}
-        onDelete={
-          opts.onDelete ??
-          (() =>
-            onDeleteSection(
-              section.id,
-              countBySection.get(section.id) ?? 0,
-              0
-            ))
-        }
-        onExportMarkdown={opts.onExportMarkdown}
-        onDragStart={(e) => handleSectionDragStart(e, section.id)}
-        onDragEnd={handleSectionDragEnd}
-        onDragOver={(e) => handleSectionDragOver(e, section)}
-        onDrop={(e) => handleSectionDrop(e, section)}
-      />
-    )
+    <SectionNode
+      section={section}
+      isChild={isChild}
+      active={activeSectionId === section.id}
+      count={countBySection.get(section.id) ?? 0}
+      collapsed={opts.collapsed}
+      dropIndicator={dropTarget?.id === section.id ? dropTarget.pos : null}
+      onToggle={opts.onToggle}
+      onSelect={() => onSelectSection(section.id)}
+      onAddChild={opts.onAddChild}
+      onRename={() =>
+        setSectionRename({ id: section.id, title: section.title })
+      }
+      onDelete={
+        opts.onDelete ??
+        (() =>
+          onDeleteSection(section.id, countBySection.get(section.id) ?? 0, 0))
+      }
+      onExportMarkdown={opts.onExportMarkdown}
+      onDragStart={(e) => handleSectionDragStart(e, section.id)}
+      onDragEnd={handleSectionDragEnd}
+      onDragOver={(e) => handleSectionDragOver(e, section)}
+      onDrop={(e) => handleSectionDrop(e, section)}
+    />
+  )
 
   return (
     <Box>
@@ -292,8 +297,7 @@ export default function ProjectTree({
           sections.reduce(
             (acc, s) => acc + (countBySection.get(s.id) ?? 0),
             0
-          ) +
-          (unclassifiedByProject[project.id] ?? 0)
+          ) + (unclassifiedByProject[project.id] ?? 0)
         // The project tree is expanded when it is the open project AND the
         // row has been clicked open (isOpen toggles on row click). Only one
         // project can be open at a time, so this is an accordion.
@@ -302,12 +306,20 @@ export default function ProjectTree({
         return (
           <Box
             key={project.id}
-            sx={{
+            sx={(theme) => ({
               mb: 0.75,
               borderRadius: 1,
-              bgcolor: "background.default",
+              bgcolor:
+                project.systemKind === "vocabulary"
+                  ? alpha(theme.palette.primary.main, 0.035)
+                  : "background.default",
+              border: "1px solid",
+              borderColor:
+                project.systemKind === "vocabulary"
+                  ? alpha(theme.palette.primary.main, 0.12)
+                  : "transparent",
               p: 0.25
-            }}>
+            })}>
             <ProjectNode
               project={project}
               active={activeProjectId === project.id}
@@ -361,54 +373,55 @@ export default function ProjectTree({
                         (subs.length > 0 ||
                           (addingFor?.type === "section" &&
                             addingFor.id === s1.id)) && (
-                        <Box
-                          sx={{
-                            pl: 2,
-                            borderLeft: "1px solid",
-                            borderColor: "divider"
-                          }}>
-                          {addingFor?.type === "section" &&
-                            addingFor.id === s1.id &&
-                            renderInlineAdd(0)}
-                          {subs.map((s2) => (
-                            <Box key={s2.id}>
-                              {sectionRow(s2, true, {
-                                collapsed: false,
-                                onExportMarkdown: () =>
-                                  onExportMarkdown(project.id, s2.id)
-                              })}
-                            </Box>
-                          ))}
-                        </Box>
-                      )}
+                          <Box
+                            sx={{
+                              pl: 2,
+                              borderLeft: "1px solid",
+                              borderColor: "divider"
+                            }}>
+                            {addingFor?.type === "section" &&
+                              addingFor.id === s1.id &&
+                              renderInlineAdd(0)}
+                            {subs.map((s2) => (
+                              <Box key={s2.id}>
+                                {sectionRow(s2, true, {
+                                  collapsed: false,
+                                  onExportMarkdown: () =>
+                                    onExportMarkdown(project.id, s2.id)
+                                })}
+                              </Box>
+                            ))}
+                          </Box>
+                        )}
                     </Box>
                   )
                 })}
 
-                {/* 未分类 */}
-                <TreeRow
-                  active={activeSectionId === "__unclassified__"}
-                  onClick={() => onSelectSection("__unclassified__")}
-                  indent={1}>
-                  <Box sx={{ width: 21, flexShrink: 0 }} />
-                  <Typography
-                    variant="body2"
-                    noWrap
-                    sx={{
-                      fontSize: "0.8rem",
-                      flex: 1,
-                      minWidth: 0,
-                      color:
-                        activeSectionId === "__unclassified__"
-                          ? "primary.main"
-                          : "text.secondary"
-                    }}>
-                    未分类
-                  </Typography>
-                  <CountBadge
-                    count={unclassifiedByProject[project.id] ?? 0}
-                  />
-                </TreeRow>
+                {project.systemKind !== "vocabulary" && (
+                  <TreeRow
+                    active={activeSectionId === "__unclassified__"}
+                    onClick={() => onSelectSection("__unclassified__")}
+                    indent={1}>
+                    <Box sx={{ width: 21, flexShrink: 0 }} />
+                    <Typography
+                      variant="body2"
+                      noWrap
+                      sx={{
+                        fontSize: "0.8rem",
+                        flex: 1,
+                        minWidth: 0,
+                        color:
+                          activeSectionId === "__unclassified__"
+                            ? "primary.main"
+                            : "text.secondary"
+                      }}>
+                      未分类
+                    </Typography>
+                    <CountBadge
+                      count={unclassifiedByProject[project.id] ?? 0}
+                    />
+                  </TreeRow>
+                )}
               </Box>
             )}
           </Box>
@@ -625,12 +638,18 @@ function ProjectNode({
       active={active}
       onClick={() => (active ? onClose() : onOpen())}
       indent={1.5}>
-      <FolderOpenRoundedIcon
-        sx={{
-          fontSize: 16,
-          color: active ? "primary.main" : "text.secondary"
-        }}
-      />
+      {project.systemKind === "vocabulary" ? (
+        <MenuBookRoundedIcon
+          sx={{ fontSize: 16, color: active ? "primary.main" : "primary.main" }}
+        />
+      ) : (
+        <FolderOpenRoundedIcon
+          sx={{
+            fontSize: 16,
+            color: active ? "primary.main" : "text.secondary"
+          }}
+        />
+      )}
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography
           variant="body2"
@@ -681,43 +700,43 @@ function ProjectNode({
           </IconButton>
         </Tooltip>
         <Menu
-              anchorEl={menuAnchor}
-              open={Boolean(menuAnchor)}
-              onClose={() => setMenuAnchor(null)}
-              anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-              transformOrigin={{ vertical: "top", horizontal: "right" }}
+          anchorEl={menuAnchor}
+          open={Boolean(menuAnchor)}
+          onClose={() => setMenuAnchor(null)}
+          anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+          transformOrigin={{ vertical: "top", horizontal: "right" }}
           slotProps={{ paper: { sx: { py: 0.5, borderRadius: 1 } } }}>
-              {project.systemKind !== "vocabulary" && (
-                <MenuItem
-                  sx={{ fontSize: "0.8rem" }}
-                  onClick={() => {
-                    setMenuAnchor(null)
-                    onRequestRename()
-                  }}>
-                  重命名 / 编辑备注
-                </MenuItem>
-              )}
-              {onExportMarkdown && (
-                <MenuItem
-                  sx={{ fontSize: "0.8rem" }}
-                  onClick={() => {
-                    setMenuAnchor(null)
-                    onExportMarkdown()
-                  }}>
-                  导出 Markdown
-                </MenuItem>
-              )}
-              {project.systemKind !== "vocabulary" && (
-                <MenuItem
-                  sx={{ fontSize: "0.8rem" }}
-                  onClick={() => {
-                    setMenuAnchor(null)
-                    setConfirming(true)
-                  }}>
-                  删除项目
-                </MenuItem>
-              )}
-            </Menu>
+          {project.systemKind !== "vocabulary" && (
+            <MenuItem
+              sx={{ fontSize: "0.8rem" }}
+              onClick={() => {
+                setMenuAnchor(null)
+                onRequestRename()
+              }}>
+              重命名 / 编辑备注
+            </MenuItem>
+          )}
+          {onExportMarkdown && (
+            <MenuItem
+              sx={{ fontSize: "0.8rem" }}
+              onClick={() => {
+                setMenuAnchor(null)
+                onExportMarkdown()
+              }}>
+              导出 Markdown
+            </MenuItem>
+          )}
+          {project.systemKind !== "vocabulary" && (
+            <MenuItem
+              sx={{ fontSize: "0.8rem" }}
+              onClick={() => {
+                setMenuAnchor(null)
+                setConfirming(true)
+              }}>
+              删除项目
+            </MenuItem>
+          )}
+        </Menu>
       </Box>
     </TreeRow>
   )

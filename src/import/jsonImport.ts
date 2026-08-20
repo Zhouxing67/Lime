@@ -5,7 +5,7 @@ import {
   addAnnotation,
   addPdf,
   addPdfCard,
-  addVocabularyCard,
+  importVocabularyCardWithPlacement,
   addProject,
   addProjectCard,
   addReadLater,
@@ -20,6 +20,7 @@ import {
 import {
   pdfAnnotationSchema,
   pdfCardSchema,
+  pdfMetaSchema,
   pdfVocabularyCardSchema,
   projectCardSchema,
   projectSchema,
@@ -31,6 +32,7 @@ import type {
   PdfAnnotation,
   PdfCard,
   PdfMark,
+  PdfMeta,
   PdfVocabularyCard,
   Project,
   ProjectCard,
@@ -481,16 +483,7 @@ interface ParsedExport {
   importedAnnotations: PdfAnnotation[]
   importedReadLater: ReadLater[]
   importedVocabularyCards: PdfVocabularyCard[]
-  importedPdfMeta: {
-    id: string
-    name: string
-    pageCount: number
-    addedAt: number
-    lastOpened?: number
-    lastPage?: number
-    aiContext?: string
-    topic?: string
-  }[]
+  importedPdfMeta: PdfMeta[]
 }
 
 export function parseExport(rawJson: string): ParsedExport | { error: string } {
@@ -561,17 +554,12 @@ export function parseExport(rawJson: string): ParsedExport | { error: string } {
         .filter((result) => result.success)
         .map((result) => result.data)
     : []
-  const importedPdfMeta =
-    (obj.pdfs as {
-      id: string
-      name: string
-      pageCount: number
-      addedAt: number
-      lastOpened?: number
-      lastPage?: number
-      aiContext?: string
-      topic?: string
-    }[]) ?? []
+  const importedPdfMeta = Array.isArray(obj.pdfs)
+    ? obj.pdfs
+        .map((raw) => pdfMetaSchema.safeParse(raw))
+        .filter((result) => result.success)
+        .map((result) => result.data)
+    : []
   return {
     legacyItems: isV5 ? [] : (obj.items as unknown[]),
     projectCardsRaw: Array.isArray(obj.projectCards)
@@ -750,19 +738,7 @@ export async function importFromZip(
   // recomputes the content-hash id, so we remap cards/annotations onto it. ----
   const pdfIdSet = new Set<string>()
   const pdfIdMap = new Map<string, string>()
-  const pdfMetaByName = new Map<
-    string,
-    {
-      id: string
-      name: string
-      pageCount: number
-      addedAt: number
-      lastOpened?: number
-      lastPage?: number
-      aiContext?: string
-      topic?: string
-    }
-  >()
+  const pdfMetaByName = new Map<string, PdfMeta>()
   for (const meta of importedPdfMeta) pdfMetaByName.set(meta.id, meta)
   for (const zipPath of Object.keys(zip.files)) {
     if (!zipPath.startsWith("pdfs/") || !zipPath.endsWith(".pdf")) continue
@@ -884,6 +860,7 @@ export async function importFromZip(
 
   // ---- insert projectCards (placements skip dedup — they're identity-unique) ----
   for (const card of cardsToInsert) {
+    if (card.pdfVocabularyCardId) continue
     try {
       const ok = await addProjectCard(
         card,
@@ -914,8 +891,8 @@ export async function importFromZip(
       continue
     }
     try {
-      await addVocabularyCard(vocabularyCard)
-      result.imported++
+      await importVocabularyCardWithPlacement(vocabularyCard, placement)
+      result.imported += 2
     } catch (error) {
       result.errors.push({
         index: -1,

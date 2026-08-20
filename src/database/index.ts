@@ -144,13 +144,22 @@ export async function bulkReplace(
       for (const rl of localReadLater ?? []) {
         if (!remoteReadLaterIds.has(rl.id)) stores.readLater.delete(rl.id)
       }
-      for (const card of remoteVocabularyCards) {
-        stores.pdfVocabularyCards.put(card)
-      }
+      // byPdfId is unique. Two devices can independently create aggregates
+      // with different ids for the same PDF, so remove the displaced local
+      // record before inserting the remote winner.
+      const remoteVocabularyPdfIds = new Set(
+        remoteVocabularyCards.map((card) => card.pdfId)
+      )
       for (const card of localVocabularyCards) {
-        if (!remoteVocabularyIds.has(card.id)) {
+        if (
+          !remoteVocabularyIds.has(card.id) ||
+          remoteVocabularyPdfIds.has(card.pdfId)
+        ) {
           stores.pdfVocabularyCards.delete(card.id)
         }
+      }
+      for (const card of remoteVocabularyCards) {
+        stores.pdfVocabularyCards.put(card)
       }
     }
   )

@@ -83,6 +83,10 @@ export interface PdfEngineViewProps {
     text: string,
     requestId: string
   ) => Promise<{ ok: boolean; text?: string; error?: string; cancelled?: boolean }>
+  onAiTranslate?: (
+    text: string,
+    requestId: string
+  ) => Promise<{ ok: boolean; text?: string; error?: string; cancelled?: boolean }>
   onAiCancel?: (requestId: string) => Promise<void>
 }
 
@@ -109,6 +113,7 @@ function EngineBridge({
   onAddVocabulary,
   vocabularyFlashTarget,
   onAiInterpret,
+  onAiTranslate,
   onAiCancel
 }: {
   annotations?: IAnnotationStore[]
@@ -151,18 +156,12 @@ function EngineBridge({
   onAddVocabulary?: PdfEngineViewProps["onAddVocabulary"]
   vocabularyFlashTarget?: PdfEngineViewProps["vocabularyFlashTarget"]
   onAiInterpret?: PdfEngineViewProps["onAiInterpret"]
+  onAiTranslate?: PdfEngineViewProps["onAiTranslate"]
   onAiCancel?: PdfEngineViewProps["onAiCancel"]
 }) {
   const { pdfViewer, eventBus } = usePdfViewerContext()
   const { painter } = usePainter()
-  const pendingAiCommentRef = useRef<string | null>(null)
-  const pendingAiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(
-    () => () => {
-      if (pendingAiTimerRef.current) clearTimeout(pendingAiTimerRef.current)
-    },
-    []
-  )
+  const pendingAiCommentsRef = useRef(new Map<string, string>())
 
   useEffect(() => {
     if (!pdfViewer || !vocabularyFlashTarget) return
@@ -257,12 +256,8 @@ function EngineBridge({
   const handleAdd = useCallback(
     (store: IAnnotationStore) => {
       const { pos, rects, path, paths } = computeGeometry(store)
-      const comment = pendingAiCommentRef.current ?? undefined
-      pendingAiCommentRef.current = null
-      if (pendingAiTimerRef.current) {
-        clearTimeout(pendingAiTimerRef.current)
-        pendingAiTimerRef.current = null
-      }
+      const comment = pendingAiCommentsRef.current.get(store.id)
+      pendingAiCommentsRef.current.delete(store.id)
       // Persistence is async in the host — if it rejects, drop the mark from
       // the canvas. The engine has no "update from external" channel (its sync
       // effect only removes), and `stores` only ever holds PERSISTED marks, so
@@ -521,16 +516,13 @@ function EngineBridge({
             : undefined
         }
         onAiInterpret={onAiInterpret}
+        onAiTranslate={onAiTranslate}
         onAiCancel={onAiCancel}
         onApplyAiInterpretation={(range, comment) => {
           if (!painter) return
-          pendingAiCommentRef.current = comment
-          if (pendingAiTimerRef.current) clearTimeout(pendingAiTimerRef.current)
-          pendingAiTimerRef.current = setTimeout(() => {
-            pendingAiTimerRef.current = null
-            pendingAiCommentRef.current = null
-          }, 2000)
-          painter.highlightRange(range, toolDef("highlight"))
+          painter.highlightRange(range, toolDef("highlight"), (id) => {
+            pendingAiCommentsRef.current.set(id, comment)
+          })
           window.getSelection()?.removeAllRanges()
           onTextSelected(null)
         }}
@@ -571,6 +563,7 @@ export default function PdfEngineView({
   onAddVocabulary,
   vocabularyFlashTarget,
   onAiInterpret,
+  onAiTranslate,
   onAiCancel
 }: PdfEngineViewProps) {
   const [textRange, setTextRange] = useState<Range | null>(null)
@@ -666,6 +659,7 @@ export default function PdfEngineView({
                 onAddVocabulary={onAddVocabulary}
                 vocabularyFlashTarget={vocabularyFlashTarget}
                 onAiInterpret={onAiInterpret}
+                onAiTranslate={onAiTranslate}
                 onAiCancel={onAiCancel}
               />
             </PdfViewerProvider>

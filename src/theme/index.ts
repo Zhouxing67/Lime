@@ -1,4 +1,4 @@
-import { createTheme, type PaletteMode } from "@mui/material/styles"
+import { alpha, createTheme, type PaletteMode } from "@mui/material/styles"
 
 import { palettes } from "./palettes"
 import type { PresetName } from "../types"
@@ -71,13 +71,12 @@ export const createAppTheme = (
       avatarPalette: isLight
         ? ["#5b7f9e", "#7a8f5f", "#9a6b5f", "#7a6b9e", "#5f8f8f", "#8f7a5f", "#5f7a9e", "#9e6b7a"]
         : ["#6f93b5", "#8fa876", "#b18474", "#9182b5", "#76a6a6", "#a69174", "#7691b5", "#b58291"],
-      searchHit: isLight
-        ? "rgba(99,102,241,0.12)"
-        : "rgba(129,140,248,0.22)",
-      searchHitStrong: isLight
-        ? "rgba(99,102,241,0.55)"
-        : "rgba(129,140,248,0.5)",
-      searchHitText: isLight ? "#4f46e5" : "#a5b4fc",
+      searchHit: alpha(isLight ? p.primary.main : p.primary.light, isLight ? 0.12 : 0.22),
+      searchHitStrong: alpha(
+        isLight ? p.primary.main : p.primary.light,
+        isLight ? 0.55 : 0.5
+      ),
+      searchHitText: isLight ? p.primary.main : p.primary.light,
       // Review rating colors (1 不认识 / 2 模糊 / 3 认识) — low-saturation,
       // brighter in dark so they read on the dark surfaces.
       ratingColors: isLight

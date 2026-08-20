@@ -1,6 +1,6 @@
 # lime — Agent Guide
 
-> 当前版本 **0.2.0**（2026-08，版本机制重置：从 8.x 切到 `0.Y.Z` 开发期版本）。本文件随 v0 实际架构对齐；与代码冲突时以代码为准。
+> 当前版本 **0.4.0**（2026-08，版本机制重置：从 8.x 切到 `0.Y.Z` 开发期版本）。本文件随 v0 实际架构对齐；与代码冲突时以代码为准。
 
 ## Stack
 
@@ -27,7 +27,7 @@
 
 ## Versioning
 
-开发期版本 `0.Y.Z`（SemVer，**MAJOR 恒 0 —— 不发布正式版**）。`package.json` version 是唯一来源（Plasmo 写入 manifest）。当前 **0.1.0**。
+开发期版本 `0.Y.Z`（SemVer，**MAJOR 恒 0 —— 不发布正式版**）。`package.json` version 是唯一来源（Plasmo 写入 manifest）。当前 **0.4.0**。
 
 - **0（恒 0）**：永不发正式版；1.x 需用户显式决定正式发布才启用
 - **Y（MINOR）**：功能里程碑 / 破坏性变更（DB_VERSION / SyncPayload schema 迁移、导航模型替换、移除已有能力依赖的数据）

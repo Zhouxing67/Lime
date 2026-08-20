@@ -72,11 +72,16 @@ export default function DialogShell({
         <IconButton
           size="small"
           onClick={onClose}
-          sx={{ color: "text.secondary", "&:hover": { color: "text.primary" } }}>
+          sx={{
+            color: "text.secondary",
+            "&:hover": { color: "text.primary" }
+          }}>
           <CloseRoundedIcon fontSize="small" />
         </IconButton>
       </DialogTitle>
-      <DialogContent sx={{ px: 3, pt: 3, pb: 1 }}>{children}</DialogContent>
+      <DialogContent sx={{ px: 3, pt: "24px !important", pb: 1 }}>
+        {children}
+      </DialogContent>
       {actions === undefined ? defaultActions : actions}
     </Dialog>
   )

@@ -71,7 +71,7 @@ export default function ItemCardOperations({
             </IconButton>
           </Tooltip>
         )}
-        <Tooltip title={copied ? "已复制" : "复制内容"}>
+        {!item.pdfVocabularyCardId && <Tooltip title={copied ? "已复制" : "复制内容"}>
           <IconButton
             size="small"
             onClick={(e) => {
@@ -86,7 +86,7 @@ export default function ItemCardOperations({
             sx={{ p: 0.75 }}>
             <ContentCopyRoundedIcon sx={{ fontSize: 16 }} />
           </IconButton>
-        </Tooltip>
+        </Tooltip>}
         {!readOnly && (
           <>
             {onCopyToProject && (

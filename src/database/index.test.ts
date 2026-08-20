@@ -70,7 +70,6 @@ import {
   getAllVocabularyCards,
   getVocabularyCardByPdf,
   normalizeVocabularyTerm,
-  moveVocabularyTranslation,
   updateVocabularyTranslation,
   DB_VERSION
 } from "./index"
@@ -790,6 +789,33 @@ describe("database", () => {
       expect(all).toHaveLength(1)
       expect(all[0].id).toBe(rl1.id)
     })
+
+    it("vocabulary: cross-device cards for the same PDF keep the remote card", async () => {
+      await addVocabularyEntry({
+        pdfId: "shared-pdf",
+        page: 1,
+        term: "local",
+        translation: "本地",
+        rects: []
+      })
+      const [local] = await getAllVocabularyCards()
+      const remote = {
+        ...local,
+        id: "remote-vocabulary",
+        projectCardId: "remote-placement",
+        entries: local.entries.map((entry) => ({ ...entry, term: "remote" }))
+      }
+
+      await expect(
+        bulkReplace(
+          [], [], [], [], [], [], [], [], [], [], [], [], [remote], [local]
+        )
+      ).resolves.not.toThrow()
+
+      const cards = await getAllVocabularyCards()
+      expect(cards).toHaveLength(1)
+      expect(cards[0].id).toBe(remote.id)
+    })
   })
 
   describe("getRecentItems", () => {
@@ -1243,7 +1269,7 @@ describe("PDF vocabulary cards", () => {
     expect(await getProjectCardById(added.card.projectCardId)).toBeUndefined()
   })
 
-  it("edits, reorders and deletes individual translations", async () => {
+  it("edits and deletes individual translations", async () => {
     const first = await addVocabularyEntry({
       pdfId: "pdf-vocab-manage",
       page: 1,
@@ -1266,16 +1292,10 @@ describe("PDF vocabulary cards", () => {
       translationA.id,
       "鲁棒的"
     )
-    await moveVocabularyTranslation(
-      first.card.id,
-      first.entry.id,
-      translationB.id,
-      -1
-    )
     let card = await getVocabularyCardByPdf("pdf-vocab-manage")
     expect(card?.entries[0].translations.map((item) => item.text)).toEqual([
-      "强健的",
-      "鲁棒的"
+      "鲁棒的",
+      "强健的"
     ])
 
     await deleteVocabularyTranslation(

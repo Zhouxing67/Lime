@@ -92,6 +92,29 @@ export async function addVocabularyCard(card: PdfVocabularyCard): Promise<void> 
   })
 }
 
+/** Import a vocabulary aggregate and its system-project placement atomically.
+ * If the PDF already has an aggregate, replace both sides of the old link so
+ * the unique byPdfId index can never leave an orphan placement behind. */
+export async function importVocabularyCardWithPlacement(
+  card: PdfVocabularyCard,
+  placement: ProjectCard
+): Promise<void> {
+  await tx(
+    { pdfVocabularyCards: "readwrite", projectCards: "readwrite" },
+    async (stores) => {
+      const existing = await requestValue<PdfVocabularyCard>(
+        stores.pdfVocabularyCards.index("byPdfId").get(card.pdfId)
+      )
+      if (existing && existing.id !== card.id) {
+        stores.projectCards.delete(existing.projectCardId)
+        stores.pdfVocabularyCards.delete(existing.id)
+      }
+      stores.projectCards.put({ ...placement, content: "" })
+      stores.pdfVocabularyCards.put(card)
+    }
+  )
+}
+
 export interface AddVocabularyInput {
   pdfId: string
   page: number
@@ -189,7 +212,12 @@ export async function addVocabularyEntry(input: AddVocabularyInput): Promise<{
           term,
           normalizedTerm,
           translations: [
-            { id: crypto.randomUUID(), text: translation, createdAt: now }
+            {
+              id: crypto.randomUUID(),
+              text: translation,
+              occurrenceId: occurrence.id,
+              createdAt: now
+            }
           ],
           occurrences: [occurrence],
           createdAt: now
@@ -202,7 +230,12 @@ export async function addVocabularyEntry(input: AddVocabularyInput): Promise<{
             ? entry.translations
             : [
                 ...entry.translations,
-                { id: crypto.randomUUID(), text: translation, createdAt: now }
+                {
+                  id: crypto.randomUUID(),
+                  text: translation,
+                  occurrenceId: occurrence.id,
+                  createdAt: now
+                }
               ],
           occurrences: duplicateOccurrence
             ? entry.occurrences
@@ -301,34 +334,6 @@ export async function deleteVocabularyTranslation(
       (translation) => translation.id !== translationId
     )
     if (translations.length === entry.translations.length) return false
-    const entries = [...card.entries]
-    entries[entryIndex] = { ...entry, translations, updatedAt: Date.now() }
-    store.put({ ...card, entries, updatedAt: Date.now() })
-    return true
-  })
-}
-
-export async function moveVocabularyTranslation(
-  cardId: string,
-  entryId: string,
-  translationId: string,
-  direction: -1 | 1
-): Promise<boolean> {
-  return withStore("pdfVocabularyCards", "readwrite", async (store) => {
-    const card = await requestValue<PdfVocabularyCard>(store.get(cardId))
-    if (!card) return false
-    const entryIndex = card.entries.findIndex((entry) => entry.id === entryId)
-    if (entryIndex < 0) return false
-    const entry = card.entries[entryIndex]
-    const from = entry.translations.findIndex(
-      (translation) => translation.id === translationId
-    )
-    const to = from + direction
-    if (from < 0 || to < 0 || to >= entry.translations.length) return false
-    const translations = [...entry.translations]
-    const moved = translations[from]
-    translations[from] = translations[to]
-    translations[to] = moved
     const entries = [...card.entries]
     entries[entryIndex] = { ...entry, translations, updatedAt: Date.now() }
     store.put({ ...card, entries, updatedAt: Date.now() })

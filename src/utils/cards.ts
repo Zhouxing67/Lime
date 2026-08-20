@@ -1,4 +1,30 @@
-import type { PdfAnnotation, PdfCard, PdfMark, ProjectCard, TodoCard } from "../types"
+import type {
+  PdfAnnotation,
+  PdfCard,
+  PdfMark,
+  ProjectCard,
+  TodoCard,
+  VocabularyEntry,
+  VocabularyOccurrence,
+  VocabularyTranslation
+} from "../types"
+
+/** Resolve the source occurrence for a translation. New records carry an
+ * explicit link; legacy records are paired by their closest creation time. */
+export function occurrenceForTranslation(
+  entry: VocabularyEntry,
+  translation: VocabularyTranslation
+): VocabularyOccurrence | undefined {
+  const linked = translation.occurrenceId
+    ? entry.occurrences.find((item) => item.id === translation.occurrenceId)
+    : undefined
+  if (linked) return linked
+  return [...entry.occurrences].sort(
+    (a, b) =>
+      Math.abs(a.createdAt - translation.createdAt) -
+      Math.abs(b.createdAt - translation.createdAt)
+  )[0]
+}
 
 /** A legacy monolithic card (the pre-v12 Item shape) — as stored in old DBs,
  *  old ZIP exports, and old v4 sync payloads. */

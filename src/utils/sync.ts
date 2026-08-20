@@ -741,7 +741,9 @@ async function buildPayload(
     version: 8,
     syncedAt: Date.now(),
     contentHash,
-    deviceInfo: { version: "0.1.0" },
+    deviceInfo: {
+      version: chrome.runtime.getManifest?.().version ?? "unknown"
+    },
     projectCards: byId(stripProjectCards),
     pdfCards: byId(stripPdfCards),
     todos: byId(todos),

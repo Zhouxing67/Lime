@@ -18,7 +18,8 @@ import type { PdfSearchEntry, PdfSearchMatch } from "./pdfText"
 import type { IAnnotationStore } from "../pdf/inklayer/extensions/annotator/const/definitions"
 import {
   cancelAiInterpretation,
-  requestAiInterpretation
+  requestAiInterpretation,
+  requestAiTranslation
 } from "../utils/ai"
 
 export default function PdfView({
@@ -375,6 +376,9 @@ export default function PdfView({
           }}
           onAiInterpret={(text, requestId) =>
             requestAiInterpretation(requestId, text, loaded.file.aiContext)
+          }
+          onAiTranslate={(text, requestId) =>
+            requestAiTranslation(requestId, text, loaded.file.aiContext)
           }
           onAiCancel={cancelAiInterpretation}
         />

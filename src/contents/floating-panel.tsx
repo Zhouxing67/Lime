@@ -4,12 +4,15 @@ import Menu from "@mui/material/Menu"
 import MenuItem from "@mui/material/MenuItem"
 import TextFieldsRoundedIcon from "@mui/icons-material/TextFieldsRounded"
 import BookmarkAddRoundedIcon from "@mui/icons-material/BookmarkAddRounded"
+import DashboardCustomizeRoundedIcon from "@mui/icons-material/DashboardCustomizeRounded"
+import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
+import VisibilityOffRoundedIcon from "@mui/icons-material/VisibilityOffRounded"
 
 import CaptureSidebar from "../components/CaptureSidebar"
 import type { PanelData } from "../components/FloatingPanel"
 import type { Project } from "../types"
 import { sendMessage } from "../types/messages"
-import { appendMarkdownImage } from "../utils"
+import { appendMarkdownImage, bytesToBase64 } from "../utils"
 import {
   flashMath,
   imageFromCursor,
@@ -42,7 +45,9 @@ function LimeFloatBall({
 }) {
   const host = location.hostname
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
-  const [lifted, setLifted] = useState(false)
+  const [pdfSaveState, setPdfSaveState] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle")
   const [pos, setPos] = useState<{ right: number; bottom: number } | null>(null)
   const dragRef = useRef<{
     startX: number
@@ -54,12 +59,47 @@ function LimeFloatBall({
   const justMovedRef = useRef(false)
 
   useEffect(() => {
-    setLifted(Boolean(document.querySelector('[data-lime-pdf-saver="1"]')))
     chrome.storage.local.get("floatBallPos", (data) => {
       const p = data.floatBallPos?.[host]
       if (p && typeof p.right === "number") setPos(p)
     })
   }, [host])
+
+  const canSavePdf =
+    document.contentType === "application/pdf" ||
+    /\.pdf(?:\?|#|$)/i.test(location.href)
+
+  const saveCurrentPdf = async () => {
+    if (!canSavePdf || pdfSaveState === "saving") return
+    setAnchor(null)
+    setPdfSaveState("saving")
+    try {
+      const response = await fetch(location.href, { credentials: "include" })
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      const bytes = new Uint8Array(await response.arrayBuffer())
+      const name =
+        decodeURIComponent(location.pathname.split("/").pop() ?? "") ||
+        "web.pdf"
+      const result = await sendMessage<{ ok: boolean; error?: string }>(
+        {
+          kind: "save-web-pdf",
+          url: location.href,
+          name,
+          body: bytesToBase64(bytes)
+        },
+        120_000
+      )
+      if (!result?.ok) throw new Error(result?.error ?? "保存失败")
+      setPdfSaveState("saved")
+      pageToast("PDF 已保存到 Lime")
+    } catch (error) {
+      console.warn("[lime] save PDF failed:", error)
+      setPdfSaveState("error")
+      pageToast(`PDF 保存失败：${(error as Error)?.message ?? error}`)
+    } finally {
+      window.setTimeout(() => setPdfSaveState("idle"), 2200)
+    }
+  }
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return
@@ -103,7 +143,7 @@ function LimeFloatBall({
   }
 
   const right = pos?.right ?? 20
-  const bottom = pos?.bottom ?? (lifted ? 76 : 20)
+  const bottom = pos?.bottom ?? 20
 
   return (
     <>
@@ -119,6 +159,18 @@ function LimeFloatBall({
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
+        onMouseEnter={(event) => {
+          if (!dragRef.current) {
+            event.currentTarget.style.transform = "translateY(-2px) scale(1.03)"
+            event.currentTarget.style.boxShadow =
+              "0 12px 28px rgba(67,56,202,0.36), 0 3px 8px rgba(15,23,42,0.22)"
+          }
+        }}
+        onMouseLeave={(event) => {
+          event.currentTarget.style.transform = "none"
+          event.currentTarget.style.boxShadow =
+            "0 8px 24px rgba(67,56,202,0.3), 0 2px 6px rgba(15,23,42,0.2)"
+        }}
         title="Lime"
         aria-label="Lime"
         style={{
@@ -126,22 +178,51 @@ function LimeFloatBall({
           right,
           bottom,
           zIndex: 2147483646,
-          width: 44,
-          height: 44,
-          borderRadius: "50%",
-          border: "none",
-          background: "#4f46e5",
+          width: 46,
+          height: 46,
+          borderRadius: 14,
+          border: "1px solid rgba(255,255,255,0.42)",
+          background: "linear-gradient(145deg, #6366f1 0%, #4338ca 100%)",
           color: "#ffffff",
           cursor: "pointer",
           fontSize: 16,
           fontWeight: 700,
-          boxShadow: "0 2px 12px rgba(0,0,0,0.25)",
+          boxShadow:
+            "0 8px 24px rgba(67,56,202,0.3), 0 2px 6px rgba(15,23,42,0.2)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          touchAction: "none"
+          touchAction: "none",
+          transition: "transform 0.2s ease, box-shadow 0.2s ease"
         }}>
-        L
+        <span
+          style={{
+            position: "relative",
+            display: "grid",
+            placeItems: "center",
+            width: 28,
+            height: 28,
+            borderRadius: 9,
+            background: "rgba(255,255,255,0.14)",
+            fontFamily: "Georgia, serif",
+            fontSize: 18,
+            fontWeight: 700,
+            lineHeight: 1
+          }}>
+          L
+          <span
+            style={{
+              position: "absolute",
+              width: 6,
+              height: 9,
+              right: 3,
+              top: 1,
+              borderRadius: "6px 1px 6px 1px",
+              background: "#a7f3d0",
+              transform: "rotate(28deg)"
+            }}
+          />
+        </span>
       </button>
       <Menu
         anchorEl={anchor}
@@ -167,12 +248,24 @@ function LimeFloatBall({
           稍后读
         </MenuItem>
         <MenuItem
+          disabled={!canSavePdf || pdfSaveState === "saving"}
+          title={canSavePdf ? "将当前 PDF 保存到 Lime" : "仅 PDF 页面可用"}
+          sx={{ fontSize: "0.85rem", gap: 1 }}
+          onClick={() => void saveCurrentPdf()}>
+          <PictureAsPdfRoundedIcon sx={{ fontSize: 16 }} />
+          {pdfSaveState === "saving"
+            ? "正在保存 PDF…"
+            : pdfSaveState === "saved"
+              ? "PDF 已保存"
+              : "保存 PDF 到 Lime"}
+        </MenuItem>
+        <MenuItem
           sx={{ fontSize: "0.85rem", gap: 1 }}
           onClick={() => {
             setAnchor(null)
             onOpen()
           }}>
-          <TextFieldsRoundedIcon sx={{ fontSize: 16 }} />
+          <DashboardCustomizeRoundedIcon sx={{ fontSize: 16 }} />
           打开面板
         </MenuItem>
         <MenuItem
@@ -188,7 +281,7 @@ function LimeFloatBall({
               }
             })
           }}>
-          <TextFieldsRoundedIcon sx={{ fontSize: 16 }} />
+          <VisibilityOffRoundedIcon sx={{ fontSize: 16 }} />
           隐藏此页面悬浮球
         </MenuItem>
       </Menu>

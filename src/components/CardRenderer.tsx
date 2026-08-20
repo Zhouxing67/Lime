@@ -4,11 +4,16 @@ import ChecklistRoundedIcon from "@mui/icons-material/ChecklistRounded"
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded"
 import FormatQuoteRoundedIcon from "@mui/icons-material/FormatQuoteRounded"
 import ImageRoundedIcon from "@mui/icons-material/ImageRounded"
-import { Box, Typography } from "@mui/material"
+import { alpha, Box, Typography } from "@mui/material"
 
 import type { DisplayCard } from "../types"
 import { MARK_DOT, MARK_LABEL } from "./pdfTheme"
-import { extractMarkdownImages, prettyUrl, truncateText } from "../utils"
+import {
+  extractMarkdownImages,
+  prettyUrl,
+  truncateText
+} from "../utils"
+import { occurrenceForTranslation } from "../utils/cards"
 import MarkdownRenderer from "./MarkdownRenderer"
 import PdfQuoteCard from "./PdfQuoteCard"
 
@@ -223,8 +228,19 @@ function ContentBlock({ item }: { item: DisplayCard }) {
   return <PdfQuoteCard text={item.content} />
 }
 
-function VocabularyBlock({ item }: { item: DisplayCard }) {
+function VocabularyBlock({
+  item,
+  onOpenPdfSource,
+  maxEntries,
+  maxHeight
+}: {
+  item: DisplayCard
+  onOpenPdfSource?: (item: DisplayCard) => void
+  maxEntries?: number
+  maxHeight?: number
+}) {
   const entries = item.vocabularyEntries ?? []
+  const visibleEntries = maxEntries ? entries.slice(0, maxEntries) : entries
   if (entries.length === 0) {
     return (
       <Typography variant="body2" color="text.secondary">
@@ -233,34 +249,92 @@ function VocabularyBlock({ item }: { item: DisplayCard }) {
     )
   }
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-      {entries.map((entry) => (
+    <Box
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 0.75,
+        maxHeight,
+        overflowY: maxHeight ? "auto" : undefined,
+        pr: maxHeight ? 0.5 : 0
+      }}>
+      {item.pdfSource?.pdfName && (
+        <Typography
+          variant="caption"
+          sx={{ color: "text.disabled", fontSize: "0.68rem", mb: 0.25 }}>
+          {item.pdfSource.pdfName}
+        </Typography>
+      )}
+      {visibleEntries.map((entry) => (
         <Box
           key={entry.id}
           sx={{
-            display: "grid",
-            gridTemplateColumns: "minmax(88px, auto) 1fr",
-            columnGap: 1.5,
-            alignItems: "baseline",
-            px: 1.25,
-            py: 0.9,
+            display: "flex",
+            flexDirection: "column",
+            gap: 0.35,
+            px: 1,
+            py: 0.75,
             borderRadius: 1,
-            bgcolor: "action.hover"
+            bgcolor: (theme) => alpha(theme.palette.primary.main, 0.06),
+            borderLeft: "2px solid",
+            borderColor: "primary.light"
           }}>
-          <Typography sx={{ fontSize: "0.86rem", fontWeight: 700 }}>
+          <Typography sx={{ fontSize: "0.82rem", fontWeight: 650 }}>
             {entry.term}
           </Typography>
-          <Typography
-            sx={{
-              minWidth: 0,
-              fontSize: "0.8rem",
-              color: "text.secondary",
-              wordBreak: "break-word"
-            }}>
-            {entry.translations.map((translation) => translation.text).join("；")}
-          </Typography>
+          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+            {entry.translations.map((translation) => {
+              const occurrence = occurrenceForTranslation(entry, translation)
+              return (
+                <Typography
+                  component="button"
+                  type="button"
+                  key={translation.id}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    if (!occurrence || !item.pdfSource) return
+                    onOpenPdfSource?.({
+                      ...item,
+                      pdfSource: {
+                        ...item.pdfSource,
+                        page: occurrence.page
+                      },
+                      vocabularySource: {
+                        entryId: entry.id,
+                        occurrenceId: occurrence.id,
+                        rects: occurrence.rects
+                      }
+                    })
+                  }}
+                  sx={{
+                    border: 0,
+                    p: 0,
+                    bgcolor: "transparent",
+                    fontFamily: "inherit",
+                    fontSize: "0.74rem",
+                    lineHeight: 1.45,
+                    color: "text.secondary",
+                    textAlign: "left",
+                    cursor: occurrence && onOpenPdfSource ? "pointer" : "default",
+                    wordBreak: "break-word",
+                    "&:hover": occurrence && onOpenPdfSource
+                      ? { color: "primary.main" }
+                      : undefined
+                  }}>
+                  {translation.text}
+                </Typography>
+              )
+            })}
+          </Box>
         </Box>
       ))}
+      {visibleEntries.length < entries.length && (
+        <Typography
+          variant="caption"
+          sx={{ color: "text.disabled", textAlign: "center", py: 0.5 }}>
+          另有 {entries.length - visibleEntries.length} 个词条，打开卡片查看全部
+        </Typography>
+      )}
     </Box>
   )
 }
@@ -336,7 +410,11 @@ export default function CardRenderer({
             />
           </Box>
         ) : item.vocabularyEntries ? (
-          <VocabularyBlock item={item} />
+          <VocabularyBlock
+            item={item}
+            onOpenPdfSource={onOpenPdfSource}
+            maxEntries={5}
+          />
         ) : item.type === "placed" && item.content ? (
           <PdfQuoteCard text={item.content} maxLines={previewMaxLines(item.content)} />
         ) : item.type === "text" ? (
@@ -642,7 +720,11 @@ export default function CardRenderer({
             {item.vocabularyEntries ? "生词" : "只读原始内容"}
           </Typography>
           {item.vocabularyEntries ? (
-            <VocabularyBlock item={item} />
+            <VocabularyBlock
+              item={item}
+              onOpenPdfSource={onOpenPdfSource}
+              maxHeight={420}
+            />
           ) : item.image || (item.type === "image" && item.content) ? (
             <Box
               sx={{

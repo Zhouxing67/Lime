@@ -1,8 +1,14 @@
-import CloseRoundedIcon from "@mui/icons-material/CloseRounded"
-import ChecklistRoundedIcon from "@mui/icons-material/ChecklistRounded"
 import BookmarkRoundedIcon from "@mui/icons-material/BookmarkRounded"
-import ViewColumnRoundedIcon from "@mui/icons-material/ViewColumnRounded"
+import ChecklistRoundedIcon from "@mui/icons-material/ChecklistRounded"
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded"
+import DeleteSweepRoundedIcon from "@mui/icons-material/DeleteSweepRounded"
 import DoneAllRoundedIcon from "@mui/icons-material/DoneAllRounded"
+import DriveFileMoveOutlinedIcon from "@mui/icons-material/DriveFileMoveOutlined"
+import FileCopyOutlinedIcon from "@mui/icons-material/FileCopyOutlined"
+import FileDownloadRoundedIcon from "@mui/icons-material/FileDownloadRounded"
+import FolderRoundedIcon from "@mui/icons-material/FolderRounded"
+import MergeTypeRoundedIcon from "@mui/icons-material/MergeTypeRounded"
+import ViewColumnRoundedIcon from "@mui/icons-material/ViewColumnRounded"
 import {
   alpha,
   Box,
@@ -18,31 +24,18 @@ import {
   useMediaQuery
 } from "@mui/material"
 import { ThemeProvider } from "@mui/material/styles"
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState
-} from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import AppHeader from "./components/AppHeader"
 import BatchToolbar from "./components/BatchToolbar"
-import DeleteSweepRoundedIcon from "@mui/icons-material/DeleteSweepRounded"
-import FileCopyOutlinedIcon from "@mui/icons-material/FileCopyOutlined"
-import FileDownloadRoundedIcon from "@mui/icons-material/FileDownloadRounded"
-import DriveFileMoveOutlinedIcon from "@mui/icons-material/DriveFileMoveOutlined"
-import FolderRoundedIcon from "@mui/icons-material/FolderRounded"
-import MergeTypeRoundedIcon from "@mui/icons-material/MergeTypeRounded"
+import type { CardEditorValues } from "./components/CardEditorView"
+import CopyCardsMenu from "./components/CopyCardsMenu"
 import DateRangeFilter from "./components/DateRangeFilter"
 import DeleteConfirmDialog from "./components/DeleteConfirmDialog"
 import DialogShell from "./components/DialogShell"
 import FilterChips from "./components/FilterChips"
 import FooterBar from "./components/FooterBar"
-import ViewRouter from "./components/ViewRouter"
 import ItemDialog from "./components/ItemDialog"
-import type { CardEditorValues } from "./components/CardEditorView"
-import CopyCardsMenu from "./components/CopyCardsMenu"
 import MergeConfirmDialog from "./components/MergeConfirmDialog"
 import MoveToSectionMenu from "./components/MoveToSectionMenu"
 import NavRail from "./components/NavRail"
@@ -51,76 +44,75 @@ import OpenPdfUrlDialog from "./components/OpenPdfUrlDialog"
 import PdfCardsPanel from "./components/PdfCardsPanel"
 import { PDF_UNCLASSIFIED_TOPIC, type PdfTopicView } from "./components/PdfHub"
 import PdfSearchPanel from "./components/PdfSearchPanel"
-import { useAppData } from "./hooks/useAppData"
-import { useBackupView } from "./hooks/useBackupView"
-import { useReviewView } from "./hooks/useReviewView"
-import { useReviewSession } from "./hooks/useReviewSession"
-import { useTodoView } from "./hooks/useTodoView"
-import { useProjectsView } from "./hooks/useProjectsView"
-import { useWorkspaceView } from "./hooks/useWorkspaceView"
-import { usePdfSearchPanel } from "./hooks/usePdfSearchPanel"
-import type { PdfOutlineItem } from "./types"
 import ProjectTree from "./components/ProjectTree"
 import SettingsDialog from "./components/SettingsDialog"
 import SidebarFilters from "./components/SidebarFilters"
 import Toast from "./components/Toast"
+import ViewRouter from "./components/ViewRouter"
 import {
   addPdf,
   addProject,
   addProjectCard,
   addReadLater,
-  buildProjectCard,
   addReview,
   batchUpdateProjectCards,
+  buildProjectCard,
   clearPdfTopic,
+  createImageCard,
+  createTextCard,
+  deletePdf,
+  deletePdfCards,
   deleteProject,
   deleteProjectCard,
   deleteProjectCards,
-  deletePdf,
-  deletePdfCards,
-  renamePdfName,
-  updatePdfAiContext,
   discardDraft,
   ensureOrder,
-  createImageCard,
-  createTextCard,
-  promoteDraft,
-  saveDraftCard,
   getAnnotationsByPdf,
   getMaxOrderInSection,
   getProjectByName,
   placePdfCards,
+  promoteDraft,
   removeReview,
+  renamePdfName,
   renamePdfTopic,
+  saveDraftCard,
   tx,
   unplacePdfCards,
+  updatePdfAiContext,
   updatePdfCard,
   updatePdfTopic,
   updateProjectCard,
   updateReviewSrs,
   type PdfMetaLite
 } from "./database"
+import { useAppData } from "./hooks/useAppData"
 import { useBackupSync } from "./hooks/useBackupSync"
+import { useBackupView } from "./hooks/useBackupView"
 import { useCardDragReorder } from "./hooks/useCardDragReorder"
+import { usePdfSearchPanel } from "./hooks/usePdfSearchPanel"
 import { useProjects } from "./hooks/useProjects"
+import { useProjectsView } from "./hooks/useProjectsView"
 import { useReview } from "./hooks/useReview"
+import { useReviewSession } from "./hooks/useReviewSession"
+import { useReviewView } from "./hooks/useReviewView"
 import { createReviewEntry, dayKey } from "./hooks/useSrs"
+import { useTodoView } from "./hooks/useTodoView"
+import { useWorkspaceView } from "./hooks/useWorkspaceView"
 import { importFromZip } from "./import"
 import { createAppTheme, palettes } from "./theme"
-import { buildProjectMarkdown, buildScopeData } from "./utils/export"
 import type {
   DisplayCard,
   MergeSeparator,
   PdfCard,
   PdfFile,
+  PdfOutlineItem,
   PresetName,
   ProjectCard,
   ProjectCardType
 } from "./types"
-import { base64ToBytes } from "./utils"
 import { sendMessage } from "./types/messages"
 import {
-  RATING_META,
+  base64ToBytes,
   buildMergedContent,
   cloneProjectCard,
   compareCards,
@@ -128,10 +120,12 @@ import {
   createReadLater,
   dueStatus,
   isTodoComplete,
+  RATING_META,
   sortAllCards,
   todayLocalDate
 } from "./utils"
 import { resolveCardContent, stripPlacementContent } from "./utils/cards"
+import { buildProjectMarkdown, buildScopeData } from "./utils/export"
 
 const ITEMS_PER_PAGE = 20
 
@@ -166,8 +160,7 @@ export default function OptionsPage() {
   const [extraTopics, setExtraTopics] = useState<string[]>([])
   const [pdfCardsOpen, setPdfCardsOpen] = useState(true)
   const [pdfCardsWidth, setPdfCardsWidth] = useState(320)
-  const [pdfHubTopicView, setPdfHubTopicView] =
-    useState<PdfTopicView>("topics")
+  const [pdfHubTopicView, setPdfHubTopicView] = useState<PdfTopicView>("topics")
   // While a right-panel drag is in flight, the panel floats FIXED at its normal
   // spot (right edge, full height) instead of squeezing the PDF — the PDF
   // container size stays frozen, so no per-frame re-render (deferred dock).
@@ -209,7 +202,8 @@ export default function OptionsPage() {
   // cue) — no persistent selection to deselect.
   const setPdfSelected = useCallback((annId: string | null) => {
     setPdfSelectedAnnId(annId)
-    if (pdfSelectedTimerRef.current) window.clearTimeout(pdfSelectedTimerRef.current)
+    if (pdfSelectedTimerRef.current)
+      window.clearTimeout(pdfSelectedTimerRef.current)
     pdfSelectedTimerRef.current = null
     if (!annId) return
     pdfSelectedTimerRef.current = window.setTimeout(() => {
@@ -233,7 +227,9 @@ export default function OptionsPage() {
   const pdfTypeChangeToken = useRef(0)
   const [pdfCurrentPage, setPdfCurrentPage] = useState(1)
   const [pdfPageCount, setPdfPageCount] = useState(0)
-  const [pdfSidebarView, setPdfSidebarView] = useState<"cards" | "search">("cards")
+  const [pdfSidebarView, setPdfSidebarView] = useState<"cards" | "search">(
+    "cards"
+  )
 
   // PDF library batch operations (batch delete / move-to-topic).
   const [pdfBatchMode, setPdfBatchMode] = useState(false)
@@ -292,7 +288,9 @@ export default function OptionsPage() {
     handlePdfSearchEntry,
     handlePdfSearchNav
   } = usePdfSearchPanel()
-  const [pdfDeleteTarget, setPdfDeleteTarget] = useState<PdfMetaLite | null>(null)
+  const [pdfDeleteTarget, setPdfDeleteTarget] = useState<PdfMetaLite | null>(
+    null
+  )
   const [topicDeleteTarget, setTopicDeleteTarget] = useState<string | null>(
     null
   )
@@ -301,7 +299,9 @@ export default function OptionsPage() {
   )
   const loadMoreRef = useRef<HTMLDivElement>(null)
   const [copyCardId, setCopyCardId] = useState<string | null>(null)
-  const [moveSectionCardId, setMoveSectionCardId] = useState<string | null>(null)
+  const [moveSectionCardId, setMoveSectionCardId] = useState<string | null>(
+    null
+  )
   const [copyMenu, setCopyMenu] = useState<{
     anchor: HTMLElement
     mode: "single" | "batch"
@@ -366,7 +366,7 @@ export default function OptionsPage() {
         return {
           ...card,
           type: "placed",
-          title: pdfNameById.get(vocabulary?.pdfId ?? "") ?? "PDF 生词卡",
+          title: undefined,
           content: "",
           vocabularyEntries: vocabulary?.entries ?? [],
           ...(vocabulary && firstOccurrence
@@ -552,6 +552,17 @@ export default function OptionsPage() {
   })
   loadProjectsRef.current = loadProjects
 
+  // A system project has a flat, managed structure. Clear a legacy persisted
+  // section selection so it can never reopen through the ordinary
+  // "未分类" scope that is intentionally hidden from its navigation.
+  useEffect(() => {
+    const active = projects.find((project) => project.id === activeProjectId)
+    if (active?.systemKind !== "vocabulary" || !activeSectionId) return
+    setActiveSectionByProject((previous) => ({
+      ...previous,
+      [active.id]: null
+    }))
+  }, [projects, activeProjectId, activeSectionId, setActiveSectionByProject])
 
   // The review / todo / backup views' own state (filters, selection, edit flow).
   const reviewView = useReviewView()
@@ -578,7 +589,14 @@ export default function OptionsPage() {
         projectCardHighlightTimer.current = null
       }, 2000)
     },
-    [allProjectCardsUnfiltered, navigate, setActiveProjectId, setActiveSectionByProject, setDateRange, setKeyword]
+    [
+      allProjectCardsUnfiltered,
+      navigate,
+      setActiveProjectId,
+      setActiveSectionByProject,
+      setDateRange,
+      setKeyword
+    ]
   )
   const {
     activeTab,
@@ -756,9 +774,7 @@ export default function OptionsPage() {
 
   const loadMore = useCallback(() => {
     if (!hasMore) return
-    setVisibleCount((c) =>
-      Math.min(c + ITEMS_PER_PAGE, allProjectCards.length)
-    )
+    setVisibleCount((c) => Math.min(c + ITEMS_PER_PAGE, allProjectCards.length))
   }, [hasMore, allProjectCards.length, setVisibleCount])
 
   // Keep a stable ref to the latest loadMore function so the observer
@@ -771,9 +787,7 @@ export default function OptionsPage() {
     // must be (re)created whenever its presence changes — otherwise the
     // spinner renders but nothing triggers loadMore (was: only [hasMore]).
     const sentinelVisible =
-      hasMore &&
-      !!activeProjectId &&
-      Boolean(keyword || dateRange)
+      hasMore && !!activeProjectId && Boolean(keyword || dateRange)
     if (!sentinelVisible) return
     const observer = new IntersectionObserver(
       (entries) => {
@@ -860,47 +874,47 @@ export default function OptionsPage() {
       // A placed original ALSO loses its placement — its pdfCard's reverse
       // reference is cleared so the 1:1 placement invariant holds.
       await tx(
-      {
-        projectCards: "readwrite",
-        pdfCards: "readwrite",
-        reviews: "readwrite"
-      },
-      async (stores) => {
-        await new Promise<void>((resolve, reject) => {
-          const req = stores.projectCards.put(readyWithHash)
-          req.onsuccess = () => resolve()
-          req.onerror = () => reject(req.error)
-        })
-        for (const card of selectedItems) {
-          if (card.pdfCardId) {
-            const gr = stores.pdfCards.get(card.pdfCardId)
-            const pdfCard = await new Promise<PdfCard | undefined>(
-              (resolve) => {
-                gr.onsuccess = () => resolve(gr.result as PdfCard | undefined)
-                gr.onerror = () => resolve(undefined)
-              }
-            )
-            if (pdfCard && pdfCard.projectCardId === card.id) {
-              await new Promise<void>((resolve, reject) => {
-                const pr = stores.pdfCards.put({
-                  ...pdfCard,
-                  projectCardId: undefined
-                })
-                pr.onsuccess = () => resolve()
-                pr.onerror = () => reject(pr.error)
-              })
-            }
-          }
-          const rk = stores.reviews.index("itemId").getKey(card.id)
-          const key = await new Promise<string | null>((resolve) => {
-            rk.onsuccess = () => resolve((rk.result as string) ?? null)
-            rk.onerror = () => resolve(null)
+        {
+          projectCards: "readwrite",
+          pdfCards: "readwrite",
+          reviews: "readwrite"
+        },
+        async (stores) => {
+          await new Promise<void>((resolve, reject) => {
+            const req = stores.projectCards.put(readyWithHash)
+            req.onsuccess = () => resolve()
+            req.onerror = () => reject(req.error)
           })
-          if (key) stores.reviews.delete(key)
-          stores.projectCards.delete(card.id)
+          for (const card of selectedItems) {
+            if (card.pdfCardId) {
+              const gr = stores.pdfCards.get(card.pdfCardId)
+              const pdfCard = await new Promise<PdfCard | undefined>(
+                (resolve) => {
+                  gr.onsuccess = () => resolve(gr.result as PdfCard | undefined)
+                  gr.onerror = () => resolve(undefined)
+                }
+              )
+              if (pdfCard && pdfCard.projectCardId === card.id) {
+                await new Promise<void>((resolve, reject) => {
+                  const pr = stores.pdfCards.put({
+                    ...pdfCard,
+                    projectCardId: undefined
+                  })
+                  pr.onsuccess = () => resolve()
+                  pr.onerror = () => reject(pr.error)
+                })
+              }
+            }
+            const rk = stores.reviews.index("itemId").getKey(card.id)
+            const key = await new Promise<string | null>((resolve) => {
+              rk.onsuccess = () => resolve((rk.result as string) ?? null)
+              rk.onerror = () => resolve(null)
+            })
+            if (key) stores.reviews.delete(key)
+            stores.projectCards.delete(card.id)
+          }
         }
-      }
-    )
+      )
     } catch (e) {
       console.warn("[lime] merge failed:", e)
       setSnackbarMsg("合并失败", "error")
@@ -973,7 +987,13 @@ export default function OptionsPage() {
       setReviewItemIds((prev) => new Set(prev).add(itemId))
       setSnackbarMsg("已加入复习")
     },
-    [setSnackbarMsg, allProjectCardsUnfiltered, reviewItemIds, setReviewItemIds, reviewSetTitlePending]
+    [
+      setSnackbarMsg,
+      allProjectCardsUnfiltered,
+      reviewItemIds,
+      setReviewItemIds,
+      reviewSetTitlePending
+    ]
   )
 
   const handleReReview = useCallback(
@@ -991,8 +1011,6 @@ export default function OptionsPage() {
     },
     [setSnackbarMsg, reviewSrsMap, masteredItemIds]
   )
-
-
 
   const {
     backupFileInputRef,
@@ -1047,14 +1065,17 @@ export default function OptionsPage() {
   }, [setSelectedIds, setSelectMode])
 
   // ---- Section handlers ----
-  const toggleExpanded = useCallback((id: string) => {
-    setExpandedNav((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }, [setExpandedNav])
+  const toggleExpanded = useCallback(
+    (id: string) => {
+      setExpandedNav((prev) => {
+        const next = new Set(prev)
+        if (next.has(id)) next.delete(id)
+        else next.add(id)
+        return next
+      })
+    },
+    [setExpandedNav]
+  )
 
   const addSectionWithTitle = useCallback(
     async (parentId: string | null, title: string) => {
@@ -1105,7 +1126,13 @@ export default function OptionsPage() {
       if (!affected) return prev
       return { ...prev, [activeProjectId]: null }
     })
-  }, [activeProjectId, handleDeleteSection, pendingSectionDelete, projects, setActiveSectionByProject])
+  }, [
+    activeProjectId,
+    handleDeleteSection,
+    pendingSectionDelete,
+    projects,
+    setActiveSectionByProject
+  ])
 
   const onMoveSection = useCallback(
     (sectionId: string, newParentId: string | null, newOrder: number) => {
@@ -1229,24 +1256,27 @@ export default function OptionsPage() {
   )
 
   // PdfCardsPanel card click → open the PDF (if needed) + flash the annotation.
-  const handlePanelCardClick = useCallback((card: PdfCard) => {
-    // The right panel only renders in the PDF view, so no tab switch + no
-    // drawer open — forcing openDrawer() here was auto-opening the left
-    // sidebar on every card click.
-    openPdf(card.pdfId)
-    pdfFlashToken.current += 1
-    setPdfFlashTarget({
-      page: card.page,
-      annId: card.annotationId,
-      token: pdfFlashToken.current
-    })
-    // Brief bidirectional selection: the card + its PDF mark stay highlighted
-    // together for ~2s then auto-dismiss.
-    setPdfSelected(card.annotationId)
-    // Highlight the clicked card in the panel too (bidirectional border).
-    pdfScrollToken.current += 1
-    setPdfScrollTarget({ cardId: card.id, token: pdfScrollToken.current })
-  }, [openPdf, setPdfSelected])
+  const handlePanelCardClick = useCallback(
+    (card: PdfCard) => {
+      // The right panel only renders in the PDF view, so no tab switch + no
+      // drawer open — forcing openDrawer() here was auto-opening the left
+      // sidebar on every card click.
+      openPdf(card.pdfId)
+      pdfFlashToken.current += 1
+      setPdfFlashTarget({
+        page: card.page,
+        annId: card.annotationId,
+        token: pdfFlashToken.current
+      })
+      // Brief bidirectional selection: the card + its PDF mark stay highlighted
+      // together for ~2s then auto-dismiss.
+      setPdfSelected(card.annotationId)
+      // Highlight the clicked card in the panel too (bidirectional border).
+      pdfScrollToken.current += 1
+      setPdfScrollTarget({ cardId: card.id, token: pdfScrollToken.current })
+    },
+    [openPdf, setPdfSelected]
+  )
 
   // Project card's PDF-source footer → jump to the PDF + flash its annotation.
   // The display card carries `pdfSource` (pdfId + page); the annotation id is
@@ -1259,6 +1289,11 @@ export default function OptionsPage() {
       setPdfCardsOpen(true)
       openPdf(card.pdfSource.pdfId)
       if (card.vocabularySource) {
+        // Vocabulary flashes are independent of annotation selection. Clear
+        // stale ordinary-annotation navigation state before opening the PDF.
+        setPdfFlashTarget(null)
+        setPdfSelected(null)
+        setPdfScrollTarget(null)
         pdfVocabularyFlashToken.current += 1
         setPdfVocabularyFlashTarget({
           page: card.pdfSource.page,
@@ -1314,8 +1349,7 @@ export default function OptionsPage() {
       pdfTypeChangeToken.current += 1
       setPdfTypeChangeTarget({
         id: card.annotationId,
-        type:
-          type === "highlight" ? 1 : type === "underline" ? 3 : 2,
+        type: type === "highlight" ? 1 : type === "underline" ? 3 : 2,
         seq: pdfTypeChangeToken.current
       })
     },
@@ -1323,7 +1357,10 @@ export default function OptionsPage() {
   )
 
   // Place PDF-sourced cards into a project (未分类) / unplace back to PDF-only.
-  const handleCardWorkspaceClose = useCallback(() => closeCardWorkspace(), [closeCardWorkspace])
+  const handleCardWorkspaceClose = useCallback(
+    () => closeCardWorkspace(),
+    [closeCardWorkspace]
+  )
 
   const handleCardWorkspaceSave = useCallback(
     async (values: CardEditorValues, type: "text" | "image" | "placed") => {
@@ -1556,15 +1593,18 @@ export default function OptionsPage() {
     },
     [setSnackbarMsg, loadProjects]
   )
-  const handleUnplaceCards = useCallback(async (cardIds: string[]) => {
-    try {
-      await unplacePdfCards(cardIds)
-      setSnackbarMsg(`已移出 ${cardIds.length} 张卡片（PDF 批注保留）`)
-    } catch (e) {
-      console.warn("[lime] unplace failed:", e)
-      setSnackbarMsg("移出失败，请重试", "error")
-    }
-  }, [setSnackbarMsg])
+  const handleUnplaceCards = useCallback(
+    async (cardIds: string[]) => {
+      try {
+        await unplacePdfCards(cardIds)
+        setSnackbarMsg(`已移出 ${cardIds.length} 张卡片（PDF 批注保留）`)
+      } catch (e) {
+        console.warn("[lime] unplace failed:", e)
+        setSnackbarMsg("移出失败，请重试", "error")
+      }
+    },
+    [setSnackbarMsg]
+  )
 
   // A pdfCard's project chip → jump to its placement's project + highlight it.
   // The placement lookup goes through the loaded placements (1:1 reverse ref).
@@ -1591,7 +1631,14 @@ export default function OptionsPage() {
         projectCardHighlightTimer.current = null
       }, 2000)
     },
-    [allProjectCardsUnfiltered, navigate, setActiveProjectId, setActiveSectionByProject, setDateRange, setKeyword]
+    [
+      allProjectCardsUnfiltered,
+      navigate,
+      setActiveProjectId,
+      setActiveSectionByProject,
+      setDateRange,
+      setKeyword
+    ]
   )
 
   // Placement lookup for the cards panel: pdfCard.projectCardId → the
@@ -1696,12 +1743,9 @@ export default function OptionsPage() {
     [setSnackbarMsg]
   )
 
-  const handleDeletePdf = useCallback(
-    (pdf: PdfMetaLite) => {
-      setPdfDeleteTarget(pdf)
-    },
-    []
-  )
+  const handleDeletePdf = useCallback((pdf: PdfMetaLite) => {
+    setPdfDeleteTarget(pdf)
+  }, [])
 
   const confirmDeletePdf = useCallback(async () => {
     if (!pdfDeleteTarget) return
@@ -1778,7 +1822,6 @@ export default function OptionsPage() {
     return m
   }, [visibleProjectCards])
 
-
   // The section scope as the PERSISTED projectCards (drag reorder + writes
   // operate on the originals) — the grid renders the resolved variant.
   const scopeCards = useMemo(() => {
@@ -1835,8 +1878,6 @@ export default function OptionsPage() {
   const hasPrev = navIndex > 0
   const hasNext = navIndex >= 0 && navIndex < navList.length - 1
 
-
-
   // Full breadcrumb path: project / L1 / L2
   const sectionPath = useMemo(() => {
     if (!activeSectionId || !activeProject) return []
@@ -1876,7 +1917,6 @@ export default function OptionsPage() {
     onMoveCard
   })
 
-
   // Persist tree/nav state across sessions
   useEffect(() => {
     chrome.storage.local.get("_uiNav", (data) => {
@@ -1895,9 +1935,7 @@ export default function OptionsPage() {
     })
     // Cards-panel UI state (open + width) persists per session.
     chrome.storage.local.get("_uiPdf", (data) => {
-      const pdf = data._uiPdf as
-        | { open?: boolean; width?: number }
-        | undefined
+      const pdf = data._uiPdf as { open?: boolean; width?: number } | undefined
       if (!pdf) return
       if (typeof pdf.open === "boolean") setPdfCardsOpen(pdf.open)
       if (typeof pdf.width === "number") setPdfCardsWidth(pdf.width)
@@ -2028,22 +2066,25 @@ export default function OptionsPage() {
 
   // Inline 新建项目 for the copy dialog: create + return the new project's id
   // (null on failure). Name must be unique.
-  const handleCreateProjectAndCopy = useCallback(async (name: string) => {
-    const existing = await getProjectByName(name)
-    if (existing) {
-      setSnackbarMsg("项目名已存在")
-      return null
-    }
-    const id = crypto.randomUUID()
-    try {
-      await addProject({ id, name, createdAt: Date.now() })
-      return id
-    } catch (e) {
-      console.warn("[lime] create project failed:", e)
-      setSnackbarMsg("新建项目失败，请重试", "error")
-      return null
-    }
-  }, [setSnackbarMsg])
+  const handleCreateProjectAndCopy = useCallback(
+    async (name: string) => {
+      const existing = await getProjectByName(name)
+      if (existing) {
+        setSnackbarMsg("项目名已存在")
+        return null
+      }
+      const id = crypto.randomUUID()
+      try {
+        await addProject({ id, name, createdAt: Date.now() })
+        return id
+      } catch (e) {
+        console.warn("[lime] create project failed:", e)
+        setSnackbarMsg("新建项目失败，请重试", "error")
+        return null
+      }
+    },
+    [setSnackbarMsg]
+  )
 
   const handleBatchCopyCards = async (targetProjectId: string) => {
     const proj = projects.find((p) => p.id === targetProjectId)
@@ -2083,7 +2124,13 @@ export default function OptionsPage() {
       if (s === "overdue") overdue++
       if (s === "today") todayCount++
     }
-    return { total: allTodos.length, incomplete, completed, overdue, today: todayCount }
+    return {
+      total: allTodos.length,
+      incomplete,
+      completed,
+      overdue,
+      today: todayCount
+    }
   }, [allTodos, today])
 
   // PDFs that are in an ACTIVE (non-done) read-later — the PDF hub's reminder
@@ -2240,7 +2287,7 @@ export default function OptionsPage() {
               setSelectMode(false)
               setActiveProjectId(null)
               setNavOpen(false)
-                      setKeyword("")
+              setKeyword("")
               setDateRange(null)
               onSearch(null)
             }}
@@ -2280,44 +2327,29 @@ export default function OptionsPage() {
             }
           `}</style>
             {!cardWorkspace && (
-            <AppHeader
-              drawerOpen={drawerOpen}
-              headerHeight={headerHeight}
-              onToggleDrawer={handleToggleDrawer}
-              reviewProgress={
-                sidebarTab === "review" ? reviewProgress : undefined
-              }
-              activeProjectName={
-                sidebarTab === "pdf" && activePdfId
-                  ? (pdfs.find((p) => p.id === activePdfId)?.name.replace(
-                      /\.pdf$/i,
-                      ""
-                    ) ?? null)
-                  : sidebarTab === "todo"
-                    ? activeTab === "todo"
-                      ? "待办项"
-                      : "稍后读"
-                    : (activeProject?.name ?? null)
-              }>
-              {sidebarTab === "review" ? (
-                <Tooltip title="退出复习">
-                  <IconButton
-                    size="small"
-                    onClick={handleExitReview}
-                    sx={{
-                      color: "text.secondary",
-                      "&:hover": { color: "error.main" },
-                      "&.Mui-focusVisible": { outline: "none" }
-                    }}>
-                    <CloseRoundedIcon sx={{ fontSize: 20 }} />
-                  </IconButton>
-                </Tooltip>
-              ) : sidebarTab === "pdf" && activePdfId ? (
-                <>
-                  <Tooltip title="关闭 PDF">
+              <AppHeader
+                drawerOpen={drawerOpen}
+                headerHeight={headerHeight}
+                onToggleDrawer={handleToggleDrawer}
+                reviewProgress={
+                  sidebarTab === "review" ? reviewProgress : undefined
+                }
+                activeProjectName={
+                  sidebarTab === "pdf" && activePdfId
+                    ? pdfs
+                        .find((p) => p.id === activePdfId)
+                        ?.name.replace(/\.pdf$/i, "") ?? null
+                    : sidebarTab === "todo"
+                      ? activeTab === "todo"
+                        ? "待办项"
+                        : "稍后读"
+                      : activeProject?.name ?? null
+                }>
+                {sidebarTab === "review" ? (
+                  <Tooltip title="退出复习">
                     <IconButton
                       size="small"
-                      onClick={() => handleClosePdf(activePdfId!)}
+                      onClick={handleExitReview}
                       sx={{
                         color: "text.secondary",
                         "&:hover": { color: "error.main" },
@@ -2326,200 +2358,221 @@ export default function OptionsPage() {
                       <CloseRoundedIcon sx={{ fontSize: 20 }} />
                     </IconButton>
                   </Tooltip>
-                  <Tooltip title={pdfCardsOpen ? "折叠摘录面板" : "展开摘录面板"}>
+                ) : sidebarTab === "pdf" && activePdfId ? (
+                  <>
+                    <Tooltip title="关闭 PDF">
+                      <IconButton
+                        size="small"
+                        onClick={() => handleClosePdf(activePdfId!)}
+                        sx={{
+                          color: "text.secondary",
+                          "&:hover": { color: "error.main" },
+                          "&.Mui-focusVisible": { outline: "none" }
+                        }}>
+                        <CloseRoundedIcon sx={{ fontSize: 20 }} />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip
+                      title={pdfCardsOpen ? "折叠摘录面板" : "展开摘录面板"}>
+                      <IconButton
+                        size="small"
+                        onClick={() => setPdfCardsOpen((o) => !o)}
+                        sx={{
+                          color: pdfCardsOpen
+                            ? "primary.main"
+                            : "text.secondary",
+                          "&:hover": { color: "primary.main" },
+                          "&.Mui-focusVisible": { outline: "none" }
+                        }}>
+                        <ViewColumnRoundedIcon sx={{ fontSize: 20 }} />
+                      </IconButton>
+                    </Tooltip>
+                  </>
+                ) : sidebarTab === "pdf" && !activePdfId ? (
+                  <Tooltip title={pdfBatchMode ? "取消选择" : "选择 PDF"}>
                     <IconButton
                       size="small"
-                      onClick={() => setPdfCardsOpen((o) => !o)}
+                      onClick={togglePdfBatch}
                       sx={{
-                        color: pdfCardsOpen ? "primary.main" : "text.secondary",
-                        "&:hover": { color: "primary.main" },
-                        "&.Mui-focusVisible": { outline: "none" }
-                      }}>
-                      <ViewColumnRoundedIcon sx={{ fontSize: 20 }} />
-                    </IconButton>
-                  </Tooltip>
-                </>
-              ) : sidebarTab === "pdf" && !activePdfId ? (
-                <Tooltip title={pdfBatchMode ? "取消选择" : "选择 PDF"}>
-                  <IconButton
-                    size="small"
-                    onClick={togglePdfBatch}
-                    sx={{
-                      color: pdfBatchMode ? "error.main" : "text.secondary",
-                      "&:hover": { color: "error.main" },
-                      "&.Mui-focusVisible": { outline: "none" }
-                    }}>
-                    <DoneAllRoundedIcon sx={{ fontSize: 20 }} />
-                  </IconButton>
-                </Tooltip>
-              ) : sidebarTab === "pdf" ? null : sidebarTab === "todo" ? (
-                <Tooltip
-                  title={
-                    activeTab === "todo"
-                      ? "切换到稍后读"
-                      : "切换到待办项"
-                  }>
-                  <IconButton
-                    size="small"
-                    onClick={() =>
-                      setActiveTab(activeTab === "todo" ? "readLater" : "todo")
-                    }
-                    sx={{
-                      color: "text.secondary",
-                      "&:hover": { color: "primary.main" },
-                      "&.Mui-focusVisible": { outline: "none" }
-                    }}>
-                    {activeTab === "todo" ? (
-                      <ChecklistRoundedIcon sx={{ fontSize: 20 }} />
-                    ) : (
-                      <BookmarkRoundedIcon sx={{ fontSize: 20 }} />
-                    )}
-                  </IconButton>
-                </Tooltip>
-              ) : activeProject ? (
-                <>
-                  <Tooltip title={selectMode ? "取消选择" : "选择卡片"}>
-                    <IconButton
-                      size="small"
-                      onClick={onToggleSelectMode}
-                      sx={{
-                        color: selectMode ? "error.main" : "text.secondary",
+                        color: pdfBatchMode ? "error.main" : "text.secondary",
                         "&:hover": { color: "error.main" },
                         "&.Mui-focusVisible": { outline: "none" }
                       }}>
                       <DoneAllRoundedIcon sx={{ fontSize: 20 }} />
                     </IconButton>
                   </Tooltip>
-                  <DateRangeFilter
-                    value={dateRange}
-                    onChange={setDateRange}
-                  />
-                </>
-              ) : null}
-            </AppHeader>
+                ) : sidebarTab === "pdf" ? null : sidebarTab === "todo" ? (
+                  <Tooltip
+                    title={
+                      activeTab === "todo" ? "切换到稍后读" : "切换到待办项"
+                    }>
+                    <IconButton
+                      size="small"
+                      onClick={() =>
+                        setActiveTab(
+                          activeTab === "todo" ? "readLater" : "todo"
+                        )
+                      }
+                      sx={{
+                        color: "text.secondary",
+                        "&:hover": { color: "primary.main" },
+                        "&.Mui-focusVisible": { outline: "none" }
+                      }}>
+                      {activeTab === "todo" ? (
+                        <ChecklistRoundedIcon sx={{ fontSize: 20 }} />
+                      ) : (
+                        <BookmarkRoundedIcon sx={{ fontSize: 20 }} />
+                      )}
+                    </IconButton>
+                  </Tooltip>
+                ) : activeProject ? (
+                  <>
+                    <Tooltip title={selectMode ? "取消选择" : "选择卡片"}>
+                      <IconButton
+                        size="small"
+                        onClick={onToggleSelectMode}
+                        sx={{
+                          color: selectMode ? "error.main" : "text.secondary",
+                          "&:hover": { color: "error.main" },
+                          "&.Mui-focusVisible": { outline: "none" }
+                        }}>
+                        <DoneAllRoundedIcon sx={{ fontSize: 20 }} />
+                      </IconButton>
+                    </Tooltip>
+                    <DateRangeFilter
+                      value={dateRange}
+                      onChange={setDateRange}
+                    />
+                  </>
+                ) : null}
+              </AppHeader>
             )}
 
             {!cardWorkspace &&
               sidebarTab !== "review" &&
               sidebarTab !== "todo" &&
               sidebarTab !== "pdf" && (
-              <FilterChips
-                keyword={sidebarTab === "backup" ? backupKeyword : keyword}
-                onKeywordChange={
-                  sidebarTab === "backup" ? setBackupKeyword : setKeyword
-                }
-                placeholder={
-                  sidebarTab === "backup"
-                    ? backupScope === "projects"
-                      ? "搜索项目…"
-                      : "搜索 PDF…"
-                    : activeProjectId
-                      ? "搜索当前项目中的卡片…"
-                      : "搜索项目…"
-                }>
-                {sidebarTab === "backup" ? (
-                  <BatchToolbar
-                    selectedCount={
-                      backupScope === "projects"
-                        ? backupSelectedIds.length
-                        : backupSelectedPdfIds.length
-                    }
-                    allSelected={
-                      backupScope === "projects"
-                        ? backupSelectedIds.length > 0 &&
-                          backupSelectedIds.length === projects.length
-                        : backupSelectedPdfIds.length > 0 &&
-                          backupSelectedPdfIds.length === pdfs.length
-                    }
-                    countLabel={
-                      backupScope === "projects" ? "个项目" : "个 PDF"
-                    }
-                    onSelectAll={handleBackupSelectAll}
-                    actions={[
-                      {
-                        label: "导出备份",
-                        icon: (
-                          <FileDownloadRoundedIcon
-                            sx={{ fontSize: 16, mr: 0.5 }}
-                          />
-                        ),
-                        onClick: handleExportBackup,
-                        disabled:
-                          (backupScope === "projects"
-                            ? backupSelectedIds.length
-                            : backupSelectedPdfIds.length) === 0,
-                        variant: "contained"
+                <FilterChips
+                  keyword={sidebarTab === "backup" ? backupKeyword : keyword}
+                  onKeywordChange={
+                    sidebarTab === "backup" ? setBackupKeyword : setKeyword
+                  }
+                  placeholder={
+                    sidebarTab === "backup"
+                      ? backupScope === "projects"
+                        ? "搜索项目…"
+                        : "搜索 PDF…"
+                      : activeProjectId
+                        ? "搜索当前项目中的卡片…"
+                        : "搜索项目…"
+                  }>
+                  {sidebarTab === "backup" ? (
+                    <BatchToolbar
+                      selectedCount={
+                        backupScope === "projects"
+                          ? backupSelectedIds.length
+                          : backupSelectedPdfIds.length
                       }
-                    ]}
-                  />
-                ) : selectMode ? (
-                  <BatchToolbar
-                    selectedCount={selectedIds.length}
-                    allSelected={
-                      selectedIds.length > 0 &&
-                      selectedIds.length === viewItems.length
-                    }
-                    onSelectAll={() => {
-                      if (selectedIds.length === viewItems.length) {
-                        setSelectedIds([])
-                      } else {
-                        setSelectedIds(viewItems.map((i) => i.id))
+                      allSelected={
+                        backupScope === "projects"
+                          ? backupSelectedIds.length > 0 &&
+                            backupSelectedIds.length === projects.length
+                          : backupSelectedPdfIds.length > 0 &&
+                            backupSelectedPdfIds.length === pdfs.length
                       }
-                    }}
-                    actions={[
-                      {
-                        label: "复制到项目",
-                        icon: (
-                          <FileCopyOutlinedIcon
-                            sx={{ fontSize: 16, mr: 0.5 }}
-                          />
-                        ),
-                        onClick: (e) =>
-                          setCopyMenu({
-                            anchor: e.currentTarget,
-                            mode: "batch"
-                          }),
-                        dividerBefore: true,
-                        disabled: selectedIds.length === 0
-                      },
-                      {
-                        label: "移动到章节",
-                        icon: (
-                          <DriveFileMoveOutlinedIcon
-                            sx={{ fontSize: 16, mr: 0.5 }}
-                          />
-                        ),
-                        onClick: (e) =>
-                          setMoveMenu({
-                            anchor: e.currentTarget,
-                            mode: "batch"
-                          }),
-                        disabled: selectedIds.length === 0
-                      },
-                      {
-                        label: "合并",
-                        icon: (
-                          <MergeTypeRoundedIcon sx={{ fontSize: 16, mr: 0.5 }} />
-                        ),
-                        onClick: handleBatchMerge,
-                        disabled: selectedIds.length < 2
-                      },
-                      {
-                        label: "删除选中",
-                        icon: (
-                          <DeleteSweepRoundedIcon sx={{ fontSize: 16, mr: 0.5 }} />
-                        ),
-                        onClick: handleBatchDelete,
-                        dividerBefore: true,
-                        disabled: selectedIds.length === 0,
-                        variant: "contained",
-                        color: "error"
+                      countLabel={
+                        backupScope === "projects" ? "个项目" : "个 PDF"
                       }
-                    ]}
-                  />
-                ) : null}
-               </FilterChips>
-            )}
+                      onSelectAll={handleBackupSelectAll}
+                      actions={[
+                        {
+                          label: "导出备份",
+                          icon: (
+                            <FileDownloadRoundedIcon
+                              sx={{ fontSize: 16, mr: 0.5 }}
+                            />
+                          ),
+                          onClick: handleExportBackup,
+                          disabled:
+                            (backupScope === "projects"
+                              ? backupSelectedIds.length
+                              : backupSelectedPdfIds.length) === 0,
+                          variant: "contained"
+                        }
+                      ]}
+                    />
+                  ) : selectMode ? (
+                    <BatchToolbar
+                      selectedCount={selectedIds.length}
+                      allSelected={
+                        selectedIds.length > 0 &&
+                        selectedIds.length === viewItems.length
+                      }
+                      onSelectAll={() => {
+                        if (selectedIds.length === viewItems.length) {
+                          setSelectedIds([])
+                        } else {
+                          setSelectedIds(viewItems.map((i) => i.id))
+                        }
+                      }}
+                      actions={[
+                        {
+                          label: "复制到项目",
+                          icon: (
+                            <FileCopyOutlinedIcon
+                              sx={{ fontSize: 16, mr: 0.5 }}
+                            />
+                          ),
+                          onClick: (e) =>
+                            setCopyMenu({
+                              anchor: e.currentTarget,
+                              mode: "batch"
+                            }),
+                          dividerBefore: true,
+                          disabled: selectedIds.length === 0
+                        },
+                        {
+                          label: "移动到章节",
+                          icon: (
+                            <DriveFileMoveOutlinedIcon
+                              sx={{ fontSize: 16, mr: 0.5 }}
+                            />
+                          ),
+                          onClick: (e) =>
+                            setMoveMenu({
+                              anchor: e.currentTarget,
+                              mode: "batch"
+                            }),
+                          disabled: selectedIds.length === 0
+                        },
+                        {
+                          label: "合并",
+                          icon: (
+                            <MergeTypeRoundedIcon
+                              sx={{ fontSize: 16, mr: 0.5 }}
+                            />
+                          ),
+                          onClick: handleBatchMerge,
+                          disabled: selectedIds.length < 2
+                        },
+                        {
+                          label: "删除选中",
+                          icon: (
+                            <DeleteSweepRoundedIcon
+                              sx={{ fontSize: 16, mr: 0.5 }}
+                            />
+                          ),
+                          onClick: handleBatchDelete,
+                          dividerBefore: true,
+                          disabled: selectedIds.length === 0,
+                          variant: "contained",
+                          color: "error"
+                        }
+                      ]}
+                    />
+                  ) : null}
+                </FilterChips>
+              )}
           </Box>
 
           {sidebarTab === "pdf" && !activePdfId && pdfBatchMode && (
@@ -2556,8 +2609,7 @@ export default function OptionsPage() {
                           sx={{ fontSize: 16, mr: 0.5 }}
                         />
                       ),
-                      onClick: (e) =>
-                        setPdfBatchMoveAnchor(e.currentTarget),
+                      onClick: (e) => setPdfBatchMoveAnchor(e.currentTarget),
                       dividerBefore: true,
                       disabled: pdfBatchSelectedIds.length === 0
                     },
@@ -2598,10 +2650,17 @@ export default function OptionsPage() {
                   variant="body2"
                   sx={{ color: "text.secondary", mr: 1 }}>
                   回顾：
-                  {recentDates.find((d) => d.key === reviewView.reviewDateFilter)?.label ??
-                    reviewView.reviewDateFilter}
+                  {recentDates.find(
+                    (d) => d.key === reviewView.reviewDateFilter
+                  )?.label ?? reviewView.reviewDateFilter}
                 </Typography>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexWrap: "wrap" }}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 0.5,
+                    flexWrap: "wrap"
+                  }}>
                   <Box
                     onClick={() => reviewView.setRatingFilter(null)}
                     sx={(t) => ({
@@ -2613,8 +2672,14 @@ export default function OptionsPage() {
                       cursor: "pointer",
                       fontSize: "0.72rem",
                       lineHeight: 1.5,
-                      color: reviewView.ratingFilter === null ? t.palette.primary.main : "text.secondary",
-                      bgcolor: reviewView.ratingFilter === null ? alpha(t.palette.primary.main, 0.08) : "transparent",
+                      color:
+                        reviewView.ratingFilter === null
+                          ? t.palette.primary.main
+                          : "text.secondary",
+                      bgcolor:
+                        reviewView.ratingFilter === null
+                          ? alpha(t.palette.primary.main, 0.08)
+                          : "transparent",
                       "&:hover": { bgcolor: "action.hover" }
                     })}>
                     全部
@@ -2626,7 +2691,9 @@ export default function OptionsPage() {
                     return (
                       <Box
                         key={meta.label}
-                        onClick={() => reviewView.setRatingFilter(active ? null : value)}
+                        onClick={() =>
+                          reviewView.setRatingFilter(active ? null : value)
+                        }
                         sx={{
                           display: "flex",
                           alignItems: "center",
@@ -2833,332 +2900,327 @@ export default function OptionsPage() {
                 sharedCardGridProps
               }}
             />
-              <ItemDialog
-                item={dialogCard}
-                open={Boolean(dialogCard)}
-                readOnly={sidebarTab === "review"}
-                hasPrev={hasPrev}
-                hasNext={hasNext}
-                onClose={() => setDialogCard(null)}
-                onNavigate={handleNavigate}
-              />
+            <ItemDialog
+              item={dialogCard}
+              open={Boolean(dialogCard)}
+              readOnly={sidebarTab === "review"}
+              hasPrev={hasPrev}
+              hasNext={hasNext}
+              onClose={() => setDialogCard(null)}
+              onNavigate={handleNavigate}
+            />
 
-              <DialogShell
-                open={Boolean(reviewView.reviewTitlePending)}
-                onClose={() => reviewSetTitlePending(null)}
-                title="加入复习"
-                maxWidth="xs"
-                confirmLabel="加入复习"
-                confirmDisabled={!reviewView.reviewTitleDraft.trim()}
-                onConfirm={async () => {
-                        const card = allProjectCardsUnfiltered.find(
-                          (i) => i.id === reviewView.reviewTitlePending
-                        )
-                        if (!card || !reviewView.reviewTitleDraft.trim()) return
-                        // Update card title (placed cards keep content "" —
-                        // the title lives on the placement).
-                        await updateProjectCard(
-                          stripPlacementContent({
-                            ...card,
-                            title: reviewView.reviewTitleDraft.trim()
-                          })
-                        )
-                        // Add to review (skip if it entered review while the
-                        // dialog was open — itemId has a unique index).
-                        const alreadyInReview = reviewItemIds.has(card.id)
-                        if (!alreadyInReview) {
-                          try {
-                            await addReview(
-                              createReviewEntry(card.id, card.projectId)
-                            )
-                          } catch (e) {
-                            // The unique itemId index can reject if the card
-                            // entered review while the dialog was open.
-                            console.warn("[lime] addReview:", e)
-                          }
-                        }
-                        reviewSetTitlePending(null)
-                        reviewView.setReviewTitleDraft("")
-                        // The useAppData effect reloads the review states when
-                        // reviewsVersion bumps (the _dbr broadcast also does).
-                        setReviewsVersion((v) => v + 1)
-                        setSnackbarMsg(
-                          alreadyInReview ? "已在复习中" : "已加入复习"
-                        )
+            <DialogShell
+              open={Boolean(reviewView.reviewTitlePending)}
+              onClose={() => reviewSetTitlePending(null)}
+              title="加入复习"
+              maxWidth="xs"
+              confirmLabel="加入复习"
+              confirmDisabled={!reviewView.reviewTitleDraft.trim()}
+              onConfirm={async () => {
+                const card = allProjectCardsUnfiltered.find(
+                  (i) => i.id === reviewView.reviewTitlePending
+                )
+                if (!card || !reviewView.reviewTitleDraft.trim()) return
+                // Update card title (placed cards keep content "" —
+                // the title lives on the placement).
+                await updateProjectCard(
+                  stripPlacementContent({
+                    ...card,
+                    title: reviewView.reviewTitleDraft.trim()
+                  })
+                )
+                // Add to review (skip if it entered review while the
+                // dialog was open — itemId has a unique index).
+                const alreadyInReview = reviewItemIds.has(card.id)
+                if (!alreadyInReview) {
+                  try {
+                    await addReview(createReviewEntry(card.id, card.projectId))
+                  } catch (e) {
+                    // The unique itemId index can reject if the card
+                    // entered review while the dialog was open.
+                    console.warn("[lime] addReview:", e)
+                  }
+                }
+                reviewSetTitlePending(null)
+                reviewView.setReviewTitleDraft("")
+                // The useAppData effect reloads the review states when
+                // reviewsVersion bumps (the _dbr broadcast also does).
+                setReviewsVersion((v) => v + 1)
+                setSnackbarMsg(alreadyInReview ? "已在复习中" : "已加入复习")
+              }}>
+              <Typography
+                variant="body2"
+                sx={{ mb: 2, color: "text.secondary" }}>
+                请先为卡片设置摘要
+              </Typography>
+              <TextField
+                fullWidth
+                size="small"
+                autoFocus
+                placeholder="输入卡片摘要…"
+                value={reviewView.reviewTitleDraft}
+                onChange={(e) => reviewView.setReviewTitleDraft(e.target.value)}
+                sx={{
+                  mb: 2,
+                  "& .MuiOutlinedInput-root": { borderRadius: 1 }
+                }}
+              />
+            </DialogShell>
+
+            <DeleteConfirmDialog
+              open={Boolean(projectDeleteTarget)}
+              batch={false}
+              count={1}
+              message={
+                projectDeleteTarget
+                  ? `确定要删除项目「${projectDeleteTarget.name}」吗？该项目下的 ${countByProject[projectDeleteTarget.id] ?? 0} 张卡片将一并删除，此操作不可撤销。`
+                  : undefined
+              }
+              onCancel={() => setProjectDeleteTarget(null)}
+              onConfirm={() => {
+                if (projectDeleteTarget)
+                  handleDeleteProject(projectDeleteTarget.id)
+                setProjectDeleteTarget(null)
+              }}
+            />
+
+            <DeleteConfirmDialog
+              open={Boolean(todoDeleteTarget)}
+              batch={false}
+              count={1}
+              itemLabel="这条待办"
+              onCancel={() => setTodoDeleteTarget(null)}
+              onConfirm={() => {
+                if (todoDeleteTarget) handleDeleteTodo(todoDeleteTarget)
+                setTodoDeleteTarget(null)
+              }}
+            />
+
+            <DeleteConfirmDialog
+              open={Boolean(readLaterDeleteTarget)}
+              batch={false}
+              count={1}
+              itemLabel="这条稍后读"
+              onCancel={() => setReadLaterDeleteTarget(null)}
+              onConfirm={() => {
+                if (readLaterDeleteTarget)
+                  handleDeleteReadLater(readLaterDeleteTarget)
+                setReadLaterDeleteTarget(null)
+              }}
+            />
+
+            <DeleteConfirmDialog
+              open={Boolean(confirmDeleteId) || confirmBatchDelete}
+              batch={confirmBatchDelete}
+              count={selectedIds.length}
+              message={
+                !confirmBatchDelete && deleteTargetIsPdf
+                  ? "这张卡片来自 PDF 批注，删除将从项目移出（PDF 批注保留）。"
+                  : undefined
+              }
+              onCancel={() => {
+                setConfirmDeleteId(null)
+                setConfirmBatchDelete(false)
+              }}
+              onConfirm={
+                confirmBatchDelete
+                  ? handleConfirmBatchDelete
+                  : handleConfirmDelete
+              }
+            />
+
+            <DeleteConfirmDialog
+              open={Boolean(pdfDeleteTarget)}
+              batch={false}
+              count={1}
+              itemLabel="这个 PDF"
+              message={
+                pdfDeleteTarget
+                  ? `将删除「${pdfDeleteTarget.name}」及其全部批注与摘录卡片。`
+                  : undefined
+              }
+              onCancel={() => setPdfDeleteTarget(null)}
+              onConfirm={confirmDeletePdf}
+            />
+
+            <DeleteConfirmDialog
+              open={confirmPdfBatchDelete}
+              batch
+              count={pdfBatchSelectedIds.length}
+              itemLabel="个 PDF"
+              message={`将删除选中的 ${pdfBatchSelectedIds.length} 个 PDF 及其全部批注与摘录卡片。`}
+              onCancel={() => setConfirmPdfBatchDelete(false)}
+              onConfirm={handleConfirmPdfBatchDelete}
+            />
+
+            <Menu
+              anchorEl={pdfBatchMoveAnchor}
+              open={Boolean(pdfBatchMoveAnchor)}
+              onClose={() => setPdfBatchMoveAnchor(null)}
+              slotProps={{
+                paper: { sx: { py: 0.5, borderRadius: 1, minWidth: 160 } }
+              }}>
+              <Typography
+                sx={{
+                  fontSize: "0.68rem",
+                  color: "text.disabled",
+                  px: 1.5,
+                  pt: 0.5,
+                  pb: 0.25
                 }}>
-                  <Typography
-                    variant="body2"
-                    sx={{ mb: 2, color: "text.secondary" }}>
-                    请先为卡片设置摘要
-                  </Typography>
-                  <TextField
-                  fullWidth
-                  size="small"
-                  autoFocus
-                  placeholder="输入卡片摘要…"
-                  value={reviewView.reviewTitleDraft}
-                  onChange={(e) => reviewView.setReviewTitleDraft(e.target.value)}
-                  sx={{
-                    mb: 2,
-                    "& .MuiOutlinedInput-root": { borderRadius: 1 }
-                  }}
-                />
-              </DialogShell>
-
-              <DeleteConfirmDialog
-                open={Boolean(projectDeleteTarget)}
-                batch={false}
-                count={1}
-                message={
-                  projectDeleteTarget
-                    ? `确定要删除项目「${projectDeleteTarget.name}」吗？该项目下的 ${countByProject[projectDeleteTarget.id] ?? 0} 张卡片将一并删除，此操作不可撤销。`
-                    : undefined
-                }
-                onCancel={() => setProjectDeleteTarget(null)}
-                onConfirm={() => {
-                  if (projectDeleteTarget)
-                    handleDeleteProject(projectDeleteTarget.id)
-                  setProjectDeleteTarget(null)
-                }}
-              />
-
-              <DeleteConfirmDialog
-                open={Boolean(todoDeleteTarget)}
-                batch={false}
-                count={1}
-                itemLabel="这条待办"
-                onCancel={() => setTodoDeleteTarget(null)}
-                onConfirm={() => {
-                  if (todoDeleteTarget) handleDeleteTodo(todoDeleteTarget)
-                  setTodoDeleteTarget(null)
-                }}
-              />
-
-              <DeleteConfirmDialog
-                open={Boolean(readLaterDeleteTarget)}
-                batch={false}
-                count={1}
-                itemLabel="这条稍后读"
-                onCancel={() => setReadLaterDeleteTarget(null)}
-                onConfirm={() => {
-                  if (readLaterDeleteTarget)
-                    handleDeleteReadLater(readLaterDeleteTarget)
-                  setReadLaterDeleteTarget(null)
-                }}
-              />
-
-              <DeleteConfirmDialog
-                open={Boolean(confirmDeleteId) || confirmBatchDelete}
-                batch={confirmBatchDelete}
-                count={selectedIds.length}
-                message={
-                  !confirmBatchDelete && deleteTargetIsPdf
-                    ? "这张卡片来自 PDF 批注，删除将从项目移出（PDF 批注保留）。"
-                    : undefined
-                }
-                onCancel={() => {
-                  setConfirmDeleteId(null)
-                  setConfirmBatchDelete(false)
-                }}
-                onConfirm={
-                  confirmBatchDelete
-                    ? handleConfirmBatchDelete
-                    : handleConfirmDelete
-                }
-              />
-
-              <DeleteConfirmDialog
-                open={Boolean(pdfDeleteTarget)}
-                batch={false}
-                count={1}
-                itemLabel="这个 PDF"
-                message={
-                  pdfDeleteTarget
-                    ? `将删除「${pdfDeleteTarget.name}」及其全部批注与摘录卡片。`
-                    : undefined
-                }
-                onCancel={() => setPdfDeleteTarget(null)}
-                onConfirm={confirmDeletePdf}
-              />
-
-              <DeleteConfirmDialog
-                open={confirmPdfBatchDelete}
-                batch
-                count={pdfBatchSelectedIds.length}
-                itemLabel="个 PDF"
-                message={`将删除选中的 ${pdfBatchSelectedIds.length} 个 PDF 及其全部批注与摘录卡片。`}
-                onCancel={() => setConfirmPdfBatchDelete(false)}
-                onConfirm={handleConfirmPdfBatchDelete}
-              />
-
-              <Menu
-                anchorEl={pdfBatchMoveAnchor}
-                open={Boolean(pdfBatchMoveAnchor)}
-                onClose={() => setPdfBatchMoveAnchor(null)}
-                slotProps={{
-                  paper: { sx: { py: 0.5, borderRadius: 1, minWidth: 160 } }
-                }}>
-                <Typography
-                  sx={{
-                    fontSize: "0.68rem",
-                    color: "text.disabled",
-                    px: 1.5,
-                    pt: 0.5,
-                    pb: 0.25
-                  }}>
-                  移动到主题
-                </Typography>
+                移动到主题
+              </Typography>
+              <MenuItem
+                onClick={() => handlePdfBatchMove(undefined)}
+                sx={{ fontSize: "0.8rem", gap: 1 }}>
+                <FolderRoundedIcon sx={{ fontSize: 15 }} />
+                未分类
+              </MenuItem>
+              {topics.map((t) => (
                 <MenuItem
-                  onClick={() => handlePdfBatchMove(undefined)}
+                  key={t}
+                  onClick={() => handlePdfBatchMove(t)}
                   sx={{ fontSize: "0.8rem", gap: 1 }}>
                   <FolderRoundedIcon sx={{ fontSize: 15 }} />
-                  未分类
+                  {t}
                 </MenuItem>
-                {topics.map((t) => (
-                  <MenuItem
-                    key={t}
-                    onClick={() => handlePdfBatchMove(t)}
-                    sx={{ fontSize: "0.8rem", gap: 1 }}>
-                    <FolderRoundedIcon sx={{ fontSize: 15 }} />
-                    {t}
-                  </MenuItem>
-                ))}
-              </Menu>
+              ))}
+            </Menu>
 
-              <DeleteConfirmDialog
-                open={Boolean(topicDeleteTarget)}
-                batch={false}
-                count={1}
-                itemLabel="这个主题"
-                message={
-                  topicDeleteTarget
-                    ? `将删除主题「${topicDeleteTarget}」，该主题下的 PDF 将回到「未分类」（文件与摘录保留）。`
-                    : undefined
+            <DeleteConfirmDialog
+              open={Boolean(topicDeleteTarget)}
+              batch={false}
+              count={1}
+              itemLabel="这个主题"
+              message={
+                topicDeleteTarget
+                  ? `将删除主题「${topicDeleteTarget}」，该主题下的 PDF 将回到「未分类」（文件与摘录保留）。`
+                  : undefined
+              }
+              onCancel={() => setTopicDeleteTarget(null)}
+              onConfirm={confirmDeleteTopic}
+            />
+
+            <DialogShell
+              open={Boolean(pendingSectionDelete)}
+              onClose={() => setPendingSectionDelete(null)}
+              title="删除章节"
+              confirmLabel="删除"
+              confirmColor="error"
+              onConfirm={confirmDeleteSection}>
+              <>
+                {pendingSectionDelete && (
+                  <Typography variant="body2" color="text.secondary">
+                    确定要删除此章节
+                    {pendingSectionDelete.subSectionCount > 0 &&
+                      ` 及 ${pendingSectionDelete.subSectionCount} 个子章节`}
+                    ？其中 {pendingSectionDelete.cardCount} 张卡片将移至未分类。
+                  </Typography>
+                )}
+              </>
+            </DialogShell>
+
+            <MergeConfirmDialog
+              open={Boolean(mergeState)}
+              items={mergeState ?? []}
+              onClose={() => setMergeState(null)}
+              onConfirm={handleConfirmMerge}
+            />
+
+            <NewProjectDialog
+              open={createDialogOpen}
+              name={newProjectName}
+              error={projectError}
+              onNameChange={(v) => {
+                setNewProjectName(v)
+                setProjectError(null)
+              }}
+              onClose={() => {
+                setCreateDialogOpen(false)
+                setProjectError(null)
+              }}
+              onCreate={() => {
+                handleCreateProject()
+                setCreateDialogOpen(false)
+              }}
+            />
+
+            <SettingsDialog
+              open={settingsOpen}
+              onClose={() => setSettingsOpen(false)}
+              preset={preset}
+              onPresetChange={(name) => setPreset(name)}
+            />
+
+            <OpenPdfUrlDialog
+              open={pdfUrlOpen}
+              loading={pdfUrlLoading}
+              onClose={() => setPdfUrlOpen(false)}
+              onOpen={handleOpenPdfFromUrl}
+            />
+
+            <Toast
+              open={Boolean(snackbar)}
+              message={snackbar?.message ?? ""}
+              severity={snackbar?.severity}
+              onClose={() => setSnackbar(null)}
+            />
+
+            <CopyCardsMenu
+              anchor={copyMenu?.anchor ?? null}
+              title={
+                copyMenu?.mode === "batch" ? "批量复制到项目" : "复制到项目"
+              }
+              projects={otherProjects}
+              onSelect={(pid) => {
+                if (copyMenu?.mode === "batch") handleBatchCopyCards(pid)
+                else handleCopyCard(pid)
+                setCopyMenu(null)
+              }}
+              onCreateProject={handleCreateProjectAndCopy}
+              onClose={() => setCopyMenu(null)}
+            />
+
+            <MoveToSectionMenu
+              anchor={moveMenu?.anchor ?? null}
+              sections={activeProject?.sections ?? []}
+              currentSectionId={
+                moveMenu?.mode === "single" && moveSectionCardId
+                  ? allProjectCardsUnfiltered.find(
+                      (i) => i.id === moveSectionCardId
+                    )?.sectionId ?? null
+                  : null
+              }
+              onMove={(sid) => {
+                if (moveMenu?.mode === "batch") handleBatchMoveConfirm(sid)
+                else handleMoveCardConfirm(sid)
+                setMoveMenu(null)
+              }}
+              onClose={() => setMoveMenu(null)}
+            />
+            <input
+              ref={backupFileInputRef}
+              type="file"
+              hidden
+              accept=".zip"
+              onChange={handleImportBackupFile}
+            />
+            <input
+              ref={pdfFileInputRef}
+              type="file"
+              hidden
+              accept="application/pdf"
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (f) {
+                  handleOpenPdfFile(f)
+                  navigate("pdf")
                 }
-                onCancel={() => setTopicDeleteTarget(null)}
-                onConfirm={confirmDeleteTopic}
-              />
-
-              <DialogShell
-                open={Boolean(pendingSectionDelete)}
-                onClose={() => setPendingSectionDelete(null)}
-                title="删除章节"
-                confirmLabel="删除"
-                confirmColor="error"
-                onConfirm={confirmDeleteSection}>
-                <>
-                  {pendingSectionDelete && (
-                    <Typography variant="body2" color="text.secondary">
-                      确定要删除此章节
-                      {pendingSectionDelete.subSectionCount > 0 &&
-                        ` 及 ${pendingSectionDelete.subSectionCount} 个子章节`}
-                      ？其中 {pendingSectionDelete.cardCount}{" "}
-                      张卡片将移至未分类。
-                    </Typography>
-                  )}
-                </>
-              </DialogShell>
-
-              <MergeConfirmDialog
-                open={Boolean(mergeState)}
-                items={mergeState ?? []}
-                onClose={() => setMergeState(null)}
-                onConfirm={handleConfirmMerge}
-              />
-
-              <NewProjectDialog
-                open={createDialogOpen}
-                name={newProjectName}
-                error={projectError}
-                onNameChange={(v) => {
-                  setNewProjectName(v)
-                  setProjectError(null)
-                }}
-                onClose={() => {
-                  setCreateDialogOpen(false)
-                  setProjectError(null)
-                }}
-                onCreate={() => {
-                  handleCreateProject()
-                  setCreateDialogOpen(false)
-                }}
-              />
-
-              <SettingsDialog
-                open={settingsOpen}
-                onClose={() => setSettingsOpen(false)}
-                preset={preset}
-                onPresetChange={(name) => setPreset(name)}
-              />
-
-              <OpenPdfUrlDialog
-                open={pdfUrlOpen}
-                loading={pdfUrlLoading}
-                onClose={() => setPdfUrlOpen(false)}
-                onOpen={handleOpenPdfFromUrl}
-              />
-
-              <Toast
-                open={Boolean(snackbar)}
-                message={snackbar?.message ?? ""}
-                severity={snackbar?.severity}
-                onClose={() => setSnackbar(null)}
-              />
-
-              <CopyCardsMenu
-                anchor={copyMenu?.anchor ?? null}
-                title={
-                  copyMenu?.mode === "batch" ? "批量复制到项目" : "复制到项目"
-                }
-                projects={otherProjects}
-                onSelect={(pid) => {
-                  if (copyMenu?.mode === "batch") handleBatchCopyCards(pid)
-                  else handleCopyCard(pid)
-                  setCopyMenu(null)
-                }}
-                onCreateProject={handleCreateProjectAndCopy}
-                onClose={() => setCopyMenu(null)}
-              />
-
-              <MoveToSectionMenu
-                anchor={moveMenu?.anchor ?? null}
-                sections={activeProject?.sections ?? []}
-                currentSectionId={
-                  moveMenu?.mode === "single" && moveSectionCardId
-                    ? (allProjectCardsUnfiltered.find(
-                        (i) => i.id === moveSectionCardId
-                      )?.sectionId ?? null)
-                    : null
-                }
-                onMove={(sid) => {
-                  if (moveMenu?.mode === "batch") handleBatchMoveConfirm(sid)
-                  else handleMoveCardConfirm(sid)
-                  setMoveMenu(null)
-                }}
-                onClose={() => setMoveMenu(null)}
-              />
-              <input
-                ref={backupFileInputRef}
-                type="file"
-                 hidden
-                 accept=".zip"
-                 onChange={handleImportBackupFile}
-               />
-             <input
-               ref={pdfFileInputRef}
-               type="file"
-               hidden
-               accept="application/pdf"
-               onChange={(e) => {
-                 const f = e.target.files?.[0]
-                 if (f) {
-                   handleOpenPdfFile(f)
-                   navigate("pdf")
-                 }
-                 e.target.value = ""
-               }}
-             />
-           </Box>
+                e.target.value = ""
+              }}
+            />
+          </Box>
           <FooterBar
             sidebarTab={sidebarTab}
             pdfCurrentPage={pdfCurrentPage}
@@ -3226,6 +3288,9 @@ export default function OptionsPage() {
             pdfId={activePdfId}
             currentPage={pdfCurrentPage}
             onVocabularyJump={(occurrence) => {
+              setPdfFlashTarget(null)
+              setPdfSelected(null)
+              setPdfScrollTarget(null)
               pdfVocabularyFlashToken.current += 1
               setPdfVocabularyFlashTarget({
                 page: occurrence.page,

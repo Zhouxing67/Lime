@@ -4,6 +4,7 @@
  *  shapes here. */
 import type {
   PdfCard,
+  PdfMeta,
   PdfVocabularyCard,
   PdfMark,
   ProjectCard,
@@ -23,6 +24,7 @@ export type {
   ProjectCard,
   PdfMark,
   PdfCard,
+  PdfMeta,
   PdfVocabularyCard,
   VocabularyEntry,
   VocabularyOccurrence,
@@ -70,22 +72,10 @@ export interface PdfOutlineItem {
   items?: PdfOutlineItem[]
 }
 
-export interface PdfFile {
-  id: string
-  name: string
+export interface PdfFile extends PdfMeta {
   /** The PDF bytes. NULL = a synced placeholder (metadata only — the file
    *  must be opened locally to attach its notes). */
   bytes: Blob | null
-  pageCount: number
-  addedAt: number
-  /** Last time the PDF was opened (for recent-first ordering / hub tiles). */
-  lastOpened?: number
-  /** Last visible page, restored on an ordinary open. */
-  lastPage?: number
-  /** User-authored document context included in future AI requests. */
-  aiContext?: string
-  /** Optional topic grouping (a plain string tag; PDFs with no topic are 未分类). */
-  topic?: string
 }
 
 export interface SearchQuery {
@@ -104,6 +94,7 @@ export type PresetName =
   | "navy"
   | "purple"
   | "crimson"
+  | "amber"
 
 export type TodoFilter =
   | "all"
@@ -129,5 +120,6 @@ export const PRESET_LABELS: Record<PresetName, string> = {
   terracotta: "暖陶",
   navy: "黛蓝",
   purple: "绛紫",
-  crimson: "赤红"
+  crimson: "赤红",
+  amber: "琥珀"
 }

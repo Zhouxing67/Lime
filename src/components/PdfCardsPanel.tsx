@@ -15,10 +15,9 @@ import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
 import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded"
 import MenuBookRoundedIcon from "@mui/icons-material/MenuBookRounded"
 import AddRoundedIcon from "@mui/icons-material/AddRounded"
-import ArrowUpwardRoundedIcon from "@mui/icons-material/ArrowUpwardRounded"
-import ArrowDownwardRoundedIcon from "@mui/icons-material/ArrowDownwardRounded"
 import {
   Box,
+  Button,
   Checkbox,
   Divider,
   IconButton,
@@ -30,7 +29,7 @@ import {
   Typography
 } from "@mui/material"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useTheme } from "@mui/material/styles"
+import { alpha, useTheme } from "@mui/material/styles"
 import { usePanelDragResize } from "../hooks/usePanelDragResize"
 import { usePdfPanelMaxWidth } from "../hooks/usePdfPanelMaxWidth"
 import { sortPdfCards } from "../utils/cards"
@@ -60,9 +59,13 @@ import {
   deleteVocabularyTranslation,
   deleteVocabularyEntry,
   getVocabularyCardByPdf,
-  moveVocabularyTranslation,
   updateVocabularyTranslation
 } from "../database"
+import { occurrenceForTranslation } from "../utils/cards"
+import {
+  cancelAiInterpretation,
+  requestAiTranslation
+} from "../utils/ai"
 import DeleteConfirmDialog from "./DeleteConfirmDialog"
 import EmptyState from "./EmptyState"
 import BatchToolbar from "./BatchToolbar"
@@ -149,6 +152,7 @@ export default function PdfCardsPanel({
   const [manualVocabularyOpen, setManualVocabularyOpen] = useState(false)
   const [manualTerm, setManualTerm] = useState("")
   const [manualTranslation, setManualTranslation] = useState("")
+  const manualTranslationRequestRef = useRef<string | null>(null)
   const [manualVocabularyError, setManualVocabularyError] = useState("")
   const [manualVocabularySaving, setManualVocabularySaving] = useState(false)
   const [translationEdit, setTranslationEdit] = useState<{
@@ -161,8 +165,10 @@ export default function PdfCardsPanel({
     entryId: string
     translation: VocabularyTranslation
   } | null>(null)
+  const [vocabularyExpanded, setVocabularyExpanded] = useState(false)
   const [sortMode, setSortMode] = useState<"single" | "two" | "time">("single")
   const [sortMenuAnchor, setSortMenuAnchor] = useState<HTMLElement | null>(null)
+  useEffect(() => setVocabularyExpanded(false), [pdfId])
   useEffect(() => {
     void chrome.storage.local.get("_uiPdfSort").then((r) => {
       if (r._uiPdfSort === "two" || r._uiPdfSort === "single" || r._uiPdfSort === "time") {
@@ -241,10 +247,22 @@ export default function PdfCardsPanel({
   }, [])
 
   const saveManualVocabulary = useCallback(async () => {
-    if (!pdfId || !manualTerm.trim() || !manualTranslation.trim()) return
+    if (!pdfId || !manualTerm.trim()) return
     setManualVocabularySaving(true)
     setManualVocabularyError("")
     try {
+      if (!manualTranslation.trim()) {
+        const requestId = crypto.randomUUID()
+        manualTranslationRequestRef.current = requestId
+        const result = await requestAiTranslation(requestId, manualTerm.trim())
+        if (manualTranslationRequestRef.current !== requestId) return
+        manualTranslationRequestRef.current = null
+        if (!result.ok || !result.text) {
+          throw new Error(result.error ?? "AI 翻译失败")
+        }
+        setManualTranslation(result.text)
+        return
+      }
       await addVocabularyEntry({
         pdfId,
         page: currentPage,
@@ -261,6 +279,16 @@ export default function PdfCardsPanel({
       setManualVocabularySaving(false)
     }
   }, [pdfId, currentPage, manualTerm, manualTranslation])
+
+  const closeManualVocabulary = useCallback(() => {
+    const requestId = manualTranslationRequestRef.current
+    manualTranslationRequestRef.current = null
+    if (requestId) void cancelAiInterpretation(requestId)
+    setManualVocabularyOpen(false)
+    setManualTerm("")
+    setManualTranslation("")
+    setManualVocabularyError("")
+  }, [])
 
   const saveTranslationEdit = useCallback(async () => {
     if (!vocabularyCard || !translationEdit || !translationDraft.trim()) return
@@ -414,7 +442,7 @@ export default function PdfCardsPanel({
           摘录（{sortedCards.length}）
         </Typography>
         <Box sx={{ flex: 1 }} />
-        <Tooltip title="手动添加生词">
+        <Tooltip title="无法选中时添加生词（AI 翻译）">
           <IconButton
             size="small"
             onClick={() => {
@@ -524,14 +552,21 @@ export default function PdfCardsPanel({
       <Divider sx={{ mx: 1 }} />
       <DialogShell
         open={manualVocabularyOpen}
-        onClose={() => setManualVocabularyOpen(false)}
-        title="手动添加生词"
+        onClose={closeManualVocabulary}
+        title="添加生词"
         maxWidth="xs"
-        confirmLabel={manualVocabularySaving ? "添加中…" : "添加"}
+        confirmLabel={
+          manualVocabularySaving
+            ? manualTranslation
+              ? "添加中…"
+              : "翻译中…"
+            : manualTranslation
+              ? "加入生词卡"
+              : "AI 翻译"
+        }
         confirmDisabled={
           manualVocabularySaving ||
-          !manualTerm.trim() ||
-          !manualTranslation.trim()
+          !manualTerm.trim()
         }
         onConfirm={() => void saveManualVocabulary()}>
         <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -542,25 +577,31 @@ export default function PdfCardsPanel({
             autoFocus
             label="单词或词组"
             value={manualTerm}
-            onChange={(event) => setManualTerm(event.target.value)}
-            fullWidth
-          />
-          <TextField
-            label="翻译"
-            value={manualTranslation}
-            onChange={(event) => setManualTranslation(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault()
-                void saveManualVocabulary()
-              }
+            onChange={(event) => {
+              setManualTerm(event.target.value)
+              setManualTranslation("")
+              setManualVocabularyError("")
             }}
-            error={Boolean(manualVocabularyError)}
-            helperText={manualVocabularyError}
-            multiline
-            minRows={2}
             fullWidth
           />
+          {manualTranslation && (
+            <Box
+              sx={{
+                p: 1.25,
+                borderRadius: 1,
+                bgcolor: "action.hover",
+                color: "text.primary",
+                fontSize: "0.82rem",
+                whiteSpace: "pre-wrap"
+              }}>
+              {manualTranslation}
+            </Box>
+          )}
+          {manualVocabularyError && (
+            <Typography variant="caption" color="error.main">
+              {manualVocabularyError}
+            </Typography>
+          )}
         </Box>
       </DialogShell>
       <DialogShell
@@ -602,43 +643,68 @@ export default function PdfCardsPanel({
           <Paper
             elevation={0}
             sx={{
-              p: 1.5,
+              p: 1.25,
               mb: 1.5,
               borderRadius: 1,
               border: "1px solid",
-              borderColor: "warning.light",
+              borderColor: "divider",
+              bgcolor: "background.paper",
               boxShadow: theme.custom.cardShadow
             }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 1 }}>
-              <MenuBookRoundedIcon sx={{ fontSize: 17, color: "warning.main" }} />
-              <Typography sx={{ fontSize: "0.8rem", fontWeight: 600 }}>
-                生词卡（{vocabularyCard.entries.length}）
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 1.1 }}>
+              <Box
+                sx={{
+                  display: "grid",
+                  placeItems: "center",
+                  width: 24,
+                  height: 24,
+                  borderRadius: 1,
+                  bgcolor: "primary.main",
+                  color: "primary.contrastText"
+                }}>
+                <MenuBookRoundedIcon sx={{ fontSize: 15 }} />
+              </Box>
+              <Typography sx={{ fontSize: "0.8rem", fontWeight: 650 }}>
+                生词
+              </Typography>
+              <Typography variant="caption" sx={{ color: "text.disabled" }}>
+                {vocabularyCard.entries.length} 个词条
               </Typography>
             </Box>
             <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
-              {vocabularyCard.entries.map((entry) => (
+              {(vocabularyExpanded
+                ? vocabularyCard.entries
+                : vocabularyCard.entries.slice(0, 6)
+              ).map((entry) => (
                 <Box
                   key={entry.id}
                   onClick={(event) => {
                     event.stopPropagation()
-                    const occurrence = entry.occurrences[entry.occurrences.length - 1]
+                    const occurrence = entry.occurrences[0]
                     if (occurrence) onVocabularyJump?.(occurrence)
                   }}
                   sx={{
-                    px: 1,
-                    py: 0.75,
+                    px: 1.1,
+                    py: 0.85,
                     borderRadius: 1,
-                    bgcolor: "action.hover",
+                    border: "1px solid",
+                    borderColor: "divider",
+                    bgcolor: (currentTheme) =>
+                      alpha(currentTheme.palette.primary.main, 0.045),
                     cursor: "pointer",
-                    "&:hover": { bgcolor: "action.selected" }
+                    transition: "border-color 0.2s ease, background-color 0.2s ease",
+                    "&:hover": {
+                      bgcolor: "action.hover",
+                      borderColor: "primary.light"
+                    }
                   }}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Typography sx={{ fontSize: "0.78rem", fontWeight: 600 }}>
+                    <Typography sx={{ fontSize: "0.8rem", fontWeight: 700 }}>
                       {entry.term}
                     </Typography>
                     <Box sx={{ flex: 1 }} />
                     <Typography sx={{ fontSize: "0.65rem", color: "text.disabled" }}>
-                      P{entry.occurrences[entry.occurrences.length - 1]?.page ?? "-"}
+                      {entry.occurrences.length} 处
                     </Typography>
                     <Tooltip title="删除生词">
                       <IconButton
@@ -653,24 +719,37 @@ export default function PdfCardsPanel({
                     </Tooltip>
                   </Box>
                   <Box sx={{ mt: 0.35, display: "flex", flexDirection: "column", gap: 0.25 }}>
-                    {entry.translations.map((translation, index) => (
+                    {entry.translations.map((translation) => (
                       <Box
                         key={translation.id}
                         sx={{
                           display: "flex",
                           alignItems: "center",
-                          gap: 0.25,
+                          gap: 0.5,
                           "&:hover .vocabulary-translation-ops, &:focus-within .vocabulary-translation-ops": {
                             opacity: 1
                           }
                         }}>
                         <Typography
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            const occurrence = occurrenceForTranslation(
+                              entry,
+                              translation
+                            )
+                            if (occurrence) onVocabularyJump?.(occurrence)
+                          }}
                           sx={{
                             flex: 1,
                             minWidth: 0,
-                            fontSize: "0.72rem",
+                            fontSize: "0.73rem",
                             color: "text.secondary",
-                            wordBreak: "break-word"
+                            wordBreak: "break-word",
+                            pl: 0.75,
+                            borderLeft: "2px solid",
+                            borderColor: "primary.light",
+                            cursor: "pointer",
+                            "&:hover": { color: "primary.main" }
                           }}>
                           {translation.text}
                         </Typography>
@@ -682,38 +761,6 @@ export default function PdfCardsPanel({
                             transition: "opacity 0.15s",
                             "@media (hover: none)": { opacity: 1 }
                           }}>
-                          <IconButton
-                            size="small"
-                            disabled={index === 0}
-                            title="上移"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              void moveVocabularyTranslation(
-                                vocabularyCard.id,
-                                entry.id,
-                                translation.id,
-                                -1
-                              )
-                            }}
-                            sx={{ p: 0.2 }}>
-                            <ArrowUpwardRoundedIcon sx={{ fontSize: 13 }} />
-                          </IconButton>
-                          <IconButton
-                            size="small"
-                            disabled={index === entry.translations.length - 1}
-                            title="下移"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              void moveVocabularyTranslation(
-                                vocabularyCard.id,
-                                entry.id,
-                                translation.id,
-                                1
-                              )
-                            }}
-                            sx={{ p: 0.2 }}>
-                            <ArrowDownwardRoundedIcon sx={{ fontSize: 13 }} />
-                          </IconButton>
                           <IconButton
                             size="small"
                             title="编辑翻译"
@@ -750,6 +797,19 @@ export default function PdfCardsPanel({
                   </Box>
                 </Box>
               ))}
+              {vocabularyCard.entries.length > 6 && (
+                <Button
+                  size="small"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    setVocabularyExpanded((value) => !value)
+                  }}
+                  sx={{ alignSelf: "center", fontSize: "0.72rem" }}>
+                  {vocabularyExpanded
+                    ? "收起词条"
+                    : `展开全部 ${vocabularyCard.entries.length} 个词条`}
+                </Button>
+              )}
             </Box>
           </Paper>
         )}

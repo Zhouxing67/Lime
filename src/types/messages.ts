@@ -83,9 +83,23 @@ export interface AiInterpretMessage {
   }
 }
 
+export interface AiTranslateMessage {
+  kind: "ai-translate"
+  payload: {
+    requestId: string
+    text: string
+    aiContext?: string
+  }
+}
+
 export interface AiCancelMessage {
   kind: "ai-cancel"
   requestId: string
+}
+
+export interface AiTestMessage {
+  kind: "ai-test"
+  payload: { endpoint: string; model: string; apiKey: string }
 }
 
 export type ExtensionMessage =
@@ -100,7 +114,9 @@ export type ExtensionMessage =
   | SaveWebPdfMessage
   | ReadLaterMessage
   | AiInterpretMessage
+  | AiTranslateMessage
   | AiCancelMessage
+  | AiTestMessage
 
 export function sendMessage<T = any>(
   msg: ExtensionMessage,

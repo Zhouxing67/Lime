@@ -133,6 +133,8 @@ export type ReadLater = z.infer<typeof readLaterSchema>
 export const vocabularyTranslationSchema = z.object({
   id: z.string(),
   text: z.string(),
+  /** The PDF occurrence from which this translation was added. */
+  occurrenceId: z.string().optional(),
   createdAt: z.number()
 })
 export type VocabularyTranslation = z.infer<typeof vocabularyTranslationSchema>

@@ -66,6 +66,7 @@ export class Painter {
     private highlightRequestId = 0
     private highlightRetryTimer: number | null = null
     private resolveHighlightRequest: ((highlighted: boolean) => void) | null = null
+    private onProgrammaticHighlightCreated: ((id: string) => void) | null = null
     private selector: Selector // 选择器实例
     private authorLabels: AnnotationAuthorLabels
     private hoverPreview: AnnotationHoverPreview
@@ -418,6 +419,7 @@ export class Painter {
         useAnnotationStore.getState().addAnnotation(numberedAnnotation)
         this.authorLabels.refreshAnnotation(numberedAnnotation.id)
         if (isOriginal) return
+        this.onProgrammaticHighlightCreated?.(numberedAnnotation.id)
         if (currentAnnotation) {
             if (currentAnnotation.isOnce) {
                 this.selectAnnotation(numberedAnnotation.id, true)
@@ -998,10 +1000,19 @@ export class Painter {
      * @param range
      * @param annotation
      */
-    public highlightRange(range: Range | null, annotation: IAnnotationType) {
+    public highlightRange(
+        range: Range | null,
+        annotation: IAnnotationType,
+        onCreated?: (id: string) => void
+    ) {
         if (!this.can('annotation.create')) return
         this.currentAnnotation = annotation
-        this.textSelection.highlight(range)
+        this.onProgrammaticHighlightCreated = onCreated ?? null
+        try {
+            this.textSelection.highlight(range)
+        } finally {
+            this.onProgrammaticHighlightCreated = null
+        }
     }
 
     /**

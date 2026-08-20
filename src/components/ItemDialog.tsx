@@ -170,7 +170,7 @@ export default function ItemDialog({
         </Box>
         <Box sx={{ flex: 1 }} />
         <Stack direction="row" spacing={0.5} alignItems="center">
-          <Tooltip title={copied ? "已复制" : "复制引用"}>
+          {!item.pdfVocabularyCardId && <Tooltip title={copied ? "已复制" : "复制引用"}>
             <IconButton
               size="small"
               onClick={() => {
@@ -190,7 +190,7 @@ export default function ItemDialog({
                 <ContentCopyRoundedIcon fontSize="small" />
               )}
             </IconButton>
-          </Tooltip>
+          </Tooltip>}
           <Tooltip title="关闭">
             <IconButton size="small" onClick={onClose}>
               <CloseRoundedIcon fontSize="small" />

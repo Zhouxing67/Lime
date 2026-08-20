@@ -11,10 +11,6 @@ import {
   wouldWipeRemote
 } from "./sync"
 
-// jest's jsdom doesn't expose DOMParser globally — take it from jsdom.
-const { JSDOM } = require("jsdom")
-;(global as any).DOMParser = new JSDOM().window.DOMParser
-
 const PROPFIND_XML = (names: string[]) => `<?xml version="1.0"?>
 <D:multistatus xmlns:D="DAV:">
   <D:response>

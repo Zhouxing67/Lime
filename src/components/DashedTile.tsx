@@ -10,6 +10,7 @@ interface DashedTileProps {
   label: string
   onClick: () => void
   minHeight?: number
+  height?: number
   variant?: "simple" | "card"
   /** Render the icon inside a 36px dashed circle (todo/card tiles). */
   circleIcon?: boolean
@@ -25,6 +26,7 @@ export default function DashedTile({
   label,
   onClick,
   minHeight = 104,
+  height,
   variant = "simple",
   circleIcon = false,
   labelSize = "0.85rem",
@@ -42,6 +44,7 @@ export default function DashedTile({
         border: "1.5px dashed",
         borderColor: highlighted ? "primary.main" : theme.custom.borderStrong,
         minHeight,
+        height,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",

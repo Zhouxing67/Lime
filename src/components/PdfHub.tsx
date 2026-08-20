@@ -30,6 +30,7 @@ import type { PdfMetaLite } from "../database"
 import EmptyState from "./EmptyState"
 import { avatarColor, byRecency } from "../utils"
 import DashedTile from "./DashedTile"
+import { HUB_TILE_HEIGHT, hubTileGridColumns } from "./hubTileStyles"
 import PdfAiContextDialog from "./PdfAiContextDialog"
 
 /** Colored circular avatar (avatarPalette, deterministic per name) — the same
@@ -240,7 +241,7 @@ export default function PdfHub({
       borderColor: "divider",
       bgcolor: "background.paper",
       cursor: "pointer",
-      minHeight: 104,
+      height: HUB_TILE_HEIGHT,
       // Two-section tile (avatar row + footer) like the project tiles — the
       // footer pins to the bottom via mt:auto.
       display: "flex",
@@ -260,9 +261,46 @@ export default function PdfHub({
       <Box
         sx={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+          gridTemplateColumns: hubTileGridColumns,
           gap: 1.5
         }}>
+        {newTopicOpen ? (
+          <Paper elevation={0} sx={tileSx} onClick={(e) => e.stopPropagation()}>
+            <TextField
+              autoFocus
+              size="small"
+              placeholder="主题名称"
+              value={newTopicName}
+              onChange={(e) => setNewTopicName(e.target.value)}
+              onBlur={() => {
+                const name = newTopicName.trim()
+                if (name) onNewTopic?.(name)
+                setNewTopicName("")
+                setNewTopicOpen(false)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  const name = newTopicName.trim()
+                  if (name) onNewTopic?.(name)
+                  setNewTopicName("")
+                  setNewTopicOpen(false)
+                }
+                if (e.key === "Escape") {
+                  setNewTopicName("")
+                  setNewTopicOpen(false)
+                }
+              }}
+              sx={{ "& .MuiInputBase-input": { fontSize: "0.85rem" } }}
+            />
+          </Paper>
+        ) : (
+          <DashedTile
+            icon={<AddRoundedIcon sx={{ fontSize: 26 }} />}
+            label="新建主题"
+            onClick={() => setNewTopicOpen(true)}
+            height={HUB_TILE_HEIGHT}
+          />
+        )}
         <Paper elevation={0} onClick={() => setTopicView("all")} sx={tileSx}>
           <Stack direction="row" spacing={1.5} alignItems="center">
             <TileAvatar
@@ -373,42 +411,6 @@ export default function PdfHub({
           <TileFooter left={`${unclassified} 篇`} />
         </Paper>
 
-        {newTopicOpen ? (
-          <Paper elevation={0} sx={tileSx} onClick={(e) => e.stopPropagation()}>
-            <TextField
-              autoFocus
-              size="small"
-              placeholder="主题名称"
-              value={newTopicName}
-              onChange={(e) => setNewTopicName(e.target.value)}
-              onBlur={() => {
-                const name = newTopicName.trim()
-                if (name) onNewTopic?.(name)
-                setNewTopicName("")
-                setNewTopicOpen(false)
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  const name = newTopicName.trim()
-                  if (name) onNewTopic?.(name)
-                  setNewTopicName("")
-                  setNewTopicOpen(false)
-                }
-                if (e.key === "Escape") {
-                  setNewTopicName("")
-                  setNewTopicOpen(false)
-                }
-              }}
-              sx={{ "& .MuiInputBase-input": { fontSize: "0.85rem" } }}
-            />
-          </Paper>
-        ) : (
-          <DashedTile
-            icon={<AddRoundedIcon sx={{ fontSize: 26 }} />}
-            label="新建主题"
-            onClick={() => setNewTopicOpen(true)}
-          />
-        )}
       </Box>
       {topicRename && (
         <RenameDialog
@@ -495,7 +497,7 @@ export default function PdfHub({
       <Box
         sx={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+          gridTemplateColumns: hubTileGridColumns,
           gap: 1.5
         }}>
         {!selectable && (
@@ -504,12 +506,14 @@ export default function PdfHub({
               icon={<AddRoundedIcon sx={{ fontSize: 26 }} />}
               label="打开 PDF"
               onClick={onNewPdf}
+              height={HUB_TILE_HEIGHT}
             />
             {onOpenUrl && (
               <DashedTile
                 icon={<LinkRoundedIcon sx={{ fontSize: 26 }} />}
                 label="从 URL 打开"
                 onClick={onOpenUrl}
+                height={HUB_TILE_HEIGHT}
               />
             )}
           </>
@@ -533,7 +537,7 @@ export default function PdfHub({
                 // Uniform height across the mixed first row (打开 PDF / URL +
                 // PDFs); two-section layout (avatar row + footer) like the
                 // project tiles.
-                minHeight: 104,
+                height: HUB_TILE_HEIGHT,
                 display: "flex",
                 flexDirection: "column",
                 border: isPlaceholder ? "1.5px dashed" : "1px solid",

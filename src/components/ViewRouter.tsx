@@ -546,6 +546,8 @@ function ProjectsMain(props: ProjectsMainProps) {
       {activeProject && (keyword || dateRange) && (
         <CardGrid
           items={displayedItems}
+          draggable={!isSystemProject}
+          readOnly={isSystemProject}
           selectMode={selectMode}
           onSelectItem={handleSelectItem}
           onDeleteItem={onDelete}

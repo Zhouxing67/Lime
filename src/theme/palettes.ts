@@ -36,5 +36,10 @@ export const palettes: Record<PresetName, PaletteColors> = {
     primary: { main: "#8a3a3a", light: "#a85a5a", dark: "#6b2b2b" },
     secondary: { main: "#a9824f", light: "#c29b6b", dark: "#87612f" },
     error: { main: "#c9786e", light: "#d89a91" }
+  },
+  amber: {
+    primary: { main: "#b7791f", light: "#d69e2e", dark: "#8c5a12" },
+    secondary: { main: "#6b5b8f", light: "#8b7ab0", dark: "#4c4068" },
+    error: { main: "#c2413b", light: "#e59a94" }
   }
 }

@@ -23,6 +23,7 @@ import { palettes } from "../theme"
 import type { PresetName } from "../types"
 import { PRESET_LABELS } from "../types"
 import { testConnection } from "../utils/sync"
+import { testAiConnection } from "../utils/ai"
 import type { SyncCredentials } from "../utils/sync"
 import DialogShell from "./DialogShell"
 
@@ -52,6 +53,10 @@ export default function SettingsDialog({
   const [aiModel, setAiModel] = useState("")
   const [aiApiKey, setAiApiKey] = useState("")
   const [aiSaved, setAiSaved] = useState(false)
+  const [aiStatus, setAiStatus] = useState<{
+    type: "idle" | "loading" | "success" | "error"
+    text: string
+  }>({ type: "idle", text: "" })
 
   useEffect(() => {
     if (!open) return
@@ -78,6 +83,7 @@ export default function SettingsDialog({
         setAiModel(data.aiModel ?? "gpt-4.1-mini")
         setAiApiKey(data.aiApiKey ?? "")
         setAiSaved(false)
+        setAiStatus({ type: "idle", text: "" })
       }
     )
     chrome.storage.local.get(
@@ -179,15 +185,52 @@ export default function SettingsDialog({
                 size="small"
                 variant="outlined"
                 disabled={!aiEndpoint.trim() || !aiModel.trim() || !aiApiKey.trim()}
-                onClick={() => {
-                  void chrome.storage.local.set({
-                    aiEndpoint: aiEndpoint.trim(),
-                    aiModel: aiModel.trim(),
-                    aiApiKey: aiApiKey.trim()
-                  })
-                  setAiSaved(true)
+                onClick={async () => {
+                  try {
+                    await chrome.storage.local.set({
+                      aiEndpoint: aiEndpoint.trim(),
+                      aiModel: aiModel.trim(),
+                      aiApiKey: aiApiKey.trim()
+                    })
+                    setAiSaved(true)
+                  } catch (error) {
+                    setAiSaved(false)
+                    setAiStatus({
+                      type: "error",
+                      text: (error as Error)?.message ?? "AI 配置保存失败"
+                    })
+                  }
                 }}>
                 保存 AI 配置
+              </Button>
+              <Button
+                size="small"
+                disabled={
+                  aiStatus.type === "loading" ||
+                  !aiEndpoint.trim() ||
+                  !aiModel.trim() ||
+                  !aiApiKey.trim()
+                }
+                onClick={async () => {
+                  setAiStatus({ type: "loading", text: "测试中…" })
+                  try {
+                    const result = await testAiConnection({
+                      endpoint: aiEndpoint.trim(),
+                      model: aiModel.trim(),
+                      apiKey: aiApiKey.trim()
+                    })
+                    setAiStatus({
+                      type: result.ok ? "success" : "error",
+                      text: result.ok ? "连接成功" : result.error ?? "连接失败"
+                    })
+                  } catch (error) {
+                    setAiStatus({
+                      type: "error",
+                      text: (error as Error)?.message ?? "连接失败"
+                    })
+                  }
+                }}>
+                测试连接
               </Button>
               {aiSaved && (
                 <Typography variant="caption" color="success.main">
@@ -195,8 +238,21 @@ export default function SettingsDialog({
                 </Typography>
               )}
             </Stack>
+            {aiStatus.text && (
+              <Typography
+                variant="caption"
+                color={
+                  aiStatus.type === "error"
+                    ? "error.main"
+                    : aiStatus.type === "success"
+                      ? "success.main"
+                      : "text.secondary"
+                }>
+                {aiStatus.text}
+              </Typography>
+            )}
             <Typography variant="caption" color="text.disabled">
-              API Key 仅保存在本机，不进入备份或 WebDAV 同步。
+              API Key 仅保存在本机，不进入备份或 WebDAV 同步。连接测试会发送一次极短请求。
             </Typography>
           </Stack>
         </Box>
