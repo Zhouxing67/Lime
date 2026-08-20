@@ -93,7 +93,7 @@ export interface IAnnotationType {
     type: AnnotationType // 自定义的批注类型
     pdfjsAnnotationType: PdfjsAnnotationType
     subtype: PdfjsAnnotationSubtype
-    webSelectionDependencies: boolean // 是否依赖选择
+    textSelectionDependencies: boolean // 是否依赖原生文字选区
     isOnce: boolean // 是否只绘制一次
     resizable: boolean // 是否可调整大小
     draggable: boolean // 是否可拖动位置
@@ -190,7 +190,7 @@ export const annotationDefinitions: IAnnotationType[] = [
         type: AnnotationType.SELECT, // 批注类型
         pdfjsAnnotationType: PdfjsAnnotationType.NONE,
         subtype: 'None',
-        webSelectionDependencies: false,
+        textSelectionDependencies: false,
         isOnce: false, // 是否只绘制一次
         resizable: false,
         draggable: false,
@@ -201,7 +201,7 @@ export const annotationDefinitions: IAnnotationType[] = [
         type: AnnotationType.HIGHLIGHT,
         pdfjsAnnotationType: PdfjsAnnotationType.HIGHLIGHT,
         subtype: 'Highlight',
-        webSelectionDependencies: true,
+        textSelectionDependencies: true,
         isOnce: false,
         resizable: false,
         draggable: false,
@@ -222,7 +222,7 @@ export const annotationDefinitions: IAnnotationType[] = [
         type: AnnotationType.STRIKEOUT,
         pdfjsAnnotationType: PdfjsAnnotationType.STRIKEOUT,
         subtype: 'StrikeOut',
-        webSelectionDependencies: true,
+        textSelectionDependencies: true,
         isOnce: false,
         resizable: false,
         draggable: false,
@@ -242,7 +242,7 @@ export const annotationDefinitions: IAnnotationType[] = [
         type: AnnotationType.UNDERLINE,
         pdfjsAnnotationType: PdfjsAnnotationType.UNDERLINE,
         subtype: 'Underline',
-        webSelectionDependencies: true,
+        textSelectionDependencies: true,
         isOnce: false,
         resizable: false,
         draggable: false,
@@ -262,7 +262,7 @@ export const annotationDefinitions: IAnnotationType[] = [
         type: AnnotationType.RECTANGLE,
         pdfjsAnnotationType: PdfjsAnnotationType.SQUARE,
         subtype: 'Square',
-        webSelectionDependencies: false,
+        textSelectionDependencies: false,
         isOnce: true,
         resizable: true,
         draggable: true,
@@ -284,7 +284,7 @@ export const annotationDefinitions: IAnnotationType[] = [
         type: AnnotationType.FREEHAND,
         pdfjsAnnotationType: PdfjsAnnotationType.INK,
         subtype: 'Ink',
-        webSelectionDependencies: false,
+        textSelectionDependencies: false,
         isOnce: true,
         resizable: true,
         draggable: true,
@@ -306,7 +306,7 @@ export const annotationDefinitions: IAnnotationType[] = [
         type: AnnotationType.FREE_HIGHLIGHT,
         pdfjsAnnotationType: PdfjsAnnotationType.INK,
         subtype: 'Highlight',
-        webSelectionDependencies: false,
+        textSelectionDependencies: false,
         isOnce: true,
         resizable: true,
         draggable: true,
@@ -329,7 +329,7 @@ export const annotationDefinitions: IAnnotationType[] = [
         type: AnnotationType.FREETEXT,
         pdfjsAnnotationType: PdfjsAnnotationType.FREETEXT,
         subtype: 'FreeText',
-        webSelectionDependencies: false,
+        textSelectionDependencies: false,
         isOnce: true,
         resizable: true,
         draggable: true,

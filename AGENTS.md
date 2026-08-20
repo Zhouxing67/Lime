@@ -75,7 +75,7 @@ src/
 
 - `withStore(name, mode, fn)` — 打开/关闭 DB，readwrite 事务完成自动广播
 - `tx(storeMap, fn)` — 跨 store 原子事务
-- **DB_VERSION = 14**。Stores：`projectCards`, `pdfCards`, `todos`, `projects`, `reviews`, `pdfs`, `pdfAnnotations`, `readLater`
+- **DB_VERSION = 16**。Stores：`projectCards`, `pdfCards`, `pdfVocabularyCards`, `todos`, `projects`, `reviews`, `pdfs`, `pdfAnnotations`, `readLater`
 - 卡片类型：`ProjectCard`（projectId/sectionId/order/content）、`PdfCard`（pdfId/page/annotationId/pdfOrder/content/idea）、`TodoCard`（dueDate/content，全局跨项目，identity-unique，可带 `pdfId/cardId/url` 链接）、`ReadLater`（title/url/pdfId/excerpt/notes/status，全局，`byPdfId` 唯一索引 = 一 PDF 一张稍后读卡）
 - **placed PDF 卡 = 两条记录**：`pdfCard` 源 + `projectCard` 置入（互指 `pdfCardId` ↔ `projectCardId`，1:1）；置入记录 **不含 content**（渲染/搜索时经 pdfCard 解析）；`stripPlacementContent()` 守卫所有写入
 - 广播键：`projectCards` → `_dbi`，`todos` → `_dbt`，`pdfCards`/`pdfs`/`pdfAnnotations` → `_dbpdf`，`projects` → `_dbp`，`reviews` → `_dbr`，`readLater` → `_dbrl`；`pdfs` 元数据写（rename/topic）→ `_dbpdfTouch`
@@ -108,9 +108,10 @@ Kinds：`capture`（→SW 落库）、`toast`（SW→tab）、`webdav`（SW 代�
 ## PDF 阅读模块
 
 - **视图**：`PdfEngineView`（inklayer PdfViewerProvider + EngineBridge + 我们自己的 MUI 工具栏/选区工具条/搜索侧栏）+ `usePdfDocument`（加载/outline/搜索用 doc）。PDF 存储在 `pdfs` store（bytes），placeholder（未同步 bytes）需打开本地文件匹配批注。
+- **pdf.js 页面盒模型**：MUI `CssBaseline` 全局使用 `border-box`，但官方 `.pdfViewer .page` 的 viewport 宽高与 9px 透明边框按 `content-box` 设计；`PdfEngineView` 必须覆盖 `.pdfViewer .page { box-sizing: content-box }`，否则 canvas 内容区会比 TextLayer 小约 18px，偏移随页面坐标累积。完整诊断与回归清单见 `docs/tech/pdf-textlayer-canvas-alignment.md`。
 - **cMap 对齐（R2）**：引擎与搜索两侧 `getDocument` 必须传 `cMapUrl/cMapPacked/standardFontDataUrl`（`usePdfViewer` 的 `createLoadingTask` + `usePdfDocument`）——CID 字体（非嵌入 GBK 中文）缺 cMap 时文本层为空。改参数必须两侧同步。
-- **选区/搜索高亮（R3-REV）**：自绘 line-bridging overlay。原生绘制（::selection / CSS Highlight API）按绝对定位逐词 span 逐块绘制、不桥接词间距 → justify 大间距必断。`pdfText.highlightRectsForOffsets`：char offset → 覆盖 leaf span 子 range（`rangeForLocal` 穿透 `<mark>`）→ 按 em 盒分线 → 每线合并 [minX,maxX] 一个连续块；选区（`textLayerOffsets`）与搜索（`searchFlash` offsets）同一管线、各自独立 overlay div。
-- **批注几何（R4）**：`mergeRectsByLine`（`painter/editor/merge_rects.ts`）行级桥接合并；只影响新建批注。批注裁剪图三字段不变量（rects/path/paths/konvaString，见 `pdfRegionImage.ts`）。
+- **选区/搜索高亮（R3-REV）**：自绘 line-bridging overlay。原生绘制（::selection / CSS Highlight API）按绝对定位逐词 span 逐块绘制、不桥接词间距 → justify 大间距必断。`pdfText.highlightRectsForOffsets`：char offset → 覆盖 leaf span 子 range（`rangeForLocal` 穿透嵌套文本节点）→ Range 横界 + leaf span 紧凑纵界 → 按视觉行合并 [minX,maxX] 连续块；选区（`textLayerOffsets`）与搜索（`searchFlash` offsets）同一管线、各自独立 overlay div。
+- **批注几何（R4）**：原生 `TextSelection` 直接按页枚举 Range 相交的 pdf.js leaf spans（不插入临时 `<mark>`）；局部字符 Range 横界 + leaf span 纵界经 `mergeRectsByLine`（`painter/editor/merge_rects.ts`）行级桥接合并。批注裁剪图三字段不变量（rects/path/paths/konvaString，见 `pdfRegionImage.ts`）。
 - **pdf.js 依赖**：worker 用 Blob URL（`utils/pdfWorker.ts` ensurePdfWorker）——chrome-extension:// worker URL 会触发 fake-worker 的 require 崩溃。所有 `getDocument` 前必须 await。
 - **fixture 验证**：`test/fixtures/pdf/`（CID-GBK/justify-连字/markedContent）+ `diag.mjs`；真实浏览器验证用 playwright（devDep）+ `/tmp/opencode/pdf-harness`。
 
@@ -127,7 +128,7 @@ Kinds：`capture`（→SW 落库）、`toast`（SW→tab）、`webdav`（SW 代�
 3. **项目名唯一**——`projects` store 唯一索引。
 4. **无 `window.confirm`**——用 MUI `DeleteConfirmDialog`。
 5. **WebDAV Basic auth 必须经 SW 代理**（`kind: "webdav"`）。
-6. **MV3 extension_pages CSP 默认 `'self'`**——外部资源需 `*-src`（已配 jsdelivr；新外部资源要扩展 CSP）。
+6. **MV3 extension_pages CSP 默认 `'self'`**——外部资源需 `*-src`；pdf.js 内嵌字体由 `FontFace(blob:...)` 加载，因此 `font-src` 必须保留 `blob:`/`data:`，否则 TextLayer 回退字体并与 canvas 严重错位。
 7. **DB 迁移用已开连接**（见 Database 节）。
 
 ## Key Conventions
@@ -167,7 +168,7 @@ Kinds：`capture`（→SW 落库）、`toast`（SW→tab）、`webdav`（SW 代�
 
 - WebDAV provider：`https://dav.jianguoyun.com/dav/Apps/lime/lime-sync.json`；凭据在 `chrome.storage.sync`（`syncUsername`/`syncPassword`）
 - 冲突：SHA-256 内容哈希对比 → 用户选上传/下载（无自动仲裁）
-- **SyncPayload v7**（2026-08）：单 JSON（projectCards/pdfCards/todos/projects/reviews/pdfs 元数据/pdfAnnotations/readLater）+ **多文件图片层**（`/Apps/lime/images/<contentHash>.png`，payload `images` 映射）+ **PDF 文件层**（`/pdfs/<id>.pdf`）。上传 uploadImageFiles/uploadPdfFiles + prune 孤儿；下载 downloadImageFiles/downloadPdfFiles + hydratePayloadImages。版本门控 v3-v7（v5 内联图片透传读兼容）。哈希覆盖全部数组（稳定 id 排序）
+- **SyncPayload v8**（2026-08）：单 JSON（projectCards/pdfCards/pdfVocabularyCards/todos/projects/reviews/pdfs 元数据/pdfAnnotations/readLater）+ **多文件图片层**（`/Apps/lime/images/<contentHash>.png`，payload `images` 映射）+ **PDF 文件层**（`/pdfs/<id>.pdf`）。上传 uploadImageFiles/uploadPdfFiles + prune 孤儿；下载 downloadImageFiles/downloadPdfFiles + hydratePayloadImages。版本门控 v3-v8（v5 内联图片透传读兼容）。哈希覆盖全部数组（稳定 id 排序）
 - `hasChangesSince`（广播戳 vs lastSyncTime）跳「无变化」；force 同步清零 lastSyncTime
 - `toJsonZip`/`jsonImport` 数据往返：spread + key 校验放行新字段；id 语义变更需重映射
 - **反序列化分层**：形状校验 = `schemas.ts` 的 `schema.safeParse`（单一来源）；语义转换（默认值/legacy 映射/未知字段保留）= import 校验器预解析。**同步下载**经 `sanitizeSyncPayload` 逐条 `safeParse`（畸形跳过+计数，合法记录原样应用、未知字段零丢失）；**上传守卫** `wouldWipeRemote`：从未同步 + 本地记录 < 云端 → 阻断上传（防全新设备清空云端）

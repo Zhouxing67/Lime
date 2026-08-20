@@ -9,5 +9,8 @@ allowBuilds:
   msgpackr-extract: true
   sharp: true
 
+overrides:
+  zod: 4.1.12
+
 patchedDependencies:
   plasmo: patches/plasmo.patch

@@ -50,7 +50,6 @@ export interface MainViewProps extends CardWorkspaceHandlers {
 }
 
 interface PdfViewRouterProps {
-  openPdfIds: string[]
   activePdfId: string | null
   pdfOutlineDest: PdfOutlineItem | null
   setPdfOutlineDest: (item: PdfOutlineItem | null) => void
@@ -59,6 +58,11 @@ interface PdfViewRouterProps {
   swapLeft: () => void
   pdfFlashTarget: { page: number; annId: string; token: number } | null
   pdfClearRingToken: number
+  pdfVocabularyFlashTarget: {
+    page: number
+    rects: { x: number; y: number; w: number; h: number }[]
+    token: number
+  } | null
   annotationById: Map<string, PdfAnnotation>
   handlePdfAnnotationSelected: (annId: string | null) => void
   pdfTypeChangeTarget: { id: string; type: number; seq: number } | null
@@ -211,7 +215,6 @@ export default function ViewRouter(props: MainViewProps) {
 
 function PdfViewRouter(props: PdfViewRouterProps) {
   const {
-    openPdfIds,
     activePdfId,
     pdfOutlineDest,
     setPdfOutlineDest,
@@ -220,6 +223,7 @@ function PdfViewRouter(props: PdfViewRouterProps) {
     swapLeft,
     pdfFlashTarget,
     pdfClearRingToken,
+    pdfVocabularyFlashTarget,
     annotationById,
     handlePdfAnnotationSelected,
     pdfTypeChangeTarget,
@@ -251,7 +255,7 @@ function PdfViewRouter(props: PdfViewRouterProps) {
     readLaterPdfIds,
     onAddReadLater
   } = props
-  if (openPdfIds.length === 0) {
+  if (!activePdfId) {
     return (
       <Box
         sx={{
@@ -288,7 +292,7 @@ function PdfViewRouter(props: PdfViewRouterProps) {
   }
   return (
     <Box sx={{ height: "100%", minHeight: 0, overflow: "hidden" }}>
-      {activePdfId && openPdfIds.includes(activePdfId) ? (
+      {activePdfId ? (
         <Box key={activePdfId} sx={{ height: "100%", minHeight: 0 }}>
           <PdfView
             pdfId={activePdfId}
@@ -308,6 +312,7 @@ function PdfViewRouter(props: PdfViewRouterProps) {
             typeChangeRequest={pdfTypeChangeTarget}
             onAnnotationSelected={handlePdfAnnotationSelected}
             clearRingToken={pdfClearRingToken}
+            vocabularyFlashTarget={pdfVocabularyFlashTarget}
             annotationById={annotationById}
             onToast={onToast}
           />
@@ -422,6 +427,7 @@ function ProjectsMain(props: ProjectsMainProps) {
     () => openCardWorkspace("create", null),
     [openCardWorkspace]
   )
+  const isSystemProject = Boolean(activeProject?.systemKind)
   return (
     <>
       {!activeProject && (
@@ -518,12 +524,13 @@ function ProjectsMain(props: ProjectsMainProps) {
           </Box>
           <CardGrid
             items={scopeItems}
-            draggable
+            draggable={!isSystemProject}
+            readOnly={isSystemProject}
             draggedId={cardDraggedId}
             dropIndicator={cardDrop}
             flipRectsRef={flipRectsRef}
             onGripPointerDown={handleGripPointerDown}
-            onNewCard={handleNewCard}
+            onNewCard={isSystemProject ? undefined : handleNewCard}
             selectMode={selectMode}
             onSelectItem={handleSelectItem}
             onDeleteItem={onDelete}
@@ -560,8 +567,12 @@ function ProjectsMain(props: ProjectsMainProps) {
         ) : (
           <EmptyState
             icon={<NoteAddRoundedIcon className="empty-icon" />}
-            title="此项目暂无卡片"
-            subtitle="点击顶部 ＋ 按钮新建一张卡片"
+            title={isSystemProject ? "暂无生词卡" : "此项目暂无卡片"}
+            subtitle={
+              isSystemProject
+                ? "在 PDF 中添加生词后，卡片会自动出现在这里"
+                : "新建一张卡片开始记录"
+            }
           />
         ))}
 

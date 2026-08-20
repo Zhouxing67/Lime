@@ -4,13 +4,15 @@
  *  shapes here. */
 import type {
   PdfCard,
+  PdfVocabularyCard,
   PdfMark,
   ProjectCard,
   ProjectCardType,
   ReadLater,
   Section,
   SrsData,
-  TodoCard
+  TodoCard,
+  VocabularyEntry
 } from "./schemas"
 
 export type {
@@ -21,6 +23,10 @@ export type {
   ProjectCard,
   PdfMark,
   PdfCard,
+  PdfVocabularyCard,
+  VocabularyEntry,
+  VocabularyOccurrence,
+  VocabularyTranslation,
   TodoCard,
   ReadLater,
   ReadLaterStatus,
@@ -47,6 +53,14 @@ export type DisplayCard = ProjectCard & {
     type?: PdfMark
     kind?: "text" | "region"
   }
+  vocabularySource?: {
+    entryId: string
+    occurrenceId: string
+    rects: { x: number; y: number; w: number; h: number }[]
+  }
+  /** Structured vocabulary content; never encode it into the placed card's
+   * readonly Markdown/text field. */
+  vocabularyEntries?: VocabularyEntry[]
 }
 
 /** A PDF outline (TOC) tree node. */

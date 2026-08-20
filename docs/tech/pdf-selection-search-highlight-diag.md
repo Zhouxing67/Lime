@@ -1,5 +1,7 @@
 # PDF 选区/搜索高亮 — R1 机制诊断对账表（2026-08-15）
 
+> 2026-08-20 补充：宿主 MUI `CssBaseline` 的 `border-box` 会破坏 pdf.js `.page` 的 `content-box` 契约，造成 TextLayer 比 canvas 宽高各多约 18px。该问题位于本文字符/高亮机制之前，详见 [`pdf-textlayer-canvas-alignment.md`](./pdf-textlayer-canvas-alignment.md)。
+
 目标：为「选区高亮断裂 + 搜索高亮偏移」反复不收敛的问题建立**实证根因清单**，避免再次盲修。
 方法：不写产品代码，生成代表性 PDF fixtures + Node 诊断脚本，用**真实 pdf.js** 与**产品算法的忠实复刻**验证各机制。
 

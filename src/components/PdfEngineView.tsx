@@ -20,6 +20,7 @@ import "@radix-ui/themes/styles.css"
 import EngineToolbar from "./pdfEngine/EngineToolbar"
 import EngineSelectionBar from "./pdfEngine/EngineSelectionBar"
 import { usePdfHighlights } from "./pdfEngine/usePdfHighlights"
+import { usePdfGeometryDiagnostics } from "./pdfEngine/usePdfGeometryDiagnostics"
 
 export interface PdfEngineViewProps {
   data: ArrayBuffer
@@ -65,6 +66,17 @@ export interface PdfEngineViewProps {
   /** Current annotations for this PDF — distinguishes geometry edits from
    *  style-only edits so the placed-card crop survives a recolor (A6). */
   annotationById?: Map<string, PdfAnnotation>
+  onAddVocabulary?: (data: {
+    page: number
+    term: string
+    translation: string
+    rects: { x: number; y: number; w: number; h: number }[]
+  }) => Promise<void>
+  vocabularyFlashTarget?: {
+    page: number
+    rects: { x: number; y: number; w: number; h: number }[]
+    token: number
+  } | null
 }
 
 /** Bridge rendered INSIDE PdfViewerProvider — needs the pdfViewer/eventBus. */
@@ -86,7 +98,9 @@ function EngineBridge({
   clearRingToken,
   annotationById,
   textRange,
-  onTextSelected
+  onTextSelected,
+  onAddVocabulary,
+  vocabularyFlashTarget
 }: {
   annotations?: IAnnotationStore[]
   onAnnotationAdd?: (
@@ -124,9 +138,46 @@ function EngineBridge({
   annotationById?: Map<string, PdfAnnotation>
   textRange: Range | null
   onTextSelected: (range: Range | null) => void
+  onAddVocabulary?: PdfEngineViewProps["onAddVocabulary"]
+  vocabularyFlashTarget?: PdfEngineViewProps["vocabularyFlashTarget"]
 }) {
   const { pdfViewer, eventBus } = usePdfViewerContext()
   const { painter } = usePainter()
+
+  useEffect(() => {
+    if (!pdfViewer || !vocabularyFlashTarget) return
+    const { page, rects, token } = vocabularyFlashTarget
+    pdfViewer.scrollPageIntoView({ pageNumber: page })
+    let attempts = 0
+    let retry: ReturnType<typeof setTimeout> | null = null
+    let clear: ReturnType<typeof setTimeout> | null = null
+    let overlay: HTMLDivElement | null = null
+    const draw = () => {
+      attempts++
+      const pageEl = pdfViewer.getPageView(page - 1)?.div as HTMLElement | undefined
+      if (!pageEl || pageEl.clientWidth <= 0 || pageEl.clientHeight <= 0) {
+        if (attempts < 30) retry = setTimeout(draw, 100)
+        return
+      }
+      overlay = document.createElement("div")
+      overlay.dataset.vocabularyFlashToken = String(token)
+      overlay.style.cssText =
+        "position:absolute;inset:0;pointer-events:none;z-index:8;overflow:hidden"
+      for (const rect of rects) {
+        const el = document.createElement("div")
+        el.style.cssText = `position:absolute;left:${rect.x * pageEl.clientWidth}px;top:${rect.y * pageEl.clientHeight}px;width:${rect.w * pageEl.clientWidth}px;height:${rect.h * pageEl.clientHeight}px;background:rgba(245,158,11,.34);box-shadow:0 0 0 1.5px rgba(217,119,6,.85);border-radius:1px`
+        overlay.appendChild(el)
+      }
+      pageEl.appendChild(overlay)
+      clear = setTimeout(() => overlay?.remove(), 2000)
+    }
+    retry = setTimeout(draw, 100)
+    return () => {
+      if (retry) clearTimeout(retry)
+      if (clear) clearTimeout(clear)
+      overlay?.remove()
+    }
+  }, [pdfViewer, vocabularyFlashTarget])
 
   const onVisiblePageRef = useRef(onVisiblePageChange)
   onVisiblePageRef.current = onVisiblePageChange
@@ -279,6 +330,7 @@ function EngineBridge({
 
   // The line-bridging selection/search highlight overlay (own module).
   usePdfHighlights(searchFlash)
+  usePdfGeometryDiagnostics()
 
 
   // Start at 0, NOT the mount-time flashTarget token: the flash often fires
@@ -288,6 +340,25 @@ function EngineBridge({
   const flashTokenRef = useRef(0)
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const flashRetryRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const flashClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const flashSelectedIdRef = useRef<string | null>(null)
+  const pdfViewerRef = useRef(pdfViewer)
+  const painterRef = useRef(painter)
+  pdfViewerRef.current = pdfViewer
+  painterRef.current = painter
+  const handleEngineSelected = useCallback(
+    (annotation: IAnnotationStore | null, isClick: boolean) => {
+      if (!annotation || isClick) {
+        flashSelectedIdRef.current = null
+        if (flashClearTimerRef.current) {
+          clearTimeout(flashClearTimerRef.current)
+          flashClearTimerRef.current = null
+        }
+      }
+      onAnnotationSelected?.(annotation, isClick)
+    },
+    [onAnnotationSelected]
+  )
   useEffect(() => {
     const token = flashTarget?.token
     if (token == null || token === flashTokenRef.current) return
@@ -310,7 +381,9 @@ function EngineBridge({
       if (flashTokenRef.current !== token) return
       // The engine (pdfViewer/painter) or the annotations may not be ready yet
       // (the PDF just opened) — retry until the mark exists, then flash.
-      if (!pdfViewer || !painter) {
+      const livePdfViewer = pdfViewerRef.current
+      const livePainter = painterRef.current
+      if (!livePdfViewer || !livePainter) {
         flashTimerRef.current = setTimeout(tryFlash, 200)
         return
       }
@@ -327,12 +400,24 @@ function EngineBridge({
         const tryHighlight = () => {
           if (flashTokenRef.current !== token) return
           attempts++
-          void painter.highlight(mark).then((ok) => {
+          void livePainter.highlight(mark).then((ok) => {
             // A newer jump superseded this one — stop (its own flash draws the
             // ring); retrying here would cancel it and redraw on the old page.
             if (flashTokenRef.current !== token) return
             if (ok) {
-              onAnnotationSelected?.(mark, true)
+              // Programmatic card→PDF flash is a selection cue, not a real
+              // canvas click. Reporting it as isClick=true re-enters the
+              // PDF→card jump path and can create stale bidirectional loops.
+              flashSelectedIdRef.current = mark.id
+              onAnnotationSelected?.(mark, false)
+              if (flashClearTimerRef.current) clearTimeout(flashClearTimerRef.current)
+              flashClearTimerRef.current = setTimeout(() => {
+                flashClearTimerRef.current = null
+                if (flashTokenRef.current !== token) return
+                if (flashSelectedIdRef.current !== mark.id) return
+                flashSelectedIdRef.current = null
+                livePainter.clearSelection()
+              }, 2000)
               return
             }
             if (attempts >= 10) return
@@ -344,7 +429,7 @@ function EngineBridge({
         }
         tryHighlight()
       } else {
-        pdfViewer.scrollPageIntoView({ pageNumber: page })
+        livePdfViewer.scrollPageIntoView({ pageNumber: page })
       }
     }
     flashTimerRef.current = setTimeout(tryFlash, 150)
@@ -357,9 +442,13 @@ function EngineBridge({
         clearTimeout(flashRetryRef.current)
         flashRetryRef.current = null
       }
+      if (flashClearTimerRef.current) {
+        clearTimeout(flashClearTimerRef.current)
+        flashClearTimerRef.current = null
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [flashTarget?.token, pdfViewer, painter])
+  }, [flashTarget?.token])
 
   return (
     <>
@@ -369,13 +458,47 @@ function EngineBridge({
         onSwapLeft={onSwapLeft}
         readerOpen={readerOpen}
       />
-      <EngineSelectionBar range={textRange} />
+      <EngineSelectionBar
+        range={textRange}
+        onAddVocabulary={
+          onAddVocabulary
+            ? async (range, translation) => {
+                const pageEl = (range.startContainer.parentElement?.closest(
+                  "[data-page-number]"
+                ) ?? null) as HTMLElement | null
+                if (!pageEl) throw new Error("无法定位生词所在页面")
+                const bounds = pageEl.getBoundingClientRect()
+                const originX = bounds.left + pageEl.clientLeft
+                const originY = bounds.top + pageEl.clientTop
+                const width = pageEl.clientWidth
+                const height = pageEl.clientHeight
+                const rects = Array.from(range.getClientRects())
+                  .map((rect) => ({
+                    x: (rect.left - originX) / width,
+                    y: (rect.top - originY) / height,
+                    w: rect.width / width,
+                    h: rect.height / height
+                  }))
+                  .filter((rect) => rect.w > 0 && rect.h > 0)
+                if (rects.length === 0) throw new Error("无法读取生词选区")
+                await onAddVocabulary({
+                  page: Number(pageEl.dataset.pageNumber),
+                  term: range.toString().trim(),
+                  translation,
+                  rects
+                })
+                window.getSelection()?.removeAllRanges()
+                onTextSelected(null)
+              }
+            : undefined
+        }
+      />
       <AnnotatorExtension
         annotations={annotations}
         onLoad={() => {}}
         onAnnotationAdd={handleAdd}
         onAnnotationDelete={onAnnotationDelete ?? (() => {})}
-        onAnnotationSelected={onAnnotationSelected ?? (() => {})}
+        onAnnotationSelected={handleEngineSelected}
         onAnnotationChanged={handleChange}
         onTextSelected={onTextSelected}
       />
@@ -402,7 +525,9 @@ export default function PdfEngineView({
   searchFlash,
   typeChangeRequest,
   clearRingToken,
-  annotationById
+  annotationById,
+  onAddVocabulary,
+  vocabularyFlashTarget
 }: PdfEngineViewProps) {
   const [textRange, setTextRange] = useState<Range | null>(null)
   const optionsValue = useMemo(
@@ -425,6 +550,7 @@ export default function PdfEngineView({
     // hidden so the PDF's own native marks don't pollute the reading surface.
     const styleEl = document.createElement("style")
     styleEl.textContent = `
+.pdfViewer .page{box-sizing:content-box}
 .textLayer::selection,.textLayer ::selection,.textLayer :is(span,br)::selection{background:transparent !important;color:transparent !important}
 .annotationLayer{z-index:2}
 .annotationLayer section:not(.linkAnnotation){display:none}
@@ -493,6 +619,8 @@ export default function PdfEngineView({
                 annotationById={annotationById}
                 textRange={textRange}
                 onTextSelected={handleTextSelected}
+                onAddVocabulary={onAddVocabulary}
+                vocabularyFlashTarget={vocabularyFlashTarget}
               />
             </PdfViewerProvider>
           </OptionsContext.Provider>

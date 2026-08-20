@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type {
   PdfAnnotation,
   PdfCard,
+  PdfVocabularyCard,
   ProjectCard,
   ReadLater,
   ReviewEntry,
@@ -12,6 +13,7 @@ import type {
 import {
   getAllAnnotations,
   getAllPdfCards,
+  getAllVocabularyCards,
   getAllProjectCards,
   getAllReadLater,
   getActiveReadLaterCount,
@@ -51,6 +53,9 @@ export function useAppData({
     ProjectCard[]
   >([])
   const [allPdfCards, setAllPdfCards] = useState<PdfCard[]>([])
+  const [allVocabularyCards, setAllVocabularyCards] = useState<
+    PdfVocabularyCard[]
+  >([])
   const [annotationById, setAnnotationById] = useState<
     Map<string, PdfAnnotation>
   >(new Map())
@@ -178,6 +183,7 @@ export function useAppData({
       pdfDataTimerRef.current = null
       loadPdfs()
       getAllPdfCards().then(setAllPdfCards)
+      getAllVocabularyCards().then(setAllVocabularyCards)
       getAllAnnotations().then((list) =>
         setAnnotationById(new Map(list.map((a) => [a.id, a])))
       )
@@ -209,12 +215,14 @@ export function useAppData({
     await loadProjectsRef.current()
     await onSearchRef.current()
     await loadTodos()
-    const [all, pdfs] = await Promise.all([
+    const [all, pdfs, vocabulary] = await Promise.all([
       getAllProjectCards(),
-      getAllPdfCards()
+      getAllPdfCards(),
+      getAllVocabularyCards()
     ])
     setAllProjectCardsUnfiltered(all)
     setAllPdfCards(pdfs)
+    setAllVocabularyCards(vocabulary)
   }, [loadTodos, loadProjectsRef, onSearchRef])
 
   // ---- initial + reactive loads ----
@@ -224,6 +232,7 @@ export function useAppData({
   useEffect(() => {
     getAllProjectCards().then(setAllProjectCardsUnfiltered)
     getAllPdfCards().then(setAllPdfCards)
+    getAllVocabularyCards().then(setAllVocabularyCards)
     getAllAnnotations().then((list) =>
       setAnnotationById(new Map(list.map((a) => [a.id, a])))
     )
@@ -392,6 +401,7 @@ export function useAppData({
     pdfs,
     allProjectCardsUnfiltered,
     allPdfCards,
+    allVocabularyCards,
     annotationById,
     allTodos,
     allReadLater,

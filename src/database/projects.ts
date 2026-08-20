@@ -54,7 +54,16 @@ export async function getProjectByName(
 }
 
 export async function updateProject(project: Project): Promise<void> {
-  await withStore("projects", "readwrite", (store) => {
+  await withStore("projects", "readwrite", async (store) => {
+    const existing = await new Promise<Project | undefined>((resolve, reject) => {
+      const request = store.get(project.id)
+      request.onsuccess = () => resolve(request.result as Project | undefined)
+      request.onerror = () => reject(request.error)
+    })
+    if (existing?.systemKind === "vocabulary") {
+      store.put({ ...project, name: existing.name, systemKind: "vocabulary" })
+      return
+    }
     store.put(project)
   })
 }
@@ -71,6 +80,12 @@ export async function deleteProject(id: string): Promise<void> {
       projects: "readwrite"
     },
     async (stores) => {
+      const project = await new Promise<Project | undefined>((resolve) => {
+        const request = stores.projects.get(id)
+        request.onsuccess = () => resolve(request.result as Project | undefined)
+        request.onerror = () => resolve(undefined)
+      })
+      if (project?.systemKind === "vocabulary") return false
       const cardIds = await new Promise<string[]>((resolve, reject) => {
         const ids: string[] = []
         const idx = stores.projectCards.index("projectId")

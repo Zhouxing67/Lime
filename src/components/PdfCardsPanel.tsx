@@ -12,6 +12,9 @@ import EditRoundedIcon from "@mui/icons-material/EditRounded"
 import SwapHorizRoundedIcon from "@mui/icons-material/SwapHorizRounded"
 import LinkOffRoundedIcon from "@mui/icons-material/LinkOffRounded"
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
+import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded"
+import MenuBookRoundedIcon from "@mui/icons-material/MenuBookRounded"
+import AddRoundedIcon from "@mui/icons-material/AddRounded"
 import {
   Box,
   Checkbox,
@@ -21,6 +24,7 @@ import {
   MenuItem,
   Paper,
   Tooltip,
+  TextField,
   Typography
 } from "@mui/material"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -42,10 +46,17 @@ function formatCardDate(ts?: number): string {
 import type {
   PdfAnnotation,
   PdfCard,
+  PdfVocabularyCard,
   Project,
-  ProjectCard
+  ProjectCard,
+  VocabularyOccurrence
 } from "../types"
-import { addPdfCard } from "../database"
+import {
+  addVocabularyEntry,
+  addPdfCard,
+  deleteVocabularyEntry,
+  getVocabularyCardByPdf
+} from "../database"
 import DeleteConfirmDialog from "./DeleteConfirmDialog"
 import EmptyState from "./EmptyState"
 import BatchToolbar from "./BatchToolbar"
@@ -53,6 +64,7 @@ import PdfCardBody from "./PdfCardBody"
 import PlaceCardMenu from "./PlaceCardMenu"
 import PdfEditDialog from "./PdfEditDialog"
 import { markBlockFor } from "./pdfTheme"
+import DialogShell from "./DialogShell"
 
 /** The PDF view's right-side cards panel — a peer of the sidebar/workspace:
  *  collapsible, resizable (240–520), a built-in batch bar, and the annotated
@@ -90,6 +102,9 @@ interface PdfCardsPanelProps {
   /** Persistent shared selection (annotation id) — the matching card stays
    *  highlighted alongside the PDF mark until both are deselected. */
   selectedAnnId?: string | null
+  pdfId?: string | null
+  currentPage?: number
+  onVocabularyJump?: (occurrence: VocabularyOccurrence) => void
 }
 
 export default function PdfCardsPanel({
@@ -111,7 +126,10 @@ export default function PdfCardsPanel({
   onCreateProject,
   onJumpToProject,
   onTypeChange,
-  selectedAnnId
+  selectedAnnId,
+  pdfId,
+  currentPage = 1,
+  onVocabularyJump
 }: PdfCardsPanelProps) {
   const [expandedCards, setExpandedCards] = useState<Set<string>>(
     () => new Set()
@@ -119,6 +137,14 @@ export default function PdfCardsPanel({
   const [editCard, setEditCard] = useState<PdfCard | null>(null)
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [highlightId, setHighlightId] = useState<string | null>(null)
+  const [copiedAnnotationId, setCopiedAnnotationId] = useState<string | null>(null)
+  const [vocabularyCard, setVocabularyCard] =
+    useState<PdfVocabularyCard | null>(null)
+  const [manualVocabularyOpen, setManualVocabularyOpen] = useState(false)
+  const [manualTerm, setManualTerm] = useState("")
+  const [manualTranslation, setManualTranslation] = useState("")
+  const [manualVocabularyError, setManualVocabularyError] = useState("")
+  const [manualVocabularySaving, setManualVocabularySaving] = useState(false)
   const [sortMode, setSortMode] = useState<"single" | "two" | "time">("single")
   const [sortMenuAnchor, setSortMenuAnchor] = useState<HTMLElement | null>(null)
   useEffect(() => {
@@ -128,6 +154,29 @@ export default function PdfCardsPanel({
       }
     })
   }, [])
+  useEffect(() => {
+    let cancelled = false
+    const reload = async () => {
+      if (!pdfId) {
+        setVocabularyCard(null)
+        return
+      }
+      const card = await getVocabularyCardByPdf(pdfId)
+      if (!cancelled) setVocabularyCard(card ?? null)
+    }
+    void reload()
+    const onChange = (
+      changes: Record<string, chrome.storage.StorageChange>,
+      area: string
+    ) => {
+      if (area === "local" && changes._dbpdf) void reload()
+    }
+    chrome.storage.onChanged.addListener(onChange)
+    return () => {
+      cancelled = true
+      chrome.storage.onChanged.removeListener(onChange)
+    }
+  }, [pdfId])
   const [batchMode, setBatchMode] = useState(false)
   const [placeMenu, setPlaceMenu] = useState<{
     anchor: HTMLElement
@@ -142,10 +191,12 @@ export default function PdfCardsPanel({
   const [batchDeleteOpen, setBatchDeleteOpen] = useState(false)
   const listRef = useRef<HTMLDivElement>(null)
   const jumpTimerRef = useRef<number | null>(null)
+  const copyTimerRef = useRef<number | null>(null)
 
   useEffect(
     () => () => {
       if (jumpTimerRef.current) window.clearTimeout(jumpTimerRef.current)
+      if (copyTimerRef.current) window.clearTimeout(copyTimerRef.current)
     },
     []
   )
@@ -172,6 +223,28 @@ export default function PdfCardsPanel({
   const handleCardDelete = useCallback((card: PdfCard) => {
     setDeleteTarget(card)
   }, [])
+
+  const saveManualVocabulary = useCallback(async () => {
+    if (!pdfId || !manualTerm.trim() || !manualTranslation.trim()) return
+    setManualVocabularySaving(true)
+    setManualVocabularyError("")
+    try {
+      await addVocabularyEntry({
+        pdfId,
+        page: currentPage,
+        term: manualTerm,
+        translation: manualTranslation,
+        rects: []
+      })
+      setManualTerm("")
+      setManualTranslation("")
+      setManualVocabularyOpen(false)
+    } catch (error) {
+      setManualVocabularyError((error as Error)?.message ?? "添加生词失败")
+    } finally {
+      setManualVocabularySaving(false)
+    }
+  }, [pdfId, currentPage, manualTerm, manualTranslation])
 
   const confirmDelete = useCallback(async () => {
     if (!deleteTarget) return
@@ -299,6 +372,16 @@ export default function PdfCardsPanel({
           摘录（{sortedCards.length}）
         </Typography>
         <Box sx={{ flex: 1 }} />
+        <Tooltip title="手动添加生词">
+          <IconButton
+            size="small"
+            onClick={() => {
+              setManualVocabularyError("")
+              setManualVocabularyOpen(true)
+            }}>
+            <AddRoundedIcon sx={{ fontSize: 18 }} />
+          </IconButton>
+        </Tooltip>
         <Tooltip title="排序方式">
           <IconButton
             size="small"
@@ -397,9 +480,112 @@ export default function PdfCardsPanel({
         </Box>
       )}
       <Divider sx={{ mx: 1 }} />
+      <DialogShell
+        open={manualVocabularyOpen}
+        onClose={() => setManualVocabularyOpen(false)}
+        title="手动添加生词"
+        maxWidth="xs"
+        confirmLabel={manualVocabularySaving ? "添加中…" : "添加"}
+        confirmDisabled={
+          manualVocabularySaving ||
+          !manualTerm.trim() ||
+          !manualTranslation.trim()
+        }
+        onConfirm={() => void saveManualVocabulary()}>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          <Typography variant="caption" color="text.secondary">
+            用于 PDF 文本无法选中时。该词会记录在当前第 {currentPage} 页，但没有精确高亮范围。
+          </Typography>
+          <TextField
+            autoFocus
+            label="单词或词组"
+            value={manualTerm}
+            onChange={(event) => setManualTerm(event.target.value)}
+            fullWidth
+          />
+          <TextField
+            label="翻译"
+            value={manualTranslation}
+            onChange={(event) => setManualTranslation(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault()
+                void saveManualVocabulary()
+              }
+            }}
+            error={Boolean(manualVocabularyError)}
+            helperText={manualVocabularyError}
+            multiline
+            minRows={2}
+            fullWidth
+          />
+        </Box>
+      </DialogShell>
       {/* Card list */}
       <Box ref={listRef} sx={{ flex: 1, overflowY: "auto", p: 2, minHeight: 0 }}>
-        {sortedCards.length === 0 ? (
+        {vocabularyCard && vocabularyCard.entries.length > 0 && (
+          <Paper
+            elevation={0}
+            sx={{
+              p: 1.5,
+              mb: 1.5,
+              borderRadius: 1,
+              border: "1px solid",
+              borderColor: "warning.light",
+              boxShadow: theme.custom.cardShadow
+            }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 1 }}>
+              <MenuBookRoundedIcon sx={{ fontSize: 17, color: "warning.main" }} />
+              <Typography sx={{ fontSize: "0.8rem", fontWeight: 600 }}>
+                生词卡（{vocabularyCard.entries.length}）
+              </Typography>
+            </Box>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
+              {vocabularyCard.entries.map((entry) => (
+                <Box
+                  key={entry.id}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    const occurrence = entry.occurrences[entry.occurrences.length - 1]
+                    if (occurrence) onVocabularyJump?.(occurrence)
+                  }}
+                  sx={{
+                    px: 1,
+                    py: 0.75,
+                    borderRadius: 1,
+                    bgcolor: "action.hover",
+                    cursor: "pointer",
+                    "&:hover": { bgcolor: "action.selected" }
+                  }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Typography sx={{ fontSize: "0.78rem", fontWeight: 600 }}>
+                      {entry.term}
+                    </Typography>
+                    <Box sx={{ flex: 1 }} />
+                    <Typography sx={{ fontSize: "0.65rem", color: "text.disabled" }}>
+                      P{entry.occurrences[entry.occurrences.length - 1]?.page ?? "-"}
+                    </Typography>
+                    <Tooltip title="删除生词">
+                      <IconButton
+                        size="small"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          void deleteVocabularyEntry(vocabularyCard.id, entry.id)
+                        }}
+                        sx={{ p: 0.25, color: "text.disabled" }}>
+                        <DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                  <Typography sx={{ mt: 0.25, fontSize: "0.72rem", color: "text.secondary" }}>
+                    {entry.translations.map((item) => item.text).join("；")}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+          </Paper>
+        )}
+        {sortedCards.length === 0 && !vocabularyCard ? (
           <EmptyState
             icon={<PictureAsPdfRoundedIcon />}
             iconSize={40}
@@ -544,6 +730,36 @@ export default function PdfCardsPanel({
                           </IconButton>
                         </Tooltip>
                       )}
+                      {ann?.text &&
+                        ["highlight", "underline", "strike"].includes(
+                          ann.type
+                        ) && (
+                        <Tooltip
+                          title={
+                            copiedAnnotationId === ann?.id ? "已复制" : "复制原文"
+                          }>
+                          <span>
+                            <IconButton
+                              size="small"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                void navigator.clipboard.writeText(ann.text)
+                                setCopiedAnnotationId(ann.id)
+                                if (copyTimerRef.current)
+                                  window.clearTimeout(copyTimerRef.current)
+                                copyTimerRef.current = window.setTimeout(() => {
+                                  setCopiedAnnotationId((id) =>
+                                    id === ann.id ? null : id
+                                  )
+                                  copyTimerRef.current = null
+                                }, 1200)
+                              }}
+                              sx={{ p: 0.75, color: "text.disabled" }}>
+                              <ContentCopyRoundedIcon sx={{ fontSize: 16 }} />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                        )}
                       {card.kind === "text" && (
                         <Tooltip title="切换批注类型">
                           <IconButton

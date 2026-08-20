@@ -115,26 +115,34 @@ export function splitLegacyItem(
 export function cardKind(card: {
   type: string
   pdfCardId?: string
+  pdfVocabularyCardId?: string
 }): "text" | "image" | "placed" {
-  if (card.type === "placed" || card.pdfCardId) return "placed"
+  if (card.type === "placed" || card.pdfCardId || card.pdfVocabularyCardId)
+    return "placed"
   if (card.type === "image") return "image"
   return "text"
 }
 
 export function resolveCardContent(
   card: ProjectCard,
-  pdfById: Map<string, PdfCard>
-): { content: string; comment?: string; title?: string } {
+  pdfById: Map<string, PdfCard>,
+  annotationById?: Map<string, PdfAnnotation>
+): { content: string; comment?: string; title?: string; image?: string } {
   if (!card.pdfCardId) {
     return { content: card.content, title: card.title }
   }
   const src = pdfById.get(card.pdfCardId)
-  // Cards no longer carry content — the placement resolves an EMPTY body (the
-  // PDF page shows the annotation); only the editable comment survives.
+  const ann = src ? annotationById?.get(src.annotationId) : undefined
+  const isTextLike = src?.kind === "text" || src?.type === "freetext" || ann?.kind === "text" || ann?.type === "freetext"
+  // The placement is a reference-only record. Resolve its readonly body from
+  // the linked PDF annotation: text-like marks show the extracted quote;
+  // region/ink marks show the persisted crop image. Legacy pdfCards may still
+  // carry `content`, so keep it as the text fallback.
   return {
-    content: "",
+    content: isTextLike ? ann?.text ?? src?.content ?? "" : "",
     comment: src?.comment,
-    title: card.title
+    title: card.title,
+    image: isTextLike ? undefined : ann?.image
   }
 }
 
@@ -142,7 +150,9 @@ export function resolveCardContent(
  *  pdfCard (the pdfCard holds the quote). Strip the display copy before any
  *  write so a save can't corrupt the placement. */
 export function stripPlacementContent(card: ProjectCard): ProjectCard {
-  return card.pdfCardId ? { ...card, content: "" } : card
+  return card.pdfCardId || card.pdfVocabularyCardId
+    ? { ...card, content: "" }
+    : card
 }
 
 /** Column-aware panel sort for PDF annotation cards. "single" = the legacy

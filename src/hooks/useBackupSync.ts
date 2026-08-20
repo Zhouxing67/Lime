@@ -6,6 +6,7 @@ import {
   bulkReplace,
   getAllAnnotations,
   getAllPdfCards,
+  getAllVocabularyCards,
   getAllProjectCards,
   getAllReadLater,
   getAllReviews,
@@ -71,6 +72,14 @@ export function useBackupSync(options: {
           .map((c) => c.pdfCardId)
           .filter((id): id is string => Boolean(id))
       )
+      const referencedVocabularyIds = new Set(
+        projectCards
+          .map((card) => card.pdfVocabularyCardId)
+          .filter((id): id is string => Boolean(id))
+      )
+      const referencedVocabularyCards = (await getAllVocabularyCards()).filter(
+        (card) => referencedVocabularyIds.has(card.id)
+      )
       const allPdfCards = await getAllPdfCards()
       const referencedPdfCards = allPdfCards.filter((c) =>
         referencedPdfIds.has(c.id)
@@ -107,7 +116,8 @@ export function useBackupSync(options: {
         referencedAnnotations,
         // readLater is global like todos — the projects-scope export carries
         // them all so a restore doesn't lose them.
-        await getAllReadLater()
+        await getAllReadLater(),
+        referencedVocabularyCards
       )
       const url = URL.createObjectURL(blob)
       await chrome.downloads.download({ url, filename: "lime-backup.zip" })
@@ -132,16 +142,32 @@ export function useBackupSync(options: {
       const annotations = (await getAllAnnotations()).filter((a) =>
         backupSelectedPdfIds.includes(a.pdfId)
       )
+      const vocabularyCards = (await getAllVocabularyCards()).filter((card) =>
+        backupSelectedPdfIds.includes(card.pdfId)
+      )
+      const vocabularyIds = new Set(vocabularyCards.map((card) => card.id))
+      placements.push(
+        ...allItemsUnfiltered.filter(
+          (card) =>
+            card.pdfVocabularyCardId &&
+            vocabularyIds.has(card.pdfVocabularyCardId) &&
+            !placements.some((placement) => placement.id === card.id)
+        )
+      )
+      const vocabularyProjects = projects.filter(
+        (project) => project.systemKind === "vocabulary"
+      )
       const blob = await toJsonZip(
         placements,
         pdfCards,
         [],
-        [],
+        vocabularyProjects,
         [],
         selectedPdfs,
         annotations,
         // readLater is global — carry it in the PDF-scope export too.
-        await getAllReadLater()
+        await getAllReadLater(),
+        vocabularyCards
       )
       const url = URL.createObjectURL(blob)
       const name = selectedPdfs.length === 1 ? selectedPdfs[0].name : "pdfs"
@@ -170,6 +196,7 @@ export function useBackupSync(options: {
       const reviews = await getAllReviews()
       const annotations = await getAllAnnotations()
       const readLater = await getAllReadLater()
+      const vocabularyCards = await getAllVocabularyCards()
       const localPdfs = await listPdfs()
       const pdfMeta = localPdfs.map((p) => ({
         id: p.id,
@@ -189,7 +216,8 @@ export function useBackupSync(options: {
         annotations,
         pdfMeta,
         readLater,
-        setSyncStatus
+        setSyncStatus,
+        vocabularyCards
       )
       if (result.success) {
         // PDF file layer: upload every local file the remote /pdfs/ lacks,
@@ -234,6 +262,7 @@ export function useBackupSync(options: {
       const reviews = await getAllReviews()
       const annotations = await getAllAnnotations()
       const readLater = await getAllReadLater()
+      const vocabularyCards = await getAllVocabularyCards()
       const pdfMeta = (await listPdfMeta()).map((p) => ({
         id: p.id,
         name: p.name,
@@ -252,7 +281,8 @@ export function useBackupSync(options: {
         annotations,
         pdfMeta,
         readLater,
-        setSyncStatus
+        setSyncStatus,
+        vocabularyCards
       )
       if (!remote.success) {
         setSyncStatus(remote.message || "下载失败")
@@ -299,7 +329,9 @@ export function useBackupSync(options: {
             projects,
             reviews,
             hydrated.readLater ?? [],
-            readLater
+            readLater,
+            hydrated.pdfVocabularyCards ?? [],
+            vocabularyCards
           )
           // PDF domain (notes only — local file bytes are preserved).
           await applyPdfSync(

@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Box, CircularProgress, Typography } from "@mui/material"
 
-import PdfEngineView from "./PdfEngineView"
+import PdfEngineView, { type PdfEngineViewProps } from "./PdfEngineView"
 import PdfReaderPanel from "./PdfReaderPanel"
 import { usePdfDocument } from "../hooks/usePdfDocument"
 import { usePdfSearch } from "../hooks/usePdfSearch"
-import { getAnnotationsByPdf, deleteAnnotationWithCard, saveAnnotationFromStore } from "../database"
+import { addVocabularyEntry, getAnnotationsByPdf, deleteAnnotationWithCard, saveAnnotationFromStore } from "../database"
 import { outlinePageNumber } from "./pdfText"
 import type { PdfAnnotation, PdfOutlineItem } from "../types"
 import type { PdfSearchEntry, PdfSearchMatch } from "./pdfText"
@@ -30,7 +30,8 @@ export default function PdfView({
   onAnnotationSelected,
   clearRingToken,
   annotationById,
-  onToast
+  onToast,
+  vocabularyFlashTarget
 }: {
   pdfId: string | null
   outlineDest?: PdfOutlineItem | null
@@ -51,6 +52,7 @@ export default function PdfView({
   clearRingToken?: number
   annotationById?: Map<string, PdfAnnotation>
   onToast?: (message: string, severity?: "success" | "error") => void
+  vocabularyFlashTarget?: PdfEngineViewProps["vocabularyFlashTarget"]
 }) {
   const { loaded, error } = usePdfDocument(pdfId)
   const [stores, setStores] = useState<IAnnotationStore[]>([])
@@ -214,11 +216,11 @@ export default function PdfView({
   )
 
   const handleSelected = useCallback(
-    (annotation: IAnnotationStore | null) => {
+    (annotation: IAnnotationStore | null, isClick?: boolean) => {
       // Mirror the engine's selector selection (mark click OR empty-click
       // deselect) into the panel's persistent card highlight.
       onAnnotationSelected?.(annotation ? annotation.id : null)
-      if (!annotation || !onJumpInPanel) return
+      if (!annotation || !isClick || !onJumpInPanel) return
       const cardId = annIdToCardId.current.get(annotation.id)
       if (cardId) onJumpInPanel(cardId)
     },
@@ -282,7 +284,28 @@ export default function PdfView({
           pageJump={pageJump}
           searchFlash={searchFlash}
           typeChangeRequest={typeChangeRequest}
+          clearRingToken={clearRingToken}
           annotationById={annotationById}
+          vocabularyFlashTarget={vocabularyFlashTarget}
+          onAddVocabulary={async (data) => {
+            if (!loaded) return
+            try {
+              const result = await addVocabularyEntry({
+                pdfId: loaded.file.id,
+                ...data
+              })
+              const unchanged =
+                result.duplicateTranslation && result.duplicateOccurrence
+              onToast?.(
+                unchanged ? "该生词和翻译已存在" : "已加入生词卡",
+                unchanged ? "error" : "success"
+              )
+            } catch (error) {
+              console.error("[pdf] add vocabulary failed:", error)
+              onToast?.("生词保存失败", "error")
+              throw error
+            }
+          }}
         />
       </Box>
     </Box>

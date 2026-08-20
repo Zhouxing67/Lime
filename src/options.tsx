@@ -1,4 +1,3 @@
-import AddRoundedIcon from "@mui/icons-material/AddRounded"
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded"
 import ChecklistRoundedIcon from "@mui/icons-material/ChecklistRounded"
 import BookmarkRoundedIcon from "@mui/icons-material/BookmarkRounded"
@@ -138,7 +137,7 @@ const ITEMS_PER_PAGE = 20
 export default function OptionsPage() {
   const [dialogCard, setDialogCard] = useState<DisplayCard | null>(null)
   // ---- the workspace view routing (sidebarTab + drawer/reader mutex +
-  // card-editor workspace + PDF keep-alive multi-open) ----
+  // card-editor workspace + single active PDF) ----
   const refreshRef = useRef<() => void>(() => {})
   const {
     sidebarTab,
@@ -146,7 +145,6 @@ export default function OptionsPage() {
     drawerOpen,
     pdfReaderOpen,
     cardWorkspace,
-    openPdfIds,
     activePdfId,
     handleSetSidebarTab,
     navigate,
@@ -199,6 +197,12 @@ export default function OptionsPage() {
   const pdfScrollToken = useRef(0)
   const [pdfSelectedAnnId, setPdfSelectedAnnId] = useState<string | null>(null)
   const [pdfClearRingToken, setPdfClearRingToken] = useState(0)
+  const [pdfVocabularyFlashTarget, setPdfVocabularyFlashTarget] = useState<{
+    page: number
+    rects: { x: number; y: number; w: number; h: number }[]
+    token: number
+  } | null>(null)
+  const pdfVocabularyFlashToken = useRef(0)
   const pdfSelectedTimerRef = useRef<number | null>(null)
   // The shared card↔mark highlight auto-dismisses after 2s (a brief "selected"
   // cue) — no persistent selection to deselect.
@@ -247,6 +251,7 @@ export default function OptionsPage() {
     pdfs,
     allProjectCardsUnfiltered,
     allPdfCards,
+    allVocabularyCards,
     annotationById,
     allTodos,
     allReadLater,
@@ -351,6 +356,34 @@ export default function OptionsPage() {
   // original ProjectCard (via stripPlacementContent).
   const resolveDisplay = useCallback(
     (card: ProjectCard): DisplayCard => {
+      if (card.pdfVocabularyCardId) {
+        const vocabulary = allVocabularyCards.find(
+          (item) => item.id === card.pdfVocabularyCardId
+        )
+        const firstEntry = vocabulary?.entries[0]
+        const firstOccurrence = firstEntry?.occurrences[0]
+        return {
+          ...card,
+          type: "placed",
+          title: pdfNameById.get(vocabulary?.pdfId ?? "") ?? "PDF 生词卡",
+          content: "",
+          vocabularyEntries: vocabulary?.entries ?? [],
+          ...(vocabulary && firstOccurrence
+            ? {
+                pdfSource: {
+                  pdfId: vocabulary.pdfId,
+                  page: firstOccurrence.page,
+                  pdfName: pdfNameById.get(vocabulary.pdfId)
+                },
+                vocabularySource: {
+                  entryId: firstEntry.id,
+                  occurrenceId: firstOccurrence.id,
+                  rects: firstOccurrence.rects
+                }
+              }
+            : {})
+        }
+      }
       if (!card.pdfCardId) {
         // Legacy image cards (pre card-type-v2 migration): the image (a dataURL
         // or a legacy URL) lives in content. Derive the readonly image field at
@@ -365,25 +398,19 @@ export default function OptionsPage() {
         }
         return card
       }
-      const resolved = resolveCardContent(card, pdfById)
+      const resolved = resolveCardContent(card, pdfById, annotationById)
       const pdfCard = pdfById.get(card.pdfCardId)
-      const ann = pdfCard ? annotationById.get(pdfCard.annotationId) : undefined
       // Placed cards are the `placed` type; their readonly original is the
       // RESOLVED view: a region → the crop image, a text annotation → the
       // PDF quote (annotation.text). Legacy placements (type "text" in the DB)
       // are normalized here — no migration needed.
       const placedType: ProjectCardType = "placed"
-      const isTextLike =
-        ann?.kind === "text" || ann?.type === "freetext"
       const base = {
         ...card,
         type: placedType,
-        content: isTextLike ? ann?.text ?? "" : resolved.content,
+        content: resolved.content,
         comment: resolved.comment,
-        image:
-          ann?.kind === "region" && ann?.type !== "freetext"
-            ? ann?.image
-            : undefined
+        image: resolved.image
       }
       return pdfCard
         ? {
@@ -398,7 +425,7 @@ export default function OptionsPage() {
           }
         : base
     },
-    [pdfById, pdfNameById, annotationById]
+    [pdfById, pdfNameById, annotationById, allVocabularyCards]
   )
 
   /** The current scope's render list (search results / project scope). */
@@ -688,11 +715,20 @@ export default function OptionsPage() {
 
   const onDelete = useCallback(
     (id: string) => {
-      setConfirmDeleteId(id)
       const card = allProjectCardsUnfiltered.find((c) => c.id === id)
+      if (card?.pdfVocabularyCardId) {
+        setSnackbarMsg("请在 PDF 生词卡中管理词条")
+        return
+      }
+      setConfirmDeleteId(id)
       setDeleteTargetIsPdf(Boolean(card?.pdfCardId))
     },
-    [allProjectCardsUnfiltered, setConfirmDeleteId, setDeleteTargetIsPdf]
+    [
+      allProjectCardsUnfiltered,
+      setConfirmDeleteId,
+      setDeleteTargetIsPdf,
+      setSnackbarMsg
+    ]
   )
 
   const handleConfirmDelete = async () => {
@@ -764,7 +800,10 @@ export default function OptionsPage() {
 
   const handleBatchMerge = () => {
     if (selectedIds.length < 2) return
-    const items = displayCards.filter((i) => selectedIds.includes(i.id))
+    const items = displayCards.filter(
+      (i) => selectedIds.includes(i.id) && !i.pdfVocabularyCardId
+    )
+    if (items.length < 2) return
     setMergeState(items)
   }
 
@@ -883,6 +922,7 @@ export default function OptionsPage() {
       const plainIds: string[] = []
       for (const id of selectedIds) {
         const card = allProjectCardsUnfiltered.find((c) => c.id === id)
+        if (card?.pdfVocabularyCardId) continue
         if (card?.pdfCardId) placedPdfCardIds.push(card.pdfCardId)
         else plainIds.push(id)
       }
@@ -902,6 +942,7 @@ export default function OptionsPage() {
     async (itemId: string) => {
       const card = allProjectCardsUnfiltered.find((i) => i.id === itemId)
       if (!card) return
+      if (card.pdfVocabularyCardId) return
       // Drafts are intermediate states — never reviewable.
       if (card.isDraft) {
         setSnackbarMsg("草稿不可加入复习", "error")
@@ -1177,15 +1218,13 @@ export default function OptionsPage() {
   const handleOpenPdf = openPdf
   const handleClosePdf = useCallback(
     (id: string) => {
-      const closingLastOpenPdf = openPdfIds.length === 1 && openPdfIds[0] === id
       closePdf(id)
       setPdfOutlineDest(null)
-      if (!closingLastOpenPdf) return
 
       const closedPdf = pdfs.find((p) => p.id === id)
       setPdfHubTopicView(closedPdf?.topic ?? PDF_UNCLASSIFIED_TOPIC)
     },
-    [closePdf, openPdfIds, pdfs]
+    [closePdf, pdfs]
   )
 
   // PdfCardsPanel card click → open the PDF (if needed) + flash the annotation.
@@ -1218,6 +1257,15 @@ export default function OptionsPage() {
       setPdfSidebarView("cards")
       setPdfCardsOpen(true)
       openPdf(card.pdfSource.pdfId)
+      if (card.vocabularySource) {
+        pdfVocabularyFlashToken.current += 1
+        setPdfVocabularyFlashTarget({
+          page: card.pdfSource.page,
+          rects: card.vocabularySource.rects,
+          token: pdfVocabularyFlashToken.current
+        })
+        return
+      }
       const pdfCard = card.pdfCardId ? pdfById.get(card.pdfCardId) : undefined
       pdfFlashToken.current += 1
       setPdfFlashTarget({
@@ -1280,6 +1328,22 @@ export default function OptionsPage() {
     async (values: CardEditorValues, type: "text" | "image" | "placed") => {
       const ws = cardWorkspace
       if (!ws) return
+      if (
+        ws.view === "create" &&
+        projects.some(
+          (project) =>
+            project.id === activeProjectId && Boolean(project.systemKind)
+        )
+      ) {
+        setSnackbarMsg("系统项目只显示自动生成的特殊卡片")
+        closeCardWorkspace()
+        return
+      }
+      if (ws.card?.pdfVocabularyCardId) {
+        setSnackbarMsg("请在 PDF 生词卡中管理词条")
+        closeCardWorkspace()
+        return
+      }
       const sectionId =
         ws.view === "create"
           ? activeSectionId && activeSectionId !== "__unclassified__"
@@ -1356,13 +1420,38 @@ export default function OptionsPage() {
       closeCardWorkspace()
       onSearch()
     },
-    [setSnackbarMsg, cardWorkspace, activeProjectId, activeSectionId, pdfById, onSearch, closeCardWorkspace]
+    [
+      setSnackbarMsg,
+      cardWorkspace,
+      projects,
+      activeProjectId,
+      activeSectionId,
+      pdfById,
+      onSearch,
+      closeCardWorkspace
+    ]
   )
 
   const handleCardWorkspaceSaveDraft = useCallback(
     async (values: CardEditorValues, type: "text" | "image" | "placed") => {
       const ws = cardWorkspace
       if (!ws) return
+      if (
+        ws.view === "create" &&
+        projects.some(
+          (project) =>
+            project.id === activeProjectId && Boolean(project.systemKind)
+        )
+      ) {
+        setSnackbarMsg("系统项目不能新建草稿")
+        closeCardWorkspace()
+        return
+      }
+      if (ws.card?.pdfVocabularyCardId) {
+        setSnackbarMsg("生词卡不能保存为草稿")
+        closeCardWorkspace()
+        return
+      }
       const sectionId =
         ws.view === "create"
           ? activeSectionId && activeSectionId !== "__unclassified__"
@@ -1398,7 +1487,15 @@ export default function OptionsPage() {
       closeCardWorkspace()
       onSearch()
     },
-    [cardWorkspace, activeProjectId, activeSectionId, onSearch, closeCardWorkspace]
+    [
+      setSnackbarMsg,
+      cardWorkspace,
+      projects,
+      activeProjectId,
+      activeSectionId,
+      onSearch,
+      closeCardWorkspace
+    ]
   )
 
   const handleCardWorkspaceDiscard = useCallback(() => {
@@ -2025,6 +2122,10 @@ export default function OptionsPage() {
       onOpenDialog: setDialogCard,
       onEdit: (id: string) => {
         const card = displayCardsUnfiltered.find((c) => c.id === id)
+        if (card?.pdfVocabularyCardId) {
+          setSnackbarMsg("请在 PDF 生词卡中管理词条")
+          return
+        }
         if (card) openCardWorkspace("edit", card)
       },
       onToggleReview: handleToggleReview,
@@ -2046,6 +2147,7 @@ export default function OptionsPage() {
       masteredItemIds,
       displayCardsUnfiltered,
       openCardWorkspace,
+      setSnackbarMsg,
       handleToggleReview,
       handleReReview,
       handleOpenPdfFromCard,
@@ -2228,6 +2330,19 @@ export default function OptionsPage() {
                     </IconButton>
                   </Tooltip>
                 </>
+              ) : sidebarTab === "pdf" && !activePdfId ? (
+                <Tooltip title={pdfBatchMode ? "取消选择" : "选择 PDF"}>
+                  <IconButton
+                    size="small"
+                    onClick={togglePdfBatch}
+                    sx={{
+                      color: pdfBatchMode ? "error.main" : "text.secondary",
+                      "&:hover": { color: "error.main" },
+                      "&.Mui-focusVisible": { outline: "none" }
+                    }}>
+                    <DoneAllRoundedIcon sx={{ fontSize: 20 }} />
+                  </IconButton>
+                </Tooltip>
               ) : sidebarTab === "pdf" ? null : sidebarTab === "todo" ? (
                 <Tooltip
                   title={
@@ -2252,40 +2367,26 @@ export default function OptionsPage() {
                     )}
                   </IconButton>
                 </Tooltip>
-              ) : (
-                activeProject && (
-                  <>
-                    <Tooltip title="新建卡片">
-                      <IconButton
-                        size="small"
-                        onClick={() => openCardWorkspace("create", null)}
-                        sx={{
-                          color: "text.secondary",
-                          "&:hover": { color: "primary.main" },
-                          "&.Mui-focusVisible": { outline: "none" }
-                        }}>
-                        <AddRoundedIcon sx={{ fontSize: 20 }} />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title={selectMode ? "取消选择" : "选择卡片"}>
-                      <IconButton
-                        size="small"
-                        onClick={onToggleSelectMode}
-                        sx={{
-                          color: selectMode ? "error.main" : "text.secondary",
-                          "&:hover": { color: "error.main" },
-                          "&.Mui-focusVisible": { outline: "none" }
-                        }}>
-                        <DoneAllRoundedIcon sx={{ fontSize: 20 }} />
-                      </IconButton>
-                    </Tooltip>
-                    <DateRangeFilter
-                      value={dateRange}
-                      onChange={setDateRange}
-                    />
-                  </>
-                )
-              )}
+              ) : activeProject ? (
+                <>
+                  <Tooltip title={selectMode ? "取消选择" : "选择卡片"}>
+                    <IconButton
+                      size="small"
+                      onClick={onToggleSelectMode}
+                      sx={{
+                        color: selectMode ? "error.main" : "text.secondary",
+                        "&:hover": { color: "error.main" },
+                        "&.Mui-focusVisible": { outline: "none" }
+                      }}>
+                      <DoneAllRoundedIcon sx={{ fontSize: 20 }} />
+                    </IconButton>
+                  </Tooltip>
+                  <DateRangeFilter
+                    value={dateRange}
+                    onChange={setDateRange}
+                  />
+                </>
+              ) : null}
             </AppHeader>
             )}
 
@@ -2412,7 +2513,7 @@ export default function OptionsPage() {
             )}
           </Box>
 
-          {sidebarTab === "pdf" && !activePdfId && (
+          {sidebarTab === "pdf" && !activePdfId && pdfBatchMode && (
             <Box
               sx={{
                 bgcolor: "background.paper",
@@ -2430,72 +2531,42 @@ export default function OptionsPage() {
                 flexWrap="wrap"
                 useFlexGap>
                 <Box sx={{ flexGrow: 1 }} />
-                {pdfBatchMode ? (
-                  <>
-                    <BatchToolbar
-                      selectedCount={pdfBatchSelectedIds.length}
-                      allSelected={
-                        pdfBatchSelectedIds.length > 0 &&
-                        pdfBatchSelectedIds.length === pdfs.length
-                      }
-                      onSelectAll={togglePdfBatchSelectAll}
-                      countLabel="个 PDF"
-                      actions={[
-                        {
-                          label: "移动到主题",
-                          icon: (
-                            <DriveFileMoveOutlinedIcon
-                              sx={{ fontSize: 16, mr: 0.5 }}
-                            />
-                          ),
-                          onClick: (e) =>
-                            setPdfBatchMoveAnchor(e.currentTarget),
-                          dividerBefore: true,
-                          disabled: pdfBatchSelectedIds.length === 0
-                        },
-                        {
-                          label: "删除选中",
-                          icon: (
-                            <DeleteSweepRoundedIcon
-                              sx={{ fontSize: 16, mr: 0.5 }}
-                            />
-                          ),
-                          onClick: () => setConfirmPdfBatchDelete(true),
-                          dividerBefore: true,
-                          disabled: pdfBatchSelectedIds.length === 0,
-                          variant: "contained",
-                          color: "error"
-                        }
-                      ]}
-                    />
-                    <Button
-                      size="small"
-                      onClick={togglePdfBatch}
-                      sx={{
-                        borderRadius: 1,
-                        fontSize: "0.75rem",
-                        color: "text.secondary",
-                        textTransform: "none",
-                        "&:hover": { color: "error.main" }
-                      }}>
-                      完成
-                    </Button>
-                  </>
-                ) : (
-                  <Button
-                    size="small"
-                    startIcon={<DoneAllRoundedIcon sx={{ fontSize: 16 }} />}
-                    onClick={togglePdfBatch}
-                    sx={{
-                      borderRadius: 1,
-                      fontSize: "0.75rem",
-                      color: "text.secondary",
-                      textTransform: "none",
-                      "&:hover": { color: "primary.main" }
-                    }}>
-                    批量选择
-                  </Button>
-                )}
+                <BatchToolbar
+                  selectedCount={pdfBatchSelectedIds.length}
+                  allSelected={
+                    pdfBatchSelectedIds.length > 0 &&
+                    pdfBatchSelectedIds.length === pdfs.length
+                  }
+                  onSelectAll={togglePdfBatchSelectAll}
+                  countLabel="个 PDF"
+                  actions={[
+                    {
+                      label: "移动到主题",
+                      icon: (
+                        <DriveFileMoveOutlinedIcon
+                          sx={{ fontSize: 16, mr: 0.5 }}
+                        />
+                      ),
+                      onClick: (e) =>
+                        setPdfBatchMoveAnchor(e.currentTarget),
+                      dividerBefore: true,
+                      disabled: pdfBatchSelectedIds.length === 0
+                    },
+                    {
+                      label: "删除选中",
+                      icon: (
+                        <DeleteSweepRoundedIcon
+                          sx={{ fontSize: 16, mr: 0.5 }}
+                        />
+                      ),
+                      onClick: () => setConfirmPdfBatchDelete(true),
+                      dividerBefore: true,
+                      disabled: pdfBatchSelectedIds.length === 0,
+                      variant: "contained",
+                      color: "error"
+                    }
+                  ]}
+                />
               </Stack>
             </Box>
           )}
@@ -2605,7 +2676,6 @@ export default function OptionsPage() {
               onSaveDraftCardWorkspace={handleCardWorkspaceSaveDraft}
               onDiscardCardWorkspace={handleCardWorkspaceDiscard}
               pdfProps={{
-                openPdfIds,
                 activePdfId,
                 annotationById,
                 pdfOutlineDest,
@@ -2615,6 +2685,7 @@ export default function OptionsPage() {
                 swapLeft,
                 pdfFlashTarget,
                 pdfClearRingToken,
+                pdfVocabularyFlashTarget,
                 handlePdfAnnotationSelected,
                 pdfTypeChangeTarget,
                 handleJumpInPanel,
@@ -3142,6 +3213,16 @@ export default function OptionsPage() {
             onJumpToProject={handleJumpToProject}
             onTypeChange={handlePdfTypeChange}
             selectedAnnId={pdfSelectedAnnId}
+            pdfId={activePdfId}
+            currentPage={pdfCurrentPage}
+            onVocabularyJump={(occurrence) => {
+              pdfVocabularyFlashToken.current += 1
+              setPdfVocabularyFlashTarget({
+                page: occurrence.page,
+                rects: occurrence.rects,
+                token: pdfVocabularyFlashToken.current
+              })
+            }}
           />
         )}
       </Box>

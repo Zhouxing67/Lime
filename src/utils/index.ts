@@ -436,6 +436,7 @@ export function cloneProjectCard(
     sectionId: _sectionId,
     order: _order,
     pdfCardId: _pdfCardId,
+    pdfVocabularyCardId: _pdfVocabularyCardId,
     ...rest
   } = source
   return {

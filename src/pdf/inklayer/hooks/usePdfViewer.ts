@@ -110,7 +110,11 @@ export function usePdfViewer(containerRef: React.RefObject<HTMLDivElement>, opti
             annotationEditorMode: AnnotationEditorType.DISABLE,
             linkService,
             downloadManager,
-            findController: fc
+            findController: fc,
+            // Keep high-DPI pages crisp. The pdf.js default (32 MP) can
+            // silently downsample a page; 64 MP preserves desktop DPR while
+            // retaining a guard against extreme zoom exhausting GPU memory.
+            maxCanvasPixels: 2 ** 26
         })
 
         linkService.setViewer(viewer)

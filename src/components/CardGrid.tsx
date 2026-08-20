@@ -139,6 +139,7 @@ function CardGrid({
               gap: 2
             }}>
           {col.map((it) => {
+            const itemReadOnly = readOnly || Boolean(it.pdfVocabularyCardId)
             const isDragging = draggedId === it.id
             const dropPos =
               dropIndicator?.id === it.id ? dropIndicator.pos : null
@@ -182,7 +183,7 @@ function CardGrid({
                     }}
                   />
                 )}
-                {selectMode && (
+                {selectMode && !itemReadOnly && (
                   <Box
                     sx={{
                       position: "absolute",
@@ -209,14 +210,14 @@ function CardGrid({
                   item={it}
                   inReview={reviewItemIds?.has(it.id)}
                   mastered={masteredItemIds?.has(it.id)}
-                  readOnly={readOnly}
+                  readOnly={itemReadOnly}
                   firstRating={firstRating?.get(it.id)}
-                  draggable={draggable && !selectMode}
+                  draggable={draggable && !selectMode && !itemReadOnly}
                   selectMode={selectMode}
                   onGripPointerDown={onGripPointerDown}
                   onDelete={onDeleteItem}
                   onClick={() => {
-                    if (selectMode) return onSelectItem(it.id)
+                    if (selectMode && !itemReadOnly) return onSelectItem(it.id)
                     onOpenDialog(it)
                   }}
                   onToggleReview={onToggleReview}

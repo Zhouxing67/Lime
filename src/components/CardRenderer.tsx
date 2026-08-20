@@ -1,9 +1,10 @@
 import ArticleRoundedIcon from "@mui/icons-material/ArticleRounded"
 import BookmarkRoundedIcon from "@mui/icons-material/BookmarkRounded"
 import ChecklistRoundedIcon from "@mui/icons-material/ChecklistRounded"
+import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded"
 import FormatQuoteRoundedIcon from "@mui/icons-material/FormatQuoteRounded"
 import ImageRoundedIcon from "@mui/icons-material/ImageRounded"
-import { Box, Chip, Typography } from "@mui/material"
+import { Box, Typography } from "@mui/material"
 
 import type { DisplayCard } from "../types"
 import { MARK_DOT, MARK_LABEL } from "./pdfTheme"
@@ -64,7 +65,7 @@ function legacyImages(item: DisplayCard): string[] {
 function OriginalBlock({ item }: { item: DisplayCard }) {
   // A placed PDF card no longer carries content — the PDF page shows the
   // annotation; render a compact marker instead of an empty/legacy block.
-  if (item.pdfSource && !item.content && !legacyImages(item).length) {
+  if (item.pdfSource && !item.image && !item.content && !legacyImages(item).length) {
     const mark = item.pdfSource.type
     return (
       <Box>
@@ -194,7 +195,10 @@ function pdfSourceLabel(item: DisplayCard): string {
 }
 
 function ContentBlock({ item }: { item: DisplayCard }) {
-  if (item.type === "image") {
+  if (item.vocabularyEntries) return <VocabularyBlock item={item} />
+  if (item.image || item.type === "image") {
+    const src = item.image || item.content
+    if (!src) return <PdfQuoteCard text={item.content} />
     return (
       <Box
         sx={{
@@ -204,7 +208,7 @@ function ContentBlock({ item }: { item: DisplayCard }) {
           minHeight: 200
         }}>
         <img
-          src={item.content}
+          src={src}
           alt={item.source?.title || ""}
           style={{
             maxWidth: "100%",
@@ -217,6 +221,48 @@ function ContentBlock({ item }: { item: DisplayCard }) {
     )
   }
   return <PdfQuoteCard text={item.content} />
+}
+
+function VocabularyBlock({ item }: { item: DisplayCard }) {
+  const entries = item.vocabularyEntries ?? []
+  if (entries.length === 0) {
+    return (
+      <Typography variant="body2" color="text.secondary">
+        暂无生词
+      </Typography>
+    )
+  }
+  return (
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+      {entries.map((entry) => (
+        <Box
+          key={entry.id}
+          sx={{
+            display: "grid",
+            gridTemplateColumns: "minmax(88px, auto) 1fr",
+            columnGap: 1.5,
+            alignItems: "baseline",
+            px: 1.25,
+            py: 0.9,
+            borderRadius: 1,
+            bgcolor: "action.hover"
+          }}>
+          <Typography sx={{ fontSize: "0.86rem", fontWeight: 700 }}>
+            {entry.term}
+          </Typography>
+          <Typography
+            sx={{
+              minWidth: 0,
+              fontSize: "0.8rem",
+              color: "text.secondary",
+              wordBreak: "break-word"
+            }}>
+            {entry.translations.map((translation) => translation.text).join("；")}
+          </Typography>
+        </Box>
+      ))}
+    </Box>
+  )
 }
 
 /** Dynamic preview line count based on content source lines */
@@ -289,7 +335,9 @@ export default function CardRenderer({
               }}
             />
           </Box>
-        ) : item.type === "placed" ? (
+        ) : item.vocabularyEntries ? (
+          <VocabularyBlock item={item} />
+        ) : item.type === "placed" && item.content ? (
           <PdfQuoteCard text={item.content} maxLines={previewMaxLines(item.content)} />
         ) : item.type === "text" ? (
           <MarkdownRenderer
@@ -351,20 +399,26 @@ export default function CardRenderer({
   if (mode === "front") {
     return (
       <>
-        <Chip
-          label={TYPE_LABEL[item.type] ?? "文本"}
-          size="small"
-          variant="outlined"
+        <Box
           sx={{
-            position: "absolute",
-            top: 12,
-            right: 12,
-            height: 20,
-            fontSize: "0.65rem",
-            fontWeight: 500,
-            letterSpacing: "0.04em"
-          }}
-        />
+            display: "flex",
+            alignItems: "center",
+            gap: 0.75,
+            minHeight: 28,
+            color: "text.disabled",
+            flexShrink: 0
+          }}>
+          {typeIcon(item.type)}
+          <Typography
+            variant="caption"
+            sx={{
+              fontSize: "0.72rem",
+              letterSpacing: "0.03em",
+              color: "text.secondary"
+            }}>
+            {TYPE_LABEL[item.type] ?? "文本"}
+          </Typography>
+        </Box>
         <Box
           sx={{
             flex: 1,
@@ -402,7 +456,7 @@ export default function CardRenderer({
               <Box
                 sx={{
                   pl: 2,
-                  borderLeft: "4px solid",
+                  borderLeft: "3px solid",
                   borderLeftColor: "primary.main",
                   textAlign: "left"
                 }}>
@@ -455,18 +509,23 @@ export default function CardRenderer({
             </Typography>
           </>
         )}
-        <Typography
-          variant="caption"
+        <Box
           sx={{
-            mt: 0.5,
+            mt: 0.75,
             color: "text.disabled",
-            textAlign: "center",
-            fontSize: "0.7rem",
-            letterSpacing: "0.04em",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 0.25,
             flexShrink: 0
           }}>
-          ⌄ 点击翻转
-        </Typography>
+          <ExpandMoreRoundedIcon sx={{ fontSize: 16 }} />
+          <Typography
+            variant="caption"
+            sx={{ fontSize: "0.7rem", letterSpacing: "0.03em" }}>
+            点击翻转
+          </Typography>
+        </Box>
       </>
     )
   }
@@ -580,9 +639,11 @@ export default function CardRenderer({
               mb: 0.5,
               display: "block"
             }}>
-            只读原始内容
+            {item.vocabularyEntries ? "生词" : "只读原始内容"}
           </Typography>
-          {item.image || (item.type === "image" && item.content) ? (
+          {item.vocabularyEntries ? (
+            <VocabularyBlock item={item} />
+          ) : item.image || (item.type === "image" && item.content) ? (
             <Box
               sx={{
                 display: "flex",

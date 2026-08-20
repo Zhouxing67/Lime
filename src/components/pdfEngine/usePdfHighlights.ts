@@ -25,16 +25,13 @@ export interface PdfSearchFlashData {
  *  PdfViewerProvider (takes pdfViewer/eventBus from its context). */
 export function usePdfHighlights(searchFlash: PdfSearchFlashData | null) {
   const { pdfViewer, eventBus } = usePdfViewerContext()
-  // ── Selection / search highlight — self-drawn line-bridging overlay ──────
-  // The browser's native range painting (::selection, CSS Highlight API) draws
-  // per text-layer SPAN — and pdf.js puts every text item in its own
-  // absolutely-positioned span, so word gaps (justified text) read as broken
-  // fragments. Instead we compute rects via highlightRectsForOffsets: char-
-  // precise per covered span, then merged into ONE box per visual LINE
-  // (bridging gaps), vertically snapped to the line's tight em box. Rendered
-  // as a plain overlay div (z:5, below the text layer). No elementFromPoint,
-  // no merge-tolerance guessing. Selection and search get SEPARATE overlay divs
-  // so a live selection never wipes the search highlights (the old F1).
+  // Selection and search share the rendered text-layer offset pipeline. A
+  // browser Range exposes one rect per absolutely-positioned pdf.js span, so
+  // using it directly leaves visible holes at justified word gaps. Mapping the
+  // selected character offsets back through highlightRectsForOffsets keeps the
+  // first/last character precise while producing one continuous box per line.
+  // The two overlays remain independent so a live selection does not erase
+  // search highlights.
   const overlayDivsRef = useRef<{ selection?: HTMLDivElement; search?: HTMLDivElement }>({})
   const overlayPagesRef = useRef<{ selection?: number; search?: number }>({})
 
@@ -139,8 +136,8 @@ export function usePdfHighlights(searchFlash: PdfSearchFlashData | null) {
   }, [eventBus, pdfViewer, drawOverlay, clearOverlay])
 
   // ── Search highlight ─────────────────────────────────────────────────────
-  // The searchFlash's char-offset matches go through the SAME offset pipeline
-  // as the selection (highlightRectsForOffsets) — one geometry, one overlay.
+  // Search has no DOM Range, so its char-offset matches still use the rendered
+  // text-layer offset pipeline.
   const lastSearchRef = useRef<{
     page: number
     matches: { start: number; end: number }[]

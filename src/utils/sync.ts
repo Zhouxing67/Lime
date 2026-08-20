@@ -2,6 +2,7 @@ import type {
   PdfAnnotation,
   PdfCard,
   PdfFile,
+  PdfVocabularyCard,
   Project,
   ProjectCard,
   ReadLater,
@@ -12,6 +13,7 @@ import {
   pdfAnnotationSchema,
   pdfCardSchema,
   pdfMetaSchema,
+  pdfVocabularyCardSchema,
   projectCardSchema,
   projectSchema,
   readLaterSchema,
@@ -54,6 +56,7 @@ export interface SyncPayload {
   pdfAnnotations: PdfAnnotation[]
   pdfs: PdfSyncMeta[]
   readLater: ReadLater[]
+  pdfVocabularyCards: PdfVocabularyCard[]
   /** Image references (recordId → content-hash of the data-URL). The image
    *  BYTES live in the remote /images/ folder (multi-file layer, like the
    *  PDFs) — the sync copies carry the image field stripped. */
@@ -83,7 +86,8 @@ export function countPayloadRecords(payload: SyncPayload | null): number {
     (payload.reviews?.length ?? 0) +
     (payload.pdfAnnotations?.length ?? 0) +
     (payload.pdfs?.length ?? 0) +
-    (payload.readLater?.length ?? 0)
+    (payload.readLater?.length ?? 0) +
+    (payload.pdfVocabularyCards?.length ?? 0)
   )
 }
 
@@ -141,6 +145,10 @@ export function sanitizeSyncPayload(
       pdfAnnotations: keep(payload.pdfAnnotations, pdfAnnotationSchema),
       pdfs: keep(payload.pdfs, pdfMetaSchema),
       readLater: keep(payload.readLater, readLaterSchema),
+      pdfVocabularyCards: keep(
+        payload.pdfVocabularyCards,
+        pdfVocabularyCardSchema
+      ),
       images: imagesOk ? payload.images : undefined
     },
     skipped
@@ -554,7 +562,8 @@ function convertLegacyPayload(p: {
     reviews,
     pdfs: p.pdfs ?? [],
     pdfAnnotations,
-    readLater: []
+    readLater: [],
+    pdfVocabularyCards: []
   }
 }
 
@@ -570,12 +579,15 @@ async function downloadSyncFile(
     }
     // Read v3/v4 (legacy cloud data) and v5/v6/v7; older/newer → prompt to
     // upgrade. The next upload writes v7, upgrading the cloud file.
-    if (payload.version < 3 || payload.version > 7)
+    if (payload.version < 3 || payload.version > 8)
       throw new Error("云端数据版本不兼容，请升级扩展后重试")
     if (payload.version >= 5) {
       if (!Array.isArray(payload.projectCards))
         throw new Error("数据格式异常：缺少 projectCards 字段")
-      return payload
+      return {
+        ...payload,
+        pdfVocabularyCards: payload.pdfVocabularyCards ?? []
+      }
     }
     // v3/v4 → convert the legacy items array into the three-store shape.
     if (!Array.isArray(payload.items))
@@ -649,7 +661,8 @@ async function buildPayload(
   reviews: ReviewEntry[],
   pdfAnnotations: PdfAnnotation[],
   pdfs: PdfSyncMeta[],
-  readLater: ReadLater[]
+  readLater: ReadLater[],
+  pdfVocabularyCards: PdfVocabularyCard[] = []
 ): Promise<SyncPayload> {
   const byId = <T extends { id: string }>(arr: T[]) =>
     [...arr].sort((a, b) => a.id.localeCompare(b.id))
@@ -713,11 +726,12 @@ async function buildPayload(
     pdfAnnotations: byId(stripAnnotations),
     pdfs: byId(pdfs),
     readLater: byId(readLater),
+    pdfVocabularyCards: byId(pdfVocabularyCards),
     images: sortedImageRefs
   })
   const contentHash = await computeItemHash(raw, "")
   return {
-    version: 7,
+    version: 8,
     syncedAt: Date.now(),
     contentHash,
     deviceInfo: { version: "0.1.0" },
@@ -729,6 +743,7 @@ async function buildPayload(
     pdfAnnotations: byId(stripAnnotations),
     pdfs: byId(pdfs),
     readLater: byId(readLater),
+    pdfVocabularyCards: byId(pdfVocabularyCards),
     images: sortedImageRefs
   }
 }
@@ -743,7 +758,8 @@ export async function runSync(
   pdfAnnotations: PdfAnnotation[],
   pdfs: PdfSyncMeta[],
   readLater: ReadLater[],
-  onStatus?: (status: string) => void
+  onStatus?: (status: string) => void,
+  pdfVocabularyCards: PdfVocabularyCard[] = []
 ): Promise<SyncResult> {
   try {
     // Step 1: skip if nothing changed since last sync (avoids serialization + network)
@@ -761,7 +777,8 @@ export async function runSync(
       reviews,
       pdfAnnotations,
       pdfs,
-      readLater
+      readLater,
+      pdfVocabularyCards
     )
 
     onStatus?.("正在检查云端…")
@@ -819,7 +836,8 @@ export async function downloadRemote(
   pdfAnnotations: PdfAnnotation[],
   pdfs: PdfSyncMeta[],
   readLater: ReadLater[],
-  onStatus?: (status: string) => void
+  onStatus?: (status: string) => void,
+  pdfVocabularyCards: PdfVocabularyCard[] = []
 ): Promise<SyncResult> {
   try {
     onStatus?.("正在下载云端数据…")
@@ -837,7 +855,8 @@ export async function downloadRemote(
       reviews,
       pdfAnnotations,
       pdfs,
-      readLater
+      readLater,
+      pdfVocabularyCards
     )
     if (localPayload.contentHash === remote.contentHash) {
       // Include the payload even on noop: the caller still needs the remote

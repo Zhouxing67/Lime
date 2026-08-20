@@ -59,6 +59,7 @@ export const projectCardSchema = z.object({
   order: z.number().optional(),
   hash: z.string().optional(),
   pdfCardId: z.string().optional(),
+  pdfVocabularyCardId: z.string().optional(),
   isDraft: z.boolean().optional(),
   draftOf: z.string().optional(),
   createdAt: z.number(),
@@ -129,6 +130,50 @@ export const readLaterSchema = z.object({
 })
 export type ReadLater = z.infer<typeof readLaterSchema>
 
+export const vocabularyTranslationSchema = z.object({
+  id: z.string(),
+  text: z.string(),
+  createdAt: z.number()
+})
+export type VocabularyTranslation = z.infer<typeof vocabularyTranslationSchema>
+
+export const vocabularyOccurrenceSchema = z.object({
+  id: z.string(),
+  page: z.number(),
+  text: z.string(),
+  rects: z.array(z.object({
+    x: z.number(),
+    y: z.number(),
+    w: z.number(),
+    h: z.number()
+  })),
+  startOffset: z.number().optional(),
+  endOffset: z.number().optional(),
+  createdAt: z.number()
+})
+export type VocabularyOccurrence = z.infer<typeof vocabularyOccurrenceSchema>
+
+export const vocabularyEntrySchema = z.object({
+  id: z.string(),
+  term: z.string(),
+  normalizedTerm: z.string(),
+  translations: z.array(vocabularyTranslationSchema),
+  occurrences: z.array(vocabularyOccurrenceSchema),
+  createdAt: z.number(),
+  updatedAt: z.number().optional()
+})
+export type VocabularyEntry = z.infer<typeof vocabularyEntrySchema>
+
+export const pdfVocabularyCardSchema = z.object({
+  id: z.string(),
+  pdfId: z.string(),
+  projectCardId: z.string(),
+  entries: z.array(vocabularyEntrySchema),
+  createdAt: z.number(),
+  updatedAt: z.number().optional()
+})
+export type PdfVocabularyCard = z.infer<typeof pdfVocabularyCardSchema>
+
 export const reviewStatusSchema = z.enum(["active", "mastered"])
 export type ReviewStatus = z.infer<typeof reviewStatusSchema>
 
@@ -177,6 +222,7 @@ export const projectSchema = z.object({
   createdAt: z.number(),
   note: z.string().optional(),
   lastOpened: z.number().optional(),
+  systemKind: z.literal("vocabulary").optional(),
   sections: z.array(sectionSchema).optional()
 })
 export type Project = z.infer<typeof projectSchema>

@@ -12,7 +12,7 @@ import { EditorHighLight } from './editor/editor_highlight'
 import { EditorRectangle } from './editor/editor_rectangle'
 import { Selector } from './editor/selector'
 import { SelectionSource, useAnnotationStore } from '../store'
-import { WebSelection } from './webSelection'
+import { TextSelection } from './textSelection'
 import { IRect } from 'konva/lib/types'
 import { AnnotationPermissionAction, AnnotationPermissions, PdfAnnotatorOptions } from '../types/annotator'
 import { PageViewport } from 'pdfjs-dist/types/web/interfaces'
@@ -60,7 +60,7 @@ export class Painter {
     private konvaCanvasStore: Map<number, KonvaCanvas> = new Map() // 存储 KonvaCanvas 实例
     private editorStore: Map<string, Editor> = new Map() // 存储编辑器实例
     private pdfViewerApplication: PDFViewer // PDFViewerApplication 实例
-    private webSelection: WebSelection // WebSelection 实例
+    private textSelection: TextSelection
     private currentAnnotation: IAnnotationType | null = null // 当前批注类型
     private nextAnnotationReferenceNumber = 1
     private highlightRequestId = 0
@@ -79,7 +79,7 @@ export class Painter {
     public readonly onAnnotationSelected: (annotationStore: IAnnotationStore | undefined, isClick: boolean, selectorRect: IRect) => void
     public readonly onAnnotationChanged: (annotationStore: IAnnotationStore | undefined, selectorRect?: IRect) => void // 批注已更改的回调函数
     /**
-     * 构造函数，初始化 PDFViewerApplication, EventBus, 和 WebSelection
+     * 构造函数，初始化 PDFViewerApplication、EventBus 和原生文本选区
      * @param params - 包含 PDFViewerApplication 和 EventBus 的对象
      */
     constructor({
@@ -185,13 +185,13 @@ export class Painter {
                 this.delete(id, true)
             }
         })
-        this.webSelection = new WebSelection({
-            // 初始化 WebSelection 实例
+        this.textSelection = new TextSelection({
+            // 原生 Range 选区，不改写 pdf.js TextLayer DOM
             onSelect: (range) => {
                 this.onTextSelected(range)
             },
             onHighlight: (selection, range) => {
-                if (!this.can('annotation.create')) return
+                if (!this.can('annotation.create') || !range) return
                 Object.keys(selection).forEach((key) => {
                     const pageNumber = Number(key)
                     const elements = selection[key]
@@ -229,9 +229,9 @@ export class Painter {
             shouldSuppress: () => {
                 const isDrawingToolActive = Boolean(
                     this.currentAnnotation
-                    && !this.currentAnnotation.webSelectionDependencies
+                    && !this.currentAnnotation.textSelectionDependencies
                 )
-                return isDrawingToolActive || this.webSelection.isRangeSelectionActive()
+                return isDrawingToolActive || this.textSelection.isRangeSelectionActive()
             },
             onHoverStart: (id) => {
                 this.annotationHover.set('canvas-passive', id)
@@ -638,6 +638,18 @@ export class Painter {
     private deleteAnnotation(id: string, emit: boolean = false): boolean {
         const annotationStore = useAnnotationStore.getState().getAnnotation(id)
         if (!annotationStore || !this.can('annotation.delete', annotationStore)) return false
+        this.removeAnnotationFromCanvasAndStore(annotationStore)
+        if (emit) {
+            this.onAnnotationDelete(id)
+        }
+        return true
+    }
+
+    /** Remove an annotation from all in-memory/canvas surfaces. This is the
+     *  raw cleanup primitive used by both user deletes and external
+     *  reconciliation; permission checks and event emission happen outside. */
+    private removeAnnotationFromCanvasAndStore(annotationStore: IAnnotationStore): void {
+        const id = annotationStore.id
         this.annotationHover.clearAnnotation(id)
         useAnnotationStore.getState().removeAnnotation(id)
         this.authorLabels.remove(id)
@@ -646,16 +658,79 @@ export class Painter {
         if (storeEditor && konvaCanvasStore) {
             storeEditor.deleteGroup(id, konvaCanvasStore.konvaStage)
         }
-        if (emit) {
-            this.onAnnotationDelete(id)
-        }
-        return true
     }
 
     /** Remove a mark whose annotation was deleted outside the viewer (e.g. the
      *  cards panel) — same store+Konva cleanup, no delete event re-emitted. */
     public removeAnnotationFromPanel(id: string): void {
         this.deleteAnnotation(id, false)
+    }
+
+    private renderExternalAnnotation(annotationStore: IAnnotationStore): void {
+        const konvaCanvasStore = this.konvaCanvasStore.get(annotationStore.pageNumber)
+        if (!konvaCanvasStore) return
+        const definition = annotationDefinitions.find((item) => item.type === annotationStore.type)
+        if (!definition) return
+        this.enableEditor({
+            konvaStage: konvaCanvasStore.konvaStage,
+            pageNumber: annotationStore.pageNumber,
+            annotation: definition
+        })
+        this.findEditor(annotationStore.pageNumber, annotationStore.type)
+            ?.addSerializedGroupToLayer(konvaCanvasStore.konvaStage, annotationStore.konvaString)
+    }
+
+    private refreshAnnotationReferenceNumbers(): void {
+        const annotationState = useAnnotationStore.getState()
+        const normalizedAnnotations = normalizeAnnotationReferenceNumbers(
+            Array.from(annotationState.annotations.values())
+        )
+        annotationState.setAnnotationReferenceNumbers(
+            new Map(normalizedAnnotations.map((annotation) => [
+                annotation.id,
+                annotation.referenceNumber!
+            ]))
+        )
+        this.nextAnnotationReferenceNumber = Math.min(
+            getGreatestReferenceNumber(normalizedAnnotations) + 1,
+            Number.MAX_SAFE_INTEGER
+        )
+    }
+
+    /** Reconcile the engine's in-memory/Konva marks to the persisted
+     *  annotations prop. The viewer used to only remove missing ids, leaving
+     *  late-loaded or externally-updated marks invisible/stale until remount. */
+    public reconcileAnnotations(annotations: IAnnotationStore[]): void {
+        const normalizedAnnotations = normalizeAnnotationReferenceNumbers(annotations)
+        const nextById = new Map(normalizedAnnotations.map((annotation) => [annotation.id, annotation]))
+        const annotationState = useAnnotationStore.getState()
+        const currentAnnotations = Array.from(annotationState.annotations.values())
+
+        for (const current of currentAnnotations) {
+            const next = nextById.get(current.id)
+            if (!next) {
+                this.removeAnnotationFromCanvasAndStore(current)
+                continue
+            }
+            if (JSON.stringify(current) === JSON.stringify(next)) continue
+            this.removeAnnotationFromCanvasAndStore(current)
+            useAnnotationStore.getState().addAnnotation(next)
+            this.renderExternalAnnotation(next)
+            this.authorLabels.refreshAnnotation(next.id)
+            if (annotationState.selectedAnnotation?.store?.id === next.id) {
+                useAnnotationStore.getState().setSelectedAnnotation(next, annotationState.selectedAnnotation.source ?? undefined)
+            }
+        }
+
+        for (const next of normalizedAnnotations) {
+            if (useAnnotationStore.getState().getAnnotation(next.id)) continue
+            useAnnotationStore.getState().addAnnotation(next)
+            this.renderExternalAnnotation(next)
+            this.authorLabels.refreshAnnotation(next.id)
+        }
+
+        this.refreshAnnotationReferenceNumbers()
+        this.hoverPreview.refresh()
     }
 
     /** Clear the current selection (ring + emit the deselect) — used by the app
@@ -824,11 +899,11 @@ export class Painter {
     }
 
     /**
-     * 初始化 WebSelection
+     * 初始化原生文本选区
      * @param rootElement - 根 DOM 元素
      */
-    public initWebSelection(rootElement: HTMLDivElement): void {
-        this.webSelection.create(rootElement)
+    public initTextSelection(rootElement: HTMLDivElement): void {
+        this.textSelection.create(rootElement)
         this.defaultClickRoot = rootElement
         rootElement.addEventListener('click', this.handleDefaultClick)
     }
@@ -926,7 +1001,7 @@ export class Painter {
     public highlightRange(range: Range | null, annotation: IAnnotationType) {
         if (!this.can('annotation.create')) return
         this.currentAnnotation = annotation
-        this.webSelection.highlight(range)
+        this.textSelection.highlight(range)
     }
 
     /**
@@ -952,20 +1027,7 @@ export class Painter {
             this.saveToStore(annotation, true)
         })
 
-        const annotationState = useAnnotationStore.getState()
-        const normalizedAnnotations = normalizeAnnotationReferenceNumbers(
-            Array.from(annotationState.annotations.values())
-        )
-        annotationState.setAnnotationReferenceNumbers(
-            new Map(normalizedAnnotations.map((annotation) => [
-                annotation.id,
-                annotation.referenceNumber!
-            ]))
-        )
-        this.nextAnnotationReferenceNumber = Math.min(
-            getGreatestReferenceNumber(normalizedAnnotations) + 1,
-            Number.MAX_SAFE_INTEGER
-        )
+        this.refreshAnnotationReferenceNumbers()
     }
 
     /**
@@ -1175,7 +1237,7 @@ export class Painter {
             this.defaultClickRoot.removeEventListener('click', this.handleDefaultClick)
             this.defaultClickRoot = null
         }
-        this.webSelection.destroy()
+        this.textSelection.destroy()
         this.passiveHover.destroy()
         this.annotationHover.destroy()
         this.unsubscribeAnnotationHover()

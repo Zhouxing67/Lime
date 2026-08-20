@@ -9,9 +9,11 @@ export * from "./projects"
 export * from "./reviews"
 export * from "./pdfs"
 export * from "./readLater"
+export * from "./vocabulary"
 
 import type {
   PdfCard,
+  PdfVocabularyCard,
   Project,
   ProjectCard,
   ReadLater,
@@ -37,7 +39,9 @@ export async function bulkReplace(
   localProjects: Project[],
   localReviews: ReviewEntry[],
   remoteReadLater?: ReadLater[],
-  localReadLater?: ReadLater[]
+  localReadLater?: ReadLater[],
+  remoteVocabularyCards: PdfVocabularyCard[] = [],
+  localVocabularyCards: PdfVocabularyCard[] = []
 ): Promise<void> {
   const remoteCardIds = new Set(remoteProjectCards.map((c) => c.id))
   const remotePdfIds = new Set(remotePdfCards.map((c) => c.id))
@@ -45,6 +49,7 @@ export async function bulkReplace(
   const remoteProjectIds = new Set(remoteProjects.map((p) => p.id))
   const remoteReviewItemIds = new Set(remoteReviews.map((r) => r.itemId))
   const remoteReadLaterIds = new Set((remoteReadLater ?? []).map((r) => r.id))
+  const remoteVocabularyIds = new Set(remoteVocabularyCards.map((card) => card.id))
 
   await tx(
     {
@@ -53,14 +58,17 @@ export async function bulkReplace(
       todos: "readwrite",
       projects: "readwrite",
       reviews: "readwrite",
-      readLater: "readwrite"
+      readLater: "readwrite",
+      pdfVocabularyCards: "readwrite"
     },
     async (stores) => {
       for (const card of remoteProjectCards) {
         // Enforce the placement invariant at the write layer (A7) — the sync
         // payload's placements carry content in some edge states.
         stores.projectCards.put(
-          card.pdfCardId ? { ...card, content: "" } : card
+          card.pdfCardId || card.pdfVocabularyCardId
+            ? { ...card, content: "" }
+            : card
         )
       }
       for (const card of localProjectCards) {
@@ -135,6 +143,14 @@ export async function bulkReplace(
       }
       for (const rl of localReadLater ?? []) {
         if (!remoteReadLaterIds.has(rl.id)) stores.readLater.delete(rl.id)
+      }
+      for (const card of remoteVocabularyCards) {
+        stores.pdfVocabularyCards.put(card)
+      }
+      for (const card of localVocabularyCards) {
+        if (!remoteVocabularyIds.has(card.id)) {
+          stores.pdfVocabularyCards.delete(card.id)
+        }
       }
     }
   )

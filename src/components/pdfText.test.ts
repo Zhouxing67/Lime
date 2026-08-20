@@ -3,6 +3,7 @@ import {
   caseFoldPreserving,
   extractLines,
   highlightRectsForOffsets,
+  rangeRects,
   scanText,
   textLayerOffsets
 } from "./pdfText"
@@ -139,6 +140,54 @@ describe("caseFoldPreserving / length-changing folds (F2 regression)", () => {
   })
 })
 
+describe("rangeRects (real selection geometry)", () => {
+  const realGCR = Range.prototype.getClientRects
+
+  afterEach(() => {
+    Range.prototype.getClientRects = realGCR
+    document.body.replaceChildren()
+  })
+
+  it("keeps exact first/last bounds and does not bridge a justified gap", () => {
+    const holder = document.createElement("div")
+    document.body.appendChild(holder)
+    Object.defineProperties(holder, {
+      clientWidth: { value: 600 },
+      clientHeight: { value: 800 }
+    })
+    holder.getBoundingClientRect = () =>
+      ({ left: 10, top: 20, right: 610, bottom: 820, width: 600, height: 800 }) as DOMRect
+    const range = document.createRange()
+    Range.prototype.getClientRects = (() => [
+      { left: 40, top: 100, right: 90, bottom: 120, width: 50, height: 20 },
+      { left: 150, top: 100, right: 210, bottom: 120, width: 60, height: 20 }
+    ]) as unknown as typeof Range.prototype.getClientRects
+
+    expect(rangeRects(range, holder)).toEqual([
+      { x: 30, y: 80, w: 50, h: 20 },
+      { x: 140, y: 80, w: 60, h: 20 }
+    ])
+  })
+
+  it("drops zero-width boundary fragments instead of painting the next line", () => {
+    const holder = document.createElement("div")
+    document.body.appendChild(holder)
+    Object.defineProperties(holder, {
+      clientWidth: { value: 400 },
+      clientHeight: { value: 500 }
+    })
+    holder.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, right: 400, bottom: 500, width: 400, height: 500 }) as DOMRect
+    const range = document.createRange()
+    Range.prototype.getClientRects = (() => [
+      { left: 12, top: 40, right: 112, bottom: 60, width: 100, height: 20 },
+      { left: 12, top: 70, right: 12, bottom: 90, width: 0, height: 20 }
+    ]) as unknown as typeof Range.prototype.getClientRects
+
+    expect(rangeRects(range, holder)).toEqual([{ x: 12, y: 40, w: 100, h: 20 }])
+  })
+})
+
 describe("highlightRectsForOffsets (line-bridging overlay)", () => {
   // One visual line of words separated by huge "justify" gaps (the fracture
   // trigger). x-layout: word(0..200) space(200..205) is(305..320) space(320..325)
@@ -190,7 +239,7 @@ describe("highlightRectsForOffsets (line-bridging overlay)", () => {
 
   const realGCR = Range.prototype.getClientRects
   beforeEach(() => {
-    // char-proportional rect within the covering span (walks up past <mark>)
+    // char-proportional rect within the covering leaf span
     const stub = function (this: Range) {
       const tn = this.startContainer as Text
       const span = tn.parentElement?.closest("span") ?? tn.parentElement
@@ -239,6 +288,39 @@ describe("highlightRectsForOffsets (line-bridging overlay)", () => {
     expect(rects[0].w).toBeCloseTo(15)
   })
 
+  it("uses the tight pdf.js span box vertically, not the browser Range leading", () => {
+    const { holder, spans, textLayer } = makeLine()
+    const real = Range.prototype.getClientRects
+    Range.prototype.getClientRects = function () {
+      const tn = this.startContainer as Text
+      const span = tn.parentElement?.closest("span") ?? tn.parentElement
+      const r = span!.getBoundingClientRect()
+      return [
+        {
+          left: r.left,
+          top: r.top - 5,
+          right: r.right,
+          bottom: r.bottom + 7,
+          width: r.width,
+          height: r.height + 12
+        }
+      ] as unknown as DOMRectList
+    }
+    try {
+      const rects = highlightRectsForOffsets(
+        textLayer,
+        holder,
+        0,
+        spans[0].textContent!.length
+      )
+      expect(rects).toHaveLength(1)
+      expect(rects[0].y).toBeCloseTo(100)
+      expect(rects[0].h).toBeCloseTo(20)
+    } finally {
+      Range.prototype.getClientRects = real
+    }
+  })
+
   it("keeps separate lines as separate boxes", () => {
     const { holder, spans } = makeLine()
     const extra = document.createElement("span")
@@ -254,7 +336,24 @@ describe("highlightRectsForOffsets (line-bridging overlay)", () => {
     expect(rects).toHaveLength(2)
   })
 
-  it("survives a web-highlighter <mark> wrap (span text split into nested nodes)", () => {
+  it("does not collapse adjacent pdf.js lines whose boxes overlap", () => {
+    const { holder, spans } = makeLine()
+    const second = document.createElement("span")
+    second.textContent = "second"
+    holder.appendChild(second)
+    second.getBoundingClientRect = () =>
+      ({ left: 0, top: 119, right: 60, bottom: 141, width: 60, height: 22 }) as DOMRect
+    spans.forEach((span) => {
+      const r = span.getBoundingClientRect()
+      span.getBoundingClientRect = () =>
+        ({ ...r, top: 100, bottom: 122, height: 22 }) as DOMRect
+    })
+    const textLayer = { textDivs: [...spans, second] } as any
+    const rects = highlightRectsForOffsets(textLayer, holder, 0, LINE_LEN + 6)
+    expect(rects).toHaveLength(2)
+  })
+
+  it("survives nested text wrappers inside a leaf span", () => {
     const { holder, spans, textLayer } = makeLine()
     const isSpan = spans[2]
     const mark = document.createElement("mark")

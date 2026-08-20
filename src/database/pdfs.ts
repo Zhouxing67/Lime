@@ -170,7 +170,8 @@ export async function deletePdf(id: string): Promise<void> {
       projectCards: "readwrite",
       pdfs: "readwrite",
       reviews: "readwrite",
-      readLater: "readwrite"
+      readLater: "readwrite",
+      pdfVocabularyCards: "readwrite"
     },
     async (stores) => {
       const cards = await new Promise<PdfCard[]>((resolve, reject) => {
@@ -202,6 +203,17 @@ export async function deletePdf(id: string): Promise<void> {
           stores.projectCards.delete(card.projectCardId)
         }
         stores.pdfCards.delete(card.id)
+      }
+      const vocabulary = await new Promise<
+        import("../types").PdfVocabularyCard | undefined
+      >((resolve, reject) => {
+        const request = stores.pdfVocabularyCards.index("byPdfId").get(id)
+        request.onsuccess = () => resolve(request.result)
+        request.onerror = () => reject(request.error)
+      })
+      if (vocabulary) {
+        stores.projectCards.delete(vocabulary.projectCardId)
+        stores.pdfVocabularyCards.delete(vocabulary.id)
       }
       await new Promise<void>((resolve, reject) => {
         const r = stores.pdfs.delete(id)
@@ -896,12 +908,13 @@ export async function applyPdfSync(
   // them can't leave a card-less annotation (the old two-tx version transiently
   // broke the 1:1 invariant on crash between them).
   await tx(
-    { pdfAnnotations: "readwrite", pdfCards: "readwrite" },
+    {
+      pdfAnnotations: "readwrite",
+      pdfCards: "readwrite",
+      projectCards: "readwrite",
+      reviews: "readwrite"
+    },
     async (stores) => {
-      for (const ann of remoteAnnotations) stores.pdfAnnotations.put(ann)
-      for (const local of localAnnotations) {
-        if (!remoteIds.has(local.id)) stores.pdfAnnotations.delete(local.id)
-      }
       // Enforce the annotation↔card 1:1: a remote annotation whose linked
       // pdfCard is absent (a filtered/legacy payload) would leave any placement
       // unresolvable — read the cards INSIDE this tx and create the missing
@@ -920,7 +933,24 @@ export async function applyPdfSync(
         }
         req.onerror = () => reject(req.error)
       })
-      const cardByAnn = new Map(existingCards.map((c) => [c.annotationId, c.id]))
+      const cardByAnn = new Map(existingCards.map((c) => [c.annotationId, c]))
+
+      for (const ann of remoteAnnotations) stores.pdfAnnotations.put(ann)
+      for (const local of localAnnotations) {
+        if (remoteIds.has(local.id)) continue
+        const card = cardByAnn.get(local.id)
+        if (card?.projectCardId) {
+          const reviewKey = await new Promise<IDBValidKey | undefined>((resolve, reject) => {
+            const r = stores.reviews.index("itemId").getKey(card.projectCardId!)
+            r.onsuccess = () => resolve(r.result)
+            r.onerror = () => reject(r.error)
+          })
+          if (reviewKey !== undefined) stores.reviews.delete(reviewKey)
+          stores.projectCards.delete(card.projectCardId)
+        }
+        if (card) stores.pdfCards.delete(card.id)
+        stores.pdfAnnotations.delete(local.id)
+      }
       for (const ann of remoteAnnotations) {
         if (cardByAnn.has(ann.id)) continue
         const card = createPdfCard({

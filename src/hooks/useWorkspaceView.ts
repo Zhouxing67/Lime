@@ -10,10 +10,8 @@ export interface CardWorkspaceState {
   card: DisplayCard | null
 }
 
-const MAX_OPEN_PDFS = 4
-
 /** The workspace view routing — sidebarTab + the left-drawer/reader mutex +
- *  the card-editor workspace + the PDF keep-alive multi-open. The composition
+ *  the card-editor workspace + the single active PDF. The composition
  *  root (options) renders the shell and routes between the views using the
  *  returned state; this hook owns the view state and its coordination. */
 export function useWorkspaceView(
@@ -24,15 +22,12 @@ export function useWorkspaceView(
   const [readerOpen, setReaderOpen] = useState(false)
   const [cardWorkspace, setCardWorkspace] =
     useState<CardWorkspaceState | null>(null)
-  const [openPdfIds, setOpenPdfIds] = useState<string[]>([])
   const [activePdfId, setActivePdfId] = useState<string | null>(null)
 
   const sidebarTabRef = useRef(sidebarTab)
   sidebarTabRef.current = sidebarTab
   const activePdfIdRef = useRef<string | null>(null)
   activePdfIdRef.current = activePdfId
-  const openPdfIdsRef = useRef<string[]>([])
-  openPdfIdsRef.current = openPdfIds
   const drawerOpenRef = useRef(drawerOpen)
   drawerOpenRef.current = drawerOpen
   const readerOpenRef = useRef(readerOpen)
@@ -84,25 +79,15 @@ export function useWorkspaceView(
   )
   const closeCardWorkspace = useCallback(() => setCardWorkspace(null), [])
 
-  // ---- the PDF keep-alive multi-open (true LRU, capped) ----
+  // ---- single active PDF ----
   const openPdf = useCallback((id: string) => {
     touchPdf(id)
-    const cur = openPdfIdsRef.current
-    // Re-opening an existing PDF moves it to the end (LRU) so the oldest
-    // accessed PDF is evicted first when the cap fires.
-    const next = cur.includes(id)
-      ? [...cur.filter((x) => x !== id), id]
-      : [...cur, id]
-    const trimmed = next.length > MAX_OPEN_PDFS ? next.slice(1) : next
-    setOpenPdfIds(trimmed)
     setActivePdfId(id)
   }, [])
 
   const closePdf = useCallback((id: string) => {
-    const next = openPdfIdsRef.current.filter((x) => x !== id)
-    setOpenPdfIds(next)
     if (activePdfIdRef.current === id) {
-      setActivePdfId(next.length > 0 ? next[next.length - 1] : null)
+      setActivePdfId(null)
     }
   }, [])
 
@@ -142,7 +127,6 @@ export function useWorkspaceView(
     drawerOpen,
     pdfReaderOpen: readerOpen,
     cardWorkspace,
-    openPdfIds,
     activePdfId,
     handleSetSidebarTab,
     navigate,

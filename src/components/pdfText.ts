@@ -197,12 +197,62 @@ export interface PdfRect {
   h: number
 }
 
+/** Convert the browser's actual selection geometry into page-local rects.
+ *
+ * The Range is the only geometry source here: no text-item/span expansion and
+ * no line-wide min/max bridge. We only clip to the page and coalesce fragments
+ * that already touch on the same visual line. This preserves the exact first
+ * and last character bounds and avoids synthetic whitespace/next-line boxes.
+ */
+export function rangeRects(range: Range, holder: HTMLElement): PdfRect[] {
+  const page = holder.getBoundingClientRect()
+  const originX = page.left + holder.clientLeft
+  const originY = page.top + holder.clientTop
+  const rightEdge = originX + holder.clientWidth
+  const bottomEdge = originY + holder.clientHeight
+  const rects: PdfRect[] = []
+
+  for (const rect of range.getClientRects()) {
+    const left = Math.max(rect.left, originX)
+    const top = Math.max(rect.top, originY)
+    const right = Math.min(rect.right, rightEdge)
+    const bottom = Math.min(rect.bottom, bottomEdge)
+    const w = right - left
+    const h = bottom - top
+    if (w <= 0.5 || h <= 0.5) continue
+    rects.push({ x: left - originX, y: top - originY, w, h })
+  }
+
+  rects.sort((a, b) => a.y - b.y || a.x - b.x)
+  const merged: PdfRect[] = []
+  for (const rect of rects) {
+    const last = merged[merged.length - 1]
+    const sameLine =
+      last &&
+      Math.min(last.y + last.h, rect.y + rect.h) - Math.max(last.y, rect.y) >
+        Math.min(last.h, rect.h) * 0.5
+    if (sameLine && rect.x <= last.x + last.w + 1) {
+      const left = Math.min(last.x, rect.x)
+      const top = Math.min(last.y, rect.y)
+      const right = Math.max(last.x + last.w, rect.x + rect.w)
+      const bottom = Math.max(last.y + last.h, rect.y + rect.h)
+      Object.assign(last, { x: left, y: top, w: right - left, h: bottom - top })
+    } else {
+      merged.push({ ...rect })
+    }
+  }
+  return merged
+}
+
 interface TextLayerIndex {
   /** div → its index among textDivs */
   divIndex: Map<HTMLElement, number>
   /** cumulative[i] = char offset BEFORE div i */
   cumulative: number[]
   total: number
+  /** DOM nodes used to build this index; pdf.js can replace them while keeping
+   *  the same TextLayerBuilder object during zoom/re-render. */
+  divs: HTMLElement[]
 }
 
 /** The rendered text spans of a text layer — the pdf.js TextLayer exposes
@@ -262,8 +312,8 @@ export function searchTextLayer(
   return { domText, matches: res.matches }
 }
 
-/** Cached per-render index (WeakMap → auto-invalidated when the text layer is
- *  re-rendered/unmounted, covering zoom/rotate + lifecycle). */
+/** Cached index. The TextLayerBuilder itself may survive a DOM rebuild, so the
+ *  cached node identity is checked on every access. */
 const indexCache = new WeakMap<object, TextLayerIndex>()
 
 export function buildTextLayerIndex(textLayer: any): TextLayerIndex {
@@ -276,12 +326,16 @@ export function buildTextLayerIndex(textLayer: any): TextLayerIndex {
     cumulative.push(acc)
     acc += divs[i].textContent?.length ?? 0
   }
-  return { divIndex, cumulative, total: acc }
+  return { divIndex, cumulative, total: acc, divs }
 }
 
 function getTextLayerIndex(textLayer: TextLayer): TextLayerIndex {
+  const liveDivs = getTextDivs(textLayer)
   let idx = indexCache.get(textLayer)
-  if (!idx) {
+  const sameDom =
+    idx?.divs.length === liveDivs.length &&
+    liveDivs.every((div, i) => idx!.divs[i] === div)
+  if (!idx || !sameDom) {
     idx = buildTextLayerIndex(textLayer)
     indexCache.set(textLayer, idx)
   }
@@ -322,6 +376,24 @@ function nodeToDivIndex(node: Node | null, idx: TextLayerIndex): number {
   return -1
 }
 
+function offsetInsideDiv(node: Node, offset: number, div: HTMLElement): number {
+  if (node === div) {
+    let total = 0
+    for (let i = 0; i < Math.min(offset, div.childNodes.length); i++) {
+      total += div.childNodes[i].textContent?.length ?? 0
+    }
+    return total
+  }
+  const probe = document.createRange()
+  probe.selectNodeContents(div)
+  try {
+    probe.setEnd(node, offset)
+  } catch {
+    return Math.max(0, offset)
+  }
+  return probe.toString().length
+}
+
 /** Map a text-layer selection to char offsets into the page's textContent. */
 export function textLayerOffsets(
   textLayer: any,
@@ -330,25 +402,23 @@ export function textLayerOffsets(
   if (sel.isCollapsed || sel.rangeCount === 0) return null
   const idx = getTextLayerIndex(textLayer)
   if (idx.divIndex.size === 0) return null
-  const anchorIdx = nodeToDivIndex(sel.anchorNode, idx)
-  const focusIdx = nodeToDivIndex(sel.focusNode, idx)
-  if (anchorIdx < 0 || focusIdx < 0) return null
-  const startDiv = Math.min(anchorIdx, focusIdx)
-  const endDiv = Math.max(anchorIdx, focusIdx)
-  const anchorIsBr =
-    sel.anchorNode instanceof HTMLElement && sel.anchorNode.tagName === "BR"
-  const focusIsBr =
-    sel.focusNode instanceof HTMLElement && sel.focusNode.tagName === "BR"
-  const startOff = anchorIsBr
-    ? 0
-    : startDiv === anchorIdx
-      ? sel.anchorOffset
-      : sel.focusOffset
-  const endOff = focusIsBr
-    ? 0
-    : endDiv === focusIdx
-      ? sel.focusOffset
-      : sel.anchorOffset
+  const range = typeof sel.getRangeAt === "function" ? sel.getRangeAt(0) : null
+  const startNode = range?.startContainer ?? sel.anchorNode
+  const endNode = range?.endContainer ?? sel.focusNode
+  let startDiv = nodeToDivIndex(startNode, idx)
+  let endDiv = nodeToDivIndex(endNode, idx)
+  if (startDiv < 0 || endDiv < 0) return null
+  const divs = getTextDivs(textLayer)
+  let startOff = startNode
+    ? offsetInsideDiv(startNode, range?.startOffset ?? sel.anchorOffset, divs[startDiv])
+    : 0
+  let endOff = endNode
+    ? offsetInsideDiv(endNode, range?.endOffset ?? sel.focusOffset, divs[endDiv])
+    : 0
+  if (!range && (startDiv > endDiv || (startDiv === endDiv && startOff > endOff))) {
+    ;[startDiv, endDiv] = [endDiv, startDiv]
+    ;[startOff, endOff] = [endOff, startOff]
+  }
   return {
     start:
       (startDiv > 0 ? idx.cumulative[startDiv] : 0) + Math.max(0, startOff),
@@ -362,8 +432,8 @@ export function textLayerOffsets(
  *  selection highlight) — NOT whole-div boxes, which overshoot both ends when
  *  a selection starts/ends mid-span and carry the full line box vertically. */
 /** Range covering the local char range [from, to) inside a leaf span, walking
- *  through ANY nested structure (a web-highlighter `<mark>` wrap splits the
- *  span's text into several text nodes) — offsets are into the span's full
+ *  through ANY nested structure (for example marked-content wrappers can split
+ *  a span's text into several text nodes) — offsets are into the span's full
  *  textContent, so we accumulate across text nodes to find the true nodes. */
 function rangeForLocal(span: HTMLElement, from: number, to: number): Range | null {
   const walker = document.createTreeWalker(span, NodeFilter.SHOW_TEXT)
@@ -444,19 +514,59 @@ export function highlightRectsForOffsets(
   }
   if (covered.length === 0) return []
 
-  // group covered spans into visual lines by em-box vertical overlap
-  type Line = { top: number; bottom: number; items: typeof covered }
-  const lines: Line[] = []
+  // Measure the clipped DOM ranges first. Grouping by the full span box is
+  // unsafe in pdf.js: transformed spans often overlap the neighbouring line
+  // vertically, which collapses several selected lines into one tall box.
+  type Fragment = {
+    left: number
+    right: number
+    /** Range geometry identifies the visual line reliably. */
+    lineCenter: number
+    lineHeight: number
+    /** The pdf.js leaf span supplies the tight vertical em box. */
+    top: number
+    bottom: number
+  }
+  const fragments: Fragment[] = []
   for (const c of covered) {
-    const r = c.span.getBoundingClientRect()
-    if (r.height <= 0) continue
-    const line = lines.find((l) => r.top < l.bottom && r.bottom > l.top)
+    if (c.from >= c.to) continue
+    const sub = rangeForLocal(c.span, c.from, c.to)
+    if (!sub) continue
+    const spanRect = c.span.getBoundingClientRect()
+    for (const r of sub.getClientRects()) {
+      if (r.width <= 0 || r.height <= 0) continue
+      fragments.push({
+        left: r.left,
+        right: r.right,
+        lineCenter: (r.top + r.bottom) / 2,
+        lineHeight: r.height,
+        top: spanRect.top,
+        bottom: spanRect.bottom
+      })
+    }
+  }
+
+  type Line = { center: number; top: number; bottom: number; items: Fragment[] }
+  const lines: Line[] = []
+  for (const fragment of fragments.sort((a, b) => a.lineCenter - b.lineCenter)) {
+    const tolerance = Math.max(2, Math.min(fragment.lineHeight * 0.35, 6))
+    const line = lines.find(
+      (l) => Math.abs(fragment.lineCenter - l.center) <= tolerance
+    )
     if (line) {
-      if (r.top < line.top) line.top = r.top
-      if (r.bottom > line.bottom) line.bottom = r.bottom
-      line.items.push(c)
+      line.top = Math.min(line.top, fragment.top)
+      line.bottom = Math.max(line.bottom, fragment.bottom)
+      line.items.push(fragment)
+      line.center =
+        line.items.reduce((sum, item) => sum + item.lineCenter, 0) /
+        line.items.length
     } else {
-      lines.push({ top: r.top, bottom: r.bottom, items: [c] })
+      lines.push({
+        center: fragment.lineCenter,
+        top: fragment.top,
+        bottom: fragment.bottom,
+        items: [fragment]
+      })
     }
   }
 
@@ -464,17 +574,11 @@ export function highlightRectsForOffsets(
   for (const line of lines) {
     let minX = Infinity
     let maxX = -Infinity
-    for (const c of line.items) {
-      if (c.from >= c.to) continue
-      const sub = rangeForLocal(c.span, c.from, c.to)
-      if (!sub) continue
-      for (const r of sub.getClientRects()) {
-        const left = r.left - originX
-        const right = r.right - originX
-        if (right <= left) continue
-        if (left < minX) minX = left
-        if (right > maxX) maxX = right
-      }
+    for (const fragment of line.items) {
+      const left = fragment.left - originX
+      const right = fragment.right - originX
+      if (left < minX) minX = left
+      if (right > maxX) maxX = right
     }
     if (minX <= maxX) {
       out.push({

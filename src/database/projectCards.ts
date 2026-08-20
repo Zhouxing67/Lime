@@ -1,6 +1,6 @@
 import { collectAll, tx, withStore } from "./core"
 import { getByKeys, safeHostname } from "./helpers"
-import type { PdfAnnotation, PdfCard, ProjectCard, ProjectCardType, SearchQuery, SourceMeta } from "../types"
+import type { PdfAnnotation, PdfCard, PdfVocabularyCard, ProjectCard, ProjectCardType, SearchQuery, SourceMeta } from "../types"
 import { computeItemHash } from "../utils"
 
 /** Highest `order` in a section (未分类 = no sectionId), -1 when empty. The
@@ -57,6 +57,7 @@ export interface CardSeed {
   sectionId?: string
   images?: string[]
   pdfCardId?: string
+  pdfVocabularyCardId?: string
 }
 
 /** Internal raw builder — the ONLY place a ProjectCard is constructed with a
@@ -76,7 +77,10 @@ export function buildProjectCard(data: CardSeed): ProjectCard {
     ...(data.images && data.images.length > 0 ? { images: data.images } : {}),
     ...(data.comment ? { comment: data.comment } : {}),
     ...(data.image ? { image: data.image } : {}),
-    ...(data.pdfCardId ? { pdfCardId: data.pdfCardId } : {})
+    ...(data.pdfCardId ? { pdfCardId: data.pdfCardId } : {}),
+    ...(data.pdfVocabularyCardId
+      ? { pdfVocabularyCardId: data.pdfVocabularyCardId }
+      : {})
   }
 }
 
@@ -317,7 +321,7 @@ export async function addProjectCard(
     // Placed cards NEVER carry content (the placement model — the pdfCard owns
     // the text) — enforce the invariant at the DB write layer, not only at the
     // UI call sites (A7).
-    ...(card.pdfCardId ? { content: "" } : {}),
+      ...(card.pdfCardId || card.pdfVocabularyCardId ? { content: "" } : {}),
     updatedAt: card.updatedAt ?? Date.now(),
     sourceSite:
       card.source?.site ??
@@ -399,6 +403,30 @@ export async function searchProjectCards(q: SearchQuery): Promise<ProjectCard[]>
         })
       )
     : undefined
+  const vocabularyByCardId = keyword
+    ? await withStore("pdfVocabularyCards", "readonly", (vocabularyStore) =>
+        new Promise<Map<string, string>>((resolveMap) => {
+          const map = new Map<string, string>()
+          const request = vocabularyStore.openCursor()
+          request.onsuccess = () => {
+            const cursor = request.result
+            if (!cursor) return resolveMap(map)
+            const card = cursor.value as PdfVocabularyCard
+            map.set(
+              card.id,
+              card.entries
+                .flatMap((entry) => [
+                  entry.term,
+                  ...entry.translations.map((translation) => translation.text)
+                ])
+                .join(" ")
+            )
+            cursor.continue()
+          }
+          request.onerror = () => resolveMap(map)
+        })
+      )
+    : undefined
   return withStore("projectCards", "readonly", async (store) => {
     const results: ProjectCard[] = []
     return new Promise<ProjectCard[]>((resolve, reject) => {
@@ -428,11 +456,15 @@ export async function searchProjectCards(q: SearchQuery): Promise<ProjectCard[]>
           const quote = card.pdfCardId
             ? quoteByPdfCardId?.get(card.pdfCardId)
             : undefined
+          const vocabulary = card.pdfVocabularyCardId
+            ? vocabularyByCardId?.get(card.pdfVocabularyCardId)
+            : undefined
           kwMatch =
             card.content?.toLowerCase().includes(keyword) ||
             card.title?.toLowerCase().includes(keyword) ||
             card.source?.title?.toLowerCase().includes(keyword) ||
-            !!quote && quote.toLowerCase().includes(keyword)
+            (!!quote && quote.toLowerCase().includes(keyword)) ||
+            (!!vocabulary && vocabulary.toLowerCase().includes(keyword))
         }
         if (
           (!q.type || card.type === q.type) &&
@@ -546,7 +578,9 @@ export async function updateProjectCard(card: ProjectCard): Promise<void> {
   await withStore("projectCards", "readwrite", (store) => {
     // Enforce the placement invariant at the write layer (A7).
     store.put({
-      ...(card.pdfCardId ? { ...card, content: "" } : card),
+      ...(card.pdfCardId || card.pdfVocabularyCardId
+        ? { ...card, content: "" }
+        : card),
       updatedAt: Date.now()
     })
   })

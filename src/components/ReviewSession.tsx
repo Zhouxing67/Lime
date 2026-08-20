@@ -213,9 +213,9 @@ export default function ReviewSession({
   return (
     <Box
       sx={{
-        maxWidth: 832,
+        maxWidth: 720,
         mx: "auto",
-        mt: 12
+        mt: 10
       }}>
       <style>{`
         @keyframes reviewSlideOut {
@@ -232,8 +232,9 @@ export default function ReviewSession({
           onClick={onFlip}
           sx={{
             position: "relative",
-            minHeight: 520,
+            minHeight: 460,
             cursor: "pointer",
+            borderRadius: 1,
             animation: animating
               ? "reviewSlideOut 0.25s ease-out forwards"
               : "reviewSlideInRight 0.25s ease-out"
@@ -247,14 +248,18 @@ export default function ReviewSession({
               opacity: flipped ? 0 : 1,
               pointerEvents: flipped ? "none" : "auto",
               transition: "opacity 0.15s",
-              bgcolor: (t) => t.custom.surface2,
+              bgcolor: "background.paper",
               border: "1px solid",
               borderColor: "divider",
               borderRadius: 1,
               boxShadow: (t) => t.custom.cardShadow,
-              p: 3,
+              p: 2.5,
               display: "flex",
-              flexDirection: "column"
+              flexDirection: "column",
+              "&:hover": {
+                boxShadow: (t) => t.custom.cardShadowHover,
+                borderColor: (t) => t.custom.borderStrong
+              }
             }}>
             <CardRenderer item={item} mode="front" />
           </Box>
@@ -268,14 +273,18 @@ export default function ReviewSession({
               opacity: flipped ? 1 : 0,
               pointerEvents: flipped ? "auto" : "none",
               transition: "opacity 0.15s",
-              bgcolor: (t) => t.custom.surface2,
+              bgcolor: "background.paper",
               border: "1px solid",
               borderColor: "divider",
               borderRadius: 1,
               boxShadow: (t) => t.custom.cardShadow,
-              p: 3,
+              p: 2.5,
               display: "flex",
               flexDirection: "column",
+              "&:hover": {
+                boxShadow: (t) => t.custom.cardShadowHover,
+                borderColor: (t) => t.custom.borderStrong
+              },
               "&::-webkit-scrollbar": { width: 4 },
               "&::-webkit-scrollbar-thumb": {
                 bgcolor: "divider",

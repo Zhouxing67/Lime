@@ -10,7 +10,7 @@ import type {
 import { sha256Bytes } from "../utils"
 
 const DB_NAME = "pickquote-db"
-export const DB_VERSION = 15
+export const DB_VERSION = 16
 
 type TableNames =
   | "projectCards"
@@ -21,6 +21,7 @@ type TableNames =
   | "pdfs"
   | "pdfAnnotations"
   | "readLater"
+  | "pdfVocabularyCards"
 
 // ---- Cross-context change notification ----
 // Any successful write transaction automatically broadcasts a version stamp
@@ -45,7 +46,8 @@ export async function broadcastDbChange(name: TableNames): Promise<void> {
             ? "_dbrl"
             : name === "pdfs" ||
                 name === "pdfAnnotations" ||
-                name === "pdfCards"
+                name === "pdfCards" ||
+                name === "pdfVocabularyCards"
               ? "_dbpdf"
               : "_dbi"
   await broadcastStamp(key)
@@ -375,6 +377,15 @@ function openDb(version?: number): Promise<IDBDatabase> {
         }
       } catch (e) {
         console.warn("[lime] v15 migration: readLater index rebuild skipped", e)
+      }
+      // ---- v16 migration: one aggregate vocabulary card per PDF. Entries
+      // carry temporary-jump geometry and manual translations; they are not
+      // regular annotations and therefore do not disturb annotation↔card 1:1.
+      if (!db.objectStoreNames.contains("pdfVocabularyCards")) {
+        const vocabulary = db.createObjectStore("pdfVocabularyCards", {
+          keyPath: "id"
+        })
+        vocabulary.createIndex("byPdfId", "pdfId", { unique: true })
       }
       } catch (e) {
         console.error(

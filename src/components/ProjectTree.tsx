@@ -666,11 +666,13 @@ function ProjectNode({
           transition: "opacity 0.15s"
         }}
         onClick={(e) => e.stopPropagation()}>
-        <Tooltip title="添加章节">
-          <IconButton size="small" onClick={onAdd}>
-            <AddRoundedIcon sx={{ fontSize: 16 }} />
-          </IconButton>
-        </Tooltip>
+        {project.systemKind !== "vocabulary" && (
+          <Tooltip title="添加章节">
+            <IconButton size="small" onClick={onAdd}>
+              <AddRoundedIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Tooltip>
+        )}
         <Tooltip title="更多操作">
           <IconButton
             size="small"
@@ -685,14 +687,16 @@ function ProjectNode({
               anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
               transformOrigin={{ vertical: "top", horizontal: "right" }}
           slotProps={{ paper: { sx: { py: 0.5, borderRadius: 1 } } }}>
-              <MenuItem
-                sx={{ fontSize: "0.8rem" }}
-                onClick={() => {
-                  setMenuAnchor(null)
-                  onRequestRename()
-                }}>
-                重命名 / 编辑备注
-              </MenuItem>
+              {project.systemKind !== "vocabulary" && (
+                <MenuItem
+                  sx={{ fontSize: "0.8rem" }}
+                  onClick={() => {
+                    setMenuAnchor(null)
+                    onRequestRename()
+                  }}>
+                  重命名 / 编辑备注
+                </MenuItem>
+              )}
               {onExportMarkdown && (
                 <MenuItem
                   sx={{ fontSize: "0.8rem" }}
@@ -703,14 +707,16 @@ function ProjectNode({
                   导出 Markdown
                 </MenuItem>
               )}
-              <MenuItem
-                sx={{ fontSize: "0.8rem" }}
-                onClick={() => {
-                  setMenuAnchor(null)
-                  setConfirming(true)
-                }}>
-                删除项目
-              </MenuItem>
+              {project.systemKind !== "vocabulary" && (
+                <MenuItem
+                  sx={{ fontSize: "0.8rem" }}
+                  onClick={() => {
+                    setMenuAnchor(null)
+                    setConfirming(true)
+                  }}>
+                  删除项目
+                </MenuItem>
+              )}
             </Menu>
       </Box>
     </TreeRow>

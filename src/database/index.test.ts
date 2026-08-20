@@ -62,6 +62,11 @@ import {
   getAllReadLater,
   getReadLaterByPdfId,
   getActiveReadLaterCount,
+  addVocabularyEntry,
+  deleteVocabularyEntry,
+  getAllVocabularyCards,
+  getVocabularyCardByPdf,
+  normalizeVocabularyTerm,
   DB_VERSION
 } from "./index"
 
@@ -1103,6 +1108,90 @@ describe("pdf content-hash id + notes-only sync", () => {
     expect(card).toBeDefined()
     expect(card?.type).toBe("highlight")
     expect(card?.page).toBe(2)
+  })
+
+  it("applyPdfSync cascades removed annotations to pdfCards, placements, and reviews", async () => {
+    await addProject({ id: "proj-sync-del", name: "SYNC-DEL", createdAt: 1 })
+    const { annotation, card } = await createTextAnnotationCard({
+      pdfId: "pdf-sync-del",
+      page: 1,
+      type: "highlight",
+      startOffset: 0,
+      endOffset: 4,
+      text: "gone"
+    })
+    await placePdfCards([card.id], "proj-sync-del")
+    const placed = (await getPdfCards("pdf-sync-del"))[0]
+    await addReview({
+      id: "rev-sync-del",
+      itemId: placed.projectCardId!,
+      projectId: "proj-sync-del",
+      status: "active",
+      dueDate: Date.now(),
+      addedAt: Date.now(),
+      srs: { dueDate: Date.now(), interval: 0, easeFactor: 2.5, reviewCount: 0, lastReviewDate: 0 }
+    })
+
+    await applyPdfSync(
+      [{ id: "pdf-sync-del", name: "sync.pdf", pageCount: 1, addedAt: 1 }],
+      [],
+      [annotation]
+    )
+
+    expect(await getAnnotation(annotation.id)).toBeUndefined()
+    expect(await getPdfCards("pdf-sync-del")).toHaveLength(0)
+    expect(await getProjectCardById(placed.projectCardId!)).toBeUndefined()
+    expect(await getReviewByItemId(placed.projectCardId!)).toBeUndefined()
+  })
+})
+
+describe("PDF vocabulary cards", () => {
+  it("keeps one card and one normalized term per PDF while appending translations", async () => {
+    const first = await addVocabularyEntry({
+      pdfId: "pdf-vocab",
+      page: 1,
+      term: "  Semantic   Drift ",
+      translation: "语义漂移",
+      rects: [{ x: 0.1, y: 0.2, w: 0.2, h: 0.03 }]
+    })
+    const second = await addVocabularyEntry({
+      pdfId: "pdf-vocab",
+      page: 2,
+      term: "semantic drift",
+      translation: "含义逐渐变化",
+      rects: [{ x: 0.2, y: 0.3, w: 0.2, h: 0.03 }]
+    })
+
+    expect(normalizeVocabularyTerm(" Semantic   Drift ")).toBe("semantic drift")
+    expect(second.card.id).toBe(first.card.id)
+    expect(second.card.entries).toHaveLength(1)
+    expect(second.entry.translations.map((item) => item.text)).toEqual([
+      "语义漂移",
+      "含义逐渐变化"
+    ])
+    expect(second.entry.occurrences).toHaveLength(2)
+    expect(await getAllVocabularyCards()).toHaveLength(1)
+
+    const projects = await listProjects()
+    const vocabularyProject = projects.find(
+      (project) => project.systemKind === "vocabulary"
+    )
+    expect(vocabularyProject?.name).toBe("生词")
+    const placement = await getProjectCardById(second.card.projectCardId)
+    expect(placement?.pdfVocabularyCardId).toBe(second.card.id)
+  })
+
+  it("removes the aggregate card and placement after its final entry", async () => {
+    const added = await addVocabularyEntry({
+      pdfId: "pdf-vocab-delete",
+      page: 1,
+      term: "derive",
+      translation: "推导",
+      rects: [{ x: 0.1, y: 0.2, w: 0.1, h: 0.03 }]
+    })
+    await deleteVocabularyEntry(added.card.id, added.entry.id)
+    expect(await getVocabularyCardByPdf("pdf-vocab-delete")).toBeUndefined()
+    expect(await getProjectCardById(added.card.projectCardId)).toBeUndefined()
   })
 })
 

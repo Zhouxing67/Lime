@@ -1,5 +1,5 @@
-import type { PdfAnnotation, PdfCard } from "../types"
-import { sortPdfCards } from "./cards"
+import type { PdfAnnotation, PdfCard, ProjectCard } from "../types"
+import { resolveCardContent, sortPdfCards } from "./cards"
 
 function card(id: string, annotationId: string, page: number, pdfOrder: number): PdfCard {
   return {
@@ -102,5 +102,78 @@ describe("sortPdfCards", () => {
     const cards = [card("b", "b", 1, 1e6 + 9), card("a", "a", 1, 1e6)]
     const anns = [ann("a", 1), ann("b", 1)]
     expect(sortPdfCards(cards, anns, "two").map((c) => c.id)).toEqual(["a", "b"])
+  })
+})
+
+const placement = (pdfCardId: string): ProjectCard => ({
+  id: `placed-${pdfCardId}`,
+  type: "placed",
+  content: "",
+  pdfCardId,
+  projectId: "project-1",
+  createdAt: 1
+})
+
+const pdfCard = (overrides: Partial<PdfCard>): PdfCard => ({
+  id: "pdf-card-1",
+  pdfId: "pdf-1",
+  page: 1,
+  kind: "text",
+  type: "highlight",
+  annotationId: "ann-1",
+  pdfOrder: 1,
+  createdAt: 1,
+  ...overrides
+})
+
+const annotation = (overrides: Partial<PdfAnnotation>): PdfAnnotation => ({
+  id: "ann-1",
+  pdfId: "pdf-1",
+  page: 1,
+  kind: "text",
+  type: "highlight",
+  createdAt: 1,
+  ...overrides
+})
+
+describe("resolveCardContent", () => {
+  it("resolves placed text annotations to their original quote", () => {
+    const sourceCard = pdfCard({ kind: "text", type: "underline" })
+    const sourceAnnotation = annotation({ kind: "text", type: "underline", text: "PDF quote text" })
+
+    expect(
+      resolveCardContent(
+        placement(sourceCard.id),
+        new Map([[sourceCard.id, sourceCard]]),
+        new Map([[sourceAnnotation.id, sourceAnnotation]])
+      )
+    ).toEqual({
+      content: "PDF quote text",
+      comment: undefined,
+      title: undefined,
+      image: undefined
+    })
+  })
+
+  it("resolves placed region annotations to their crop image", () => {
+    const sourceCard = pdfCard({ kind: "region", type: "frame" })
+    const sourceAnnotation = annotation({
+      kind: "region",
+      type: "frame",
+      image: "data:image/png;base64,AAAA"
+    })
+
+    expect(
+      resolveCardContent(
+        placement(sourceCard.id),
+        new Map([[sourceCard.id, sourceCard]]),
+        new Map([[sourceAnnotation.id, sourceAnnotation]])
+      )
+    ).toEqual({
+      content: "",
+      comment: undefined,
+      title: undefined,
+      image: "data:image/png;base64,AAAA"
+    })
   })
 })

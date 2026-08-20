@@ -149,7 +149,7 @@ export const AnnotatorExtension: React.FC<AnnotatorExtensionProps> = ({
         // NOTE: private pdfjs event API, version-sensitive
         eventBus._on('updateviewarea', handleViewAreaChanged)
 
-        painterInstance.initWebSelection(pdfViewer.viewer as HTMLDivElement)
+        painterInstance.initTextSelection(pdfViewer.viewer as HTMLDivElement)
 
         // 检查文档是否已经加载
         const handleDocumentLoaded = async () => {
@@ -199,7 +199,12 @@ export const AnnotatorExtension: React.FC<AnnotatorExtensionProps> = ({
                 rerenderTimer = null
             }
             eventBus.off('pagerendered', handlePageRendered)
-            eventBus.off('updateviewarea', handleViewAreaChanged)
+            const maybePrivateOff = (eventBus as typeof eventBus & { _off?: typeof eventBus.off })._off
+            if (maybePrivateOff) {
+                maybePrivateOff.call(eventBus, 'updateviewarea', handleViewAreaChanged)
+            } else {
+                eventBus.off('updateviewarea', handleViewAreaChanged)
+            }
             eventBus.off('documentloaded', handleDocumentLoaded)
             painterInstance.destroy()
             if (painterRef.current === painterInstance) {
@@ -221,22 +226,18 @@ export const AnnotatorExtension: React.FC<AnnotatorExtensionProps> = ({
         handleViewAreaChanged()
     }, [handleViewAreaChanged])
 
-    // Sync the in-memory marks with the persisted annotation list: annotations
-    // deleted in the cards panel (broadcast via _dbpdf → reloaded annotations
-    // prop) must drop their Konva marks immediately, without a viewer remount.
+    // Sync the in-memory marks with the persisted annotation list. This must
+    // reconcile additions and updates too: the PDF document and IndexedDB load
+    // independently, so persisted annotations can arrive after the one-shot
+    // documentloaded initialization.
     const annotationsKeyRef = useRef('')
     useEffect(() => {
-        const key = JSON.stringify((annotations ?? []).map((a) => a.id))
+        const key = JSON.stringify(annotations ?? [])
         if (key === annotationsKeyRef.current) return
         annotationsKeyRef.current = key
         const painter = painterRef.current
         if (!painter) return
-        const ids = new Set((annotations ?? []).map((a) => a.id))
-        useAnnotationStore.getState().annotations.forEach((_a, id) => {
-            if (!ids.has(id)) {
-                painter.removeAnnotationFromPanel(id)
-            }
-        })
+        painter.reconcileAnnotations(annotations ?? [])
     }, [annotations])
 
     return <></>

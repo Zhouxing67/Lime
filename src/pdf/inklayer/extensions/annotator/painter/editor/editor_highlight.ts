@@ -46,27 +46,33 @@ export class EditorHighLight extends Editor {
      * @param elements HTMLSpanElement 数组，表示要绘制的元素
      * @param fixElement 用于修正计算的元素
      */
-    public convertTextSelection(elements: HTMLSpanElement[], fixElement: HTMLDivElement, range?: Range | null) {
+    public convertTextSelection(elements: HTMLSpanElement[], fixElement: HTMLDivElement, range: Range) {
         this.currentShapeGroup = this.createShapeGroup()
         this.getBgLayer().add(this.currentShapeGroup.konvaGroup)
 
         const fixBounding = fixElement.getBoundingClientRect()
 
-        // 1. 优先使用原始 Range 的 client rects：它保留首尾字符裁剪，
-        //    且天然按真实换行拆分；web-highlighter 生成的 mark/span
-        //    getBoundingClientRect() 可能跨多行，导致下划线/删除线塌成一条。
-        const rangeRects = range
-            ? Array.from(range.getClientRects())
-                .map(rect => this.clipRectToPage(rect, fixBounding))
-                .filter((rect): rect is ViewportRectLike => Boolean(rect))
-                .map(rect => this.calculateRelativePosition(rect, fixBounding))
-            : []
-        const spanRects: SpanCanvasRect[] = rangeRects.length > 0
-            ? rangeRects
-            : elements.map(spanEl => {
-                const bounding = spanEl.getBoundingClientRect()
-                return this.calculateRelativePosition(bounding, fixBounding)
-            })
+        // 1. 对 Range 覆盖到的每个 pdf.js leaf span 创建局部字符 Range。
+        //    局部 Range 提供精确横界，原始 span 提供紧凑纵向 em box。
+        //    全程不插入临时 mark，因此不会污染 TextLayer 的节点与偏移索引。
+        const selectedRects = elements.flatMap(element => {
+            const localRange = this.intersectRangeWithElement(range, element)
+            if (!localRange) return []
+            const emRect = element.getBoundingClientRect()
+            return Array.from(localRange.getClientRects()).map(rect => ({
+                left: rect.left,
+                top: emRect.top,
+                width: rect.width,
+                height: emRect.height
+            }))
+        })
+        const viewportRects = selectedRects.length > 0
+            ? selectedRects
+            : Array.from(range.getClientRects())
+        const spanRects: SpanCanvasRect[] = viewportRects
+            .map(rect => this.clipRectToPage(rect, fixBounding))
+            .filter((rect): rect is ViewportRectLike => Boolean(rect))
+            .map(rect => this.calculateRelativePosition(rect, fixBounding))
 
         // 2. 按行分组 + 行内合并为连续块
         const mergedRects = this.mergeSpanRectsByRow(spanRects)
@@ -81,7 +87,7 @@ export class EditorHighLight extends Editor {
             id: this.currentShapeGroup.id,
             contentsObj: {
                 text: '',
-                selectedText: this.getSelectedText(elements)
+                selectedText: this.getSelectedText(range, elements)
             },
             color: this.currentAnnotation!.style!.color,
             sourceRects: mergedRects
@@ -105,12 +111,33 @@ export class EditorHighLight extends Editor {
      * @param elements HTMLSpanElement 数组
      * @returns 所有元素内部文字的字符串
      */
-    private getSelectedText(elements: HTMLSpanElement[]): string {
+    private getSelectedText(range: Range, elements: HTMLSpanElement[]): string {
         return elements
-            .map((element) => element.textContent || '')
+            .map(element => this.intersectRangeWithElement(range, element)?.toString() ?? '')
             .join('')
             .replace(/\s+/g, ' ')
             .trim()
+    }
+
+    /** Return the portion of `range` that lies inside one leaf text span. */
+    private intersectRangeWithElement(range: Range, element: HTMLElement): Range | null {
+        let intersects = false
+        try {
+            intersects = range.intersectsNode(element)
+        } catch {
+            return null
+        }
+        if (!intersects) return null
+
+        const local = document.createRange()
+        local.selectNodeContents(element)
+        if (range.compareBoundaryPoints(Range.START_TO_START, local) > 0) {
+            local.setStart(range.startContainer, range.startOffset)
+        }
+        if (range.compareBoundaryPoints(Range.END_TO_END, local) < 0) {
+            local.setEnd(range.endContainer, range.endOffset)
+        }
+        return local.collapsed ? null : local
     }
 
     /**
@@ -119,11 +146,11 @@ export class EditorHighLight extends Editor {
      * @param fixBounding 基准元素的边界矩形
      * @returns 相对位置和尺寸的对象 { x, y, width, height }
      */
-    private clipRectToPage(rect: DOMRect, pageBounding: DOMRect): ViewportRectLike | null {
+    private clipRectToPage(rect: ViewportRectLike, pageBounding: DOMRect): ViewportRectLike | null {
         const left = Math.max(rect.left, pageBounding.left)
         const top = Math.max(rect.top, pageBounding.top)
-        const right = Math.min(rect.right, pageBounding.right)
-        const bottom = Math.min(rect.bottom, pageBounding.bottom)
+        const right = Math.min(rect.left + rect.width, pageBounding.right)
+        const bottom = Math.min(rect.top + rect.height, pageBounding.bottom)
         const width = right - left
         const height = bottom - top
         if (width <= 0 || height <= 0) return null

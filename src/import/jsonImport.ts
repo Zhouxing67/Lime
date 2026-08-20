@@ -5,6 +5,7 @@ import {
   addAnnotation,
   addPdf,
   addPdfCard,
+  addVocabularyCard,
   addProject,
   addProjectCard,
   addReadLater,
@@ -19,6 +20,7 @@ import {
 import {
   pdfAnnotationSchema,
   pdfCardSchema,
+  pdfVocabularyCardSchema,
   projectCardSchema,
   projectSchema,
   readLaterSchema,
@@ -29,6 +31,7 @@ import type {
   PdfAnnotation,
   PdfCard,
   PdfMark,
+  PdfVocabularyCard,
   Project,
   ProjectCard,
   ReadLater,
@@ -254,6 +257,7 @@ function validateProjectCard(
         "sectionId",
         "sourceSite",
         "pdfCardId",
+        "pdfVocabularyCardId",
         "comment",
         "image",
         "isDraft",
@@ -476,6 +480,7 @@ interface ParsedExport {
   importedReviews: ReviewEntry[]
   importedAnnotations: PdfAnnotation[]
   importedReadLater: ReadLater[]
+  importedVocabularyCards: PdfVocabularyCard[]
   importedPdfMeta: {
     id: string
     name: string
@@ -499,6 +504,7 @@ export function parseExport(rawJson: string): ParsedExport | { error: string } {
       importedReviews: [],
       importedAnnotations: [],
       importedReadLater: [],
+      importedVocabularyCards: [],
       importedPdfMeta: []
     }
   }
@@ -545,6 +551,14 @@ export function parseExport(rawJson: string): ParsedExport | { error: string } {
       if (item) importedReadLater.push(item)
     }
   }
+  const importedVocabularyCards: PdfVocabularyCard[] = Array.isArray(
+    obj.pdfVocabularyCards
+  )
+    ? obj.pdfVocabularyCards
+        .map((raw) => pdfVocabularyCardSchema.safeParse(raw))
+        .filter((result) => result.success)
+        .map((result) => result.data)
+    : []
   const importedPdfMeta =
     (obj.pdfs as {
       id: string
@@ -565,6 +579,7 @@ export function parseExport(rawJson: string): ParsedExport | { error: string } {
     importedReviews,
     importedAnnotations,
     importedReadLater,
+    importedVocabularyCards,
     importedPdfMeta
   }
 }
@@ -626,6 +641,7 @@ export async function importFromZip(
     importedReviews,
     importedAnnotations,
     importedReadLater,
+    importedVocabularyCards,
     importedPdfMeta
   } = parsed
 
@@ -766,6 +782,9 @@ export async function importFromZip(
 
   // ---- decide which placements survive (their project + content source must exist) ----
   const pdfCardById = new Map(validPdfCards.map((c) => [c.id, c]))
+  const vocabularyCardById = new Map(
+    importedVocabularyCards.map((card) => [card.id, card])
+  )
   const payloadAnnIds = new Set(importedAnnotations.map((a) => a.id))
   const insertablePlacementIds = new Set<string>()
   const cardsToInsert: ProjectCard[] = []
@@ -775,7 +794,7 @@ export async function importFromZip(
       result.skipped++
       continue
     }
-    if (!card.projectId && card.pdfCardId) {
+    if (!card.projectId && (card.pdfCardId || card.pdfVocabularyCardId)) {
       // A placement without a project is dead weight — its quote lives in the
       // pdfCard, which imports as a PDF-only card.
       result.skipped++
@@ -790,6 +809,16 @@ export async function importFromZip(
       const annotationResolves =
         linked?.annotationId && payloadAnnIds.has(linked.annotationId)
       if (!linked || !annotationResolves) {
+        result.skipped++
+        continue
+      }
+    }
+    if (card.pdfVocabularyCardId) {
+      // Both sides of the aggregate↔placement link must agree. Importing only
+      // one side would leave either an empty project card or an unreachable
+      // vocabulary aggregate behind.
+      const linked = vocabularyCardById.get(card.pdfVocabularyCardId)
+      if (!linked || linked.projectCardId !== card.id) {
         result.skipped++
         continue
       }
@@ -809,6 +838,11 @@ export async function importFromZip(
     ) {
       // The placement wasn't restored — the pdfCard stays PDF-only.
       pdfCard.projectCardId = undefined
+    }
+  }
+  for (const vocabularyCard of importedVocabularyCards) {
+    if (pdfIdMap.has(vocabularyCard.pdfId)) {
+      vocabularyCard.pdfId = pdfIdMap.get(vocabularyCard.pdfId)!
     }
   }
 
@@ -845,7 +879,9 @@ export async function importFromZip(
     try {
       const ok = await addProjectCard(
         card,
-        card.pdfCardId ? { skipDedup: true } : undefined
+        card.pdfCardId || card.pdfVocabularyCardId
+          ? { skipDedup: true }
+          : undefined
       )
       if (ok) {
         result.imported++
@@ -856,6 +892,26 @@ export async function importFromZip(
       result.errors.push({
         index: -1,
         reason: `导入异常（${card.type}）: ${(e as Error)?.message ?? e}`
+      })
+      result.skipped++
+    }
+  }
+
+  for (const vocabularyCard of importedVocabularyCards) {
+    const placement = cardsToInsert.find(
+      (card) => card.id === vocabularyCard.projectCardId
+    )
+    if (!placement) {
+      result.skipped++
+      continue
+    }
+    try {
+      await addVocabularyCard(vocabularyCard)
+      result.imported++
+    } catch (error) {
+      result.errors.push({
+        index: -1,
+        reason: `生词卡导入异常: ${(error as Error)?.message ?? error}`
       })
       result.skipped++
     }
