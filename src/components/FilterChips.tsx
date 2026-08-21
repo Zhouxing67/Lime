@@ -7,7 +7,6 @@ interface FilterChipsProps {
   keyword: string
   onKeywordChange: (v: string) => void
   placeholder?: string
-  leading?: ReactNode
   children?: ReactNode
 }
 
@@ -15,7 +14,6 @@ export default function FilterChips({
   keyword,
   onKeywordChange,
   placeholder = "搜索当前项目中的卡片…",
-  leading,
   children
 }: FilterChipsProps) {
   return (
@@ -46,7 +44,6 @@ export default function FilterChips({
             sx={{ borderRadius: 1 }}
           />
         )}
-        {leading}
         {children && <Box sx={{ flexGrow: 1 }} />}
         {children}
       </Stack>

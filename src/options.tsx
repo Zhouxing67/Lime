@@ -5,8 +5,11 @@ import DeleteSweepRoundedIcon from "@mui/icons-material/DeleteSweepRounded"
 import DoneAllRoundedIcon from "@mui/icons-material/DoneAllRounded"
 import DriveFileMoveOutlinedIcon from "@mui/icons-material/DriveFileMoveOutlined"
 import FileCopyOutlinedIcon from "@mui/icons-material/FileCopyOutlined"
+import FileDownloadRoundedIcon from "@mui/icons-material/FileDownloadRounded"
+import FileUploadRoundedIcon from "@mui/icons-material/FileUploadRounded"
 import FolderRoundedIcon from "@mui/icons-material/FolderRounded"
 import MergeTypeRoundedIcon from "@mui/icons-material/MergeTypeRounded"
+import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
 import ViewColumnRoundedIcon from "@mui/icons-material/ViewColumnRounded"
 import {
   alpha,
@@ -2452,6 +2455,96 @@ export default function OptionsPage() {
               </AppHeader>
             )}
 
+            {!cardWorkspace && sidebarTab === "backup" && (
+              <FilterChips
+                keyword={backupKeyword}
+                onKeywordChange={setBackupKeyword}
+                placeholder={
+                  backupScope === "projects" ? "搜索项目…" : "搜索 PDF…"
+                }>
+                <BatchToolbar
+                  selectedCount={
+                    backupScope === "projects"
+                      ? backupSelectedIds.length
+                      : backupSelectedPdfIds.length
+                  }
+                  totalCount={backupVisibleIds.length}
+                  allSelected={
+                    backupVisibleIds.length > 0 &&
+                    backupVisibleIds.every((id) =>
+                      (backupScope === "projects"
+                        ? backupSelectedIds
+                        : backupSelectedPdfIds
+                      ).includes(id)
+                    )
+                  }
+                  countLabel={backupScope === "projects" ? "个项目" : "个 PDF"}
+                  selectAllLabel={
+                    backupKeyword.trim() ? "全选当前结果" : "全选"
+                  }
+                  selectAllIndeterminate={
+                    backupVisibleIds.some((id) =>
+                      (backupScope === "projects"
+                        ? backupSelectedIds
+                        : backupSelectedPdfIds
+                      ).includes(id)
+                    ) &&
+                    !backupVisibleIds.every((id) =>
+                      (backupScope === "projects"
+                        ? backupSelectedIds
+                        : backupSelectedPdfIds
+                      ).includes(id)
+                    )
+                  }
+                  onSelectAll={handleBackupSelectAll}
+                  actions={[
+                    {
+                      label: "导入备份",
+                      icon: (
+                        <FileUploadRoundedIcon sx={{ fontSize: 16, mr: 0.5 }} />
+                      ),
+                      onClick: () => backupFileInputRef.current?.click()
+                    },
+                    {
+                      label:
+                        backupScope === "projects"
+                          ? "切换到 PDF 备份"
+                          : "切换到项目备份",
+                      tooltip:
+                        backupScope === "projects"
+                          ? "切换到 PDF 备份"
+                          : "切换到项目备份",
+                      iconOnly: true,
+                      icon:
+                        backupScope === "projects" ? (
+                          <PictureAsPdfRoundedIcon sx={{ fontSize: 16 }} />
+                        ) : (
+                          <FolderRoundedIcon sx={{ fontSize: 16 }} />
+                        ),
+                      onClick: () =>
+                        setBackupScope(
+                          backupScope === "projects" ? "pdfs" : "projects"
+                        )
+                    },
+                    {
+                      label: "导出备份",
+                      icon: (
+                        <FileDownloadRoundedIcon
+                          sx={{ fontSize: 16, mr: 0.5 }}
+                        />
+                      ),
+                      onClick: handleExportBackup,
+                      disabled:
+                        (backupScope === "projects"
+                          ? backupSelectedIds.length
+                          : backupSelectedPdfIds.length) === 0,
+                      variant: "contained"
+                    }
+                  ]}
+                />
+              </FilterChips>
+            )}
+
             {!cardWorkspace &&
               sidebarTab !== "review" &&
               sidebarTab !== "todo" &&
@@ -2766,16 +2859,10 @@ export default function OptionsPage() {
                 countByProject,
                 countByPdf,
                 keyword: backupKeyword,
-                onKeywordChange: setBackupKeyword,
                 selectedIds:
                   backupScope === "projects"
                     ? backupSelectedIds
                     : backupSelectedPdfIds,
-                visibleIds: backupVisibleIds,
-                onScopeChange: setBackupScope,
-                onImportBackup: () => backupFileInputRef.current?.click(),
-                onSelectAll: handleBackupSelectAll,
-                onExportBackup: handleExportBackup,
                 onToggleSelect: handleBackupToggleSelect
               }}
               todoProps={{

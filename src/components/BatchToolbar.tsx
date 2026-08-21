@@ -2,7 +2,9 @@ import {
   Button,
   Checkbox,
   Divider,
+  IconButton,
   Stack,
+  Tooltip,
   Typography,
   type ButtonOwnProps
 } from "@mui/material"
@@ -16,6 +18,8 @@ export interface BatchAction {
   disabled?: boolean
   variant?: ButtonOwnProps["variant"]
   color?: ButtonOwnProps["color"]
+  iconOnly?: boolean
+  tooltip?: string
 }
 
 interface BatchToolbarProps {
@@ -84,16 +88,36 @@ export default function BatchToolbar({
       {actions.map((btn) => (
         <Fragment key={btn.label}>
           {btn.dividerBefore && <Divider orientation="vertical" flexItem />}
-          <Button
-            size="small"
-            variant={btn.variant ?? "text"}
-            color={btn.color ?? "primary"}
-            sx={{ borderRadius: 1, fontSize: "0.75rem", whiteSpace: "nowrap" }}
-            disabled={btn.disabled}
-            onClick={(e) => btn.onClick(e)}>
-            {btn.icon}
-            {btn.label}
-          </Button>
+          {btn.iconOnly ? (
+            <Tooltip title={btn.tooltip ?? btn.label}>
+              <span>
+                <IconButton
+                  size="small"
+                  color={btn.color ?? "primary"}
+                  aria-label={btn.label}
+                  disabled={btn.disabled}
+                  onClick={(e) => btn.onClick(e)}
+                  sx={{ p: 0.75 }}>
+                  {btn.icon}
+                </IconButton>
+              </span>
+            </Tooltip>
+          ) : (
+            <Button
+              size="small"
+              variant={btn.variant ?? "text"}
+              color={btn.color ?? "primary"}
+              sx={{
+                borderRadius: 1,
+                fontSize: "0.75rem",
+                whiteSpace: "nowrap"
+              }}
+              disabled={btn.disabled}
+              onClick={(e) => btn.onClick(e)}>
+              {btn.icon}
+              {btn.label}
+            </Button>
+          )}
         </Fragment>
       ))}
     </Stack>
