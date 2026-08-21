@@ -1,4 +1,11 @@
-import { Button, Checkbox, Divider, Stack, Typography, type ButtonOwnProps } from "@mui/material"
+import {
+  Button,
+  Checkbox,
+  Divider,
+  Stack,
+  Typography,
+  type ButtonOwnProps
+} from "@mui/material"
 import { Fragment, type ReactElement } from "react"
 
 export interface BatchAction {
@@ -19,6 +26,9 @@ interface BatchToolbarProps {
   onSelectAll?: () => void
   /** Label suffix for the count, e.g. "已选 N 条 / 个项目 / 个 PDF". */
   countLabel?: string
+  totalCount?: number
+  selectAllLabel?: string
+  selectAllIndeterminate?: boolean
   actions: BatchAction[]
 }
 
@@ -27,38 +37,48 @@ export default function BatchToolbar({
   allSelected,
   onSelectAll,
   countLabel = "条",
+  totalCount,
+  selectAllLabel = "全选",
+  selectAllIndeterminate,
   actions
 }: BatchToolbarProps) {
   return (
     <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap">
       {selectedCount !== undefined && (
         <>
+          <Button
+            size="small"
+            variant="text"
+            startIcon={
+              <Checkbox
+                size="small"
+                checked={allSelected}
+                indeterminate={
+                  selectAllIndeterminate ?? (selectedCount > 0 && !allSelected)
+                }
+                tabIndex={-1}
+                sx={{
+                  p: 0,
+                  pointerEvents: "none",
+                  color: "text.disabled",
+                  "&.Mui-checked": { color: "primary.main" },
+                  "&.MuiCheckbox-indeterminate": { color: "primary.main" },
+                  "& .MuiSvgIcon-root": { fontSize: 16 }
+                }}
+              />
+            }
+            disabled={totalCount === 0}
+            sx={{ borderRadius: 1, fontSize: "0.75rem", whiteSpace: "nowrap" }}
+            onClick={onSelectAll}>
+            {allSelected ? "取消全选" : selectAllLabel}
+          </Button>
           <Typography
             variant="body2"
             color="text.secondary"
             sx={{ fontSize: "0.82rem", whiteSpace: "nowrap" }}>
-            已选 {selectedCount} {countLabel}
+            已选择 {selectedCount}
+            {totalCount === undefined ? ` ${countLabel}` : ` / ${totalCount}`}
           </Typography>
-          <Checkbox
-            size="small"
-            checked={allSelected}
-            indeterminate={selectedCount > 0 && !allSelected}
-            onChange={onSelectAll}
-            sx={{
-              p: 0.25,
-              color: "text.disabled",
-              "&.Mui-checked": { color: "error.main" },
-              "&.MuiCheckbox-indeterminate": { color: "error.main" },
-              "& .MuiSvgIcon-root": { fontSize: 16 }
-            }}
-          />
-          <Button
-            size="small"
-            variant="text"
-            sx={{ borderRadius: 1, fontSize: "0.75rem", whiteSpace: "nowrap" }}
-            onClick={onSelectAll}>
-            {allSelected ? "取消全选" : "全选"}
-          </Button>
         </>
       )}
       {actions.map((btn) => (

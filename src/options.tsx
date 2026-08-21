@@ -5,7 +5,6 @@ import DeleteSweepRoundedIcon from "@mui/icons-material/DeleteSweepRounded"
 import DoneAllRoundedIcon from "@mui/icons-material/DoneAllRounded"
 import DriveFileMoveOutlinedIcon from "@mui/icons-material/DriveFileMoveOutlined"
 import FileCopyOutlinedIcon from "@mui/icons-material/FileCopyOutlined"
-import FileDownloadRoundedIcon from "@mui/icons-material/FileDownloadRounded"
 import FolderRoundedIcon from "@mui/icons-material/FolderRounded"
 import MergeTypeRoundedIcon from "@mui/icons-material/MergeTypeRounded"
 import ViewColumnRoundedIcon from "@mui/icons-material/ViewColumnRounded"
@@ -652,6 +651,7 @@ export default function OptionsPage() {
     backupKeyword,
     setBackupKeyword,
     backupSelectedPdfIds,
+    backupVisibleIds,
     handleBackupToggleSelect,
     handleBackupSelectAll
   } = useBackupView({ projects, pdfs })
@@ -2455,57 +2455,15 @@ export default function OptionsPage() {
             {!cardWorkspace &&
               sidebarTab !== "review" &&
               sidebarTab !== "todo" &&
-              sidebarTab !== "pdf" && (
+              sidebarTab !== "pdf" &&
+              sidebarTab !== "backup" && (
                 <FilterChips
-                  keyword={sidebarTab === "backup" ? backupKeyword : keyword}
-                  onKeywordChange={
-                    sidebarTab === "backup" ? setBackupKeyword : setKeyword
-                  }
+                  keyword={keyword}
+                  onKeywordChange={setKeyword}
                   placeholder={
-                    sidebarTab === "backup"
-                      ? backupScope === "projects"
-                        ? "搜索项目…"
-                        : "搜索 PDF…"
-                      : activeProjectId
-                        ? "搜索当前项目中的卡片…"
-                        : "搜索项目…"
+                    activeProjectId ? "搜索当前项目中的卡片…" : "搜索项目…"
                   }>
-                  {sidebarTab === "backup" ? (
-                    <BatchToolbar
-                      selectedCount={
-                        backupScope === "projects"
-                          ? backupSelectedIds.length
-                          : backupSelectedPdfIds.length
-                      }
-                      allSelected={
-                        backupScope === "projects"
-                          ? backupSelectedIds.length > 0 &&
-                            backupSelectedIds.length === projects.length
-                          : backupSelectedPdfIds.length > 0 &&
-                            backupSelectedPdfIds.length === pdfs.length
-                      }
-                      countLabel={
-                        backupScope === "projects" ? "个项目" : "个 PDF"
-                      }
-                      onSelectAll={handleBackupSelectAll}
-                      actions={[
-                        {
-                          label: "导出备份",
-                          icon: (
-                            <FileDownloadRoundedIcon
-                              sx={{ fontSize: 16, mr: 0.5 }}
-                            />
-                          ),
-                          onClick: handleExportBackup,
-                          disabled:
-                            (backupScope === "projects"
-                              ? backupSelectedIds.length
-                              : backupSelectedPdfIds.length) === 0,
-                          variant: "contained"
-                        }
-                      ]}
-                    />
-                  ) : selectMode ? (
+                  {selectMode ? (
                     <BatchToolbar
                       selectedCount={selectedIds.length}
                       allSelected={
@@ -2808,12 +2766,16 @@ export default function OptionsPage() {
                 countByProject,
                 countByPdf,
                 keyword: backupKeyword,
+                onKeywordChange: setBackupKeyword,
                 selectedIds:
                   backupScope === "projects"
                     ? backupSelectedIds
                     : backupSelectedPdfIds,
+                visibleIds: backupVisibleIds,
                 onScopeChange: setBackupScope,
                 onImportBackup: () => backupFileInputRef.current?.click(),
+                onSelectAll: handleBackupSelectAll,
+                onExportBackup: handleExportBackup,
                 onToggleSelect: handleBackupToggleSelect
               }}
               todoProps={{

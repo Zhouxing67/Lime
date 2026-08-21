@@ -1,20 +1,21 @@
 import AddRoundedIcon from "@mui/icons-material/AddRounded"
+import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded"
 import CloudDownloadRoundedIcon from "@mui/icons-material/CloudDownloadRounded"
 import CloudUploadRoundedIcon from "@mui/icons-material/CloudUploadRounded"
-import LinkRoundedIcon from "@mui/icons-material/LinkRounded"
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
-import EditRoundedIcon from "@mui/icons-material/EditRounded"
-import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
-import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded"
 import DriveFileMoveRoundedIcon from "@mui/icons-material/DriveFileMoveRounded"
+import EditRoundedIcon from "@mui/icons-material/EditRounded"
 import FolderRoundedIcon from "@mui/icons-material/FolderRounded"
+import LinkRoundedIcon from "@mui/icons-material/LinkRounded"
+import MoreHorizRoundedIcon from "@mui/icons-material/MoreHorizRounded"
+import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
 import {
   Box,
   Button,
-  IconButton,
   DialogContentText,
   Divider,
   Drawer,
+  IconButton,
   Menu,
   MenuItem,
   Stack,
@@ -23,15 +24,15 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { ReactNode } from "react"
 
-import RenameDialog from "./RenameDialog"
-import type { PdfMetaLite } from "../database"
-import type { ReadLater, TodoFilter, TodoStats } from "../types"
-import type { SidebarTab } from "./NavRail"
-import type { ReadLaterFilter, TodoTab } from "../hooks/useTodoView"
 import { RECENT_TOTAL as RECENT_TOTAL_SHARED } from "../constants"
-import DialogShell from "./DialogShell"
-import Well from "./Well"
+import type { PdfMetaLite } from "../database"
+import type { ReadLaterFilter, TodoTab } from "../hooks/useTodoView"
+import type { ReadLater, TodoFilter, TodoStats } from "../types"
 import { byRecency } from "../utils"
+import DialogShell from "./DialogShell"
+import type { SidebarTab } from "./NavRail"
+import RenameDialog from "./RenameDialog"
+import Well from "./Well"
 
 interface SidebarFiltersProps {
   open: boolean
@@ -342,12 +343,18 @@ function PdfTab({
           }}>
           {t}
         </Typography>
-        <Typography sx={{ fontSize: "0.65rem", color: "text.disabled", flexShrink: 0 }}>
+        <Typography
+          sx={{ fontSize: "0.65rem", color: "text.disabled", flexShrink: 0 }}>
           {count}
         </Typography>
         <Box
           className="topic-ops"
-          sx={{ display: "flex", opacity: 0, transition: "opacity 0.15s", flexShrink: 0 }}>
+          sx={{
+            display: "flex",
+            opacity: 0,
+            transition: "opacity 0.15s",
+            flexShrink: 0
+          }}>
           {onRenameTopic && (
             <IconButton
               size="small"
@@ -356,7 +363,11 @@ function PdfTab({
                 e.stopPropagation()
                 setTopicRename(t)
               }}
-              sx={{ p: 0.25, color: "text.disabled", "&:hover": { color: "primary.main", bgcolor: "transparent" } }}>
+              sx={{
+                p: 0.25,
+                color: "text.disabled",
+                "&:hover": { color: "primary.main", bgcolor: "transparent" }
+              }}>
               <EditRoundedIcon sx={{ fontSize: 14 }} />
             </IconButton>
           )}
@@ -368,7 +379,11 @@ function PdfTab({
                 e.stopPropagation()
                 onDeleteTopic(t)
               }}
-              sx={{ p: 0.25, color: "text.disabled", "&:hover": { color: "error.main", bgcolor: "transparent" } }}>
+              sx={{
+                p: 0.25,
+                color: "text.disabled",
+                "&:hover": { color: "error.main", bgcolor: "transparent" }
+              }}>
               <DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />
             </IconButton>
           )}
@@ -382,143 +397,127 @@ function PdfTab({
 
   return (
     <>
-    <Box sx={{ py: 1 }}>
-      {/* 最近 / 主题 toggle */}
-      <Box
-        sx={{
-          display: "flex",
-          gap: 0.5,
-          mb: 1,
-          p: 0.25,
-          bgcolor: "action.hover",
-          borderRadius: 1
-        }}>
-        {(["recent", "topics"] as const).map((v) => (
-          <Box
-            key={v}
-            onClick={() => switchView(v)}
-            sx={{
-              flex: 1,
-              textAlign: "center",
-              py: 0.5,
-              borderRadius: 1,
-              fontSize: "0.75rem",
-              cursor: "pointer",
-              bgcolor: view === v ? "background.paper" : "transparent",
-              color: view === v ? "primary.main" : "text.secondary",
-              fontWeight: view === v ? 600 : 400
-            }}>
-            {v === "recent" ? "最近" : "主题"}
-          </Box>
-        ))}
-      </Box>
-      {view === "recent" ? (
-        <Well>
-          <Box sx={{ display: "flex", alignItems: "center", mb: 0.5 }}>
-            <SectionLabel>最近</SectionLabel>
-            <Box sx={{ flex: 1 }} />
-            {hiddenCount > 0 && (
-              <Box
-                onClick={() => setShowAll((s) => !s)}
-                sx={{
-                  fontSize: "0.68rem",
-                  color: "text.disabled",
-                  cursor: "pointer",
-                  px: 0.5,
-                  "&:hover": { color: "text.primary" }
-                }}>
-                {showAll ? "收起" : `全部 PDF (${ordered.length})`}
-              </Box>
-            )}
-          </Box>
-          {visible.map((p) => renderPdfRow(p))}
-        </Well>
-      ) : (
-        <Well>
-          <Box sx={{ display: "flex", alignItems: "center", mb: 0.5 }}>
-            <SectionLabel>主题</SectionLabel>
-            <Box sx={{ flex: 1 }} />
-            {onNewTopic && (
-              <IconButton
-                size="small"
-                title="新建主题"
-                onClick={() => setTopicCreate(true)}
-                sx={{ p: 0.25, color: "text.disabled", "&:hover": { color: "primary.main", bgcolor: "transparent" } }}>
-                <AddRoundedIcon sx={{ fontSize: 15 }} />
-              </IconButton>
-            )}
-          </Box>
-          {[...groups.entries()].map(([t, ps]) => (
-            <Box key={t}>
-              {renderTopicHeader(t, ps.length)}
-              {topicOpen[t] && <Box sx={{ pl: 0.5 }}>{ps.map((p) => renderPdfRow(p, true))}</Box>}
+      <Box sx={{ py: 1 }}>
+        {/* 最近 / 主题 toggle */}
+        <Box
+          sx={{
+            display: "flex",
+            gap: 0.5,
+            mb: 1,
+            p: 0.25,
+            bgcolor: "action.hover",
+            borderRadius: 1
+          }}>
+          {(["recent", "topics"] as const).map((v) => (
+            <Box
+              key={v}
+              onClick={() => switchView(v)}
+              sx={{
+                flex: 1,
+                textAlign: "center",
+                py: 0.5,
+                borderRadius: 1,
+                fontSize: "0.75rem",
+                cursor: "pointer",
+                bgcolor: view === v ? "background.paper" : "transparent",
+                color: view === v ? "primary.main" : "text.secondary",
+                fontWeight: view === v ? 600 : 400
+              }}>
+              {v === "recent" ? "最近" : "主题"}
             </Box>
           ))}
-          {unclassified.length > 0 && (
-            <Box>
-              {renderTopicHeader("未分类", unclassified.length)}
-              {topicOpen["未分类"] && (
-                <Box sx={{ pl: 0.5 }}>{unclassified.map((p) => renderPdfRow(p, true))}</Box>
+        </Box>
+        {view === "recent" ? (
+          <Well>
+            <Box sx={{ display: "flex", alignItems: "center", mb: 0.5 }}>
+              <SectionLabel>最近</SectionLabel>
+              <Box sx={{ flex: 1 }} />
+              {hiddenCount > 0 && (
+                <Box
+                  onClick={() => setShowAll((s) => !s)}
+                  sx={{
+                    fontSize: "0.68rem",
+                    color: "text.disabled",
+                    cursor: "pointer",
+                    px: 0.5,
+                    "&:hover": { color: "text.primary" }
+                  }}>
+                  {showAll ? "收起" : `全部 PDF (${ordered.length})`}
+                </Box>
               )}
             </Box>
-          )}
-          {ordered.length === 0 && (
-            <Typography
-              variant="caption"
-              sx={{ color: "text.disabled", display: "block", px: 1, py: 0.5 }}>
-              还没有 PDF
-            </Typography>
-          )}
-        </Well>
-      )}
-      {/* bottom: 打开 PDF (same row style as 新建项目) */}
-      <Well sx={{ p: 0, mt: 0.5, overflow: "hidden" }}>
-        <Stack
-          direction="row"
-          alignItems="center"
-          spacing={1}
-          onClick={onOpenPdfClick}
-          sx={{
-            px: 1.5,
-            py: 0.75,
-            cursor: "pointer",
-            "&:hover": {
-              bgcolor: "action.hover",
-              "& .pdf-open-icon": { color: "primary.main" }
-            }
-          }}>
-          <AddRoundedIcon
-            className="pdf-open-icon"
-            sx={{
-              fontSize: 16,
-              color: "text.secondary",
-              transition: "color 0.15s"
-            }}
-          />
-          <Typography
-            variant="body2"
-            sx={{ fontSize: "0.8rem", color: "text.secondary", flex: 1 }}>
-            打开 PDF
-          </Typography>
-        </Stack>
-        {onOpenUrl && (
+            {visible.map((p) => renderPdfRow(p))}
+          </Well>
+        ) : (
+          <Well>
+            <Box sx={{ display: "flex", alignItems: "center", mb: 0.5 }}>
+              <SectionLabel>主题</SectionLabel>
+              <Box sx={{ flex: 1 }} />
+              {onNewTopic && (
+                <IconButton
+                  size="small"
+                  title="新建主题"
+                  onClick={() => setTopicCreate(true)}
+                  sx={{
+                    p: 0.25,
+                    color: "text.disabled",
+                    "&:hover": { color: "primary.main", bgcolor: "transparent" }
+                  }}>
+                  <AddRoundedIcon sx={{ fontSize: 15 }} />
+                </IconButton>
+              )}
+            </Box>
+            {[...groups.entries()].map(([t, ps]) => (
+              <Box key={t}>
+                {renderTopicHeader(t, ps.length)}
+                {topicOpen[t] && (
+                  <Box sx={{ pl: 0.5 }}>
+                    {ps.map((p) => renderPdfRow(p, true))}
+                  </Box>
+                )}
+              </Box>
+            ))}
+            {unclassified.length > 0 && (
+              <Box>
+                {renderTopicHeader("未分类", unclassified.length)}
+                {topicOpen["未分类"] && (
+                  <Box sx={{ pl: 0.5 }}>
+                    {unclassified.map((p) => renderPdfRow(p, true))}
+                  </Box>
+                )}
+              </Box>
+            )}
+            {ordered.length === 0 && (
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "text.disabled",
+                  display: "block",
+                  px: 1,
+                  py: 0.5
+                }}>
+                还没有 PDF
+              </Typography>
+            )}
+          </Well>
+        )}
+        {/* bottom: 打开 PDF (same row style as 新建项目) */}
+        <Well sx={{ p: 0, mt: 0.5, overflow: "hidden" }}>
           <Stack
             direction="row"
             alignItems="center"
             spacing={1}
-            onClick={onOpenUrl}
+            onClick={onOpenPdfClick}
             sx={{
               px: 1.5,
               py: 0.75,
-              borderTop: "1px solid",
-              borderColor: "divider",
               cursor: "pointer",
               "&:hover": {
                 bgcolor: "action.hover",
                 "& .pdf-open-icon": { color: "primary.main" }
               }
             }}>
-            <LinkRoundedIcon
+            <AddRoundedIcon
               className="pdf-open-icon"
               sx={{
                 fontSize: 16,
@@ -529,52 +528,85 @@ function PdfTab({
             <Typography
               variant="body2"
               sx={{ fontSize: "0.8rem", color: "text.secondary", flex: 1 }}>
-              从 URL 打开
+              打开 PDF
             </Typography>
           </Stack>
-        )}
-      </Well>
-      {/* 移动到主题 menu */}
-      {onMovePdf && (
-        <Menu
-          anchorEl={moveMenu?.anchor}
-          open={Boolean(moveMenu)}
-          onClose={() => setMoveMenu(null)}
-          slotProps={{ paper: { sx: { py: 0.5, borderRadius: 1, minWidth: 160 } } }}>
-          <Typography
-            sx={{
-              fontSize: "0.68rem",
-              color: "text.disabled",
-              px: 1.5,
-              pt: 0.5,
-              pb: 0.25
+          {onOpenUrl && (
+            <Stack
+              direction="row"
+              alignItems="center"
+              spacing={1}
+              onClick={onOpenUrl}
+              sx={{
+                px: 1.5,
+                py: 0.75,
+                borderTop: "1px solid",
+                borderColor: "divider",
+                cursor: "pointer",
+                "&:hover": {
+                  bgcolor: "action.hover",
+                  "& .pdf-open-icon": { color: "primary.main" }
+                }
+              }}>
+              <LinkRoundedIcon
+                className="pdf-open-icon"
+                sx={{
+                  fontSize: 16,
+                  color: "text.secondary",
+                  transition: "color 0.15s"
+                }}
+              />
+              <Typography
+                variant="body2"
+                sx={{ fontSize: "0.8rem", color: "text.secondary", flex: 1 }}>
+                从 URL 打开
+              </Typography>
+            </Stack>
+          )}
+        </Well>
+        {/* 移动到主题 menu */}
+        {onMovePdf && (
+          <Menu
+            anchorEl={moveMenu?.anchor}
+            open={Boolean(moveMenu)}
+            onClose={() => setMoveMenu(null)}
+            slotProps={{
+              paper: { sx: { py: 0.5, borderRadius: 1, minWidth: 160 } }
             }}>
-            移动到主题
-          </Typography>
-          <MenuItem
-            onClick={() => {
-              if (moveMenu) onMovePdf(moveMenu.pdfId, undefined)
-              setMoveMenu(null)
-            }}
-            sx={{ fontSize: "0.8rem", gap: 1 }}>
-            <FolderRoundedIcon sx={{ fontSize: 15 }} />
-            未分类
-          </MenuItem>
-          {topics.map((t) => (
+            <Typography
+              sx={{
+                fontSize: "0.68rem",
+                color: "text.disabled",
+                px: 1.5,
+                pt: 0.5,
+                pb: 0.25
+              }}>
+              移动到主题
+            </Typography>
             <MenuItem
-              key={t}
               onClick={() => {
-                if (moveMenu) onMovePdf(moveMenu.pdfId, t)
+                if (moveMenu) onMovePdf(moveMenu.pdfId, undefined)
                 setMoveMenu(null)
               }}
               sx={{ fontSize: "0.8rem", gap: 1 }}>
               <FolderRoundedIcon sx={{ fontSize: 15 }} />
-              {t}
+              未分类
             </MenuItem>
-          ))}
-        </Menu>
-      )}
-    </Box>
+            {topics.map((t) => (
+              <MenuItem
+                key={t}
+                onClick={() => {
+                  if (moveMenu) onMovePdf(moveMenu.pdfId, t)
+                  setMoveMenu(null)
+                }}
+                sx={{ fontSize: "0.8rem", gap: 1 }}>
+                <FolderRoundedIcon sx={{ fontSize: 15 }} />
+                {t}
+              </MenuItem>
+            ))}
+          </Menu>
+        )}
+      </Box>
       {pdfRename && (
         <RenameDialog
           open
@@ -652,6 +684,7 @@ export default function SidebarFilters({
   onDownloadSync
 }: SidebarFiltersProps) {
   const [forceConfirmOpen, setForceConfirmOpen] = useState(false)
+  const [syncMenuAnchor, setSyncMenuAnchor] = useState<HTMLElement | null>(null)
   const dragRef = useRef<() => void>(null)
 
   useEffect(() => {
@@ -755,7 +788,10 @@ export default function SidebarFilters({
                           </Typography>
                           <Typography
                             variant="caption"
-                            sx={{ fontSize: "0.68rem", color: "text.disabled" }}>
+                            sx={{
+                              fontSize: "0.68rem",
+                              color: "text.disabled"
+                            }}>
                             {item.count} 张
                           </Typography>
                         </Box>
@@ -802,12 +838,26 @@ export default function SidebarFilters({
                 <Button
                   size="small"
                   variant="text"
-                  color="error"
-                  onClick={() => setForceConfirmOpen(true)}
+                  startIcon={<MoreHorizRoundedIcon sx={{ fontSize: 16 }} />}
+                  onClick={(event) => setSyncMenuAnchor(event.currentTarget)}
                   fullWidth
                   sx={{ mt: 1 }}>
-                  强制上传
+                  更多操作
                 </Button>
+                <Menu
+                  anchorEl={syncMenuAnchor}
+                  open={Boolean(syncMenuAnchor)}
+                  onClose={() => setSyncMenuAnchor(null)}
+                  slotProps={{ paper: { sx: { py: 0.5, borderRadius: 1 } } }}>
+                  <MenuItem
+                    onClick={() => {
+                      setSyncMenuAnchor(null)
+                      setForceConfirmOpen(true)
+                    }}
+                    sx={{ color: "error.main", fontSize: "0.8rem" }}>
+                    强制覆盖云端数据…
+                  </MenuItem>
+                </Menu>
               </Well>
 
               <DialogShell
@@ -836,94 +886,96 @@ export default function SidebarFilters({
                     {todoTab === "readLater" ? "稍后读" : "待办项"}
                   </SectionLabel>
                 </Box>
-                {todoTab === "readLater" ? (
-                  (
-                    [
-                      ["active", "进行中", activeReadLater.length],
-                      ["done", "已读", doneReadLater.length]
-                    ] as [ReadLaterFilter, string, number][]
-                  ).map(([key, label, count]) => (
-                    <Box
-                      key={key}
-                      onClick={() => onReadLaterFilterChange(key)}
-                      sx={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        px: 1,
-                        py: 0.5,
-                        borderRadius: 1,
-                        cursor: "pointer",
-                        bgcolor:
-                          readLaterFilter === key
-                            ? "action.selected"
-                            : "transparent",
-                        color:
-                          readLaterFilter === key
-                            ? "primary.main"
-                            : "text.secondary",
-                        "&:hover": { bgcolor: "action.hover" }
-                      }}>
-                      <Typography variant="body2" sx={{ fontSize: "0.8rem" }}>
-                        {label}
-                      </Typography>
-                      <Typography
-                        variant="caption"
+                {todoTab === "readLater"
+                  ? (
+                      [
+                        ["active", "进行中", activeReadLater.length],
+                        ["done", "已读", doneReadLater.length]
+                      ] as [ReadLaterFilter, string, number][]
+                    ).map(([key, label, count]) => (
+                      <Box
+                        key={key}
+                        onClick={() => onReadLaterFilterChange(key)}
                         sx={{
-                          fontSize: "0.7rem",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          px: 1,
+                          py: 0.5,
+                          borderRadius: 1,
+                          cursor: "pointer",
+                          bgcolor:
+                            readLaterFilter === key
+                              ? "action.selected"
+                              : "transparent",
                           color:
                             readLaterFilter === key
                               ? "primary.main"
-                              : "text.disabled"
+                              : "text.secondary",
+                          "&:hover": { bgcolor: "action.hover" }
                         }}>
-                        {count}
-                      </Typography>
-                    </Box>
-                  ))
-                ) : (
-                  (
-                    [
-                      ["all", "全部", todoStats.total],
-                      ["incomplete", "未完成", todoStats.incomplete],
-                      ["completed", "已完成", todoStats.completed],
-                      ["overdue", "已过期", todoStats.overdue],
-                      ["today", "今天到期", todoStats.today]
-                    ] as [TodoFilter, string, number][]
-                  ).map(([key, label, count]) => (
-                    <Box
-                      key={key}
-                      onClick={() => onTodoFilterChange(key)}
-                      sx={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        px: 1,
-                        py: 0.5,
-                        borderRadius: 1,
-                        cursor: "pointer",
-                        bgcolor:
-                          todoFilter === key ? "action.selected" : "transparent",
-                        color:
-                          todoFilter === key ? "primary.main" : "text.secondary",
-                        "&:hover": { bgcolor: "action.hover" }
-                      }}>
-                      <Typography variant="body2" sx={{ fontSize: "0.8rem" }}>
-                        {label}
-                      </Typography>
-                      <Typography
-                        variant="caption"
+                        <Typography variant="body2" sx={{ fontSize: "0.8rem" }}>
+                          {label}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            fontSize: "0.7rem",
+                            color:
+                              readLaterFilter === key
+                                ? "primary.main"
+                                : "text.disabled"
+                          }}>
+                          {count}
+                        </Typography>
+                      </Box>
+                    ))
+                  : (
+                      [
+                        ["all", "全部", todoStats.total],
+                        ["incomplete", "未完成", todoStats.incomplete],
+                        ["completed", "已完成", todoStats.completed],
+                        ["overdue", "已过期", todoStats.overdue],
+                        ["today", "今天到期", todoStats.today]
+                      ] as [TodoFilter, string, number][]
+                    ).map(([key, label, count]) => (
+                      <Box
+                        key={key}
+                        onClick={() => onTodoFilterChange(key)}
                         sx={{
-                          fontSize: "0.7rem",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          px: 1,
+                          py: 0.5,
+                          borderRadius: 1,
+                          cursor: "pointer",
+                          bgcolor:
+                            todoFilter === key
+                              ? "action.selected"
+                              : "transparent",
                           color:
                             todoFilter === key
                               ? "primary.main"
-                              : "text.disabled"
+                              : "text.secondary",
+                          "&:hover": { bgcolor: "action.hover" }
                         }}>
-                        {count}
-                      </Typography>
-                    </Box>
-                  ))
-                )}
+                        <Typography variant="body2" sx={{ fontSize: "0.8rem" }}>
+                          {label}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            fontSize: "0.7rem",
+                            color:
+                              todoFilter === key
+                                ? "primary.main"
+                                : "text.disabled"
+                          }}>
+                          {count}
+                        </Typography>
+                      </Box>
+                    ))}
               </Well>
             </Box>
           ) : sidebarTab === "pdf" ? (

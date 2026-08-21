@@ -19,6 +19,25 @@ export function useBackupView({
   const [backupKeyword, setBackupKeyword] = useState("")
   const [backupSelectedPdfIds, setBackupSelectedPdfIds] = useState<string[]>([])
 
+  const normalizedKeyword = backupKeyword.trim().toLowerCase()
+  const backupVisibleIds =
+    backupScope === "projects"
+      ? projects
+          .filter(
+            (project) =>
+              !normalizedKeyword ||
+              project.name.toLowerCase().includes(normalizedKeyword) ||
+              (project.note ?? "").toLowerCase().includes(normalizedKeyword)
+          )
+          .map((project) => project.id)
+      : pdfs
+          .filter(
+            (pdf) =>
+              !normalizedKeyword ||
+              pdf.name.toLowerCase().includes(normalizedKeyword)
+          )
+          .map((pdf) => pdf.id)
+
   const handleBackupToggleSelect = useCallback(
     (id: string) => {
       if (backupScope === "projects") {
@@ -36,15 +55,27 @@ export function useBackupView({
 
   const handleBackupSelectAll = useCallback(() => {
     if (backupScope === "projects") {
-      setBackupSelectedIds((prev) =>
-        prev.length === projects.length ? [] : projects.map((p) => p.id)
-      )
+      setBackupSelectedIds((prev) => {
+        const visible = new Set(backupVisibleIds)
+        const allVisibleSelected = backupVisibleIds.every((id) =>
+          prev.includes(id)
+        )
+        return allVisibleSelected
+          ? prev.filter((id) => !visible.has(id))
+          : [...new Set([...prev, ...backupVisibleIds])]
+      })
     } else {
-      setBackupSelectedPdfIds((prev) =>
-        prev.length === pdfs.length ? [] : pdfs.map((p) => p.id)
-      )
+      setBackupSelectedPdfIds((prev) => {
+        const visible = new Set(backupVisibleIds)
+        const allVisibleSelected = backupVisibleIds.every((id) =>
+          prev.includes(id)
+        )
+        return allVisibleSelected
+          ? prev.filter((id) => !visible.has(id))
+          : [...new Set([...prev, ...backupVisibleIds])]
+      })
     }
-  }, [backupScope, projects, pdfs])
+  }, [backupScope, backupVisibleIds])
 
   return {
     backupSelectedIds,
@@ -53,6 +84,7 @@ export function useBackupView({
     backupKeyword,
     setBackupKeyword,
     backupSelectedPdfIds,
+    backupVisibleIds,
     handleBackupToggleSelect,
     handleBackupSelectAll
   }
