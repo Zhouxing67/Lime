@@ -1,9 +1,7 @@
 import AddRoundedIcon from "@mui/icons-material/AddRounded"
 import CloudDownloadRoundedIcon from "@mui/icons-material/CloudDownloadRounded"
 import CloudUploadRoundedIcon from "@mui/icons-material/CloudUploadRounded"
-import FileUploadRoundedIcon from "@mui/icons-material/FileUploadRounded"
 import LinkRoundedIcon from "@mui/icons-material/LinkRounded"
-import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded"
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded"
 import EditRoundedIcon from "@mui/icons-material/EditRounded"
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
@@ -67,9 +65,6 @@ interface SidebarFiltersProps {
   onReviewDateClick: (dateKey: string | null) => void
   onWidthChange: (w: number) => void
   onNewProjectClick: () => void
-  backupScope: "projects" | "pdfs"
-  onBackupScopeChange: (scope: "projects" | "pdfs") => void
-  onImportBackup: () => void
   onUploadSync: (force: boolean) => void
   onDownloadSync: () => void
 }
@@ -653,9 +648,6 @@ export default function SidebarFilters({
   onReviewDateClick,
   onWidthChange,
   onNewProjectClick,
-  backupScope,
-  onBackupScopeChange,
-  onImportBackup,
   onUploadSync,
   onDownloadSync
 }: SidebarFiltersProps) {
@@ -777,65 +769,6 @@ export default function SidebarFilters({
             /* Backup & Sync tab content */
             <Box sx={{ py: 1 }}>
               <Well>
-                <Box sx={{ mb: 0.5 }}>
-                  <SectionLabel>本地备份</SectionLabel>
-                </Box>
-                <Box
-                  onClick={() => onBackupScopeChange("projects")}
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 1,
-                    px: 1,
-                    py: 0.5,
-                    borderRadius: 1,
-                    cursor: "pointer",
-                    bgcolor:
-                      backupScope === "projects" ? "action.selected" : "transparent",
-                    color:
-                      backupScope === "projects" ? "primary.main" : "text.secondary",
-                    "&:hover": { bgcolor: "action.hover" }
-                  }}>
-                  <FolderOpenRoundedIcon sx={{ fontSize: 16 }} />
-                  <Typography variant="body2" sx={{ fontSize: "0.8rem", flex: 1 }}>
-                    项目
-                  </Typography>
-                </Box>
-                <Box
-                  onClick={() => onBackupScopeChange("pdfs")}
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 1,
-                    px: 1,
-                    py: 0.5,
-                    borderRadius: 1,
-                    cursor: "pointer",
-                    bgcolor:
-                      backupScope === "pdfs" ? "action.selected" : "transparent",
-                    color:
-                      backupScope === "pdfs" ? "primary.main" : "text.secondary",
-                    "&:hover": { bgcolor: "action.hover" }
-                  }}>
-                  <PictureAsPdfRoundedIcon sx={{ fontSize: 16 }} />
-                  <Typography variant="body2" sx={{ fontSize: "0.8rem", flex: 1 }}>
-                    PDF
-                  </Typography>
-                </Box>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<FileUploadRoundedIcon />}
-                  onClick={onImportBackup}
-                  fullWidth
-                  sx={{ mt: 1 }}>
-                  导入备份
-                </Button>
-              </Well>
-
-              <Box sx={{ height: 1.5 }} />
-
-              <Well>
                 <Box sx={{ mb: 1 }}>
                   <SectionLabel>坚果云同步</SectionLabel>
                 </Box>
@@ -868,8 +801,8 @@ export default function SidebarFilters({
                 </Stack>
                 <Button
                   size="small"
-                  variant="outlined"
-                  startIcon={<CloudUploadRoundedIcon />}
+                  variant="text"
+                  color="error"
                   onClick={() => setForceConfirmOpen(true)}
                   fullWidth
                   sx={{ mt: 1 }}>

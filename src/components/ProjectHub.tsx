@@ -133,22 +133,18 @@ export default function ProjectHub({
                 height: HUB_TILE_HEIGHT,
                 borderRadius: 1,
                 border: "1px solid",
-                borderColor: selectable
+                borderColor: isSelected
                   ? "primary.main"
-                  : isSelected
-                    ? "primary.main"
+                  : selectable
+                    ? "divider"
                     : isVocabulary
                       ? alpha(theme.palette.primary.main, 0.2)
                       : "divider",
                 cursor: "pointer",
                 position: "relative",
                 boxShadow: theme.custom.cardShadow,
-                // Align with ItemCard's selectMode look: uniform primary tint in
-                // selectable mode, paper background otherwise (never transparent).
-                bgcolor: selectable
+                bgcolor: isSelected
                   ? alpha(theme.palette.primary.main, 0.04)
-                  : isSelected
-                    ? alpha(theme.palette.primary.main, 0.04)
                     : isVocabulary
                       ? alpha(theme.palette.primary.main, 0.035)
                       : "background.paper",
@@ -156,7 +152,7 @@ export default function ProjectHub({
                 "&:hover": {
                   boxShadow: theme.custom.cardShadowHover,
                   transform: "translateY(-1px)",
-                  borderColor: selectable
+                  borderColor: isSelected
                     ? "primary.main"
                     : theme.custom.borderStrong,
                   ".hub-delete, .hub-rename": { opacity: 1 }

@@ -2270,9 +2270,6 @@ export default function OptionsPage() {
           onMovePdf={handleMovePdf}
           onWidthChange={(w) => setDrawerWidth(w)}
           onNewProjectClick={() => setCreateDialogOpen(true)}
-          backupScope={backupScope}
-          onBackupScopeChange={setBackupScope}
-          onImportBackup={() => backupFileInputRef.current?.click()}
           onUploadSync={handleUploadSync}
           onDownloadSync={handleDownloadSync}
           recentDates={recentDates}
@@ -2348,7 +2345,9 @@ export default function OptionsPage() {
                       ? activeTab === "todo"
                         ? "待办项"
                         : "稍后读"
-                      : activeProject?.name ?? null
+                      : sidebarTab === "backup"
+                        ? "备份与同步"
+                        : activeProject?.name ?? null
                 }>
                 {sidebarTab === "review" ? (
                   <Tooltip title="退出复习">
@@ -2813,6 +2812,8 @@ export default function OptionsPage() {
                   backupScope === "projects"
                     ? backupSelectedIds
                     : backupSelectedPdfIds,
+                onScopeChange: setBackupScope,
+                onImportBackup: () => backupFileInputRef.current?.click(),
                 onToggleSelect: handleBackupToggleSelect
               }}
               todoProps={{

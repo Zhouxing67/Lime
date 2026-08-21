@@ -553,7 +553,7 @@ export default function PdfHub({
                 display: "flex",
                 flexDirection: "column",
                 border: isPlaceholder ? "1.5px dashed" : "1px solid",
-                borderColor: selectable
+                borderColor: isSelected
                   ? "primary.main"
                   : isPlaceholder
                     ? theme.custom.borderStrong
@@ -563,16 +563,14 @@ export default function PdfHub({
                 cursor: "pointer",
                 position: "relative",
                 boxShadow: theme.custom.cardShadow,
-                bgcolor: selectable
+                bgcolor: isSelected
                   ? alpha(theme.palette.primary.main, 0.04)
-                  : isSelected
-                    ? alpha(theme.palette.primary.main, 0.04)
                     : "background.paper",
                 transition: "all 0.2s ease",
                 "&:hover": {
                   boxShadow: theme.custom.cardShadowHover,
                   transform: "translateY(-1px)",
-                  borderColor: selectable
+                  borderColor: isSelected
                     ? "primary.main"
                     : theme.custom.borderStrong,
                   ".hub-delete": { opacity: 1 }
