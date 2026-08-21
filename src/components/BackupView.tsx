@@ -2,7 +2,7 @@ import FileDownloadRoundedIcon from "@mui/icons-material/FileDownloadRounded"
 import FileUploadRoundedIcon from "@mui/icons-material/FileUploadRounded"
 import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded"
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
-import { Box, Button, Stack, Typography } from "@mui/material"
+import { Box, Button, Stack } from "@mui/material"
 
 import type { PdfMetaLite } from "../database"
 import type { Project } from "../types"
@@ -63,82 +63,72 @@ export default function BackupView({
             : true
         ).length
 
-  const header = (
-    <>
-      <Stack
-        direction={{ xs: "column", sm: "row" }}
-        alignItems={{ xs: "stretch", sm: "center" }}
-        justifyContent="space-between"
-        spacing={2}
-        sx={{ px: 3, mb: 2.5 }}>
-        <Box>
-          <Typography variant="h6" sx={{ fontSize: "1rem", fontWeight: 600 }}>
-            本地备份
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            选择要导出的项目或 PDF，也可以从备份文件恢复数据
-          </Typography>
-        </Box>
-        <Button
-          size="small"
-          variant="outlined"
-          startIcon={<FileUploadRoundedIcon sx={{ fontSize: 16 }} />}
-          onClick={onImportBackup}>
-          导入备份
-        </Button>
-      </Stack>
-      <Stack direction="row" spacing={0.5} sx={{ px: 3, mb: 2 }}>
-        <Button
-          size="small"
-          variant={scope === "projects" ? "contained" : "text"}
-          startIcon={<FolderOpenRoundedIcon sx={{ fontSize: 16 }} />}
-          onClick={() => onScopeChange("projects")}>
-          项目
-        </Button>
-        <Button
-          size="small"
-          variant={scope === "pdfs" ? "contained" : "text"}
-          startIcon={<PictureAsPdfRoundedIcon sx={{ fontSize: 16 }} />}
-          onClick={() => onScopeChange("pdfs")}>
-          PDF
-        </Button>
-      </Stack>
-      <FilterChips
-        keyword={keyword}
-        onKeywordChange={onKeywordChange}
-        placeholder={scope === "projects" ? "搜索项目…" : "搜索 PDF…"}>
-        <BatchToolbar
-          selectedCount={selectedIds.length}
-          totalCount={filteredCount}
-          allSelected={
-            visibleIds.length > 0 &&
-            visibleIds.every((id) => selectedIds.includes(id))
+  const toolbar = (
+    <FilterChips
+      keyword={keyword}
+      onKeywordChange={onKeywordChange}
+      placeholder={scope === "projects" ? "搜索项目…" : "搜索 PDF…"}
+      leading={
+        <Stack direction="row" spacing={0.5}>
+          <Button
+            size="small"
+            variant="text"
+            color={scope === "projects" ? "primary" : "inherit"}
+            startIcon={<FolderOpenRoundedIcon sx={{ fontSize: 16 }} />}
+            sx={{
+              bgcolor: scope === "projects" ? "action.selected" : undefined
+            }}
+            onClick={() => onScopeChange("projects")}>
+            项目
+          </Button>
+          <Button
+            size="small"
+            variant="text"
+            color={scope === "pdfs" ? "primary" : "inherit"}
+            startIcon={<PictureAsPdfRoundedIcon sx={{ fontSize: 16 }} />}
+            sx={{ bgcolor: scope === "pdfs" ? "action.selected" : undefined }}
+            onClick={() => onScopeChange("pdfs")}>
+            PDF
+          </Button>
+        </Stack>
+      }>
+      <BatchToolbar
+        selectedCount={selectedIds.length}
+        totalCount={filteredCount}
+        allSelected={
+          visibleIds.length > 0 &&
+          visibleIds.every((id) => selectedIds.includes(id))
+        }
+        countLabel={scope === "projects" ? "个项目" : "个 PDF"}
+        selectAllLabel={keyword.trim() ? "全选当前结果" : "全选"}
+        selectAllIndeterminate={
+          visibleIds.some((id) => selectedIds.includes(id)) &&
+          !visibleIds.every((id) => selectedIds.includes(id))
+        }
+        onSelectAll={onSelectAll}
+        actions={[
+          {
+            label: "导入",
+            icon: <FileUploadRoundedIcon sx={{ fontSize: 16, mr: 0.5 }} />,
+            onClick: onImportBackup,
+            variant: "text"
+          },
+          {
+            label: "导出备份",
+            icon: <FileDownloadRoundedIcon sx={{ fontSize: 16, mr: 0.5 }} />,
+            onClick: onExportBackup,
+            disabled: selectedIds.length === 0,
+            variant: "contained"
           }
-          countLabel={scope === "projects" ? "个项目" : "个 PDF"}
-          selectAllLabel={keyword.trim() ? "全选当前结果" : "全选"}
-          selectAllIndeterminate={
-            visibleIds.some((id) => selectedIds.includes(id)) &&
-            !visibleIds.every((id) => selectedIds.includes(id))
-          }
-          onSelectAll={onSelectAll}
-          actions={[
-            {
-              label: "导出备份",
-              icon: <FileDownloadRoundedIcon sx={{ fontSize: 16, mr: 0.5 }} />,
-              onClick: onExportBackup,
-              disabled: selectedIds.length === 0,
-              variant: "contained"
-            }
-          ]}
-        />
-      </FilterChips>
-    </>
+        ]}
+      />
+    </FilterChips>
   )
 
   if (filteredCount === 0) {
     return (
-      <Box sx={{ py: 3 }}>
-        {header}
+      <Box>
+        {toolbar}
         <Box sx={{ pt: 3 }}>
           <EmptyState
             icon={
@@ -165,9 +155,9 @@ export default function BackupView({
   }
 
   return (
-    <Box sx={{ py: 3 }}>
-      {header}
-      <Box sx={{ px: 3, maxWidth: 1100 }}>
+    <Box>
+      {toolbar}
+      <Box sx={{ py: 3 }}>
         {scope === "projects" ? (
           <ProjectHub
             projects={projects}
