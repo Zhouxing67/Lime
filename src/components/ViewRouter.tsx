@@ -84,6 +84,7 @@ interface PdfViewRouterProps {
   topics: string[]
   pdfTopicView: PdfTopicView
   onPdfTopicViewChange: (view: PdfTopicView) => void
+  pdfKeyword: string
   pdfs: PdfMetaLite[]
   countByPdf: Record<string, number>
   handleOpenPdf: (id: string) => void
@@ -238,6 +239,7 @@ function PdfViewRouter(props: PdfViewRouterProps) {
     topics,
     pdfTopicView,
     onPdfTopicViewChange,
+    pdfKeyword,
     pdfs,
     countByPdf,
     handleOpenPdf,
@@ -276,6 +278,7 @@ function PdfViewRouter(props: PdfViewRouterProps) {
             onDeletePdf={handleDeletePdf}
             onRenamePdf={onRenamePdf}
             onSaveAiContext={onSavePdfAiContext}
+            keyword={pdfKeyword}
             topicView={pdfTopicView}
             onTopicViewChange={onPdfTopicViewChange}
             topics={topics}
@@ -331,6 +334,7 @@ function PdfViewRouter(props: PdfViewRouterProps) {
           onDeletePdf={handleDeletePdf}
           onRenamePdf={onRenamePdf}
           onSaveAiContext={onSavePdfAiContext}
+          keyword={pdfKeyword}
           topicView={pdfTopicView}
           onTopicViewChange={onPdfTopicViewChange}
           topics={topics}

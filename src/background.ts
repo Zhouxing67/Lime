@@ -7,6 +7,7 @@ import {
   getDueCount,
   getIncompleteTodoCount,
   getRecentProjects,
+  addWebVocabularyEntry,
   listProjects,
   touchProject
 } from "./database"
@@ -396,6 +397,31 @@ chrome.runtime.onMessage.addListener((raw: any, _sender, sendResponse) => {
     }
     case "ai-translate": {
       handleAiTextRequest("translate", msg.payload, sendResponse)
+      return true
+    }
+    case "add-web-vocabulary": {
+      const term = msg.payload.term.normalize("NFKC").trim().replace(/\s+/g, " ")
+      const translation = msg.payload.translation.trim()
+      if (!term || !translation) {
+        sendResponse({ ok: false, error: "生词和翻译不能为空" })
+        return false
+      }
+      addWebVocabularyEntry({
+        term,
+        translation,
+        pageTitle: msg.payload.source.title,
+        url: msg.payload.source.url
+      })
+        .then(({ saved }) => {
+          const text = saved ? "已加入生词项目" : "该网页生词已存在"
+          if (_sender?.tab?.id) {
+            chrome.tabs.sendMessage(_sender.tab.id, { kind: "toast", text }).catch(() => {})
+          }
+          sendResponse({ ok: true, saved })
+        })
+        .catch((error) =>
+          sendResponse({ ok: false, error: (error as Error)?.message ?? "保存生词失败" })
+        )
       return true
     }
     default: {

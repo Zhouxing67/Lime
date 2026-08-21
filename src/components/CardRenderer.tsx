@@ -200,6 +200,7 @@ function pdfSourceLabel(item: DisplayCard): string {
 }
 
 function ContentBlock({ item }: { item: DisplayCard }) {
+  if (item.webVocabularyEntries) return <WebVocabularyBlock item={item} />
   if (item.vocabularyEntries) return <VocabularyBlock item={item} />
   if (item.image || item.type === "image") {
     const src = item.image || item.content
@@ -226,6 +227,38 @@ function ContentBlock({ item }: { item: DisplayCard }) {
     )
   }
   return <PdfQuoteCard text={item.content} />
+}
+
+function WebVocabularyBlock({
+  item,
+  maxEntries,
+  maxHeight
+}: {
+  item: DisplayCard
+  maxEntries?: number
+  maxHeight?: number
+}) {
+  const entries = item.webVocabularyEntries ?? []
+  const visibleEntries = maxEntries ? entries.slice(0, maxEntries) : entries
+  return (
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75, maxHeight, overflowY: maxHeight ? "auto" : undefined, pr: maxHeight ? 0.5 : 0 }}>
+      {visibleEntries.map((entry) => (
+        <Box key={entry.id} sx={{ display: "flex", flexDirection: "column", gap: 0.35, px: 1, py: 0.75, borderRadius: 1, bgcolor: (theme) => alpha(theme.palette.primary.main, 0.06), borderLeft: "2px solid", borderColor: "primary.light" }}>
+          <Typography sx={{ fontSize: "0.82rem", fontWeight: 650 }}>{entry.term}</Typography>
+          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+            {entry.translations.map((translation) => (
+              <Typography key={translation.id} sx={{ fontSize: "0.74rem", lineHeight: 1.45, color: "text.secondary", wordBreak: "break-word" }}>
+                {translation.text}
+              </Typography>
+            ))}
+          </Box>
+        </Box>
+      ))}
+      {visibleEntries.length < entries.length && (
+        <Typography variant="caption" sx={{ color: "text.disabled", textAlign: "center", py: 0.5 }}>另有 {entries.length - visibleEntries.length} 个词条，打开卡片查看全部</Typography>
+      )}
+    </Box>
+  )
 }
 
 function VocabularyBlock({
@@ -409,6 +442,8 @@ export default function CardRenderer({
               }}
             />
           </Box>
+        ) : item.webVocabularyEntries ? (
+          <WebVocabularyBlock item={item} maxEntries={5} />
         ) : item.vocabularyEntries ? (
           <VocabularyBlock
             item={item}
@@ -688,7 +723,14 @@ export default function CardRenderer({
         </Box>
       )}
       {/* 内容 (text) */}
-      {item.type === "text" && item.content && (
+      {item.webVocabularyEntries && (
+        <Box>
+          <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.75rem", letterSpacing: "0.05em", mb: 0.5, display: "block" }}>网页生词</Typography>
+          <WebVocabularyBlock item={item} maxHeight={420} />
+        </Box>
+      )}
+
+      {item.type === "text" && item.content && !item.webVocabularyEntries && (
         <Box>
           <Typography
             variant="caption"

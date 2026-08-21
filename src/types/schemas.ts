@@ -44,6 +44,20 @@ export const srsDataSchema = z.object({
 })
 export type SrsData = z.infer<typeof srsDataSchema>
 
+export const webVocabularyEntrySchema = z.object({
+  id: z.string(),
+  term: z.string(),
+  normalizedTerm: z.string(),
+  translations: z.array(z.object({
+    id: z.string(),
+    text: z.string(),
+    createdAt: z.number()
+  })),
+  createdAt: z.number(),
+  updatedAt: z.number().optional()
+})
+export type WebVocabularyEntry = z.infer<typeof webVocabularyEntrySchema>
+
 export const projectCardSchema = z.object({
   id: z.string(),
   type: projectCardTypeSchema,
@@ -60,6 +74,8 @@ export const projectCardSchema = z.object({
   hash: z.string().optional(),
   pdfCardId: z.string().optional(),
   pdfVocabularyCardId: z.string().optional(),
+  /** One web page = one aggregate card containing many translated terms. */
+  webVocabularyEntries: z.array(webVocabularyEntrySchema).optional(),
   isDraft: z.boolean().optional(),
   draftOf: z.string().optional(),
   createdAt: z.number(),

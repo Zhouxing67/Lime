@@ -1,9 +1,12 @@
 import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded"
+import EditRoundedIcon from "@mui/icons-material/EditRounded"
 import {
   Box,
   Button,
   CircularProgress,
+  IconButton,
   TextField,
+  Tooltip,
   Typography
 } from "@mui/material"
 import { useCallback, useEffect, useRef, useState } from "react"
@@ -45,6 +48,7 @@ export default function AiTranslatePopover({
   const [error, setError] = useState("")
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState("")
+  const [editing, setEditing] = useState(false)
   const requestIdRef = useRef<string | null>(null)
   const startedRef = useRef(false)
 
@@ -86,21 +90,14 @@ export default function AiTranslatePopover({
   return (
     <AiFloatingCard
       anchorEl={anchorEl}
-      title={canAdd ? "AI 翻译 · 生词" : "AI 翻译"}
+      title="即时翻译"
       onClose={close}>
-      <Typography
-        sx={{
-          mb: 1,
-          color: "text.disabled",
-          fontSize: "0.7rem",
-          lineHeight: 1.45,
-          display: "-webkit-box",
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: "vertical",
-          overflow: "hidden"
-        }}>
-        {source}
-      </Typography>
+      <Box sx={{ mb: 1.5 }}>
+        <Typography sx={{ color: "text.secondary", fontSize: "0.7rem", mb: 0.25 }}>原文</Typography>
+        <Typography sx={(theme) => ({ color: "text.secondary", fontFamily: theme.custom.serif, fontSize: "0.75rem", lineHeight: 1.55, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" })}>
+          {source}
+        </Typography>
+      </Box>
       {status === "loading" && (
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, py: 1 }}>
           <CircularProgress size={15} />
@@ -121,34 +118,37 @@ export default function AiTranslatePopover({
       )}
       {status === "success" && (
         <>
-          <TextField
-            label="译文（可编辑）"
-            value={translation}
-            onChange={(event) => setTranslation(event.target.value)}
-            fullWidth
-            multiline
-            minRows={3}
-            maxRows={7}
-            size="small"
-            sx={{ mt: 0.5 }}
-          />
+          <Box>
+            <Typography sx={{ color: "text.secondary", fontSize: "0.7rem", mb: 0.5 }}>译文</Typography>
+            {editing ? (
+              <TextField autoFocus value={translation} onChange={(event) => setTranslation(event.target.value)} fullWidth multiline minRows={2} maxRows={7} size="small" />
+            ) : (
+              <Typography sx={(theme) => ({ fontFamily: theme.custom.serif, fontSize: "0.9rem", lineHeight: 1.75, whiteSpace: "pre-wrap", maxHeight: 190, overflowY: "auto" })}>{translation}</Typography>
+            )}
+          </Box>
           <Box
             sx={{
               display: "flex",
-              justifyContent: "flex-end",
+              justifyContent: "space-between",
               gap: 0.75,
-              mt: 1.25
+              mt: 1.5,
+              pt: 1.25,
+              borderTop: "1px solid",
+              borderColor: "divider"
             }}>
-            <Button
-              size="small"
-              startIcon={<ContentCopyRoundedIcon sx={{ fontSize: 14 }} />}
-              onClick={() => void navigator.clipboard.writeText(translation)}>
-              复制译文
-            </Button>
-            {canAdd && (
+            <Box sx={{ display: "flex", gap: 0.35 }}>
+              <Tooltip title="复制译文">
+                <IconButton size="small" onClick={() => void navigator.clipboard.writeText(translation)} sx={{ p: 0.75 }}><ContentCopyRoundedIcon sx={{ fontSize: 16 }} /></IconButton>
+              </Tooltip>
+              <Tooltip title={editing ? "完成编辑" : "编辑译文"}>
+                <IconButton size="small" onClick={() => setEditing((value) => !value)} sx={{ p: 0.75 }}><EditRoundedIcon sx={{ fontSize: 16 }} /></IconButton>
+              </Tooltip>
+            </Box>
+            <Box sx={{ display: "flex", gap: 0.65 }}>
+              {canAdd && (
               <Button
                 size="small"
-                variant="contained"
+                variant={onAddAnnotation ? "text" : "contained"}
                 disabled={saving}
                 onClick={async () => {
                   if (!onAddVocabulary) return
@@ -163,10 +163,10 @@ export default function AiTranslatePopover({
                     setSaving(false)
                   }
                 }}>
-                {saving ? "加入中…" : "加入生词卡"}
+                {saving ? "加入中…" : "加入生词"}
               </Button>
-            )}
-            {onAddAnnotation && (
+              )}
+              {onAddAnnotation && (
               <Button
                 size="small"
                 variant="contained"
@@ -177,7 +177,8 @@ export default function AiTranslatePopover({
                 }}>
                 生成高亮批注
               </Button>
-            )}
+              )}
+            </Box>
           </Box>
           {saveError && (
             <Typography

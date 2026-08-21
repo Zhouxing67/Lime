@@ -231,7 +231,7 @@ function CardGrid({
               </Box>
             )
           })}
-          {!selectMode && ci === items.length % cols && onNewCard && items.length > 0 && (
+          {!selectMode && ci === items.length % cols && onNewCard && items.length >= 0 && (
             <DashedTile
               icon={<AddRoundedIcon sx={{ fontSize: 20 }} />}
               label="新建卡片"

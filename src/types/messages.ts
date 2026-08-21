@@ -92,6 +92,18 @@ export interface AiTranslateMessage {
   }
 }
 
+/** Save a translated web selection as a normal card in the vocabulary system
+ * project. The background owns the write because content scripts have a
+ * different IndexedDB origin. */
+export interface AddWebVocabularyMessage {
+  kind: "add-web-vocabulary"
+  payload: {
+    term: string
+    translation: string
+    source: SourceMeta
+  }
+}
+
 export interface AiCancelMessage {
   kind: "ai-cancel"
   requestId: string
@@ -115,6 +127,7 @@ export type ExtensionMessage =
   | ReadLaterMessage
   | AiInterpretMessage
   | AiTranslateMessage
+  | AddWebVocabularyMessage
   | AiCancelMessage
   | AiTestMessage
 

@@ -39,6 +39,7 @@ export default function AiInterpretDialog({
   const [result, setResult] = useState("")
   const [error, setError] = useState("")
   const [confirmRegenerate, setConfirmRegenerate] = useState(false)
+  const [editing, setEditing] = useState(false)
   const startedRef = useRef(false)
   const generatedResultRef = useRef("")
 
@@ -92,19 +93,12 @@ export default function AiInterpretDialog({
       title="AI 解读"
       onClose={close}
       width={420}>
-      <Typography
-        sx={{
-          mb: 1,
-          color: "text.disabled",
-          fontSize: "0.7rem",
-          lineHeight: 1.45,
-          display: "-webkit-box",
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: "vertical",
-          overflow: "hidden"
-        }}>
-        {range.toString().trim()}
-      </Typography>
+      <Box sx={{ mb: 1.5 }}>
+        <Typography sx={{ color: "text.secondary", fontSize: "0.7rem", mb: 0.25 }}>原文</Typography>
+        <Typography sx={(theme) => ({ color: "text.secondary", fontFamily: theme.custom.serif, fontSize: "0.75rem", lineHeight: 1.55, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" })}>
+          {range.toString().trim()}
+        </Typography>
+      </Box>
       {status === "loading" && (
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, py: 1 }}>
           <CircularProgress size={15} />
@@ -128,17 +122,14 @@ export default function AiInterpretDialog({
       )}
       {status === "success" && (
         <>
-          <TextField
-            label="AI 解读（可编辑）"
-            value={result}
-            onChange={(event) => setResult(event.target.value)}
-            fullWidth
-            multiline
-            minRows={5}
-            maxRows={10}
-            size="small"
-            sx={{ mt: 0.5 }}
-          />
+          <Box>
+            <Typography sx={{ color: "text.secondary", fontSize: "0.7rem", mb: 0.5 }}>AI 解读</Typography>
+            {editing ? (
+              <TextField autoFocus value={result} onChange={(event) => setResult(event.target.value)} fullWidth multiline minRows={4} maxRows={10} size="small" />
+            ) : (
+              <Typography sx={(theme) => ({ fontFamily: theme.custom.serif, fontSize: "0.9rem", lineHeight: 1.75, whiteSpace: "pre-wrap", maxHeight: 300, overflowY: "auto" })}>{result}</Typography>
+            )}
+          </Box>
           {confirmRegenerate && (
             <Typography
               sx={{ color: "warning.main", fontSize: "0.72rem", mt: 1 }}>
@@ -148,13 +139,16 @@ export default function AiInterpretDialog({
           <Box
             sx={{
               display: "flex",
-              justifyContent: "flex-end",
+              justifyContent: "space-between",
               gap: 0.75,
-              mt: 1.25
+              mt: 1.5,
+              pt: 1.25,
+              borderTop: "1px solid",
+              borderColor: "divider"
             }}>
-            <Button
-              size="small"
-              onClick={() => {
+            <Box sx={{ display: "flex", gap: 0.25 }}>
+              <Button size="small" color="inherit" onClick={() => setEditing((value) => !value)}>{editing ? "完成编辑" : "编辑"}</Button>
+              <Button size="small" color="inherit" onClick={() => {
                 if (
                   result !== generatedResultRef.current &&
                   !confirmRegenerate
@@ -164,8 +158,9 @@ export default function AiInterpretDialog({
                   void run()
                 }
               }}>
-              {confirmRegenerate ? "覆盖并重新生成" : "重新生成"}
-            </Button>
+                {confirmRegenerate ? "覆盖并重新生成" : "重新生成"}
+              </Button>
+            </Box>
             <Button
               size="small"
               variant="contained"

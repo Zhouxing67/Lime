@@ -172,6 +172,13 @@ export default function PdfHub({
     else unclassified++
   }
 
+  const normalizedKeyword = keyword.trim().toLowerCase()
+  const shownTopics = normalizedKeyword
+    ? topics.filter((topic) => topic.toLowerCase().includes(normalizedKeyword))
+    : topics
+  const showAllTopic = "全部 pdf".includes(normalizedKeyword)
+  const showUnclassifiedTopic = "未分类".includes(normalizedKeyword)
+
   const shownPdfs = [...pdfs]
     .sort(
       byRecency(
@@ -180,10 +187,11 @@ export default function PdfHub({
       )
     )
     .filter((p) => {
-      if (keyword.trim()) {
-        if (!p.name.toLowerCase().includes(keyword.trim().toLowerCase()))
-          return false
-      }
+      if (
+        normalizedKeyword &&
+        !p.name.toLowerCase().includes(normalizedKeyword)
+      )
+        return false
       // Backup (selectable) mode shows ALL PDFs — the topic layer is a PDF-view
       // navigation only and its topicView ("topics") would filter everything out.
       if (selectable) return true
@@ -301,26 +309,28 @@ export default function PdfHub({
             height={HUB_TILE_HEIGHT}
           />
         )}
-        <Paper elevation={0} onClick={() => setTopicView("all")} sx={tileSx}>
-          <Stack direction="row" spacing={1.5} alignItems="center">
-            <TileAvatar
-              name="全部 PDF"
-              icon={<PictureAsPdfRoundedIcon sx={{ fontSize: 18 }} />}
-            />
-            <Typography
-              variant="body2"
-              sx={{
-                fontWeight: 600,
-                fontSize: "0.95rem",
-                fontFamily: (t: Theme) => t.custom.serif
-              }}>
-              全部 PDF
-            </Typography>
-          </Stack>
-          <TileFooter left={`${pdfs.length} 篇`} />
-        </Paper>
+        {showAllTopic && (
+          <Paper elevation={0} onClick={() => setTopicView("all")} sx={tileSx}>
+            <Stack direction="row" spacing={1.5} alignItems="center">
+              <TileAvatar
+                name="全部 PDF"
+                icon={<PictureAsPdfRoundedIcon sx={{ fontSize: 18 }} />}
+              />
+              <Typography
+                variant="body2"
+                sx={{
+                  fontWeight: 600,
+                  fontSize: "0.95rem",
+                  fontFamily: (t: Theme) => t.custom.serif
+                }}>
+                全部 PDF
+              </Typography>
+            </Stack>
+            <TileFooter left={`${pdfs.length} 篇`} />
+          </Paper>
+        )}
 
-        {topics.map((t) => (
+        {shownTopics.map((t) => (
           <Paper
             key={t}
             elevation={0}
@@ -389,27 +399,29 @@ export default function PdfHub({
           </Paper>
         ))}
 
-        <Paper
-          elevation={0}
-          onClick={() => setTopicView(PDF_UNCLASSIFIED_TOPIC)}
-          sx={tileSx}>
-          <Stack direction="row" spacing={1.5} alignItems="center">
-            <TileAvatar
-              name="未分类"
-              icon={<FolderRoundedIcon sx={{ fontSize: 18 }} />}
-            />
-            <Typography
-              variant="body2"
-              sx={{
-                fontWeight: 600,
-                fontSize: "0.95rem",
-                fontFamily: (t: Theme) => t.custom.serif
-              }}>
-              未分类
-            </Typography>
-          </Stack>
-          <TileFooter left={`${unclassified} 篇`} />
-        </Paper>
+        {showUnclassifiedTopic && (
+          <Paper
+            elevation={0}
+            onClick={() => setTopicView(PDF_UNCLASSIFIED_TOPIC)}
+            sx={tileSx}>
+            <Stack direction="row" spacing={1.5} alignItems="center">
+              <TileAvatar
+                name="未分类"
+                icon={<FolderRoundedIcon sx={{ fontSize: 18 }} />}
+              />
+              <Typography
+                variant="body2"
+                sx={{
+                  fontWeight: 600,
+                  fontSize: "0.95rem",
+                  fontFamily: (t: Theme) => t.custom.serif
+                }}>
+                未分类
+              </Typography>
+            </Stack>
+            <TileFooter left={`${unclassified} 篇`} />
+          </Paper>
+        )}
 
       </Box>
       {topicRename && (

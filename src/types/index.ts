@@ -27,6 +27,7 @@ export type {
   PdfMeta,
   PdfVocabularyCard,
   VocabularyEntry,
+  WebVocabularyEntry,
   VocabularyOccurrence,
   VocabularyTranslation,
   TodoCard,

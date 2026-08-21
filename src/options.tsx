@@ -161,6 +161,11 @@ export default function OptionsPage() {
   const [pdfCardsOpen, setPdfCardsOpen] = useState(true)
   const [pdfCardsWidth, setPdfCardsWidth] = useState(320)
   const [pdfHubTopicView, setPdfHubTopicView] = useState<PdfTopicView>("topics")
+  const [pdfHubKeyword, setPdfHubKeyword] = useState("")
+  const handlePdfHubTopicViewChange = useCallback((view: PdfTopicView) => {
+    setPdfHubTopicView(view)
+    setPdfHubKeyword("")
+  }, [])
   // While a right-panel drag is in flight, the panel floats FIXED at its normal
   // spot (right edge, full height) instead of squeezing the PDF — the PDF
   // container size stays frozen, so no per-frame re-render (deferred dock).
@@ -2575,24 +2580,18 @@ export default function OptionsPage() {
               )}
           </Box>
 
-          {sidebarTab === "pdf" && !activePdfId && pdfBatchMode && (
-            <Box
-              sx={{
-                bgcolor: "background.paper",
-                py: 1,
-                px: 2,
-                borderBottom: "1px solid",
-                borderColor: "divider"
-              }}>
-              {/* FilterChips-style toolbar: a flexGrow spacer pushes the batch
-               *  controls to the RIGHT side of the row. */}
-              <Stack
-                direction="row"
-                spacing={1}
-                alignItems="center"
-                flexWrap="wrap"
-                useFlexGap>
-                <Box sx={{ flexGrow: 1 }} />
+          {sidebarTab === "pdf" && !activePdfId && (
+            <FilterChips
+              keyword={pdfHubKeyword}
+              onKeywordChange={setPdfHubKeyword}
+              placeholder={
+                pdfBatchMode
+                  ? "搜索 PDF…"
+                  : pdfHubTopicView === "topics"
+                    ? "搜索主题…"
+                    : "搜索当前主题中的 PDF…"
+              }>
+              {pdfBatchMode ? (
                 <BatchToolbar
                   selectedCount={pdfBatchSelectedIds.length}
                   allSelected={
@@ -2628,8 +2627,8 @@ export default function OptionsPage() {
                     }
                   ]}
                 />
-              </Stack>
-            </Box>
+              ) : null}
+            </FilterChips>
           )}
 
           {sidebarTab === "review" && reviewView.reviewDateFilter && (
@@ -2774,7 +2773,8 @@ export default function OptionsPage() {
                 jumpRequest,
                 topics,
                 pdfTopicView: pdfHubTopicView,
-                onPdfTopicViewChange: setPdfHubTopicView,
+                onPdfTopicViewChange: handlePdfHubTopicViewChange,
+                pdfKeyword: pdfHubKeyword,
                 pdfs,
                 countByPdf,
                 handleOpenPdf,

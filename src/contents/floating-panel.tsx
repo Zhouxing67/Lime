@@ -7,6 +7,7 @@ import BookmarkAddRoundedIcon from "@mui/icons-material/BookmarkAddRounded"
 import DashboardCustomizeRoundedIcon from "@mui/icons-material/DashboardCustomizeRounded"
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded"
 import VisibilityOffRoundedIcon from "@mui/icons-material/VisibilityOffRounded"
+import TranslateRoundedIcon from "@mui/icons-material/TranslateRounded"
 
 import CaptureSidebar from "../components/CaptureSidebar"
 import type { PanelData } from "../components/FloatingPanel"
@@ -48,6 +49,18 @@ function LimeFloatBall({
   const [pdfSaveState, setPdfSaveState] = useState<
     "idle" | "saving" | "saved" | "error"
   >("idle")
+  const [translateOpen, setTranslateOpen] = useState(false)
+  const [translateRect, setTranslateRect] = useState<DOMRect | null>(null)
+  const [translateSource, setTranslateSource] = useState("")
+  const [translation, setTranslation] = useState("")
+  const [translationEditing, setTranslationEditing] = useState(false)
+  const [translateState, setTranslateState] = useState<"idle" | "loading" | "success" | "error">("idle")
+  const [translateError, setTranslateError] = useState("")
+  const [savingVocabulary, setSavingVocabulary] = useState(false)
+  const translateRequestRef = useRef<string | null>(null)
+  const translateCardRef = useRef<HTMLDivElement | null>(null)
+  const [translateOffset, setTranslateOffset] = useState({ x: 0, y: 0 })
+  const translateDragRef = useRef<{ pointerId: number; x: number; y: number; originX: number; originY: number } | null>(null)
   const [pos, setPos] = useState<{ right: number; bottom: number } | null>(null)
   const dragRef = useRef<{
     startX: number
@@ -68,6 +81,96 @@ function LimeFloatBall({
   const canSavePdf =
     document.contentType === "application/pdf" ||
     /\.pdf(?:\?|#|$)/i.test(location.href)
+
+  const closeTranslate = useCallback(() => {
+    const requestId = translateRequestRef.current
+    translateRequestRef.current = null
+    if (requestId && translateState === "loading") {
+      void sendMessage({ kind: "ai-cancel", requestId })
+    }
+    setTranslateOpen(false)
+  }, [translateState])
+
+  useEffect(() => {
+    if (!translateOpen) return
+    const closeOnScroll = (event: Event) => {
+      if (
+        translateCardRef.current &&
+        event.composedPath().includes(translateCardRef.current)
+      )
+        return
+      closeTranslate()
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeTranslate()
+    }
+    window.addEventListener("scroll", closeOnScroll, true)
+    document.addEventListener("keydown", closeOnEscape)
+    return () => {
+      window.removeEventListener("scroll", closeOnScroll, true)
+      document.removeEventListener("keydown", closeOnEscape)
+    }
+  }, [closeTranslate, translateOpen])
+
+  useEffect(() => {
+    if (!translateOpen) return
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (
+        !translateCardRef.current ||
+        !event.composedPath().includes(translateCardRef.current)
+      ) {
+        closeTranslate()
+      }
+    }
+    document.addEventListener("pointerdown", closeOnOutsidePointer, true)
+    return () =>
+      document.removeEventListener("pointerdown", closeOnOutsidePointer, true)
+  }, [closeTranslate, translateOpen])
+
+  const runTranslation = async (source = translateSource) => {
+    const requestId = crypto.randomUUID()
+    translateRequestRef.current = requestId
+    setTranslateState("loading")
+    setTranslateError("")
+    try {
+      const result = await sendMessage<{ ok: boolean; text?: string; error?: string; cancelled?: boolean }>(
+        { kind: "ai-translate", payload: { requestId, text: source } },
+        120_000
+      )
+      if (translateRequestRef.current !== requestId) return
+      if (!result.ok || !result.text) throw new Error(result.error ?? "翻译失败")
+      setTranslation(result.text)
+      setTranslateState("success")
+    } catch (error) {
+      if (translateRequestRef.current !== requestId) return
+      setTranslateError((error as Error)?.message ?? "AI 服务连接失败")
+      setTranslateState("error")
+    }
+  }
+
+  const openTranslation = () => {
+    const selection = window.getSelection()
+    const source = selection?.toString().trim() ?? ""
+    const rect = selection && selection.rangeCount > 0
+      ? selection.getRangeAt(0).getBoundingClientRect()
+      : null
+    setAnchor(null)
+    if (!source) {
+      pageToast("请先在网页中选中文字")
+      return
+    }
+    if (source.length > 10000) {
+      pageToast("选中内容过长（最多 10000 字符）")
+      return
+    }
+    setTranslateSource(source)
+    setTranslateRect(rect)
+    setTranslation("")
+    setTranslationEditing(false)
+    setTranslateOffset({ x: 0, y: 0 })
+    setTranslateOpen(true)
+    void runTranslation(source)
+  }
 
   const saveCurrentPdf = async () => {
     if (!canSavePdf || pdfSaveState === "saving") return
@@ -144,6 +247,19 @@ function LimeFloatBall({
 
   const right = pos?.right ?? 20
   const bottom = pos?.bottom ?? 20
+  const translateWidth = Math.min(380, window.innerWidth - 24)
+  const translateLeft = translateRect
+    ? Math.max(
+        12,
+        Math.min(
+          window.innerWidth - translateWidth - 12,
+          translateRect.left + translateRect.width / 2 - translateWidth / 2
+        )
+      )
+    : 12
+  const translateBelow = Boolean(
+    translateRect && translateRect.bottom + 280 < window.innerHeight
+  )
 
   return (
     <>
@@ -238,6 +354,10 @@ function LimeFloatBall({
           <TextFieldsRoundedIcon sx={{ fontSize: 16 }} />
           捕获选中内容
         </MenuItem>
+        <MenuItem sx={{ fontSize: "0.85rem", gap: 1 }} onClick={openTranslation}>
+          <TranslateRoundedIcon sx={{ fontSize: 16 }} />
+          翻译选中内容
+        </MenuItem>
         <MenuItem
           sx={{ fontSize: "0.85rem", gap: 1 }}
           onClick={() => {
@@ -285,6 +405,108 @@ function LimeFloatBall({
           隐藏此页面悬浮球
         </MenuItem>
       </Menu>
+      {translateOpen && translateRect && (
+          <div
+            ref={translateCardRef}
+            data-lime-translate-card
+            role="dialog"
+            aria-label="网页翻译"
+            style={{
+              position: "fixed",
+              zIndex: 2147483647,
+              width: translateWidth,
+              left: translateLeft,
+              ...(translateBelow
+                ? { top: Math.max(12, translateRect.bottom + 10) }
+                : {
+                    bottom: Math.max(
+                      12,
+                      window.innerHeight - translateRect.top + 10
+                    )
+                  }),
+              boxSizing: "border-box",
+              borderRadius: 8,
+              border: "1px solid rgba(45,52,54,0.12)",
+              background: "#ffffff",
+              color: "#2d3436",
+              boxShadow: "0 14px 38px rgba(15,23,42,0.16)",
+              font: "13px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif",
+              overflow: "hidden",
+              transform: `translate(${translateOffset.x}px, ${translateOffset.y}px)`
+            }}>
+            <div
+              onPointerDown={(event) => {
+                if (event.button !== 0) return
+                event.currentTarget.setPointerCapture(event.pointerId)
+                translateDragRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, originX: translateOffset.x, originY: translateOffset.y }
+              }}
+              onPointerMove={(event) => {
+                const drag = translateDragRef.current
+                if (!drag || drag.pointerId !== event.pointerId) return
+                setTranslateOffset({ x: drag.originX + event.clientX - drag.x, y: drag.originY + event.clientY - drag.y })
+              }}
+              onPointerUp={() => { translateDragRef.current = null }}
+              onPointerCancel={() => { translateDragRef.current = null }}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", cursor: "grab", touchAction: "none", userSelect: "none" }}>
+              <strong style={{ flex: 1, fontSize: 12, fontWeight: 600 }}>即时翻译</strong>
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{ color: "#a0a4a8" }}><circle cx="9" cy="6" r="1.5" /><circle cx="15" cy="6" r="1.5" /><circle cx="9" cy="12" r="1.5" /><circle cx="15" cy="12" r="1.5" /><circle cx="9" cy="18" r="1.5" /><circle cx="15" cy="18" r="1.5" /></svg>
+              <button onPointerDown={(event) => event.stopPropagation()} onClick={closeTranslate} aria-label="关闭翻译" style={{ width: 28, height: 28, display: "grid", placeItems: "center", border: 0, borderRadius: 8, background: "transparent", color: "#7b8186", cursor: "pointer", padding: 0 }}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 6l12 12M18 6L6 18" /></svg></button>
+            </div>
+            <div style={{ height: 1, margin: "0 8px", background: "rgba(45,52,54,0.08)" }} />
+            <div style={{ padding: 12 }}>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ color: "#686f73", fontSize: 11, marginBottom: 2 }}>原文</div>
+              <div style={{ color: "#686f73", font: "12px/1.55 Georgia,'Songti SC','Noto Serif CJK SC',serif", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{translateSource}</div>
+            </div>
+          {translateState === "loading" && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "14px 4px", color: "#686f73" }}><span style={{ color: "#4f46e5" }}>●</span>正在翻译…</div>
+          )}
+          {translateState === "error" && (
+            <div style={{ padding: "8px 0", color: "#dc2626" }}>{translateError}<br /><button onClick={() => void runTranslation()} style={{ marginTop: 6, border: "1px solid #d8dcdf", borderRadius: 7, background: "#fff", padding: "5px 10px", cursor: "pointer" }}>重试</button></div>
+          )}
+          {translateState === "success" && (
+            translationEditing ? (
+              <textarea autoFocus value={translation} onChange={(event) => setTranslation(event.target.value)} rows={4} style={{ width: "100%", boxSizing: "border-box", resize: "vertical", border: "1px solid rgba(79,70,229,0.35)", borderRadius: 8, padding: "9px 10px", outline: "none", font: "inherit", color: "#2d3436", background: "#fafafa" }} />
+            ) : (
+              <div><div style={{ color: "#686f73", fontSize: 11, marginBottom: 4 }}>译文</div><div style={{ font: "14px/1.75 Georgia,'Songti SC','Noto Serif CJK SC',serif", whiteSpace: "pre-wrap", maxHeight: 190, overflowY: "auto" }}>{translation}</div></div>
+            )
+          )}
+          <div style={{ height: 1, margin: "12px 0 10px", background: "rgba(45,52,54,0.08)" }} />
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          <div style={{ display: "flex", gap: 5 }}>
+          <button disabled={translateState !== "success" || !translation.trim()} onClick={() => void navigator.clipboard.writeText(translation)} style={{ border: 0, background: "transparent", color: "#596166", padding: "6px 8px", cursor: "pointer", font: "inherit" }}>复制</button>
+          <button disabled={translateState !== "success"} onClick={() => setTranslationEditing((value) => !value)} style={{ border: 0, background: "transparent", color: "#596166", padding: "6px 8px", cursor: "pointer", font: "inherit" }}>{translationEditing ? "完成" : "编辑"}</button>
+          </div>
+          <button
+            disabled={translateState !== "success" || !translation.trim() || savingVocabulary}
+            onClick={async () => {
+              setSavingVocabulary(true)
+              try {
+                const result = await sendMessage<{ ok: boolean; error?: string }>({
+                  kind: "add-web-vocabulary",
+                  payload: {
+                    term: translateSource,
+                    translation,
+                    source: { title: document.title, url: location.href }
+                  }
+                })
+                if (!result.ok) throw new Error(result.error ?? "保存生词失败")
+                closeTranslate()
+              } catch (error) {
+                setTranslateError((error as Error)?.message ?? "保存生词失败")
+              } finally {
+                setSavingVocabulary(false)
+              }
+            }} style={{ border: 0, borderRadius: 8, background: "#4f46e5", color: "#fff", padding: "7px 13px", cursor: "pointer", font: "inherit", fontWeight: 600 }}>
+            {savingVocabulary ? "加入中…" : "加入生词"}
+          </button>
+          </div>
+          {translateError && translateState === "success" && (
+            <div style={{ color: "#dc2626", fontSize: 11, marginTop: 6 }}>{translateError}</div>
+          )}
+          </div>
+          </div>
+      )}
     </>
   )
 }

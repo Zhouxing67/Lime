@@ -3,13 +3,91 @@ import type {
   Project,
   ProjectCard,
   VocabularyEntry,
-  VocabularyOccurrence
+  VocabularyOccurrence,
+  WebVocabularyEntry
 } from "../types"
 import { collectAll, tx, withStore } from "./core"
 import { buildProjectCard } from "./projectCards"
 
 export const VOCABULARY_PROJECT_ID = "lime-system-vocabulary"
 export const VOCABULARY_PROJECT_NAME = "生词"
+
+export interface AddWebVocabularyInput {
+  term: string
+  translation: string
+  pageTitle: string
+  url: string
+}
+
+/** Aggregate web vocabulary by canonical page URL. Each page owns one project
+ * card, mirroring the one-PDF-one-card model without coupling web records to
+ * PDF geometry or the pdfVocabularyCards store. */
+export async function addWebVocabularyEntry(input: AddWebVocabularyInput): Promise<{
+  saved: boolean
+  card: ProjectCard
+}> {
+  const term = input.term.normalize("NFKC").trim().replace(/\s+/g, " ")
+  const translation = input.translation.trim()
+  if (!term || !translation) throw new Error("生词和翻译不能为空")
+  const normalizedTerm = normalizeVocabularyTerm(term)
+  const canonicalUrl = input.url.split("#")[0]
+  const now = Date.now()
+
+  return tx(
+    { projects: "readwrite", projectCards: "readwrite" },
+    async (stores) => {
+      const project = await ensureVocabularyProjectInStore(stores.projects)
+      const cards = await collectAll<ProjectCard>(stores.projectCards)
+      let card = cards.find(
+        (item) =>
+          item.projectId === project.id &&
+          item.source?.url.split("#")[0] === canonicalUrl &&
+          item.webVocabularyEntries
+      )
+      if (!card) {
+        card = buildProjectCard({
+          type: "text",
+          title: input.pageTitle || new URL(canonicalUrl).hostname,
+          content: "",
+          source: { title: input.pageTitle, url: canonicalUrl },
+          projectId: project.id
+        })
+        card.webVocabularyEntries = []
+      }
+
+      const entries = [...(card.webVocabularyEntries ?? [])]
+      const entryIndex = entries.findIndex(
+        (entry) => entry.normalizedTerm === normalizedTerm
+      )
+      const existing = entryIndex >= 0 ? entries[entryIndex] : undefined
+      const duplicate = Boolean(
+        existing?.translations.some(
+          (item) => item.text.normalize("NFKC").trim() === translation.normalize("NFKC").trim()
+        )
+      )
+      if (duplicate) return { saved: false, card }
+
+      const nextEntry: WebVocabularyEntry = existing
+        ? {
+            ...existing,
+            translations: [...existing.translations, { id: crypto.randomUUID(), text: translation, createdAt: now }],
+            updatedAt: now
+          }
+        : {
+            id: crypto.randomUUID(),
+            term,
+            normalizedTerm,
+            translations: [{ id: crypto.randomUUID(), text: translation, createdAt: now }],
+            createdAt: now
+          }
+      if (entryIndex >= 0) entries[entryIndex] = nextEntry
+      else entries.push(nextEntry)
+      const updated = { ...card, webVocabularyEntries: entries, updatedAt: now }
+      stores.projectCards.put(updated)
+      return { saved: true, card: updated }
+    }
+  )
+}
 
 export function normalizeVocabularyTerm(term: string): string {
   return term.normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleLowerCase()

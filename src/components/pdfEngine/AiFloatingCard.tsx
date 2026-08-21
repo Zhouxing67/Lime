@@ -58,7 +58,7 @@ export default function AiFloatingCard({
           sx={(theme) => ({
             width,
             maxWidth: "calc(100vw - 24px)",
-            p: 1.5,
+            overflow: "hidden",
             borderRadius: 1,
             border: "1px solid",
             borderColor: "divider",
@@ -83,26 +83,26 @@ export default function AiFloatingCard({
               display: "flex",
               alignItems: "center",
               gap: 0.5,
-              mb: 1,
+              px: 1.5,
+              py: 1,
               cursor: drag ? "grabbing" : "grab",
               touchAction: "none",
               userSelect: "none"
             }}>
-            <DragIndicatorRoundedIcon
-              sx={{ fontSize: 16, color: "text.disabled" }}
-            />
-            <Typography sx={{ flex: 1, fontSize: "0.8rem", fontWeight: 650 }}>
+            <Typography sx={{ flex: 1, fontSize: "0.75rem", fontWeight: 600 }}>
               {title}
             </Typography>
+            <DragIndicatorRoundedIcon sx={{ fontSize: 16, color: "text.disabled" }} />
             <IconButton
               size="small"
               onPointerDown={(event) => event.stopPropagation()}
               onClick={onClose}
-              sx={{ p: 0.25 }}>
+              sx={{ p: 0.75 }}>
               <CloseRoundedIcon sx={{ fontSize: 16 }} />
             </IconButton>
           </Box>
-          {children}
+          <Box sx={{ mx: 1, borderBottom: "1px solid", borderColor: "divider" }} />
+          <Box sx={{ p: 1.5 }}>{children}</Box>
         </Paper>
       </ClickAwayListener>
     </Popper>
